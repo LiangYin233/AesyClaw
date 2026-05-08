@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 async function loadUseToast() {
-  return import('../../../web/src/composables/useToast');
+  return await import('../../../web/src/composables/useToast');
 }
 
 describe('useToast', () => {

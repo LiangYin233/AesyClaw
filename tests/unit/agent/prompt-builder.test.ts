@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Agent } from '../../../src/agent/agent';
+import { AgentRegistry } from '../../../src/agent/agent-registry';
 import type { RoleConfig, Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/skill-manager';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
@@ -56,8 +57,14 @@ function makeSkill(overrides: Partial<Skill> = {}): Skill {
 }
 
 describe('PromptBuilder', () => {
+  let agentRegistry: AgentRegistry;
+
   afterEach(() => {
-    Agent.activeAgents.clear();
+    agentRegistry = new AgentRegistry();
+  });
+
+  beforeEach(() => {
+    agentRegistry = new AgentRegistry();
   });
 
   function makeDeps(overrides: Record<string, unknown> = {}) {
@@ -87,7 +94,7 @@ describe('PromptBuilder', () => {
     };
   }
 
-  function makeAgent(deps: ReturnType<typeof makeDeps>): Agent {
+  function makeAgent(deps: ReturnType<typeof makeDeps>, registry: AgentRegistry): Agent {
     return new Agent({
       session: {
         key: { channel: 'test', type: 'private', chatId: 'prompt-builder' },
@@ -98,13 +105,14 @@ describe('PromptBuilder', () => {
       toolRegistry: deps.toolRegistry as never,
       hookDispatcher: deps.toolHookDispatcher as never,
       compressionThreshold: 0.8,
+      registry,
     });
   }
 
   describe('buildPrompt', () => {
     it('should build a prompt with role, tools, and skills', () => {
       const deps = makeDeps();
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
 
       const role = makeRole();
 
@@ -125,7 +133,7 @@ describe('PromptBuilder', () => {
           resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [agentTool] }),
         },
       });
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
 
       const role = makeRole();
 
@@ -141,7 +149,7 @@ describe('PromptBuilder', () => {
           getSkillsForRole: vi.fn().mockReturnValue([]),
         },
       });
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
 
       const result = agent.buildPrompt(makeRole({ skills: [] }));
 
@@ -157,7 +165,7 @@ describe('PromptBuilder', () => {
           ]),
         },
       });
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
 
       const result = agent.buildPrompt(makeRole({ skills: ['first', 'second'] }));
 
@@ -173,7 +181,7 @@ describe('PromptBuilder', () => {
           resolveForRole: vi.fn().mockReturnValue({ tools: [internalTool], agentTools: [] }),
         },
       });
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
 
       const role = makeRole();
 
@@ -191,7 +199,7 @@ describe('PromptBuilder', () => {
           resolveForRole: vi.fn().mockReturnValue({ tools: [allowedTool], agentTools: [] }),
         },
       });
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
       const role = makeRole({
         toolPermission: { mode: 'allowlist', list: ['allowed'] },
       });
@@ -208,7 +216,7 @@ describe('PromptBuilder', () => {
           getEnabledRoles: vi.fn().mockReturnValue(roles),
         },
       });
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
 
       const result = agent.buildPrompt(makeRole());
 
@@ -218,7 +226,7 @@ describe('PromptBuilder', () => {
 
     it('should pass execution context to tool resolution', () => {
       const deps = makeDeps();
-      const agent = makeAgent(deps);
+      const agent = makeAgent(deps, agentRegistry);
       const ctx = { sessionKey: { channel: 'test', type: 'private', chatId: '1' } };
 
       agent.buildPrompt(makeRole(), ctx);
@@ -269,6 +277,7 @@ Blocked content.`,
       const roleManager = {
         getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),
       };
+      const registry = new AgentRegistry();
       const agent = new Agent({
         session: {
           key: { channel: 'test', type: 'private', chatId: 'prompt-builder-skills' },
@@ -284,6 +293,7 @@ Blocked content.`,
           dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
         } as never,
         compressionThreshold: 0.8,
+        registry,
       });
 
       try {

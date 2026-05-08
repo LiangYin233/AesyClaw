@@ -1,15 +1,8 @@
-/**
- * ConfigManager unit tests.
- *
- * Tests cover: load, path-based get/set/patch, hot-reload, defaults sync.
- */
-
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
-import type { RoleConfig } from '../../../../src/core/types';
 
 const TEST_BASE = join(tmpdir(), 'aesyclaw-test-config');
 
@@ -17,36 +10,30 @@ describe('ConfigManager', () => {
   let manager: ConfigManager;
   let testRoot: string;
   let configPath: string;
-  let rolesPath: string;
 
   beforeEach(() => {
-    // Create a unique temp root for each test
     testRoot = join(TEST_BASE, `test-${Date.now()}`);
     mkdirSync(testRoot, { recursive: true });
     configPath = join(testRoot, '.aesyclaw', 'config.json');
-    rolesPath = join(testRoot, '.aesyclaw', 'roles.json');
 
-    // ConfigManager auto-initializes with the test root
     manager = new ConfigManager(testRoot);
   });
 
   afterEach(() => {
     manager.stopHotReload();
-    // Clean up temp root
     if (existsSync(testRoot)) {
       rmSync(testRoot, { recursive: true, force: true });
     }
   });
 
   afterAll(() => {
-    // Clean up test base directory
     if (existsSync(TEST_BASE)) {
       rmSync(TEST_BASE, { recursive: true, force: true });
     }
   });
 
   describe('load', () => {
-    it('should create default config and roles files if they do not exist', () => {
+    it('should create default config files if they do not exist', () => {
       expect(existsSync(configPath)).toBe(true);
       expect(manager.get('server.port')).toBe(3000);
       expect(manager.get('server.host')).toBe('0.0.0.0');
@@ -61,7 +48,6 @@ describe('ConfigManager', () => {
     });
 
     it('should load an existing config file', () => {
-      // Write config before creating manager
       const existingConfig = {
         server: { port: 8080, host: 'localhost', logLevel: 'debug' },
         providers: {},
@@ -79,7 +65,6 @@ describe('ConfigManager', () => {
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
 
-      // Create new manager that loads existing config
       manager.stopHotReload();
       manager = new ConfigManager(testRoot);
 
@@ -143,53 +128,6 @@ describe('ConfigManager', () => {
     });
   });
 
-  describe('roles store', () => {
-    const customRole: RoleConfig = {
-      id: 'custom',
-      description: 'Custom role',
-      systemPrompt: 'Hi',
-      model: 'openai/gpt-4o',
-      toolPermission: { mode: 'allowlist', list: [] },
-      skills: [],
-      enabled: true,
-    };
-
-    it('should create a default roles file if one does not exist', () => {
-      expect(existsSync(rolesPath)).toBe(true);
-      expect(manager.getRoles()).toEqual([
-        expect.objectContaining({ id: 'default', enabled: true }),
-      ]);
-      expect(JSON.parse(readFileSync(rolesPath, 'utf-8'))).toEqual([
-        expect.objectContaining({ id: 'default', enabled: true }),
-      ]);
-    });
-
-    it('should load an existing roles file', () => {
-      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
-      writeFileSync(rolesPath, JSON.stringify([customRole], null, 2));
-
-      manager.stopHotReload();
-      manager = new ConfigManager(testRoot);
-
-      expect(manager.getRoles()).toEqual([expect.objectContaining({ id: 'custom' })]);
-    });
-
-    it('should reject invalid roles file values', () => {
-      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
-      writeFileSync(rolesPath, JSON.stringify([{ id: 'bad', enabled: 'true' }], null, 2));
-
-      expect(() => new ConfigManager(testRoot)).toThrow(/角色配置验证失败/);
-    });
-
-    it('should reject duplicate role ids', () => {
-      const duplicate = { ...customRole, id: 'same' };
-      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
-      writeFileSync(rolesPath, JSON.stringify([duplicate, duplicate], null, 2));
-
-      expect(() => new ConfigManager(testRoot)).toThrow(/角色 id.*重复/);
-    });
-  });
-
   describe('path-based get/set/patch', () => {
     it('should read nested values by path', () => {
       expect(manager.get('server.port')).toBe(3000);
@@ -197,16 +135,10 @@ describe('ConfigManager', () => {
       expect(manager.get('missing.path')).toBeUndefined();
     });
 
-    it('should return cloned values from get and getRoles', () => {
+    it('should return cloned values from get', () => {
       const server = manager.get('server') as { port: number };
       server.port = 9999;
       expect(manager.get('server.port')).toBe(3000);
-
-      const roles = manager.getRoles() as RoleConfig[];
-      const firstRole = roles[0];
-      if (!firstRole) throw new Error('expected default role');
-      roles[0] = { ...firstRole, id: 'mutated' };
-      expect(manager.getRoles()[0]?.id).toBe('default');
     });
 
     it('should set a nested scalar path and persist it', async () => {
@@ -249,22 +181,6 @@ describe('ConfigManager', () => {
 
     it('should reject patching scalar targets', async () => {
       await expect(manager.patch('server.port', {})).rejects.toThrow(/对象/);
-    });
-
-    it('should set roles and reject duplicate role ids', async () => {
-      const role: RoleConfig = {
-        id: 'new',
-        description: 'New role',
-        systemPrompt: 'Hi',
-        model: 'openai/gpt-4o',
-        toolPermission: { mode: 'allowlist', list: [] },
-        skills: [],
-        enabled: true,
-      };
-      await manager.setRoles([role]);
-
-      expect(manager.getRoles()).toEqual([expect.objectContaining({ id: 'new' })]);
-      await expect(manager.setRoles([role, role])).rejects.toThrow(/角色 id.*重复/);
     });
   });
 
@@ -401,7 +317,6 @@ describe('ConfigManager', () => {
       const paths = manager.resolvedPaths;
       expect(paths.runtimeRoot).toBe(join(testRoot, '.aesyclaw'));
       expect(paths.configFile).toBe(configPath);
-      expect(paths.rolesFile).toBe(rolesPath);
     });
   });
 });

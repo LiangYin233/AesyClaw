@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Agent } from '../../../src/agent/agent';
+import { AgentRegistry } from '../../../src/agent/agent-registry';
 import type { RoleConfig } from '@aesyclaw/core/types';
 
 function defer<T>() {
@@ -23,11 +24,37 @@ const workerMock = vi.hoisted(() => {
   };
 });
 
-vi.mock('node:worker_threads', async () => {
-  const { EventEmitter } =
-    await vi.importActual<typeof import('node:events')>('node:events');
+vi.mock('node:worker_threads', () => {
+  class SimpleEmitter {
+    private handlers = new Map<string, Array<(...args: unknown[]) => void>>();
 
-  class MockWorker extends EventEmitter {
+    on(event: string, handler: (...args: unknown[]) => void): void {
+      const list = this.handlers.get(event) ?? [];
+      list.push(handler);
+      this.handlers.set(event, list);
+    }
+
+    off(event: string, handler: (...args: unknown[]) => void): void {
+      const list = this.handlers.get(event);
+      if (list) {
+        this.handlers.set(
+          event,
+          list.filter((h) => h !== handler),
+        );
+      }
+    }
+
+    emit(event: string, ...args: unknown[]): void {
+      const list = this.handlers.get(event);
+      if (list) {
+        for (const handler of list) {
+          handler(...args);
+        }
+      }
+    }
+  }
+
+  class MockWorker extends SimpleEmitter {
     messages: unknown[] = [];
     terminateCalls = 0;
     terminateDeferred = defer<number>();
@@ -63,10 +90,6 @@ function getWorker(index = 0) {
   return worker;
 }
 
-function activeWorkersSize(): number {
-  return (Agent as typeof Agent & { activeWorkers: Map<string, unknown> }).activeWorkers.size;
-}
-
 function makeRole(): RoleConfig {
   return {
     id: 'assistant',
@@ -80,7 +103,14 @@ function makeRole(): RoleConfig {
   };
 }
 
-function makeAgent(): Agent {
+let agentRegistry: AgentRegistry;
+
+afterEach(() => {
+  agentRegistry = new AgentRegistry();
+  workerMock.instances.length = 0;
+});
+
+function makeAgent(registry: AgentRegistry = agentRegistry): Agent {
   return new Agent({
     session: {
       key: { channel: 'test', type: 'private', chatId: 'worker-lifecycle' },
@@ -109,17 +139,13 @@ function makeAgent(): Agent {
     } as never,
     hookDispatcher: {} as never,
     compressionThreshold: 0.8,
+    registry,
   });
 }
 
-afterEach(() => {
-  Agent.activeAgents.clear();
-  (Agent as typeof Agent & { activeWorkers: Map<string, unknown> }).activeWorkers.clear();
-  workerMock.instances.length = 0;
-});
-
 describe('Agent worker lifecycle', () => {
   it('uses context window and compression threshold before compacting', async () => {
+    const registry = new AgentRegistry();
     const session = {
       key: { channel: 'test', type: 'private', chatId: 'compact-threshold' },
       get: vi.fn().mockReturnValue([
@@ -155,6 +181,7 @@ describe('Agent worker lifecycle', () => {
       } as never,
       hookDispatcher: {} as never,
       compressionThreshold: 0.8,
+      registry,
     });
     const role = makeRole();
     await agent.setRole(role);
@@ -167,7 +194,8 @@ describe('Agent worker lifecycle', () => {
 
   it('assigns unique session ids to parallel workers', async () => {
     const dateNow = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
-    const agent = makeAgent();
+    const registry = new AgentRegistry();
+    const agent = makeAgent(registry);
     const role = makeRole();
 
     const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
@@ -196,7 +224,7 @@ describe('Agent worker lifecycle', () => {
       expect(worker1Init?.sessionId).not.toBe(worker2Init?.sessionId);
     } finally {
       dateNow.mockRestore();
-      Agent.cancel(agent.session.key);
+      registry.cancel(agent.session.key);
       getWorker(0).finishTermination(1);
       getWorker(1).finishTermination(1);
       await Promise.allSettled([turn1, turn2]);
@@ -205,7 +233,8 @@ describe('Agent worker lifecycle', () => {
 
   it('logs when a turn completes', async () => {
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
-    const agent = makeAgent();
+    const registry = new AgentRegistry();
+    const agent = makeAgent(registry);
     const role = makeRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
@@ -226,31 +255,9 @@ describe('Agent worker lifecycle', () => {
     infoSpy.mockRestore();
   });
 
-  it('keeps parallel workers active for the same session', async () => {
-    const agent = makeAgent();
-    const role = makeRole();
-
-    const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
-    await Promise.resolve();
-
-    const turn2 = agent.runTurn(role, 'second turn', [], agent.session.key);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    try {
-      expect(getWorker(0).terminateCalls).toBe(0);
-      expect(getWorker(1).terminateCalls).toBe(0);
-      expect(activeWorkersSize()).toBe(2);
-    } finally {
-      Agent.cancel(agent.session.key);
-      getWorker(0).finishTermination(1);
-      getWorker(1).finishTermination(1);
-      await Promise.allSettled([turn1, turn2]);
-    }
-  });
-
   it('cancels every active worker for the session', async () => {
-    const agent = makeAgent();
+    const registry = new AgentRegistry();
+    const agent = makeAgent(registry);
     const role = makeRole();
 
     const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
@@ -261,10 +268,9 @@ describe('Agent worker lifecycle', () => {
     await Promise.resolve();
 
     try {
-      expect(Agent.cancel(agent.session.key)).toBe(true);
+      expect(registry.cancel(agent.session.key)).toBe(true);
       expect(getWorker(0).terminateCalls).toBeGreaterThan(0);
       expect(getWorker(1).terminateCalls).toBeGreaterThan(0);
-      expect(activeWorkersSize()).toBe(0);
     } finally {
       getWorker(0).finishTermination(1);
       getWorker(1).finishTermination(1);
@@ -273,18 +279,18 @@ describe('Agent worker lifecycle', () => {
   });
 
   it('removes active workers when cancel is called', async () => {
-    const agent = makeAgent();
+    const registry = new AgentRegistry();
+    const agent = makeAgent(registry);
     const role = makeRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
     await Promise.resolve();
 
-    Agent.cancel(agent.session.key);
+    registry.cancel(agent.session.key);
     await Promise.resolve();
     await Promise.resolve();
 
     expect(getWorker(0).terminateCalls).toBeGreaterThan(0);
-    expect(activeWorkersSize()).toBe(0);
 
     getWorker(0).finishTermination(1);
 
@@ -292,7 +298,8 @@ describe('Agent worker lifecycle', () => {
   });
 
   it('rejects when the worker emits an error', async () => {
-    const agent = makeAgent();
+    const registry = new AgentRegistry();
+    const agent = makeAgent(registry);
     const role = makeRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);

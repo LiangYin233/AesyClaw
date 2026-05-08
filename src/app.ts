@@ -1,7 +1,4 @@
-/** Application — 主协调器，拥有所有子系统管理器实例。 */
-
 import { LlmAdapter } from './agent/llm-adapter';
-import { Agent } from './agent/agent';
 import { AgentRegistry } from './agent/agent-registry';
 import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';
@@ -13,66 +10,94 @@ import { McpManager } from './mcp/mcp-manager';
 import { SdkMcpClientFactory } from './mcp/sdk-mcp-client';
 import { Pipeline } from './pipeline/pipeline';
 import { RoleManager } from './role/role-manager';
+import { RoleStore } from './role/role-store';
 import { SkillManager } from './skill/skill-manager';
 import { ToolRegistry } from './tool/tool-registry';
 
 const logger = createScopedLogger('app');
 
+type AppSubsystems = {
+  configManager: ConfigManager;
+  databaseManager: DatabaseManager;
+  roleStore: RoleStore;
+  roleManager: RoleManager;
+  skillManager: SkillManager;
+  toolRegistry: ToolRegistry;
+  commandRegistry: CommandRegistry;
+  llmAdapter: LlmAdapter;
+  sessionManager: SessionManager;
+  pipeline: Pipeline;
+  mcpManager: McpManager;
+  agentRegistry: AgentRegistry;
+};
+
+function createSubsystems(): AppSubsystems {
+  const agentRegistry = new AgentRegistry();
+  const configManager = new ConfigManager();
+  const databaseManager = new DatabaseManager();
+  const roleStore = new RoleStore(configManager.resolvedPaths.rolesFile);
+  const roleManager = new RoleManager(roleStore);
+  const skillManager = new SkillManager();
+  const toolRegistry = new ToolRegistry();
+  const commandRegistry = new CommandRegistry();
+  const llmAdapter = new LlmAdapter(configManager);
+  const sessionManager = new SessionManager(databaseManager);
+
+  const compressionThreshold = configManager.get('agent.memory.compressionThreshold') as number;
+  const pipeline = new Pipeline({
+    sessionManager,
+    commandRegistry,
+    roleManager,
+    databaseManager,
+    llmAdapter,
+    skillManager,
+    toolRegistry,
+    compressionThreshold,
+    agentRegistry,
+  });
+
+  const mcpManager = new McpManager(
+    configManager,
+    toolRegistry,
+    new SdkMcpClientFactory(),
+  );
+
+  return {
+    configManager,
+    databaseManager,
+    roleStore,
+    roleManager,
+    skillManager,
+    toolRegistry,
+    commandRegistry,
+    llmAdapter,
+    sessionManager,
+    pipeline,
+    mcpManager,
+    agentRegistry,
+  };
+}
+
 export class Application {
-  private readonly configManager: ConfigManager;
-  private readonly databaseManager: DatabaseManager;
-  private readonly skillManager: SkillManager;
-  private readonly roleManager: RoleManager;
-  private readonly toolRegistry: ToolRegistry;
-  private readonly commandRegistry: CommandRegistry;
-  private readonly llmAdapter: LlmAdapter;
-  private readonly pipeline: Pipeline;
-  private readonly sessionManager: SessionManager;
-  private readonly mcpManager: McpManager;
   private readonly coreLifecycle: CoreLifecycle;
   private started = false;
 
   constructor() {
-    const agentRegistry = new AgentRegistry();
-    Agent.setRegistry(agentRegistry);
+    const subsystems = createSubsystems();
 
-    this.configManager = new ConfigManager();
-    this.databaseManager = new DatabaseManager();
-    this.skillManager = new SkillManager();
-    this.roleManager = new RoleManager(this.configManager);
-    this.toolRegistry = new ToolRegistry();
-    this.commandRegistry = new CommandRegistry();
-    this.llmAdapter = new LlmAdapter(this.configManager);
-    this.sessionManager = new SessionManager(this.databaseManager);
-    this.pipeline = new Pipeline({
-      sessionManager: this.sessionManager,
-      commandRegistry: this.commandRegistry,
-      roleManager: this.roleManager,
-      databaseManager: this.databaseManager,
-      llmAdapter: this.llmAdapter,
-      skillManager: this.skillManager,
-      toolRegistry: this.toolRegistry,
-      compressionThreshold: this.configManager.get(
-        'agent.memory.compressionThreshold',
-      ) as number,
-      agentRegistry,
-    });
-    this.mcpManager = new McpManager(
-      this.configManager,
-      this.toolRegistry,
-      new SdkMcpClientFactory(),
-    );
     this.coreLifecycle = new CoreLifecycle({
-      configManager: this.configManager,
-      databaseManager: this.databaseManager,
-      skillManager: this.skillManager,
-      roleManager: this.roleManager,
-      toolRegistry: this.toolRegistry,
-      commandRegistry: this.commandRegistry,
-      llmAdapter: this.llmAdapter,
-      sessionManager: this.sessionManager,
-      pipeline: this.pipeline,
-      mcpManager: this.mcpManager,
+      configManager: subsystems.configManager,
+      databaseManager: subsystems.databaseManager,
+      roleStore: subsystems.roleStore,
+      roleManager: subsystems.roleManager,
+      skillManager: subsystems.skillManager,
+      toolRegistry: subsystems.toolRegistry,
+      commandRegistry: subsystems.commandRegistry,
+      llmAdapter: subsystems.llmAdapter,
+      sessionManager: subsystems.sessionManager,
+      pipeline: subsystems.pipeline,
+      mcpManager: subsystems.mcpManager,
+      agentRegistry: subsystems.agentRegistry,
     });
   }
 

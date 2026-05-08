@@ -76,19 +76,22 @@ export type PluginHooks = {
 
 // ─── 管道依赖 ───────────────────────────────────────────────
 
-/**
- * 初始化时注入 Pipeline 的依赖。
- *
- * 遵循 DI 模式：所有依赖显式传入，Pipeline 内部创建 HookDispatcher。
- */
-export type PipelineDependencies = {
-  sessionManager: SessionManager;
-  commandRegistry: CommandRegistry;
-  roleManager: RoleManager;
-  databaseManager: DatabaseManager;
+/** Agent 处理所需的服务集合 (用于 Pipeline 的 LLM 交互阶段) */
+export type AgentProcessingServices = {
   llmAdapter: LlmAdapter;
+  roleManager: RoleManager;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   compressionThreshold: number;
   agentRegistry: AgentRegistry;
 };
+
+/** 基础设施服务集合 (用于 Pipeline 的接收/派发阶段) */
+export type InfrastructureServices = {
+  sessionManager: SessionManager;
+  commandRegistry: CommandRegistry;
+  databaseManager: DatabaseManager;
+};
+
+/** 初始化时注入 Pipeline 的依赖 */
+export type PipelineDependencies = InfrastructureServices & AgentProcessingServices;

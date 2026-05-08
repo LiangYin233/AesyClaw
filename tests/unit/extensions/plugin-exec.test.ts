@@ -243,7 +243,7 @@ async function waitForFileExists(filePath: string, timeoutMs = 5_000): Promise<b
     }
     await delay(25);
   }
-  return fileExists(filePath);
+  return await fileExists(filePath);
 }
 
 async function delay(ms: number): Promise<void> {

@@ -1,10 +1,9 @@
-/** RoleManager unit tests for ConfigManager-backed roles. */
-
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../src/core/config/config-manager';
+import { RoleStore } from '../../../src/role/role-store';
 import type { RoleConfig } from '../../../src/core/types';
 import { RoleManager } from '../../../src/role/role-manager';
 
@@ -26,17 +25,21 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
 describe('RoleManager', () => {
   let testRoot: string;
   let configManager: ConfigManager;
+  let roleStore: RoleStore;
   let manager: RoleManager;
 
   beforeEach(async () => {
     testRoot = join(TEST_BASE, `test-${Date.now()}`);
     mkdirSync(testRoot, { recursive: true });
     configManager = new ConfigManager(testRoot);
-    manager = new RoleManager(configManager);
+    const rolesPath = join(testRoot, '.aesyclaw', 'roles.json');
+    roleStore = new RoleStore(rolesPath);
+    manager = new RoleManager(roleStore);
   });
 
   afterEach(() => {
     configManager.stopHotReload();
+    roleStore.stopHotReload();
     manager.destroy();
     if (existsSync(testRoot)) {
       rmSync(testRoot, { recursive: true, force: true });
@@ -44,12 +47,12 @@ describe('RoleManager', () => {
   });
 
   async function initializeWithRoles(roles: RoleConfig[]): Promise<void> {
-    await configManager.setRoles(roles);
+    await roleStore.setRoles(roles);
     await manager.initialize();
   }
 
   describe('initialize', () => {
-    it('loads roles from ConfigManager', async () => {
+    it('loads roles from RoleStore', async () => {
       await initializeWithRoles([makeRole({ id: 'test-role' })]);
 
       expect(manager.getAllRoles()).toHaveLength(1);
@@ -113,18 +116,18 @@ describe('RoleManager', () => {
   });
 
   describe('saveRole', () => {
-    it('updates roles through ConfigManager', async () => {
+    it('updates roles through RoleStore', async () => {
       await initializeWithRoles([makeRole({ id: 'tracked', description: 'Old' })]);
 
       await manager.saveRole('tracked', makeRole({ id: 'tracked', description: 'Updated' }));
 
       expect(manager.getRole('tracked').description).toBe('Updated');
-      expect(configManager.getRoles()[0]?.description).toBe('Updated');
+      expect(roleStore.getRoles()[0]?.description).toBe('Updated');
     });
   });
 
   describe('createRole', () => {
-    it('creates a role through ConfigManager', async () => {
+    it('creates a role through RoleStore', async () => {
       await initializeWithRoles([makeRole({ id: 'default' })]);
 
       const created = await manager.createRole({
@@ -139,18 +142,18 @@ describe('RoleManager', () => {
 
       expect(created.id).toBe('created');
       expect(manager.getRole('created').id).toBe('created');
-      expect(configManager.getRoles().map((role) => role.id)).toContain('created');
+      expect(roleStore.getRoles().map((role) => role.id)).toContain('created');
     });
   });
 
   describe('deleteRole', () => {
-    it('deletes a role through ConfigManager', async () => {
+    it('deletes a role through RoleStore', async () => {
       await initializeWithRoles([makeRole({ id: 'default' }), makeRole({ id: 'temporary' })]);
 
       await manager.deleteRole('temporary');
 
       expect(manager.getAllRoles().map((role) => role.id)).not.toContain('temporary');
-      expect(configManager.getRoles().map((role) => role.id)).not.toContain('temporary');
+      expect(roleStore.getRoles().map((role) => role.id)).not.toContain('temporary');
     });
 
     it('rejects deleting the default role', async () => {
@@ -161,13 +164,13 @@ describe('RoleManager', () => {
   });
 
   describe('on-demand role reading', () => {
-    it('reads latest roles from ConfigManager on demand', async () => {
-      await configManager.setRoles([makeRole({ id: 'first' })]);
+    it('reads latest roles from RoleStore on demand', async () => {
+      await roleStore.setRoles([makeRole({ id: 'first' })]);
       await manager.initialize();
 
       expect(manager.getAllRoles().map((role) => role.id)).toEqual(['first']);
 
-      await configManager.setRoles([makeRole({ id: 'second' })]);
+      await roleStore.setRoles([makeRole({ id: 'second' })]);
 
       expect(manager.getAllRoles().map((role) => role.id)).toEqual(['second']);
     });

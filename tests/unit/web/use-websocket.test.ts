@@ -45,7 +45,7 @@ class MockWebSocket {
 }
 
 async function loadUseWebSocket() {
-  return import('../../../web/src/composables/useWebSocket');
+  return await import('../../../web/src/composables/useWebSocket');
 }
 
 describe('useWebSocket', () => {

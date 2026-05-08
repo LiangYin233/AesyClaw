@@ -7,6 +7,7 @@ import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { CommandContext, CommandDefinition, RoleConfig } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
+import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 import { Agent } from '@aesyclaw/agent/agent';
 
 export function createBtwCommand(
@@ -20,6 +21,7 @@ export function createBtwCommand(
   hookDispatcher: HookDispatcher,
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
   compressionThreshold: number,
+  agentRegistry: AgentRegistry,
 ): CommandDefinition {
   return {
     name: 'btw',
@@ -35,7 +37,7 @@ export function createBtwCommand(
 
       const session = await sessionManager.create(context.sessionKey);
 
-      const activeRoleId = await resolveActiveRoleId(context, databaseManager);
+      const activeRoleId = await resolveActiveRoleId(context, databaseManager, agentRegistry);
       const role = activeRoleId ? getRoleOrFallback(activeRoleId) : getDefaultRole();
 
       const agent = new Agent({
@@ -46,7 +48,7 @@ export function createBtwCommand(
         toolRegistry,
         hookDispatcher,
         compressionThreshold,
-        registry: Agent.registry,
+        registry: agentRegistry,
       });
       const outbound = await agent.processEphemeral(role, content);
 
@@ -58,8 +60,9 @@ export function createBtwCommand(
 async function resolveActiveRoleId(
   context: CommandContext,
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
+  agentRegistry: AgentRegistry,
 ): Promise<string | undefined> {
-  const agent = Agent.registry.getAgent(context.sessionKey);
+  const agent = agentRegistry.getAgent(context.sessionKey);
   if (agent?.roleId) return agent.roleId;
 
   const session = await databaseManager.sessions.findByKey(context.sessionKey);

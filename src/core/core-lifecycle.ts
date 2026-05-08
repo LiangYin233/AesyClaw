@@ -1,5 +1,3 @@
-/** CoreLifecycle — 核心生命周期协调器，负责启动序列和关闭。 */
-
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 
 import type { SessionManager } from '@aesyclaw/session';
@@ -15,24 +13,28 @@ import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { RoleStore } from '@aesyclaw/role/role-store';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import { registerBuiltinTools } from '@aesyclaw/tool/builtin';
 import { WebUiManager } from '@aesyclaw/web/webui-manager';
+import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
 const logger = createScopedLogger('core-lifecycle');
 
 export type CoreLifecycleDependencies = {
   configManager: ConfigManager;
   databaseManager: DatabaseManager;
-  skillManager: SkillManager;
+  roleStore: RoleStore;
   roleManager: RoleManager;
+  skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
   llmAdapter: LlmAdapter;
   sessionManager: SessionManager;
   pipeline: Pipeline;
   mcpManager: McpManager;
+  agentRegistry: AgentRegistry;
 };
 
 export class CoreLifecycle {
@@ -71,6 +73,7 @@ export class CoreLifecycle {
 
     const steps: Array<() => Promise<void> | void> = [
       () => this.resolvedDeps.configManager.stopHotReload(),
+      () => this.resolvedDeps.roleStore.stopHotReload(),
       () => this.webUiManager?.destroy(),
       () => this.cronManager?.destroy(),
       () => this.resolvedDeps.roleManager.destroy(),
@@ -91,16 +94,12 @@ export class CoreLifecycle {
     logger.info('AesyClaw 关闭完成');
   }
 
-  // ─── 启动序列 ───────────────────────────────────────────────
-
   private async runStartupSequence(): Promise<void> {
     await this.runStep('初始化核心管理器', async () => await this.initCoreManagers());
     await this.runStep('初始化扩展运行时', async () => await this.initExtensionRuntime());
     await this.runStep('初始化外围运行时', async () => await this.initPeripheralRuntime());
     await this.runStep('安装运行时热重载', async () => await this.installHotReload());
   }
-
-  // ─── 启动步骤 ───────────────────────────────────────────────
 
   private async initCoreManagers(): Promise<void> {
     setLogLevel(this.resolvedDeps.configManager.get('server.logLevel') as string);
@@ -133,6 +132,7 @@ export class CoreLifecycle {
       compressionThreshold: this.resolvedDeps.configManager.get(
         'agent.memory.compressionThreshold',
       ) as number,
+      agentRegistry: this.resolvedDeps.agentRegistry,
     });
 
     await this.extensionManager.setup();
@@ -167,6 +167,7 @@ export class CoreLifecycle {
       configManager: this.resolvedDeps.configManager,
       skillManager: this.resolvedDeps.skillManager,
       usageRepository: this.resolvedDeps.databaseManager.usage,
+      agentRegistry: this.resolvedDeps.agentRegistry,
     });
 
     const webUiManager = new WebUiManager({
@@ -188,6 +189,7 @@ export class CoreLifecycle {
   private async installHotReload(): Promise<void> {
     await this.resolvedDeps.configManager.syncDefaults();
     this.resolvedDeps.configManager.startHotReload();
+    this.resolvedDeps.roleStore.startHotReload();
   }
 
   private async runStep(name: string, fn: () => Promise<void> | void): Promise<void> {

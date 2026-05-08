@@ -9,6 +9,7 @@ import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
+import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';
@@ -36,6 +37,7 @@ export type BuiltinCommandDependencies = {
   hookDispatcher: HookDispatcher;
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
   compressionThreshold: number;
+  agentRegistry: AgentRegistry;
 };
 
 export function registerBuiltinCommands(
@@ -45,6 +47,7 @@ export function registerBuiltinCommands(
   const roleDeps: RoleCommandDeps = {
     roleManager: deps.roleManager,
     databaseManager: deps.databaseManager,
+    agentRegistry: deps.agentRegistry,
   };
   const pluginDeps: PluginCommandDeps = { extensionManager: deps.pluginManager };
 
@@ -61,9 +64,10 @@ export function registerBuiltinCommands(
       deps.hookDispatcher,
       deps.databaseManager,
       deps.compressionThreshold,
+      deps.agentRegistry,
     ),
   );
-  registry.register(createModelCommand(deps.llmAdapter));
+  registry.register(createModelCommand(deps.llmAdapter, deps.agentRegistry));
   registry.register(createClearCommand(deps.sessionManager));
   registry.register(
     createCompactCommand(
@@ -71,9 +75,10 @@ export function registerBuiltinCommands(
       deps.llmAdapter,
       deps.roleManager,
       deps.databaseManager,
+      deps.agentRegistry,
     ),
   );
-  registry.register(createStopCommand(deps.sessionManager));
+  registry.register(createStopCommand(deps.sessionManager, deps.agentRegistry));
   registry.register(createRoleListCommand(roleDeps));
   registry.register(createRoleSwitchCommand(roleDeps));
   registry.register(createRoleInfoCommand(roleDeps));

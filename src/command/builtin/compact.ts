@@ -3,13 +3,14 @@ import type { SessionManager } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import { Agent } from '@aesyclaw/agent/agent';
+import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
 export function createCompactCommand(
   sessionManager: Pick<SessionManager, 'get'>,
   llmAdapter: LlmAdapter,
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>,
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
+  agentRegistry: AgentRegistry,
 ): CommandDefinition {
   return {
     name: 'compact',
@@ -21,7 +22,7 @@ export function createCompactCommand(
         return '没有找到活跃会话。';
       }
 
-      const activeRoleId = await resolveActiveRoleId(context, databaseManager);
+      const activeRoleId = await resolveActiveRoleId(context, databaseManager, agentRegistry);
       const role = activeRoleId ? roleManager.getRole(activeRoleId) : roleManager.getDefaultRole();
 
       const summary = await session.compact(llmAdapter, role.model);
@@ -33,8 +34,9 @@ export function createCompactCommand(
 async function resolveActiveRoleId(
   context: CommandContext,
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
+  agentRegistry: AgentRegistry,
 ): Promise<string | undefined> {
-  const agent = Agent.registry.getAgent(context.sessionKey);
+  const agent = agentRegistry.getAgent(context.sessionKey);
   if (agent?.roleId) return agent.roleId;
 
   const session = await databaseManager.sessions.findByKey(context.sessionKey);

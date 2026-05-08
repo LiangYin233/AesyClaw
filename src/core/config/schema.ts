@@ -7,7 +7,7 @@
 
 import { Type, type Static } from '@sinclair/typebox';
 import { DEFAULTS } from '@aesyclaw/core/types';
-import { ApiType } from '../../agent/agent-types';
+import { ApiType } from '@aesyclaw/agent/agent-types';
 
 // ─── Provider / Model ────────────────────────────────────────────
 

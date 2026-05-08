@@ -1,8 +1,8 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import { Agent } from '@aesyclaw/agent/agent';
+import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
-export function createModelCommand(llmAdapter: LlmAdapter): CommandDefinition {
+export function createModelCommand(llmAdapter: LlmAdapter, agentRegistry: AgentRegistry): CommandDefinition {
   return {
     name: 'model',
     description: '切换模型 (用法: /model <provider/modelId>)',
@@ -22,7 +22,7 @@ export function createModelCommand(llmAdapter: LlmAdapter): CommandDefinition {
         return `模型切换失败: ${message}`;
       }
 
-      const agent = Agent.registry.getAgent(context.sessionKey);
+      const agent = agentRegistry.getAgent(context.sessionKey);
       if (!agent) {
         return '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。';
       }
