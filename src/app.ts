@@ -38,7 +38,7 @@ export class Application {
     this.configManager = new ConfigManager();
     this.databaseManager = new DatabaseManager();
     this.skillManager = new SkillManager();
-    this.roleManager = new RoleManager();
+    this.roleManager = new RoleManager(this.configManager);
     this.toolRegistry = new ToolRegistry();
     this.commandRegistry = new CommandRegistry();
     this.llmAdapter = new LlmAdapter(this.configManager);

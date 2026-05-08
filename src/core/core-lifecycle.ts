@@ -111,9 +111,7 @@ export class CoreLifecycle {
     setLogLevel(this.resolvedDeps.configManager.get('server.logLevel') as string);
     await this.resolvedDeps.databaseManager.initialize(this.paths.dbFile);
     await this.resolvedDeps.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
-    await this.resolvedDeps.roleManager.initialize({
-      configManager: this.resolvedDeps.configManager,
-    });
+    await this.resolvedDeps.roleManager.initialize();
   }
 
   private async initExtensionRuntime(): Promise<void> {

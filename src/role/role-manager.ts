@@ -7,20 +7,17 @@ import type { RoleConfig } from '@aesyclaw/core/types';
 
 const logger = createScopedLogger('role');
 
-export type RoleManagerDependencies = { configManager: ConfigManager };
-
 export class RoleManager {
-  private configManager: ConfigManager | null = null;
+  constructor(private configManager: ConfigManager) {}
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
-  async initialize(deps: RoleManagerDependencies): Promise<void> {
-    this.configManager = deps.configManager;
+  async initialize(): Promise<void> {
     logger.info(`已加载 ${this.getAllRoles().length} 个角色`);
   }
 
   destroy(): void {
-    this.configManager = null;
+    // no-op — ConfigManager 生命周期由 Application 管理
   }
 
   // ─── 读取 ──────────────────────────────────────────────────────
@@ -52,13 +49,13 @@ export class RoleManager {
 
   /** 获取所有角色（包括已禁用的）。 */
   getAllRoles(): RoleConfig[] {
-    return [...this.requireConfigManager().getRoles()];
+    return [...this.configManager.getRoles()];
   }
 
   // ─── 写入 ─────────────────────────────────────────────────────
 
   async saveRole(roleId: string, roleData: RoleConfig): Promise<void> {
-    const configManager = this.requireConfigManager();
+    const configManager = this.configManager;
     const roles = this.getAllRoles();
     const existing = roles.find((role) => role.id === roleId);
     if (!existing) {
@@ -71,7 +68,7 @@ export class RoleManager {
   }
 
   async createRole(roleData: Omit<RoleConfig, 'id'> & { id?: string }): Promise<RoleConfig> {
-    const configManager = this.requireConfigManager();
+    const configManager = this.configManager;
     const id = roleData.id ?? randomUUID();
     const roles = this.getAllRoles();
     if (roles.some((role) => role.id === id)) {
@@ -86,7 +83,7 @@ export class RoleManager {
   }
 
   async deleteRole(roleId: string): Promise<void> {
-    const configManager = this.requireConfigManager();
+    const configManager = this.configManager;
     if (roleId === 'default') {
       throw new Error('默认角色不可删除');
     }
@@ -100,12 +97,4 @@ export class RoleManager {
     logger.info('角色已删除', { roleId });
   }
 
-  // ─── 私有辅助方法 ───────────────────────────────────────────
-
-  private requireConfigManager(): ConfigManager {
-    if (!this.configManager) {
-      throw new Error('角色管理器未初始化');
-    }
-    return this.configManager;
   }
-}
