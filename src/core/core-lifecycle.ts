@@ -38,25 +38,20 @@ export type CoreLifecycleDependencies = {
 };
 
 export class CoreLifecycle {
-  private deps: CoreLifecycleDependencies | null = null;
+  private readonly deps: CoreLifecycleDependencies;
   private extensionManager: ExtensionManager | null = null;
   private shuttingDown = false;
 
+  constructor(deps: CoreLifecycleDependencies) {
+    this.deps = deps;
+  }
+
   private get resolvedDeps(): CoreLifecycleDependencies {
-    if (!this.deps) throw new Error('CoreLifecycle 未初始化');
     return this.deps;
   }
 
   private get paths(): Readonly<ResolvedPaths> {
-    return this.resolvedDeps.configManager.resolvedPaths;
-  }
-
-  initialize(deps: CoreLifecycleDependencies): void {
-    if (this.deps) {
-      logger.warn('CoreLifecycle 已初始化 — 跳过');
-      return;
-    }
-    this.deps = deps;
+    return this.deps.configManager.resolvedPaths;
   }
 
   async start(): Promise<void> {

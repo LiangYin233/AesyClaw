@@ -51,16 +51,7 @@ export class Application {
       new SdkMcpClientFactory(),
     );
     this.webUiManager = new WebUiManager();
-    this.coreLifecycle = new CoreLifecycle();
-  }
-
-  async start(): Promise<void> {
-    if (this.started) {
-      logger.warn('应用已启动');
-      return;
-    }
-
-    this.coreLifecycle.initialize({
+    this.coreLifecycle = new CoreLifecycle({
       configManager: this.configManager,
       databaseManager: this.databaseManager,
       skillManager: this.skillManager,
@@ -74,6 +65,13 @@ export class Application {
       mcpManager: this.mcpManager,
       webUiManager: this.webUiManager,
     });
+  }
+
+  async start(): Promise<void> {
+    if (this.started) {
+      logger.warn('应用已启动');
+      return;
+    }
 
     await this.coreLifecycle.start();
 
