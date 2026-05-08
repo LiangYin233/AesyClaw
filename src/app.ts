@@ -14,7 +14,6 @@ import { Pipeline } from './pipeline/pipeline';
 import { RoleManager } from './role/role-manager';
 import { SkillManager } from './skill/skill-manager';
 import { ToolRegistry } from './tool/tool-registry';
-import { WebUiManager } from './web/webui-manager';
 
 const logger = createScopedLogger('app');
 
@@ -30,7 +29,6 @@ export class Application {
   private readonly sessionManager: SessionManager;
   private readonly cronManager: CronManager;
   private readonly mcpManager: McpManager;
-  private readonly webUiManager: WebUiManager;
   private readonly coreLifecycle: CoreLifecycle;
   private started = false;
 
@@ -61,7 +59,6 @@ export class Application {
       this.toolRegistry,
       new SdkMcpClientFactory(),
     );
-    this.webUiManager = new WebUiManager();
     this.coreLifecycle = new CoreLifecycle({
       configManager: this.configManager,
       databaseManager: this.databaseManager,
@@ -74,7 +71,6 @@ export class Application {
       pipeline: this.pipeline,
       cronManager: this.cronManager,
       mcpManager: this.mcpManager,
-      webUiManager: this.webUiManager,
     });
   }
 

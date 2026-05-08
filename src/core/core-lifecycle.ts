@@ -18,7 +18,7 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import { registerBuiltinTools } from '@aesyclaw/tool/builtin';
-import type { WebUiManager } from '@aesyclaw/web/webui-manager';
+import { WebUiManager } from '@aesyclaw/web/webui-manager';
 
 const logger = createScopedLogger('core-lifecycle');
 
@@ -34,12 +34,12 @@ export type CoreLifecycleDependencies = {
   pipeline: Pipeline;
   cronManager: CronManager;
   mcpManager: McpManager;
-  webUiManager: WebUiManager;
 };
 
 export class CoreLifecycle {
   private readonly deps: CoreLifecycleDependencies;
   private extensionManager: ExtensionManager | null = null;
+  private webUiManager: WebUiManager | null = null;
   private shuttingDown = false;
 
   constructor(deps: CoreLifecycleDependencies) {
@@ -71,7 +71,7 @@ export class CoreLifecycle {
 
     const steps: Array<() => Promise<void> | void> = [
       () => this.resolvedDeps.configManager.stopHotReload(),
-      () => this.resolvedDeps.webUiManager.destroy(),
+      () => this.webUiManager?.destroy(),
       () => this.resolvedDeps.cronManager.destroy(),
       () => this.resolvedDeps.roleManager.destroy(),
       () => this.extensionManager?.destroy(),
@@ -165,7 +165,7 @@ export class CoreLifecycle {
       send: async (sessionKey, message) => await em.channels.send(sessionKey, message),
     });
 
-    await this.resolvedDeps.webUiManager.initialize({
+    const webUiManager = new WebUiManager({
       configManager: this.resolvedDeps.configManager,
       databaseManager: this.resolvedDeps.databaseManager,
       sessionManager: this.resolvedDeps.sessionManager,
@@ -176,6 +176,9 @@ export class CoreLifecycle {
       toolRegistry: this.resolvedDeps.toolRegistry,
       skillManager: this.resolvedDeps.skillManager,
     });
+    await webUiManager.initialize();
+
+    this.webUiManager = webUiManager;
   }
 
   private async installHotReload(): Promise<void> {

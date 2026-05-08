@@ -4,7 +4,6 @@ import { serve } from '@hono/node-server';
 import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { requireInitialized } from '@aesyclaw/core/utils';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { SessionManager } from '@aesyclaw/session';
@@ -33,27 +32,25 @@ export type WebUiManagerDependencies = {
 };
 
 export class WebUiManager {
-  private deps: WebUiManagerDependencies | null = null;
+  private deps: WebUiManagerDependencies;
   private app: ReturnType<typeof createApp> | null = null;
   private server: ReturnType<typeof serve> | null = null;
   private wss: WebSocketServer | null = null;
 
-  async initialize(deps: WebUiManagerDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('WebUiManager 已初始化 — 跳过');
-      return;
-    }
+  constructor(deps: WebUiManagerDependencies) {
     this.deps = deps;
+  }
+
+  async initialize(): Promise<void> {
     logger.info('WebUiManager 已初始化');
 
-    const port = deps.configManager.get('server.port') as number;
-    const host = deps.configManager.get('server.host') as string;
-    const authToken = deps.configManager.get('server.authToken') as string | undefined;
+    const port = this.deps.configManager.get('server.port') as number;
+    const host = this.deps.configManager.get('server.host') as string;
+    const authToken = this.deps.configManager.get('server.authToken') as string | undefined;
 
-    // 如果缺少认证令牌则自动生成
     if (!authToken) {
       const token = this.generateToken();
-      await deps.configManager.set('server.authToken', token);
+      await this.deps.configManager.set('server.authToken', token);
       logger.info('已自动生成 WebUI 认证令牌', {
         hint: `${token.slice(0, 4)}…${token.slice(-4)}`,
         configPath: 'server.authToken',
@@ -67,15 +64,12 @@ export class WebUiManager {
       hostname: host,
     });
 
-    // 在同一端口上创建 WebSocket 服务器
-    // serve() 总是返回 HTTP Server（纯 HTTP 模式下），使用类型断言
-    this.wss = createWebSocketServer(this.server as unknown as Server, deps);
+    this.wss = createWebSocketServer(this.server as unknown as Server, this.deps);
 
     logger.info('WebUI 服务器已启动（HTTP + WebSocket）', { host, port });
   }
 
   async destroy(): Promise<void> {
-    // 先关闭 WebSocket 服务器
     if (this.wss) {
       this.wss.close();
       this.wss = null;
@@ -94,12 +88,7 @@ export class WebUiManager {
       this.server = null;
     }
     this.app = null;
-    this.deps = null;
     logger.info('WebUI 服务器已停止');
-  }
-
-  private requireDeps(): WebUiManagerDependencies {
-    return requireInitialized(this.deps, 'WebUiManager');
   }
 
   private generateToken(): string {
