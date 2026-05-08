@@ -11,6 +11,20 @@ import * as extensionLoader from '../../../src/extension/extension-loader';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { ChannelManager } from '../../../src/extension/channel/channel-manager';
 
+const fakePaths = {
+  runtimeRoot: '/tmp/aesyclaw/.aesyclaw',
+  dataDir: '/tmp/aesyclaw/.aesyclaw/data',
+  configFile: '/tmp/aesyclaw/.aesyclaw/config.json',
+  dbFile: '/tmp/aesyclaw/.aesyclaw/data/aesyclaw.db',
+  rolesFile: '/tmp/aesyclaw/.aesyclaw/roles.json',
+  mediaDir: '/tmp/aesyclaw/.aesyclaw/media',
+  workspaceDir: '/tmp/aesyclaw/.aesyclaw/workspace',
+  skillsDir: '/tmp/aesyclaw/skills',
+  userSkillsDir: '/tmp/aesyclaw/.aesyclaw/skills',
+  extensionsDir: '/tmp/aesyclaw/extensions',
+  webDistDir: '/tmp/aesyclaw/dist',
+};
+
 class FakeConfigManager {
   plugins: PluginConfigEntry[] = [];
   updates: Array<PluginConfigEntry[]> = [];
@@ -98,7 +112,7 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
     commandRegistry,
     hookRegistry,
     channelManager: channelManager as unknown as ChannelManager,
-    extensionsDir: '/tmp/plugins',
+    paths: fakePaths,
   });
   return { manager, config, toolRegistry, commandRegistry, hookRegistry, channelManager };
 }
@@ -117,6 +131,34 @@ describe('PluginManager', () => {
     expect(toolRegistry.get('alpha_tool')?.owner).toBe('plugin:alpha');
     expect(commandRegistry.getAll()[0]?.scope).toBe('plugin:alpha');
     expect(manager.getLoaded('alpha')).toBeDefined();
+  });
+
+  it('provides host paths to plugin init contexts', async () => {
+    const seenPaths: unknown[] = [];
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        init: vi.fn(async (ctx) => {
+          seenPaths.push(ctx.paths);
+        }),
+      },
+    });
+    const { manager } = await makeManager(module);
+
+    await manager.setup();
+
+    expect(seenPaths).toEqual([fakePaths]);
+  });
+
+  it('discovers plugins from injected host extension paths', async () => {
+    const module = makeModule();
+    const { manager } = await makeManager(module);
+
+    await manager.setup();
+
+    expect(extensionLoader.discoverExtensionDirs).toHaveBeenCalledWith(
+      expect.objectContaining({ extensionsDir: fakePaths.extensionsDir }),
+    );
   });
 
   it('deep merges plugin options over default config', async () => {
@@ -212,6 +254,7 @@ describe('PluginManager', () => {
       toolRegistry: new ToolRegistry(),
       commandRegistry: new CommandRegistry(),
       hookRegistry: new HookDispatcher(),
+      paths: fakePaths,
     });
 
     const unloadAll = vi.spyOn(manager, 'unloadAll').mockResolvedValue(undefined);

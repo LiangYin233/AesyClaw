@@ -75,6 +75,7 @@ export async function enrichMessageWithDownloads(
     action: string,
     params: Record<string, unknown>,
   ) => Promise<OneBotApiResponse[]>,
+  mediaDir: string,
 ): Promise<Message> {
   const segments = extractOneBotInboundAttachmentSegments(event['message']);
   if (segments.length === 0) {
@@ -89,9 +90,12 @@ export async function enrichMessageWithDownloads(
     const componentIndex = findDownloadComponentIndex(components, segment);
     const fallbackComponent = mapOneBotAttachmentComponent(segment);
     try {
-      const downloaded = await downloadInboundAttachment(segment, sendStreamAction);
+      const downloaded = await downloadInboundAttachment(segment, sendStreamAction, mediaDir);
       if (componentIndex >= 0) {
-        components[componentIndex] = mergeDownloadedComponent(components[componentIndex], downloaded);
+        components[componentIndex] = mergeDownloadedComponent(
+          components[componentIndex],
+          downloaded,
+        );
       }
       attachmentLines.push(`- ${downloaded.type}: ${downloaded.path}`);
     } catch (err) {
@@ -188,7 +192,8 @@ export function findDownloadComponentIndex(
     (component) =>
       component.type === segment.componentType &&
       isMediaComponent(component) &&
-      component.file === (typeof segment.data['file'] === 'string' ? segment.data['file'] : undefined) &&
+      component.file ===
+        (typeof segment.data['file'] === 'string' ? segment.data['file'] : undefined) &&
       component.url === (typeof segment.data['url'] === 'string' ? segment.data['url'] : undefined),
   );
 }
@@ -307,7 +312,11 @@ export function mapOneBotSegmentToComponent(segment: unknown): MessageComponent 
     case 'nodes':
       return { type: 'Unknown', segmentType: segment['type'], data };
     case 'reply':
-      return { type: 'Reply', components: [], ...optionalStringField('id', stringifyId(data['id'])) };
+      return {
+        type: 'Reply',
+        components: [],
+        ...optionalStringField('id', stringifyId(data['id'])),
+      };
     default:
       return { type: 'Unknown', segmentType: segment['type'], data };
   }

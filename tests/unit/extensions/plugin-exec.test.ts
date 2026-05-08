@@ -14,6 +14,22 @@ import type { AesyClawTool } from '../../../src/tool/tool-registry';
 const isWindows = process.platform === 'win32';
 let tempDir: string | null = null;
 
+function makePaths(root: string) {
+  return {
+    runtimeRoot: path.join(root, '.aesyclaw'),
+    dataDir: path.join(root, '.aesyclaw', 'data'),
+    configFile: path.join(root, '.aesyclaw', 'config.json'),
+    dbFile: path.join(root, '.aesyclaw', 'data', 'aesyclaw.db'),
+    rolesFile: path.join(root, '.aesyclaw', 'roles.json'),
+    mediaDir: path.join(root, '.aesyclaw', 'media'),
+    workspaceDir: path.join(root, '.aesyclaw', 'workspace'),
+    skillsDir: path.join(root, 'skills'),
+    userSkillsDir: path.join(root, '.aesyclaw', 'skills'),
+    extensionsDir: path.join(root, 'extensions'),
+    webDistDir: path.join(root, 'dist'),
+  };
+}
+
 describe('plugin_exec', () => {
   afterEach(async () => {
     if (tempDir) {
@@ -27,6 +43,7 @@ describe('plugin_exec', () => {
 
     await plugin.init({
       config: {},
+      paths: makePaths(await makeRepoRoot()),
       registerTool(tool) {
         tools.push(tool);
       },
@@ -55,12 +72,13 @@ describe('plugin_exec', () => {
 
   it('uses and creates .aesyclaw/workspace as the default cwd', async () => {
     const repoRoot = await makeRepoRoot();
-    const result = await executeCommand({ command: cwdCommand() }, { repoRoot });
+    const workspaceDir = path.join(repoRoot, '.aesyclaw', 'workspace');
+    const result = await executeCommand({ command: cwdCommand() }, { workspaceDir });
     const details = result.details as ExecResultDetails;
 
     expect(result.isError).toBe(false);
     expect(details.shell).toBe(isWindows ? 'powershell' : 'bash');
-    expect(details.cwd).toBe(path.join(repoRoot, '.aesyclaw', 'workspace'));
+    expect(details.cwd).toBe(workspaceDir);
     expect(details.stdout.trim()).toBe(details.cwd);
   });
 
@@ -68,7 +86,7 @@ describe('plugin_exec', () => {
     const repoRoot = await makeRepoRoot();
     const result = await executeCommand(
       { command: successCommand(), cwd: 'bad\0cwd' },
-      { repoRoot },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
     );
     const details = result.details as ExecResultDetails;
 
@@ -81,23 +99,26 @@ describe('plugin_exec', () => {
 
   it('allows cwd override outside the workspace', async () => {
     const repoRoot = await makeRepoRoot();
-    const outsideDir = path.join(repoRoot, '..', 'outside-workspace');
+    const outsideDir = path.join(repoRoot, '.aesyclaw', 'outside-workspace');
     await mkdir(outsideDir, { recursive: true });
 
     const result = await executeCommand(
       { command: cwdCommand(), cwd: '../outside-workspace' },
-      { repoRoot },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
     );
     const details = result.details as ExecResultDetails;
 
     expect(result.isError).toBe(false);
-    expect(details.cwd).toBe(path.resolve(repoRoot, '../outside-workspace'));
+    expect(details.cwd).toBe(path.resolve(repoRoot, '.aesyclaw', 'outside-workspace'));
     expect(details.stdout.trim()).toBe(details.cwd);
   });
 
   it('returns stdout, stderr, and metadata for non-zero exits', async () => {
     const repoRoot = await makeRepoRoot();
-    const result = await executeCommand({ command: failureCommand() }, { repoRoot });
+    const result = await executeCommand(
+      { command: failureCommand() },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
+    );
     const details = result.details as ExecResultDetails;
 
     expect(result.isError).toBe(true);
@@ -112,7 +133,7 @@ describe('plugin_exec', () => {
     const repoRoot = await makeRepoRoot();
     const result = await executeCommand(
       { command: timeoutCommand(), timeoutMs: isWindows ? 1_000 : 100 },
-      { repoRoot },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
     );
     const details = result.details as ExecResultDetails;
 
@@ -132,7 +153,7 @@ describe('plugin_exec', () => {
         command: childProcessTimeoutCommand(readyPath, markerPath),
         timeoutMs: isWindows ? 1_000 : 200,
       },
-      { repoRoot },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
     );
     const details = result.details as ExecResultDetails;
 
@@ -145,7 +166,10 @@ describe('plugin_exec', () => {
 
   it('preserves Chinese command and output text', async () => {
     const repoRoot = await makeRepoRoot();
-    const result = await executeCommand({ command: chineseCommand() }, { repoRoot });
+    const result = await executeCommand(
+      { command: chineseCommand() },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
+    );
     const details = result.details as ExecResultDetails;
 
     expect(result.isError).toBe(false);
@@ -154,7 +178,7 @@ describe('plugin_exec', () => {
   });
 
   it('uses PowerShell on Windows and bash otherwise', () => {
-    const tool = createExecTool();
+    const tool = createExecTool(path.join(tmpdir(), 'aesyclaw-exec-tool-test'));
 
     expect(tool.name).toBe('exec');
     expect(Value.Check(tool.parameters, { command: successCommand(), timeoutMs: 1 })).toBe(true);

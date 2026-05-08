@@ -16,10 +16,7 @@ import {
 } from './inbound';
 import { sendOneBotMessage } from './outbound';
 import type { CreateOneBotChannelOptions, OneBotChannelConfig } from './types';
-import {
-  createOneBotWebSocketClient,
-  type OneBotWebSocketClient,
-} from './websocket-client';
+import { createOneBotWebSocketClient, type OneBotWebSocketClient } from './websocket-client';
 import { parseConfig } from './utils';
 
 const plugin: PluginDefinition = {
@@ -100,6 +97,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
         }
         return await client.sendStreamAction(action, params);
       },
+      context.paths.mediaDir,
     );
 
     if (destroyed) {
@@ -128,11 +126,6 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
   }
 }
 
-export {
-  extractOneBotComponents,
-  extractOneBotText,
-  mapOneBotEventToMessage,
-  sendOneBotMessage,
-};
+export { extractOneBotComponents, extractOneBotText, mapOneBotEventToMessage, sendOneBotMessage };
 
 export default plugin;

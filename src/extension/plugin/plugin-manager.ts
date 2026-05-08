@@ -31,7 +31,7 @@ export class PluginManager implements ExtensionLifecycle {
   constructor(private readonly deps: PluginManagerDependencies) {}
 
   private get extensionsDir(): string {
-    return this.deps.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
+    return this.deps.paths.extensionsDir;
   }
 
   // ─── ExtensionLifecycle ──────────────────────────────────────────
@@ -308,6 +308,7 @@ export class PluginManager implements ExtensionLifecycle {
     const deps = this.deps;
     return {
       config,
+      paths: deps.paths,
       registerTool: (tool: AesyClawTool): void => {
         deps.toolRegistry.register({ ...tool, owner });
       },

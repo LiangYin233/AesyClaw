@@ -13,6 +13,7 @@ import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { WebSocketServer } from 'ws';
 import { createApp } from './server';
 import { createWebSocketServer } from './ws/handler';
@@ -29,6 +30,7 @@ export type WebUiManagerDependencies = {
   pluginManager: ExtensionManager;
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
+  paths: Readonly<ResolvedPaths>;
 };
 
 export class WebUiManager {
@@ -61,7 +63,7 @@ export class WebUiManager {
       });
     }
 
-    this.app = createApp();
+    this.app = createApp(this.deps.paths);
     this.server = serve({
       fetch: this.app.fetch,
       port,

@@ -6,6 +6,7 @@ import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { PluginManager } from './plugin/plugin-manager';
 import type { PluginStatus } from './plugin/plugin-types';
 import { ChannelManager } from './channel/channel-manager';
@@ -18,7 +19,7 @@ export type ExtensionManagerDependencies = {
   commandRegistry: CommandRegistry;
   hookRegistry: HookDispatcher;
   pipeline: Pipeline;
-  extensionsDir: string;
+  paths: Readonly<ResolvedPaths>;
 };
 
 export class ExtensionManager {
@@ -30,7 +31,7 @@ export class ExtensionManager {
     this.channelManager = new ChannelManager({
       configManager: deps.configManager,
       pipeline: deps.pipeline,
-      extensionsDir: deps.extensionsDir,
+      paths: deps.paths,
     });
     this.pluginManager = new PluginManager({
       configManager: deps.configManager,
@@ -38,7 +39,7 @@ export class ExtensionManager {
       commandRegistry: deps.commandRegistry,
       hookRegistry: deps.hookRegistry,
       channelManager: this.channelManager,
-      extensionsDir: deps.extensionsDir,
+      paths: deps.paths,
     });
   }
 

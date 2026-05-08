@@ -16,11 +16,13 @@ import type { Logger } from '@aesyclaw/core/logger';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
+import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { isRecord } from '@aesyclaw/core/utils';
 import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
 export type PluginContext = {
   config: Record<string, unknown>;
+  paths: Readonly<ResolvedPaths>;
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
   registerCommand(command: CommandDefinition): void;
@@ -73,7 +75,7 @@ export type PluginManagerDependencies = {
   commandRegistry: CommandRegistry;
   hookRegistry: HookDispatcher;
   channelManager?: ChannelManager;
-  extensionsDir?: string;
+  paths: Readonly<ResolvedPaths>;
 };
 
 export type PluginConfigLookup = {

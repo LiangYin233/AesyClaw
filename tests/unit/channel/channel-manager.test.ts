@@ -3,6 +3,20 @@ import { ChannelManager } from '../../../src/extension/channel/channel-manager';
 import type { ChannelPlugin } from '../../../src/extension/channel/channel-types';
 import type { Message, SessionKey, SenderInfo } from '../../../src/core/types';
 
+const fakePaths = {
+  runtimeRoot: '/tmp/aesyclaw/.aesyclaw',
+  dataDir: '/tmp/aesyclaw/.aesyclaw/data',
+  configFile: '/tmp/aesyclaw/.aesyclaw/config.json',
+  dbFile: '/tmp/aesyclaw/.aesyclaw/data/aesyclaw.db',
+  rolesFile: '/tmp/aesyclaw/.aesyclaw/roles.json',
+  mediaDir: '/tmp/aesyclaw/.aesyclaw/media',
+  workspaceDir: '/tmp/aesyclaw/.aesyclaw/workspace',
+  skillsDir: '/tmp/aesyclaw/skills',
+  userSkillsDir: '/tmp/aesyclaw/.aesyclaw/skills',
+  extensionsDir: '/tmp/aesyclaw/extensions',
+  webDistDir: '/tmp/aesyclaw/dist',
+};
+
 class FakeConfigManager {
   channels: Record<string, unknown> = {};
   defaults: Array<{ key: string; defaults: Record<string, unknown> }> = [];
@@ -23,9 +37,16 @@ class FakeConfigManager {
 
 function makePipeline() {
   return {
-    receiveWithSend: vi.fn(async (_message: Message, _sessionKey: SessionKey, _sender: SenderInfo | undefined, send: (m: Message) => Promise<void>) => {
-      await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
-    }),
+    receiveWithSend: vi.fn(
+      async (
+        _message: Message,
+        _sessionKey: SessionKey,
+        _sender: SenderInfo | undefined,
+        send: (m: Message) => Promise<void>,
+      ) => {
+        await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
+      },
+    ),
   };
 }
 
@@ -53,7 +74,12 @@ describe('ChannelManager', () => {
         expect(ctx.receive).toEqual(expect.any(Function));
       }),
     });
-    const manager = new ChannelManager({ configManager: config, pipeline, channels: [channel] });
+    const manager = new ChannelManager({
+      configManager: config,
+      pipeline,
+      channels: [channel],
+      paths: fakePaths,
+    });
 
     await manager.startAll();
     await manager.receive(
@@ -73,7 +99,9 @@ describe('ChannelManager', () => {
 
   it('exposes context receive as a bridge back into ChannelManager.receive', async () => {
     const pipeline = makePipeline();
-    let receiveFromContext: ((message: Message, sessionKey: SessionKey, sender?: SenderInfo) => Promise<void>) | null = null;
+    let receiveFromContext:
+      | ((message: Message, sessionKey: SessionKey, sender?: SenderInfo) => Promise<void>)
+      | null = null;
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
         receiveFromContext = ctx.receive;
@@ -83,6 +111,7 @@ describe('ChannelManager', () => {
       configManager: new FakeConfigManager(),
       pipeline,
       channels: [channel],
+      paths: fakePaths,
     });
 
     await manager.start('test');
@@ -102,6 +131,7 @@ describe('ChannelManager', () => {
     const manager = new ChannelManager({
       configManager: new FakeConfigManager(),
       pipeline: makePipeline(),
+      paths: fakePaths,
     });
 
     await expect(
@@ -141,6 +171,7 @@ describe('ChannelManager', () => {
       configManager: config,
       pipeline: makePipeline(),
       channels: [channel],
+      paths: fakePaths,
     });
 
     await manager.startAll();
@@ -163,6 +194,7 @@ describe('ChannelManager', () => {
       configManager: config,
       pipeline: makePipeline(),
       channels: [bad, disabled, good],
+      paths: fakePaths,
     });
 
     await expect(manager.startAll()).resolves.toBeUndefined();
@@ -184,10 +216,14 @@ describe('ChannelManager', () => {
       configManager: new FakeConfigManager(),
       pipeline: makePipeline(),
       channels: [channel],
+      paths: fakePaths,
     });
 
     await manager.start('test');
-    await manager.send({ channel: 'test', type: 'private', chatId: '1' }, { components: [{ type: 'Plain', text: 'hello' }] });
+    await manager.send(
+      { channel: 'test', type: 'private', chatId: '1' },
+      { components: [{ type: 'Plain', text: 'hello' }] },
+    );
     await manager.stopAll();
 
     expect(channel.send).toHaveBeenCalledWith(
@@ -217,10 +253,29 @@ describe('ChannelManager', () => {
     ).toBe(true);
   });
 
+  it('provides host paths to channel init contexts', async () => {
+    const channel = makeChannel({
+      init: vi.fn(async (ctx) => {
+        expect(ctx.paths).toBe(fakePaths);
+      }),
+    });
+    const manager = new ChannelManager({
+      configManager: new FakeConfigManager(),
+      pipeline: makePipeline(),
+      channels: [channel],
+      paths: fakePaths,
+    });
+
+    await manager.start('test');
+
+    expect(channel.init).toHaveBeenCalledOnce();
+  });
+
   it('rejects duplicate channel registrations to avoid unsafe ownership cleanup', () => {
     const manager = new ChannelManager({
       configManager: new FakeConfigManager(),
       pipeline: makePipeline(),
+      paths: fakePaths,
     });
     const first = makeChannel({ name: 'duplicate' });
     const second = makeChannel({ name: 'duplicate' });
@@ -235,6 +290,7 @@ describe('ChannelManager', () => {
     const manager = new ChannelManager({
       configManager: new FakeConfigManager(),
       pipeline: makePipeline(),
+      paths: fakePaths,
     });
     let releaseFirstStop: (() => void) | null = null;
     const stopAll = vi

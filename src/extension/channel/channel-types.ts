@@ -4,12 +4,14 @@ import type { Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { isRecord } from '@aesyclaw/core/utils';
 import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
 export type ChannelContext = {
   name: string;
   config: Record<string, unknown>;
+  paths: Readonly<ResolvedPaths>;
   receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
   logger: Logger;
 };
@@ -46,7 +48,7 @@ export type ChannelManagerDependencies = {
   configManager: ConfigManager;
   pipeline: Pipeline;
   channels?: ChannelPlugin[];
-  extensionsDir?: string;
+  paths: Readonly<ResolvedPaths>;
 };
 
 export type ChannelModule = {

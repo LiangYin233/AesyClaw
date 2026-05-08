@@ -35,4 +35,5 @@ export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-regi
 
 export type { SendCtx as OnSendContext } from '@aesyclaw/pipeline/types';
 
+export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';

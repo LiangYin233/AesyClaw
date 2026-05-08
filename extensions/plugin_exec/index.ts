@@ -44,18 +44,17 @@ export type ExecResultDetails = {
 };
 
 export type ExecuteCommandOptions = {
-  repoRoot?: string;
+  workspaceDir: string;
   platform?: NodeJS.Platform;
 };
 
 export async function executeCommand(
   params: ExecParams,
-  options: ExecuteCommandOptions = {},
+  options: ExecuteCommandOptions,
 ): Promise<ToolExecutionResult> {
   const startedAt = Date.now();
   const platform = options.platform ?? process.platform;
-  const repoRoot = options.repoRoot ?? process.cwd();
-  const cwd = resolveExecutionCwd(params.cwd, repoRoot);
+  const cwd = resolveExecutionCwd(params.cwd, options.workspaceDir);
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const shell = createShellInvocation(params.command, platform);
   let stdout = '';
@@ -190,14 +189,14 @@ function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function createExecTool(): AesyClawTool {
+export function createExecTool(workspaceDir: string): AesyClawTool {
   return {
     name: 'exec',
     description:
       'Execute a shell command and return stdout, stderr, exit metadata, cwd, and timeout information.',
     parameters: ExecParamsSchema,
     owner: 'plugin:exec',
-    execute: async (params) => await executeCommand(params as ExecParams),
+    execute: async (params) => await executeCommand(params as ExecParams, { workspaceDir }),
   };
 }
 
@@ -206,19 +205,19 @@ const plugin: PluginDefinition = {
   version: '0.1.0',
   description: 'Provides an LLM-facing exec tool for shell command execution.',
   async init(ctx) {
-    ctx.registerTool(createExecTool());
+    ctx.registerTool(createExecTool(ctx.paths.workspaceDir));
     ctx.logger.info('Exec plugin initialized');
   },
 };
 
 export default plugin;
 
-function resolveExecutionCwd(cwd: string | undefined, repoRoot: string): string {
+function resolveExecutionCwd(cwd: string | undefined, workspaceDir: string): string {
   if (cwd) {
-    return path.resolve(repoRoot, cwd);
+    return path.resolve(workspaceDir, cwd);
   }
 
-  return path.resolve(repoRoot, '.aesyclaw', 'workspace');
+  return workspaceDir;
 }
 
 function createShellInvocation(

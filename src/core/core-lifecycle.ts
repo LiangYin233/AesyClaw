@@ -117,7 +117,7 @@ export class CoreLifecycle {
       commandRegistry: this.resolvedDeps.commandRegistry,
       hookRegistry: this.resolvedDeps.pipeline.hooks,
       pipeline: this.resolvedDeps.pipeline,
-      extensionsDir: this.paths.extensionsDir,
+      paths: this.paths,
     });
 
     registerBuiltinCommands(this.resolvedDeps.commandRegistry, {
@@ -180,6 +180,7 @@ export class CoreLifecycle {
       pluginManager: em,
       toolRegistry: this.resolvedDeps.toolRegistry,
       skillManager: this.resolvedDeps.skillManager,
+      paths: this.paths,
     });
     await webUiManager.initialize();
 

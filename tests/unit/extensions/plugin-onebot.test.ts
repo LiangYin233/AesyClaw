@@ -14,6 +14,24 @@ import {
 
 let openChannels: ChannelPlugin[] = [];
 
+function makePaths(root: string) {
+  return {
+    runtimeRoot: path.join(root, '.aesyclaw'),
+    dataDir: path.join(root, '.aesyclaw', 'data'),
+    configFile: path.join(root, '.aesyclaw', 'config.json'),
+    dbFile: path.join(root, '.aesyclaw', 'data', 'aesyclaw.db'),
+    rolesFile: path.join(root, '.aesyclaw', 'roles.json'),
+    mediaDir: path.join(root, '.aesyclaw', 'media'),
+    workspaceDir: path.join(root, '.aesyclaw', 'workspace'),
+    skillsDir: path.join(root, 'skills'),
+    userSkillsDir: path.join(root, '.aesyclaw', 'skills'),
+    extensionsDir: path.join(root, 'extensions'),
+    webDistDir: path.join(root, 'dist'),
+  };
+}
+
+const defaultPaths = makePaths(path.join(tmpdir(), 'aesyclaw-onebot-default'));
+
 describe('plugin_onebot', () => {
   let tempDir: string | null = null;
 
@@ -128,7 +146,11 @@ describe('plugin_onebot', () => {
       { type: 'Reply', components: [], id: '22222' },
       { type: 'Unknown', segmentType: 'forward', data: { id: 'forward-id' } },
       { type: 'Unknown', segmentType: 'node', data: { name: 'alice', content: 'nested' } },
-      { type: 'Unknown', segmentType: 'nodes', data: { nodes: [{ name: 'bob', content: 'nested list' }] } },
+      {
+        type: 'Unknown',
+        segmentType: 'nodes',
+        data: { nodes: [{ name: 'bob', content: 'nested list' }] },
+      },
       { type: 'Unknown', segmentType: 'poke', data: { qq: 11111 } },
       { type: 'Unknown', segmentType: 'json', data: { data: '{"a":1}' } },
       { type: 'Unknown', segmentType: 'rps', data: {} },
@@ -380,12 +402,8 @@ describe('plugin_onebot', () => {
           components: [{ type: 'Plain', text: 'ping' }],
         }),
       );
-      expect(sessionKey).toEqual(
-        { channel: 'onebot', type: 'private', chatId: '12345' },
-      );
-      expect(sender).toEqual(
-        { id: '12345', name: 'alice' },
-      );
+      expect(sessionKey).toEqual({ channel: 'onebot', type: 'private', chatId: '12345' });
+      expect(sender).toEqual({ id: '12345', name: 'alice' });
       await channel.send(sessionKey, { components: [{ type: 'Plain', text: 'pong' }] });
     });
 
@@ -430,11 +448,11 @@ describe('plugin_onebot', () => {
 
   it('downloads inbound attachment bytes to local media storage and appends file paths to content', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'aesyclaw-onebot-download-'));
-    vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
+    const paths = makePaths(tempDir);
 
     const { channel, socket } = createTestChannel();
     const receive = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receive });
+    await openTestChannel(channel, socket, { receive, paths });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -512,7 +530,7 @@ describe('plugin_onebot', () => {
     const localPath = inbound.components.find((component) => component.type === 'Image')?.path;
 
     expect(localPath).toBeTruthy();
-    expect(localPath).toContain(path.join('.aesyclaw', 'media', 'onebot', 'inbound'));
+    expect(localPath).toContain(path.join(paths.mediaDir, 'onebot', 'inbound'));
     expect(inbound.components).toContainEqual(
       expect.objectContaining({
         type: 'Image',
@@ -610,7 +628,9 @@ describe('plugin_onebot', () => {
         url: 'https://example.com/remote.png',
       }),
     );
-    expect(inbound.components.find((component) => component.type === 'Image')?.path).toBeUndefined();
+    expect(
+      inbound.components.find((component) => component.type === 'Image')?.path,
+    ).toBeUndefined();
     expect(inboundText).toContain('[Attachment download errors]');
     expect(inboundText).toContain('did not return a completion response');
   });
@@ -640,9 +660,7 @@ describe('plugin_onebot', () => {
     expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
     expect(inboundText).toContain('see file');
     expect(inboundText).toContain('[Attachment download errors]');
-    expect(inboundText).toContain(
-      'No OneBot download identifier available for file attachment',
-    );
+    expect(inboundText).toContain('No OneBot download identifier available for file attachment');
     expect(inboundText).not.toContain('C:/NapCatTemp/report.pdf');
     expect(socket.sent).toHaveLength(0);
   });
@@ -674,7 +692,10 @@ describe('plugin_onebot', () => {
 
     const inbound = receive.mock.calls[0]?.[0] as Pick<Message, 'components'>;
     const inboundText = getMessageText(inbound);
-    expect(inbound.components).toContainEqual({ type: 'File', url: 'https://example.com/report.pdf' });
+    expect(inbound.components).toContainEqual({
+      type: 'File',
+      url: 'https://example.com/report.pdf',
+    });
     expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
     expect(inboundText).toContain('[Attachment download errors]');
     expect(inboundText).not.toContain('C:/NapCatTemp/report.pdf');
@@ -770,7 +791,9 @@ describe('plugin_onebot', () => {
     const inbound = receive.mock.calls[0]?.[0] as Pick<Message, 'components'>;
     const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual(expect.objectContaining({ type: 'Image' }));
-    expect(inbound.components.find((component) => component.type === 'Image')?.path).toBeUndefined();
+    expect(
+      inbound.components.find((component) => component.type === 'Image')?.path,
+    ).toBeUndefined();
     expect(inboundText).toContain('[Attachment download errors]');
     expect(inboundText).toContain('timed out after 300000ms');
 
@@ -921,6 +944,7 @@ function makeChannelContext(
       serverUrl: 'ws://napcat.remote:3001/',
       ...overrides.config,
     },
+    paths: overrides.paths ?? defaultPaths,
     receive: overrides.receive ?? vi.fn(),
     logger: overrides.logger ?? makeLogger(),
   };
@@ -932,12 +956,14 @@ async function openTestChannel(
   options: {
     config?: Record<string, unknown>;
     receive?: ChannelContext['receive'];
+    paths?: ChannelContext['paths'];
   } = {},
 ): Promise<void> {
   const initPromise = channel.init(
     makeChannelContext({
       config: options.config,
       receive: options.receive,
+      paths: options.paths,
     }),
   );
   socket.dispatchOpen();

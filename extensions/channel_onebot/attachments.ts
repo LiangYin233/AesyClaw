@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { isRecord, resolvePaths } from '@aesyclaw/sdk';
+import { isRecord } from '@aesyclaw/sdk';
 import {
   DEFAULT_EXTENSION_BY_ATTACHMENT,
   DOWNLOAD_REQUEST_BY_SEGMENT,
@@ -26,6 +26,7 @@ export async function downloadInboundAttachment(
     action: string,
     params: Record<string, unknown>,
   ) => Promise<OneBotApiResponse[]>,
+  mediaDir: string,
 ): Promise<OneBotDownloadResult> {
   const request = buildDownloadRequest(segment);
   if (!request) {
@@ -36,7 +37,11 @@ export async function downloadInboundAttachment(
 
   const responses = await sendStreamAction(request.action, request.params);
   const downloaded = collectDownloadedStreamFile(responses, request.fallbackFileName);
-  const localPath = await writeInboundAttachmentFile(downloaded.fileName, downloaded.data);
+  const localPath = await writeInboundAttachmentFile(
+    downloaded.fileName,
+    downloaded.data,
+    mediaDir,
+  );
   const url = typeof segment.data['url'] === 'string' ? segment.data['url'] : undefined;
 
   return {
@@ -136,10 +141,9 @@ export function collectDownloadedStreamFile(
 export async function writeInboundAttachmentFile(
   fileName: string,
   data: Uint8Array,
-  root = process.cwd(),
+  mediaDir: string,
 ): Promise<string> {
-  const paths = resolvePaths(path.resolve(root));
-  const targetDir = path.join(paths.mediaDir, 'onebot', 'inbound');
+  const targetDir = path.join(mediaDir, 'onebot', 'inbound');
   await fs.mkdir(targetDir, { recursive: true });
 
   const safeFileName = sanitizeFileName(fileName);
@@ -219,7 +223,9 @@ export function readUploadedFilePath(response: OneBotApiResponse): string {
   return response.data['file_path'];
 }
 
-export async function loadAttachmentSource(component: MediaComponent): Promise<LoadedAttachmentSource> {
+export async function loadAttachmentSource(
+  component: MediaComponent,
+): Promise<LoadedAttachmentSource> {
   if (component.base64) {
     return loadBase64AttachmentSource(component);
   }
