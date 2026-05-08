@@ -110,18 +110,7 @@ export class CoreLifecycle {
   }
 
   private async initExtensionRuntime(): Promise<void> {
-    await this.resolvedDeps.pipeline.initialize({
-      sessionManager: this.resolvedDeps.sessionManager,
-      commandRegistry: this.resolvedDeps.commandRegistry,
-      roleManager: this.resolvedDeps.roleManager,
-      databaseManager: this.resolvedDeps.databaseManager,
-      llmAdapter: this.resolvedDeps.llmAdapter,
-      skillManager: this.resolvedDeps.skillManager,
-      toolRegistry: this.resolvedDeps.toolRegistry,
-      compressionThreshold: this.resolvedDeps.configManager.get(
-        'agent.memory.compressionThreshold',
-      ) as number,
-    });
+    await this.resolvedDeps.pipeline.initialize();
 
     this.extensionManager = new ExtensionManager({
       configManager: this.resolvedDeps.configManager,

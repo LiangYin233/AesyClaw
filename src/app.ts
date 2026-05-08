@@ -42,8 +42,19 @@ export class Application {
     this.toolRegistry = new ToolRegistry();
     this.commandRegistry = new CommandRegistry();
     this.llmAdapter = new LlmAdapter(this.configManager);
-    this.pipeline = new Pipeline();
     this.sessionManager = new SessionManager(this.databaseManager);
+    this.pipeline = new Pipeline({
+      sessionManager: this.sessionManager,
+      commandRegistry: this.commandRegistry,
+      roleManager: this.roleManager,
+      databaseManager: this.databaseManager,
+      llmAdapter: this.llmAdapter,
+      skillManager: this.skillManager,
+      toolRegistry: this.toolRegistry,
+      compressionThreshold: this.configManager.get(
+        'agent.memory.compressionThreshold',
+      ) as number,
+    });
     this.cronManager = new CronManager();
     this.mcpManager = new McpManager(
       this.configManager,

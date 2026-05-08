@@ -11,27 +11,24 @@ import type { PipelineDependencies } from './types';
 import { HookDispatcher } from './hook-dispatcher';
 import { Agent } from '@aesyclaw/agent/agent';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { requireInitialized } from '@aesyclaw/core/utils';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 
 const logger = createScopedLogger('pipeline');
 
 export class Pipeline {
-  private deps: PipelineDependencies | null = null;
+  private deps: PipelineDependencies;
   hooks: HookDispatcher = new HookDispatcher();
 
-  async initialize(deps: PipelineDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('Pipeline 已初始化 — 跳过');
-      return;
-    }
+  constructor(deps: PipelineDependencies) {
     this.deps = deps;
+  }
+
+  async initialize(): Promise<void> {
     logger.info('Pipeline 已初始化');
   }
 
   destroy(): void {
     this.hooks.clearAll();
-    this.deps = null;
     logger.info('Pipeline 已销毁');
   }
 
@@ -41,7 +38,7 @@ export class Pipeline {
     sender: SenderInfo | undefined,
     send: SendFn,
   ): Promise<void> {
-    const deps = requireInitialized(this.deps, 'Pipeline');
+    const deps = this.deps;
 
     try {
       // ── Step 1: onReceive 钩子 ───────────────────────────
