@@ -514,7 +514,7 @@ const extraBodyErrors = ref<Record<string, string>>({});
 const extraBodyDrafts = ref<Record<string, string>>({});
 
 const excludedTopLevelKeys = new Set(['channels', 'plugins']);
-const hiddenSchemaKeys = new Set(['channels', 'plugins', 'providers', 'mcp', 'cors']);
+const hiddenSchemaKeys = new Set(['channels', 'plugins', 'providers', 'mcp']);
 
 const configSections = computed<ConfigSectionView[]>(() => {
   const properties = getSchemaProperties(editableSchema.value);
@@ -1017,7 +1017,7 @@ function omitTopLevelConfigKeys(
   if (!isRecord(source)) return {};
   const next: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(source)) {
-    if (topLevelKeysToOmit.has(key.toLowerCase()) || key.toLowerCase() === 'cors') continue;
+    if (topLevelKeysToOmit.has(key.toLowerCase())) continue;
     next[key] = value;
   }
   return next;
