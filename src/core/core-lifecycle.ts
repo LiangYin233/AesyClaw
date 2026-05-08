@@ -10,7 +10,7 @@ import { DEFAULT_CONFIG } from './config/defaults';
 import type { DatabaseManager } from './database/database-manager';
 import { createScopedLogger, setLogLevel } from './logger';
 import type { ResolvedPaths } from './path-resolver';
-import type { CronManager } from '@aesyclaw/cron/cron-manager';
+import { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { ExtensionManager } from '@aesyclaw/extension/extension-manager';
@@ -32,7 +32,6 @@ export type CoreLifecycleDependencies = {
   llmAdapter: LlmAdapter;
   sessionManager: SessionManager;
   pipeline: Pipeline;
-  cronManager: CronManager;
   mcpManager: McpManager;
 };
 
@@ -40,6 +39,7 @@ export class CoreLifecycle {
   private readonly deps: CoreLifecycleDependencies;
   private extensionManager: ExtensionManager | null = null;
   private webUiManager: WebUiManager | null = null;
+  private cronManager: CronManager | null = null;
   private shuttingDown = false;
 
   constructor(deps: CoreLifecycleDependencies) {
@@ -72,7 +72,7 @@ export class CoreLifecycle {
     const steps: Array<() => Promise<void> | void> = [
       () => this.resolvedDeps.configManager.stopHotReload(),
       () => this.webUiManager?.destroy(),
-      () => this.resolvedDeps.cronManager.destroy(),
+      () => this.cronManager?.destroy(),
       () => this.resolvedDeps.roleManager.destroy(),
       () => this.extensionManager?.destroy(),
       () => this.resolvedDeps.mcpManager.disconnectAll(),
@@ -121,14 +121,6 @@ export class CoreLifecycle {
       extensionsDir: this.paths.extensionsDir,
     });
 
-    registerBuiltinTools(this.resolvedDeps.toolRegistry, {
-      cronManager: this.resolvedDeps.cronManager,
-      roleManager: this.resolvedDeps.roleManager,
-      llmAdapter: this.resolvedDeps.llmAdapter,
-      configManager: this.resolvedDeps.configManager,
-      skillManager: this.resolvedDeps.skillManager,
-      usageRepository: this.resolvedDeps.databaseManager.usage,
-    });
     registerBuiltinCommands(this.resolvedDeps.commandRegistry, {
       roleManager: this.resolvedDeps.roleManager,
       pluginManager: this.extensionManager,
@@ -158,18 +150,30 @@ export class CoreLifecycle {
       throw new Error('ExtensionManager 未初始化');
     }
     const em = this.extensionManager;
-    await this.resolvedDeps.cronManager.initialize({
+    const cronManager = new CronManager({
       databaseManager: this.resolvedDeps.databaseManager,
       pipeline: this.resolvedDeps.pipeline,
       sessionManager: this.resolvedDeps.sessionManager,
       send: async (sessionKey, message) => await em.channels.send(sessionKey, message),
+    });
+    await cronManager.initialize();
+
+    this.cronManager = cronManager;
+
+    registerBuiltinTools(this.resolvedDeps.toolRegistry, {
+      cronManager: this.cronManager,
+      roleManager: this.resolvedDeps.roleManager,
+      llmAdapter: this.resolvedDeps.llmAdapter,
+      configManager: this.resolvedDeps.configManager,
+      skillManager: this.resolvedDeps.skillManager,
+      usageRepository: this.resolvedDeps.databaseManager.usage,
     });
 
     const webUiManager = new WebUiManager({
       configManager: this.resolvedDeps.configManager,
       databaseManager: this.resolvedDeps.databaseManager,
       sessionManager: this.resolvedDeps.sessionManager,
-      cronManager: this.resolvedDeps.cronManager,
+      cronManager: this.cronManager,
       roleManager: this.resolvedDeps.roleManager,
       channelManager: em.channels,
       pluginManager: em,

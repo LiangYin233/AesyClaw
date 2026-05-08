@@ -14,7 +14,7 @@ import type {
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { SessionManager } from '@aesyclaw/session';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { errorMessage, requireInitialized } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/utils';
 import { CronExecutor } from './cron-executor';
 import { computeNextRun, CronScheduler, type CronScheduleType } from './cron-scheduler';
 
@@ -47,54 +47,53 @@ type CronManagerStoredDeps = {
 };
 
 export class CronManager {
-  private deps: CronManagerStoredDeps | null = null;
-  private pipeline: Pipeline | null = null;
+  private deps: CronManagerStoredDeps;
+  private pipeline: Pipeline;
+  private sessionManager: SessionManager;
   private readonly inFlight = new Set<Promise<unknown>>();
 
-  async initialize(dependencies: CronManagerDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('CronManager 已初始化 — 跳过');
-      return;
-    }
-
+  constructor(dependencies: CronManagerDependencies) {
     const cronJobs = dependencies.databaseManager.cronJobs;
     const cronRuns = dependencies.databaseManager.cronRuns;
     const scheduler = dependencies.scheduler ?? new CronScheduler();
     const executor = new CronExecutor(cronRuns, dependencies.pipeline, dependencies.send);
     this.pipeline = dependencies.pipeline;
-    dependencies.pipeline.hooks.register('internal:cron', {
+    this.sessionManager = dependencies.sessionManager;
+
+    this.deps = { cronJobs, cronRuns, executor, scheduler };
+  }
+
+  async initialize(): Promise<void> {
+    this.pipeline.hooks.register('internal:cron', {
       onReceive: async ({ sessionKey }) => {
         if (sessionKey.channel === 'cron' && sessionKey.type === 'job') {
-          const existing = dependencies.sessionManager.get(sessionKey);
+          const existing = this.sessionManager.get(sessionKey);
           if (existing) await existing.clear();
         }
         return { action: 'continue' };
       },
     });
 
-    const running = await cronRuns.findRunning();
-    await cronRuns.markAbandoned(running.map((run) => run.id));
+    const running = await this.deps.cronRuns.findRunning();
+    await this.deps.cronRuns.markAbandoned(running.map((run) => run.id));
 
-    this.deps = { cronJobs, cronRuns, executor, scheduler };
     logger.info('CronManager 已初始化');
     await this.reloadSchedules();
   }
 
   async destroy(): Promise<void> {
-    this.pipeline?.hooks.unregister('internal:cron');
-    this.pipeline = null;
+    this.pipeline.hooks.unregister('internal:cron');
     const deps = this.requireDeps();
     deps.scheduler.clearAll();
     if (this.inFlight.size > 0) {
       logger.info('等待进行中的定时任务完成', { count: this.inFlight.size });
       await Promise.allSettled([...this.inFlight]);
     }
-    this.deps = null;
     logger.info('CronManager 已销毁');
   }
 
   private requireDeps(): CronManagerStoredDeps {
-    return requireInitialized(this.deps, 'CronManager');
+    return this.deps;
   }
 
   async createJob(params: CreateCronJobParams): Promise<string> {

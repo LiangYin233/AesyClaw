@@ -7,7 +7,6 @@ import { ConfigManager } from './core/config/config-manager';
 import { CoreLifecycle } from './core/core-lifecycle';
 import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger } from './core/logger';
-import { CronManager } from './cron/cron-manager';
 import { McpManager } from './mcp/mcp-manager';
 import { SdkMcpClientFactory } from './mcp/sdk-mcp-client';
 import { Pipeline } from './pipeline/pipeline';
@@ -27,7 +26,6 @@ export class Application {
   private readonly llmAdapter: LlmAdapter;
   private readonly pipeline: Pipeline;
   private readonly sessionManager: SessionManager;
-  private readonly cronManager: CronManager;
   private readonly mcpManager: McpManager;
   private readonly coreLifecycle: CoreLifecycle;
   private started = false;
@@ -53,7 +51,6 @@ export class Application {
         'agent.memory.compressionThreshold',
       ) as number,
     });
-    this.cronManager = new CronManager();
     this.mcpManager = new McpManager(
       this.configManager,
       this.toolRegistry,
@@ -69,7 +66,6 @@ export class Application {
       llmAdapter: this.llmAdapter,
       sessionManager: this.sessionManager,
       pipeline: this.pipeline,
-      cronManager: this.cronManager,
       mcpManager: this.mcpManager,
     });
   }
