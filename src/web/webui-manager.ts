@@ -42,6 +42,10 @@ export class WebUiManager {
   }
 
   async initialize(): Promise<void> {
+    if (this.server) {
+      logger.warn('WebUiManager 已初始化 — 跳过');
+      return;
+    }
     logger.info('WebUiManager 已初始化');
 
     const port = this.deps.configManager.get('server.port') as number;
