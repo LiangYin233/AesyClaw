@@ -23,8 +23,7 @@ import { resolvePaths, type ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { DEFAULT_ROLES_CONFIG } from '@aesyclaw/role/default-role';
 import { RolesConfigSchema } from '@aesyclaw/role/role-schema';
 import { AsyncMutex } from '../mutex';
-import { AppConfigSchema } from './schema';
-import type { AppConfig } from './schema';
+import { AppConfigSchema, type AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
 
 const logger = createScopedLogger('config-manager');

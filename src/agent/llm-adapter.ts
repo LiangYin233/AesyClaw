@@ -1,10 +1,8 @@
-import { getModel, streamSimple } from '@mariozechner/pi-ai';
-import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
+import { getModel, streamSimple, type Api, type KnownProvider, type Model } from '@mariozechner/pi-ai';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ProviderConfig } from '@aesyclaw/core/config/schema';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
-import type { ResolvedModel, StreamFn } from './agent-types';
-import { makeExtraBodyOnPayload } from './agent-types';
+import { makeExtraBodyOnPayload, type ResolvedModel, type StreamFn } from './agent-types';
 
 export class LlmAdapter {
   constructor(private configManager: ConfigManager) {}

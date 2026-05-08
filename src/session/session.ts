@@ -1,21 +1,20 @@
 import type { SessionKey, PersistableMessage } from '@aesyclaw/core/types';
-import type { AgentMessage } from '@aesyclaw/agent/agent-types';
 import {
   assistantHasToolCalls,
   createPersistedAssistantMessage,
   createUserMessage,
   extractMessageText,
   makeExtraBodyOnPayload,
+  type AgentMessage,
+  type ResolvedModel,
 } from '@aesyclaw/agent/agent-types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import type { ResolvedModel } from '@aesyclaw/agent/agent-types';
 import type {
   MessagesRepository,
   UsageRepository,
   ToolUsageRepository,
 } from '@aesyclaw/core/database/database-manager';
-import { completeSimple } from '@mariozechner/pi-ai';
-import type { AssistantMessage } from '@mariozechner/pi-ai';
+import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('session');

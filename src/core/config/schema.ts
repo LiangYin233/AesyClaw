@@ -5,8 +5,7 @@
  * 编译时类型通过 `Static<typeof Schema>` 派生 —— 禁止手写两份。
  */
 
-import type { Static } from '@sinclair/typebox';
-import { Type } from '@sinclair/typebox';
+import { Type, type Static } from '@sinclair/typebox';
 import { DEFAULTS } from '@aesyclaw/core/types';
 import { ApiType } from '../../agent/agent-types';
 

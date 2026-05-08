@@ -1,12 +1,6 @@
 /** Pipeline — 消息处理管道。 */
 
-import type {
-  Message,
-  SessionKey,
-  SenderInfo,
-  SendFn,
-} from '@aesyclaw/core/types';
-import { getMessageText } from '@aesyclaw/core/types';
+import { getMessageText, type Message, type SessionKey, type SenderInfo, type SendFn } from '@aesyclaw/core/types';
 import type { PipelineDependencies } from './types';
 import { HookDispatcher } from './hook-dispatcher';
 import { Agent } from '@aesyclaw/agent/agent';

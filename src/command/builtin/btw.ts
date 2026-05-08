@@ -4,12 +4,10 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
-import type { CommandContext, CommandDefinition } from '@aesyclaw/core/types';
-import type { RoleConfig } from '@aesyclaw/core/types';
+import type { CommandContext, CommandDefinition, RoleConfig } from '@aesyclaw/core/types';
+import { getMessageText, serializeSessionKey } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import { getMessageText } from '@aesyclaw/core/types';
 import { Agent } from '@aesyclaw/agent/agent';
-import { serializeSessionKey } from '@aesyclaw/core/types';
 
 export function createBtwCommand(
   sessionManager: Pick<SessionManager, 'create'>,

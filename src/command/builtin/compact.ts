@@ -1,10 +1,9 @@
-import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import { serializeSessionKey, type CommandDefinition, type CommandContext } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { Agent } from '@aesyclaw/agent/agent';
-import { serializeSessionKey } from '@aesyclaw/core/types';
 
 export function createCompactCommand(
   sessionManager: Pick<SessionManager, 'get'>,

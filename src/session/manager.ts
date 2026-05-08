@@ -1,5 +1,4 @@
-import type { SessionKey } from '@aesyclaw/core/types';
-import { serializeSessionKey } from '@aesyclaw/core/types';
+import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { Session } from './session';

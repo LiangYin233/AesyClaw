@@ -9,18 +9,8 @@
  */
 
 import { parentPort, type MessagePort } from 'node:worker_threads';
-import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
-import { streamSimple } from '@mariozechner/pi-ai';
-import type { AgentTool, StreamFn } from '@mariozechner/pi-agent-core';
-import type {
-  Api,
-  Context,
-  Message,
-  Model,
-  SimpleStreamOptions,
-  TSchema,
-  TextContent,
-} from '@mariozechner/pi-ai';
+import { Agent as PiAgent, type AgentTool, type StreamFn } from '@mariozechner/pi-agent-core';
+import { streamSimple, type Api, type Context, type Message, type Model, type SimpleStreamOptions, type TSchema, type TextContent } from '@mariozechner/pi-ai';
 
 /**
  * IPC 消息类型 — Worker 与主线程之间的通信协议。
