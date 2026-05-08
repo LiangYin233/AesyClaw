@@ -1,12 +1,8 @@
-/** 共享核心类型的兼容导出桶。
+/** 共享核心类型的导出桶。
  *
- * 本文件作为公共门面，保持所有现有导入者的向后兼容。
- * 底层类型已按领域拆分到独立文件。
- *
- * 新代码应优先从具体的领域文件导入：
- *   - `./identity-types`    — SessionKey、ChannelId、ToolOwner 及序列化工具
- *   - `./message-types`     — Message、SendFn、PipelineResult
- *   - `./database-types`    — 数据库记录类型 (SessionRecord, CronJobRecord, UsageRecord 等)
+ * 所有 AesyClaw 内部及扩展代码均从此文件导入公共类型。
+ * 底层类型按领域拆分到 identity-types / message-types / database-types，
+ * 此为内部组织细节，不暴露为公开导入路径。
  */
 
 // ─── 重导出 — 向后兼容 ─────────────────────────────────────────────
