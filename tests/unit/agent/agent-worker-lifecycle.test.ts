@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Agent } from '../../../src/agent/agent';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
 import { runWorkerTask } from '../../../src/agent/worker-runner';
-import type { RoleConfig } from '@aesyclaw/core/types';
+import { makeRole } from '../../helpers/role';
 
 function defer<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -102,17 +102,13 @@ function getLastToolResultMessage(index = 0) {
     ) as { result?: { content: Array<{ type: 'text'; text: string }>; details?: unknown } } | undefined;
 }
 
-function makeRole(): RoleConfig {
-  return {
-    id: 'assistant',
-    name: 'Assistant',
+function makeWorkerRole() {
+  return makeRole({
     description: 'Assistant role',
     systemPrompt: 'You are Assistant.',
-    model: 'openai/gpt-4o',
     toolPermission: { mode: 'allowlist', list: [] },
     skills: [],
-    enabled: true,
-  };
+  });
 }
 
 let agentRegistry: AgentRegistry;
@@ -195,7 +191,7 @@ describe('Agent worker lifecycle', () => {
       compressionThreshold: 0.8,
       registry,
     });
-    const role = makeRole();
+    const role = makeWorkerRole();
     await agent.setRole(role);
     vi.spyOn(agent, 'runTurn').mockResolvedValue({ newMessages: [], lastAssistant: 'ok' });
 
@@ -208,7 +204,7 @@ describe('Agent worker lifecycle', () => {
     const dateNow = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
-    const role = makeRole();
+    const role = makeWorkerRole();
 
     const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
     await Promise.resolve();
@@ -247,7 +243,7 @@ describe('Agent worker lifecycle', () => {
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
-    const role = makeRole();
+    const role = makeWorkerRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
     await Promise.resolve();
@@ -270,7 +266,7 @@ describe('Agent worker lifecycle', () => {
   it('surfaces the final assistant error instead of earlier tool-call text', async () => {
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
-    const role = makeRole();
+    const role = makeWorkerRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
     await Promise.resolve();
@@ -308,7 +304,7 @@ describe('Agent worker lifecycle', () => {
   it('does not fall back to earlier assistant text when the final assistant is empty', async () => {
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
-    const role = makeRole();
+    const role = makeWorkerRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
     await Promise.resolve();
@@ -507,7 +503,7 @@ describe('Agent worker lifecycle', () => {
   it('cancels every active worker for the session', async () => {
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
-    const role = makeRole();
+    const role = makeWorkerRole();
 
     const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
     await Promise.resolve();
@@ -530,7 +526,7 @@ describe('Agent worker lifecycle', () => {
   it('removes active workers when cancel is called', async () => {
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
-    const role = makeRole();
+    const role = makeWorkerRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
     await Promise.resolve();
@@ -549,7 +545,7 @@ describe('Agent worker lifecycle', () => {
   it('rejects when the worker emits an error', async () => {
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
-    const role = makeRole();
+    const role = makeWorkerRole();
 
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
     await Promise.resolve();

@@ -14,7 +14,6 @@ import {
   createImageUnderstandingTool,
 } from '../../../src/tool/builtin';
 import type { Skill } from '../../../src/core/types';
-import type { Session } from '../../../src/session';
 
 vi.mock('@mariozechner/pi-ai', async () => {
   const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');

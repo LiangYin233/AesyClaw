@@ -1,6 +1,6 @@
 import type { MessageComponent, SenderInfo } from '@aesyclaw/sdk';
 import { isRecord } from '@aesyclaw/sdk';
-import { ATTACHMENT_TYPE_BY_SEGMENT, COMPONENT_TYPE_BY_ATTACHMENT, DEFAULT_CONFIG } from './constants';
+import { ATTACHMENT_KIND, ATTACHMENT_TYPE_BY_SEGMENT, DEFAULT_CONFIG } from './constants';
 import type { MediaComponent, OneBotAttachmentType, OneBotChannelConfig, OneBotInboundAttachmentSegment } from './types';
 
 export function parseConfig(config: Record<string, unknown>): OneBotChannelConfig {
@@ -12,16 +12,6 @@ export function parseConfig(config: Record<string, unknown>): OneBotChannelConfi
 
 export function readString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
-}
-
-export function extractTextSegment(segment: unknown): string {
-  if (!isRecord(segment)) {
-    return '';
-  }
-  if (segment['type'] !== 'text' || !isRecord(segment['data'])) {
-    return '';
-  }
-  return typeof segment['data']['text'] === 'string' ? segment['data']['text'] : '';
 }
 
 export function buildSenderInfo(senderId: string, sender: unknown): SenderInfo {
@@ -70,5 +60,5 @@ export function mapAttachmentTypeFromSegment(type: string): OneBotAttachmentType
 export function componentTypeFromAttachment(
   attachmentType: OneBotAttachmentType,
 ): OneBotInboundAttachmentSegment['componentType'] {
-  return COMPONENT_TYPE_BY_ATTACHMENT[attachmentType];
+  return ATTACHMENT_KIND[attachmentType].componentType;
 }

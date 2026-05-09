@@ -4,25 +4,12 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Agent } from '../../../src/agent/agent';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
-import type { RoleConfig, Skill } from '../../../src/core/types';
+import type { Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/skill-manager';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { AgentTool } from '../../../src/agent/agent-types';
+import { makeRole } from '../../helpers/role';
 import { Type } from '@sinclair/typebox';
-
-function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
-  return {
-    id: 'assistant',
-    name: 'Assistant',
-    description: 'A helpful assistant',
-    systemPrompt: 'You are {{role}}.',
-    model: 'openai/gpt-4o',
-    toolPermission: { mode: 'allowlist', list: ['*'] },
-    skills: ['greeting'],
-    enabled: true,
-    ...overrides,
-  };
-}
 
 function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
   return {

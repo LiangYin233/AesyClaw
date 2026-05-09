@@ -30,27 +30,6 @@ export const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<MediaComponent['type'
   File: 'file',
 };
 
-export const COMPONENT_TYPE_BY_ATTACHMENT: Record<OneBotAttachmentType, MediaComponent['type']> = {
-  image: ATTACHMENT_KIND.image.componentType,
-  audio: ATTACHMENT_KIND.audio.componentType,
-  video: ATTACHMENT_KIND.video.componentType,
-  file: ATTACHMENT_KIND.file.componentType,
-};
-
-export const SEGMENT_TYPE_BY_ATTACHMENT: Record<OneBotAttachmentType, string> = {
-  image: ATTACHMENT_KIND.image.segmentType,
-  audio: ATTACHMENT_KIND.audio.segmentType,
-  video: ATTACHMENT_KIND.video.segmentType,
-  file: ATTACHMENT_KIND.file.segmentType,
-};
-
-export const DEFAULT_EXTENSION_BY_ATTACHMENT: Record<OneBotAttachmentType, string> = {
-  image: ATTACHMENT_KIND.image.defaultExtension,
-  audio: ATTACHMENT_KIND.audio.defaultExtension,
-  video: ATTACHMENT_KIND.video.defaultExtension,
-  file: ATTACHMENT_KIND.file.defaultExtension,
-};
-
 export const ATTACHMENT_TYPE_BY_SEGMENT: Record<string, OneBotAttachmentType | undefined> = {
   [ATTACHMENT_KIND.image.segmentType]: 'image',
   [ATTACHMENT_KIND.audio.segmentType]: 'audio',

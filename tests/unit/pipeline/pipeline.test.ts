@@ -8,6 +8,7 @@ const agentProcess = vi.fn(async () => ({ components: [{ type: 'Plain' as const,
 
 vi.mock('@aesyclaw/agent/agent', () => ({
   Agent: vi.fn().mockImplementation(() => ({
+    buildPrompt: vi.fn(() => ({ prompt: 'system', tools: [] })),
     setRole: agentSetRole,
     process: agentProcess,
   })),

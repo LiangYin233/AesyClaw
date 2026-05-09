@@ -2,20 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { updateRole } from '../../../src/web/services/roles';
 import type { RoleConfig } from '../../../src/core/types';
 import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';
-
-function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
-  return {
-    id: 'default',
-    name: 'Default',
-    description: 'Default role',
-    systemPrompt: 'You are helpful.',
-    model: 'openai/gpt-4o',
-    toolPermission: { mode: 'allowlist', list: [] },
-    skills: [],
-    enabled: true,
-    ...overrides,
-  };
-}
+import { makeRole } from '../../helpers/role';
 
 function makeDeps(role = makeRole()) {
   return {

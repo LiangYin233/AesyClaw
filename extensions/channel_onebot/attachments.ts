@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isRecord } from '@aesyclaw/sdk';
 import {
-  DEFAULT_EXTENSION_BY_ATTACHMENT,
+  ATTACHMENT_KIND,
   DOWNLOAD_REQUEST_BY_SEGMENT,
   EXTENSION_BY_MIME_TYPE,
   OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE,
@@ -288,6 +288,6 @@ export function inferAttachmentFileName(
 
   const extension =
     (mimeType ? EXTENSION_BY_MIME_TYPE[mimeType.toLowerCase()] : undefined) ??
-    DEFAULT_EXTENSION_BY_ATTACHMENT[OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE[component.type]];
+    ATTACHMENT_KIND[OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE[component.type]].defaultExtension;
   return `${component.type}-${Date.now()}${extension}`;
 }

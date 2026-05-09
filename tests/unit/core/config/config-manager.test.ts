@@ -6,6 +6,52 @@ import { ConfigManager } from '../../../../src/core/config/config-manager';
 
 const TEST_BASE = join(tmpdir(), 'aesyclaw-test-config');
 
+function makeConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
+    providers: {},
+    channels: {},
+    agent: {
+      memory: { compressionThreshold: 0.8 },
+      multimodal: {
+        speechToText: { provider: 'openai', model: 'whisper-1' },
+        imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+      },
+    },
+    mcp: [],
+    plugins: [],
+    ...overrides,
+  };
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForExpect(assertion: () => void, timeoutMs = 1500): Promise<void> {
+  const start = Date.now();
+  let lastError: unknown;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      assertion();
+      return;
+    } catch (err) {
+      lastError = err;
+      await wait(25);
+    }
+  }
+  throw lastError;
+}
+
+async function expectStable(assertion: () => void, durationMs = 300): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < durationMs) {
+    assertion();
+    await wait(25);
+  }
+  assertion();
+}
+
 describe('ConfigManager', () => {
   let manager: ConfigManager;
   let testRoot: string;
@@ -22,13 +68,13 @@ describe('ConfigManager', () => {
   afterEach(() => {
     manager.stopHotReload();
     if (existsSync(testRoot)) {
-      rmSync(testRoot, { recursive: true, force: true });
+      rmSync(testRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
     }
   });
 
   afterAll(() => {
     if (existsSync(TEST_BASE)) {
-      rmSync(TEST_BASE, { recursive: true, force: true });
+      rmSync(TEST_BASE, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
     }
   });
 
@@ -48,10 +94,8 @@ describe('ConfigManager', () => {
     });
 
     it('should load an existing config file', () => {
-      const existingConfig = {
+      const existingConfig = makeConfig({
         server: { port: 8080, host: 'localhost', logLevel: 'debug' },
-        providers: {},
-        channels: {},
         agent: {
           memory: { compressionThreshold: 0.7 },
           multimodal: {
@@ -59,9 +103,7 @@ describe('ConfigManager', () => {
             imageUnderstanding: { provider: 'test', model: 'test-model' },
           },
         },
-        mcp: [],
-        plugins: [],
-      };
+      });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
 
@@ -80,20 +122,9 @@ describe('ConfigManager', () => {
     });
 
     it('should reject explicitly invalid values instead of coercing them', () => {
-      const invalidConfig = {
+      const invalidConfig = makeConfig({
         server: { port: '3000', host: 'localhost', logLevel: 'info' },
-        providers: {},
-        channels: {},
-        agent: {
-          memory: { compressionThreshold: 0.8 },
-          multimodal: {
-            speechToText: { provider: 'openai', model: 'whisper-1' },
-            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-          },
-        },
-        mcp: [],
-        plugins: [],
-      };
+      });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
 
@@ -101,10 +132,8 @@ describe('ConfigManager', () => {
     });
 
     it('should still fill defaults for missing optional fields', () => {
-      const partialConfig = {
+      const partialConfig = makeConfig({
         server: { port: 8080, host: 'localhost', logLevel: 'debug' },
-        providers: {},
-        channels: {},
         agent: {
           memory: { compressionThreshold: 0.7 },
           multimodal: {
@@ -114,7 +143,7 @@ describe('ConfigManager', () => {
         },
         mcp: [{ name: 'local', transport: 'stdio' }],
         plugins: [{ name: 'example-plugin' }],
-      };
+      });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(partialConfig, null, 2));
 
@@ -194,9 +223,7 @@ describe('ConfigManager', () => {
     });
 
     it('should preserve existing channel values during syncDefaults', async () => {
-      const existingConfig = {
-        server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
-        providers: {},
+      const existingConfig = makeConfig({
         channels: {
           testchannel: {
             enabled: false,
@@ -204,16 +231,7 @@ describe('ConfigManager', () => {
             nested: { retries: 5 },
           },
         },
-        agent: {
-          memory: { compressionThreshold: 0.8 },
-          multimodal: {
-            speechToText: { provider: 'openai', model: 'whisper-1' },
-            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-          },
-        },
-        mcp: [],
-        plugins: [],
-      };
+      });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
 
@@ -236,24 +254,13 @@ describe('ConfigManager', () => {
     });
 
     it('should backfill missing nested channel fields during syncDefaults', async () => {
-      const existingConfig = {
-        server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
-        providers: {},
+      const existingConfig = makeConfig({
         channels: {
           testchannel: {
             nested: { retries: 2 },
           },
         },
-        agent: {
-          memory: { compressionThreshold: 0.8 },
-          multimodal: {
-            speechToText: { provider: 'openai', model: 'whisper-1' },
-            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-          },
-        },
-        mcp: [],
-        plugins: [],
-      };
+      });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
 
@@ -291,24 +298,20 @@ describe('ConfigManager', () => {
   describe('hot reload', () => {
     it('should refresh cache on valid hot reload changes', async () => {
       manager.startHotReload();
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const updated = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
       updated.server = { port: 7777, host: '127.0.0.1', logLevel: 'debug' };
       writeFileSync(configPath, JSON.stringify(updated, null, 2));
-      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      expect(manager.get('server.port')).toBe(7777);
+      await waitForExpect(() => expect(manager.get('server.port')).toBe(7777));
     });
 
     it('should keep previous cache on invalid hot reload changes', async () => {
       manager.startHotReload();
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       writeFileSync(configPath, JSON.stringify({ server: { port: 'bad' } }, null, 2));
-      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      expect(manager.get('server.port')).toBe(3000);
+      await expectStable(() => expect(manager.get('server.port')).toBe(3000));
     });
   });
 

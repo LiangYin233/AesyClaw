@@ -8,8 +8,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ToolRegistry, filterToolsByRole } from '../../../src/tool/tool-registry';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
-import type { RoleConfig } from '../../../src/core/types';
 import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import { makeRole } from '../../helpers/role';
 import { Type } from '@sinclair/typebox';
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -35,20 +35,6 @@ function makeNoOpHookDispatcher(): HookDispatcher {
       return {};
     },
   } as unknown as HookDispatcher;
-}
-
-function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
-  return {
-    id: 'default',
-    name: 'Default',
-    description: 'Test role',
-    systemPrompt: 'You are an assistant.',
-    model: 'openai/gpt-4o',
-    toolPermission: { mode: 'allowlist', list: ['*'] },
-    skills: ['*'],
-    enabled: true,
-    ...overrides,
-  };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────

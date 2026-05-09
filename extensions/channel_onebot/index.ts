@@ -10,7 +10,6 @@ import {
   enrichMessageWithDownloads,
   enrichMessageWithReplyContent,
   extractOneBotComponents,
-  extractOneBotText,
   mapOneBotEventToMessage,
 } from './inbound';
 import { sendOneBotMessage } from './outbound';
@@ -111,6 +110,6 @@ async function handlePlatformPayload(payload: Record<string, unknown>): Promise<
   }
 }
 
-export { extractOneBotComponents, extractOneBotText, mapOneBotEventToMessage, sendOneBotMessage };
+export { extractOneBotComponents, mapOneBotEventToMessage, sendOneBotMessage };
 
 export default channel;

@@ -349,7 +349,7 @@ function toggleChannelEnabled(key: string) {
   sectionValue.value = { ...current, [key]: { ...channelValue, enabled } };
 }
 
-interface ChannelField {
+interface ConfigField {
   path: string;
   key: string;
   displayLabel: string;
@@ -357,13 +357,13 @@ interface ChannelField {
   type: 'string' | 'number' | 'boolean' | 'object';
 }
 
-function getChannelFields(entry: ChannelEntry): ChannelField[] {
-  const fields: ChannelField[] = [];
-  if (!isRecord(entry.value)) return fields;
-  const flat = flattenObject(entry.value);
+function getFields(record: Record<string, unknown>, skipKeys: string[] = []): ConfigField[] {
+  const fields: ConfigField[] = [];
+  const skip = new Set(skipKeys);
+  const flat = flattenObject(record);
   for (const [key, val] of Object.entries(flat)) {
-    if (key === 'enabled') continue;
-    let type: ChannelField['type'] = 'string';
+    if (skip.has(key)) continue;
+    let type: ConfigField['type'] = 'string';
     if (typeof val === 'number') type = 'number';
     else if (typeof val === 'boolean') type = 'boolean';
     else if (typeof val === 'object' && val !== null) type = 'object';
@@ -376,6 +376,10 @@ function getChannelFields(entry: ChannelEntry): ChannelField[] {
     });
   }
   return fields;
+}
+
+function getChannelFields(entry: ChannelEntry): ConfigField[] {
+  return isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
 }
 
 function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
@@ -416,13 +420,7 @@ function setNestedValue(obj: Record<string, unknown>, path: string, value: unkno
 }
 
 function handleChannelComplexField(channelKey: string, path: string, raw: string) {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return;
-  }
-  setChannelField(channelKey, path, parsed);
+  handleComplexField(raw, (parsed) => setChannelField(channelKey, path, parsed));
 }
 
 function formatFieldLabel(key: string): string {
@@ -451,24 +449,9 @@ function updatePluginField(index: number, key: 'name' | 'enabled', value: string
   sectionValue.value = next;
 }
 
-function getPluginFields(plugin: PluginEntry): ChannelField[] {
-  const fields: ChannelField[] = [];
+function getPluginFields(plugin: PluginEntry): ConfigField[] {
   const options = isRecord(plugin['options']) ? plugin['options'] : {};
-  const flat = flattenObject(options);
-  for (const [key, val] of Object.entries(flat)) {
-    let type: ChannelField['type'] = 'string';
-    if (typeof val === 'number') type = 'number';
-    else if (typeof val === 'boolean') type = 'boolean';
-    else if (typeof val === 'object' && val !== null) type = 'object';
-    fields.push({
-      path: key,
-      key,
-      displayLabel: formatFieldLabel(key),
-      value: val,
-      type,
-    });
-  }
-  return fields;
+  return getFields(options);
 }
 
 function setPluginOptionField(index: number, path: string, value: unknown) {
@@ -482,13 +465,17 @@ function setPluginOptionField(index: number, path: string, value: unknown) {
 }
 
 function handlePluginComplexField(index: number, path: string, raw: string) {
+  handleComplexField(raw, (parsed) => setPluginOptionField(index, path, parsed));
+}
+
+function handleComplexField(raw: string, setParsed: (value: unknown) => void) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
     return;
   }
-  setPluginOptionField(index, path, parsed);
+  setParsed(parsed);
 }
 
 function getSectionValue(source: unknown, key: 'channels' | 'plugins'): unknown {

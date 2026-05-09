@@ -17,8 +17,6 @@ import {
 import { getStatus } from '@aesyclaw/web/services/status';
 import { getUsage, getUsageToday, getUsageTools } from '@aesyclaw/web/services/usage';
 import { getLogs } from '@aesyclaw/web/services/logs';
-import { getTools } from '@aesyclaw/web/services/tools';
-import { getSkills } from '@aesyclaw/web/services/skills';
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
@@ -110,11 +108,26 @@ export async function dispatchMessage(
 
       // 工具
       case 'get_tools':
-        return okResponse(msg, getTools(deps));
+        return okResponse(
+          msg,
+          deps.toolRegistry.getAll().map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            owner: tool.owner,
+            parameters: JSON.parse(JSON.stringify(tool.parameters)),
+          })),
+        );
 
       // 技能
       case 'get_skills':
-        return okResponse(msg, getSkills(deps));
+        return okResponse(
+          msg,
+          deps.skillManager.getAllSkills().map((skill) => ({
+            name: skill.name,
+            description: skill.description,
+            isSystem: skill.isSystem,
+          })),
+        );
 
       default:
         logger.warn('未知消息类型', { type: msg.type });

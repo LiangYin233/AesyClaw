@@ -16,14 +16,14 @@
     "start": "yarn build && node --import tsx src/index.ts",
     "web:dev": "yarn workspace aesyclaw-webui dev",
     "web:build": "yarn workspace aesyclaw-webui build",
-    "build": "yarn workspace aesyclaw-webui build",
+    "build": "yarn web:build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.0",

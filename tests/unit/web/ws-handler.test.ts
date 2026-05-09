@@ -72,6 +72,33 @@ function createDeps() {
   } as Parameters<typeof createWebSocketServer>[1];
 }
 
+type UpgradeHandler = (
+  request: { url?: string },
+  socket: { destroy: () => void; write: (chunk: string) => void },
+  head: Buffer,
+) => void;
+
+function setupWebSocketTest() {
+  const upgradeHandlers: UpgradeHandler[] = [];
+  const httpServer = {
+    on: vi.fn((event: string, handler: UpgradeHandler) => {
+      if (event === 'upgrade') {
+        upgradeHandlers.push(handler);
+      }
+    }),
+  };
+
+  const wss = createWebSocketServer(httpServer as never, createDeps());
+  const socket = { destroy: vi.fn(), write: vi.fn() };
+  upgradeHandlers[0]?.({ url: '/api/ws?token=test-token' }, socket, Buffer.alloc(0));
+
+  const wsServer = wss as unknown as MockWebSocketServer;
+  const client = new MockWebSocket();
+  wsServer.emit('connection', client);
+
+  return { wss, client, socket, upgradeHandlers };
+}
+
 describe('createWebSocketServer', () => {
   beforeEach(() => {
     clearRecentLogEntriesForTests();
@@ -83,26 +110,7 @@ describe('createWebSocketServer', () => {
   });
 
   it('sends a log_entry message to connected clients when a log is appended', () => {
-    const upgradeHandlers: Array<(request: { url?: string }, socket: { destroy: () => void; write: (chunk: string) => void }, head: Buffer) => void> = [];
-    const httpServer = {
-      on: vi.fn((event: string, handler: (request: { url?: string }, socket: { destroy: () => void; write: (chunk: string) => void }, head: Buffer) => void) => {
-        if (event === 'upgrade') {
-          upgradeHandlers.push(handler);
-        }
-      }),
-    };
-
-    const wss = createWebSocketServer(httpServer as never, createDeps());
-
-    const socket = { destroy: vi.fn(), write: vi.fn() };
-    const request = { url: '/api/ws?token=test-token' };
-    const head = Buffer.alloc(0);
-
-    upgradeHandlers[0]?.(request, socket, head);
-
-    const wsServer = wss as unknown as MockWebSocketServer;
-    const client = new MockWebSocket();
-    wsServer.emit('connection', client);
+    const { client } = setupWebSocketTest();
 
     const logger = createScopedLogger('webui:test');
     logger.info('Pushed from logger', { live: true });
@@ -121,23 +129,7 @@ describe('createWebSocketServer', () => {
   });
 
   it('stops sending log_entry messages after the client closes', () => {
-    const upgradeHandlers: Array<(request: { url?: string }, socket: { destroy: () => void; write: (chunk: string) => void }, head: Buffer) => void> = [];
-    const httpServer = {
-      on: vi.fn((event: string, handler: (request: { url?: string }, socket: { destroy: () => void; write: (chunk: string) => void }, head: Buffer) => void) => {
-        if (event === 'upgrade') {
-          upgradeHandlers.push(handler);
-        }
-      }),
-    };
-
-    const wss = createWebSocketServer(httpServer as never, createDeps());
-    const socket = { destroy: vi.fn(), write: vi.fn() };
-
-    upgradeHandlers[0]?.({ url: '/api/ws?token=test-token' }, socket, Buffer.alloc(0));
-
-    const wsServer = wss as unknown as MockWebSocketServer;
-    const client = new MockWebSocket();
-    wsServer.emit('connection', client);
+    const { client } = setupWebSocketTest();
 
     client.emit('close');
 

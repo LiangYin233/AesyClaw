@@ -10,23 +10,10 @@ import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { SkillManager } from '../../../src/skill/skill-manager';
-import type { RoleConfig, SkillDefinition } from '../../../src/core/types';
+import type { SkillDefinition } from '../../../src/core/types';
+import { makeRole } from '../../helpers/role';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-skill-manager');
-
-function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
-  return {
-    id: 'test-role',
-    name: 'Test Role',
-    description: 'A test role',
-    systemPrompt: 'You are a test assistant.',
-    model: 'openai/gpt-4o',
-    toolPermission: { mode: 'allowlist', list: ['*'] },
-    skills: ['*'],
-    enabled: true,
-    ...overrides,
-  };
-}
 
 function expectSkill(skill: SkillDefinition | undefined, name: string): SkillDefinition {
   expect(skill).toBeDefined();

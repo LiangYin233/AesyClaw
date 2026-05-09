@@ -6,21 +6,9 @@ import { ConfigManager } from '../../../src/core/config/config-manager';
 import { RoleStore } from '../../../src/role/role-store';
 import type { RoleConfig } from '../../../src/core/types';
 import { RoleManager } from '../../../src/role/role-manager';
+import { makeRole } from '../../helpers/role';
 
 const TEST_BASE = join(tmpdir(), 'aesyclaw-test-role-manager');
-
-function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
-  return {
-    id: 'default',
-    description: 'A default role',
-    systemPrompt: 'You are an assistant.',
-    model: 'openai/gpt-4o',
-    toolPermission: { mode: 'allowlist', list: ['*'] },
-    skills: ['*'],
-    enabled: true,
-    ...overrides,
-  };
-}
 
 describe('RoleManager', () => {
   let testRoot: string;

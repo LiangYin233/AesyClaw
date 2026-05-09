@@ -308,29 +308,7 @@ const chartData = computed(() => {
     .map(([date, tokens]) => ({ date, ...tokens }));
 });
 
-const toolChartData = computed(() => {
-  const nameMap = new Map<string, { type: string; name: string; count: number }>();
-  for (const row of toolData.value) {
-    const key = `${row.type}:${row.name}`;
-    const existing = nameMap.get(key);
-    if (existing) {
-      existing.count += row.count;
-    } else {
-      nameMap.set(key, { type: row.type, name: row.name, count: row.count });
-    }
-  }
-  return [...nameMap.values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 15)
-    .map((entry) => ({
-      name: entry.name,
-      type: entry.type,
-      count: entry.count,
-      label: entry.type === 'skill' ? `${entry.name} (skill)` : entry.name,
-    }));
-});
-
-const toolTableData = computed(() => {
+const aggregatedToolData = computed(() => {
   const nameMap = new Map<string, { type: string; name: string; count: number }>();
   for (const row of toolData.value) {
     const key = `${row.type}:${row.name}`;
@@ -342,6 +320,21 @@ const toolTableData = computed(() => {
     }
   }
   return [...nameMap.values()].sort((a, b) => b.count - a.count);
+});
+
+const toolChartData = computed(() => {
+  return aggregatedToolData.value
+    .slice(0, 15)
+    .map((entry) => ({
+      name: entry.name,
+      type: entry.type,
+      count: entry.count,
+      label: entry.type === 'skill' ? `${entry.name} (skill)` : entry.name,
+    }));
+});
+
+const toolTableData = computed(() => {
+  return aggregatedToolData.value;
 });
 
 function formatNumber(n: number): string {

@@ -5,7 +5,6 @@ import type { OneBotApiResponse } from './websocket-client';
 import {
   buildSenderInfo,
   componentTypeFromAttachment,
-  extractTextSegment,
   isMediaComponent,
   mapAttachmentTypeFromSegment,
   optionalStringField,
@@ -48,24 +47,6 @@ export function mapOneBotEventToMessage(
     },
     sender: buildSenderInfo(senderId, event['sender']),
   };
-}
-
-export function extractOneBotText(message: unknown, rawMessage?: unknown): string {
-  if (typeof message === 'string') {
-    return message;
-  }
-
-  if (Array.isArray(message)) {
-    const text = message
-      .map((segment) => extractTextSegment(segment))
-      .filter((part) => part.length > 0)
-      .join('');
-    if (text.length > 0) {
-      return text;
-    }
-  }
-
-  return typeof rawMessage === 'string' ? rawMessage : '';
 }
 
 export async function enrichMessageWithDownloads(
@@ -203,25 +184,12 @@ export function mergeDownloadedComponent(
   downloaded: OneBotDownloadResult,
 ): MessageComponent {
   const type = componentTypeFromAttachment(downloaded.type);
-  const base = component?.type === type ? component : createEmptyMediaComponent(type);
+  const base = component?.type === type ? component : ({ type } as MessageComponent);
   return {
     ...base,
     ...(downloaded.url ? { url: downloaded.url } : {}),
     ...(downloaded.path ? { path: downloaded.path } : {}),
   };
-}
-
-function createEmptyMediaComponent(type: MediaComponent['type']): MediaComponent {
-  switch (type) {
-    case 'Image':
-      return { type: 'Image' };
-    case 'Record':
-      return { type: 'Record' };
-    case 'Video':
-      return { type: 'Video' };
-    case 'File':
-      return { type: 'File' };
-  }
 }
 
 export function extractOneBotComponents(message: unknown): MessageComponent[] {

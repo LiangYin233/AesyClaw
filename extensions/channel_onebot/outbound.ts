@@ -1,7 +1,11 @@
 import { getMessageText } from '@aesyclaw/sdk';
 import type { Message, SessionKey } from '@aesyclaw/sdk';
 import { uploadAttachmentStream, validateApiResponse } from './attachments';
-import { OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE, SEGMENT_TYPE_BY_ATTACHMENT, SEND_ACTION_BY_CHAT_TYPE } from './constants';
+import {
+  ATTACHMENT_KIND,
+  OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE,
+  SEND_ACTION_BY_CHAT_TYPE,
+} from './constants';
 import type { MediaComponent, OneBotLogger, OneBotMessageSegment, UploadedAttachment } from './types';
 import { isMediaComponent, numericOrStringId } from './utils';
 import type { OneBotActionTransport } from './websocket-client';
@@ -32,7 +36,7 @@ export async function sendOneBotMessage(
   }
 }
 
-export async function buildSendAction(
+async function buildSendAction(
   sessionKey: SessionKey,
   message: Message,
   transport: OneBotActionTransport,
@@ -55,7 +59,7 @@ export async function buildSendAction(
   throw new Error(`OneBot channel cannot send to chat type "${sessionKey.type}"`);
 }
 
-export async function buildOneBotSegments(
+async function buildOneBotSegments(
   message: Message,
   transport: OneBotActionTransport,
   logger: OneBotLogger | undefined,
@@ -93,7 +97,7 @@ export async function buildOneBotSegments(
     }
 
     segments.push({
-      type: SEGMENT_TYPE_BY_ATTACHMENT[OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE[component.type]],
+      type: ATTACHMENT_KIND[OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE[component.type]].segmentType,
       data: {
         file: uploaded.filePath,
         file_path: uploaded.filePath,
@@ -109,7 +113,7 @@ export async function buildOneBotSegments(
   return segments;
 }
 
-export function summarizeMessage(
+function summarizeMessage(
   sessionKey: SessionKey,
   message: Message,
 ): {
@@ -130,7 +134,7 @@ export function summarizeMessage(
   };
 }
 
-export function summarizeAttachmentSource(component: MediaComponent): string {
+function summarizeAttachmentSource(component: MediaComponent): string {
   if (component.base64) {
     return 'base64';
   }

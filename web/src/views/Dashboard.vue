@@ -199,7 +199,6 @@ const stats = ref({ sessions: 0, messages: 0, cronJobs: 0 });
 const uptime = ref(0);
 const channels = ref<ChannelStatus[]>([]);
 const usageData = ref<UsageSummary[]>([]);
-const yesterdayData = ref<UsageSummary[]>([]);
 
 const todayUsage = computed(() => {
   const total = { totalTokens: 0, count: 0 };
@@ -208,23 +207,6 @@ const todayUsage = computed(() => {
     total.count += row.count;
   }
   return total;
-});
-
-const yesterdayUsage = computed(() => {
-  const total = { totalTokens: 0, count: 0 };
-  for (const row of yesterdayData.value) {
-    total.totalTokens += row.totalTokens;
-    total.count += row.count;
-  }
-  return total;
-});
-
-const usageDiff = computed(() => {
-  if (yesterdayUsage.value.count === 0) return null;
-  const diff = Math.round(
-    ((todayUsage.value.count - yesterdayUsage.value.count) / yesterdayUsage.value.count) * 100,
-  );
-  return diff;
 });
 
 const uptimeText = computed(() => {
@@ -243,22 +225,9 @@ async function loadUsage() {
   try {
     const todayRaw = await ws.send('get_usage_today');
     usageData.value = Array.isArray(todayRaw) ? todayRaw : [];
-
-    const yesterdayStrVal = yesterdayStr();
-    const yesterdayRaw = await ws.send('get_usage', { from: yesterdayStrVal, to: yesterdayStrVal });
-    yesterdayData.value = Array.isArray(yesterdayRaw) ? yesterdayRaw : [];
   } catch (err) {
     console.error('Failed to load usage stats', err);
   }
-}
-
-function yesterdayStr(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
 }
 
 async function load() {

@@ -6,7 +6,6 @@ import type { ChannelContext, ChannelPlugin } from '../../../src/extension/chann
 import type { Message, SessionKey } from '../../../src/core/types';
 import { getMessageText } from '../../../src/core/types';
 import onebotChannel, {
-  extractOneBotText,
   mapOneBotEventToMessage,
   sendOneBotMessage,
 } from '../../../extensions/channel_onebot/index';
@@ -169,20 +168,6 @@ describe('channel_onebot', () => {
     expect(
       mapOneBotEventToMessage({ post_type: 'message', message_type: 'guild', user_id: 1 }),
     ).toBeNull();
-  });
-
-  it('extracts text from strings, segment arrays, and raw fallbacks', () => {
-    expect(extractOneBotText('hello')).toBe('hello');
-    expect(
-      extractOneBotText([
-        { type: 'text', data: { text: 'hello' } },
-        { type: 'image', data: { file: 'image.png' } },
-        { type: 'text', data: { text: ' world' } },
-      ]),
-    ).toBe('hello world');
-    expect(extractOneBotText([{ type: 'image', data: { file: 'image.png' } }], '[CQ:image]')).toBe(
-      '[CQ:image]',
-    );
   });
 
   it('keeps reconnect timing internal and exposes only remote websocket config', () => {
@@ -936,7 +921,11 @@ function createTestChannel(
   });
   vi.stubGlobal('WebSocket', constructorMock);
   openChannels.push(onebotChannel);
-  return { channel: onebotChannel, socket: sockets[0]!, constructorMock };
+  const socket = sockets[0];
+  if (!socket) {
+    throw new Error('No websocket prepared');
+  }
+  return { channel: onebotChannel, socket, constructorMock };
 }
 
 function makeChannelContext(
