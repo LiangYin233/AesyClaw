@@ -201,7 +201,9 @@ export class Agent {
     isSubAgent: boolean,
   ): string {
     if (this._promptOverride) {
-      return this._promptOverride;
+      const override = this._promptOverride;
+      this._promptOverride = null;
+      return override;
     }
 
     const sections: string[] = [this.replaceTemplateVariables(role.systemPrompt)];
