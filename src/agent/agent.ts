@@ -23,9 +23,9 @@ const ROLE_SECTION_HEADER = `## 角色
 
 const ROLE_SECTION_RULES = `### 角色使用规则
 
-1. **切换** — 使用 \`/role switch <id>\` 切换当前角色
-2. **查看** — 使用 \`/role info [id]\` 查看角色详情
-3. **匹配** — 根据任务需求选择合适的角色`;
+1. **匹配** — 根据子任务需求选择对应专长的角色
+2. **委托** — 使用 \`run_sub_agent(roleId="角色id", prompt="指令")\` 将任务委派给该角色
+3. **分工** — 复杂任务拆分至多个子代理并行或串行执行`;
 
 function buildRoleSection(allRoles: RoleConfig[]): string {
   const lines = allRoles.map((r) => `- **${r.id}** — ${r.description}`);
