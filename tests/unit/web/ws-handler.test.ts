@@ -64,7 +64,7 @@ function createDeps() {
     configManager: {
       get: vi.fn((key: string) => {
         if (key === 'server.authToken') {
-          return undefined;
+          return 'test-token';
         }
         return undefined;
       }),
@@ -95,7 +95,7 @@ describe('createWebSocketServer', () => {
     const wss = createWebSocketServer(httpServer as never, createDeps());
 
     const socket = { destroy: vi.fn(), write: vi.fn() };
-    const request = { url: '/api/ws' };
+    const request = { url: '/api/ws?token=test-token' };
     const head = Buffer.alloc(0);
 
     upgradeHandlers[0]?.(request, socket, head);
@@ -133,7 +133,7 @@ describe('createWebSocketServer', () => {
     const wss = createWebSocketServer(httpServer as never, createDeps());
     const socket = { destroy: vi.fn(), write: vi.fn() };
 
-    upgradeHandlers[0]?.({ url: '/api/ws' }, socket, Buffer.alloc(0));
+    upgradeHandlers[0]?.({ url: '/api/ws?token=test-token' }, socket, Buffer.alloc(0));
 
     const wsServer = wss as unknown as MockWebSocketServer;
     const client = new MockWebSocket();

@@ -28,7 +28,8 @@ function safeTokenEqual(provided: string, expected: string): boolean {
 function validateWsToken(requestUrl: string | undefined, configManager: ConfigManager): boolean {
   const authToken = configManager.get('server.authToken') as string | undefined;
   if (!authToken) {
-    return true; // 无 token 配置时允许所有连接
+    logger.error('WebSocket 鉴权 token 未配置，拒绝所有连接');
+    return false;
   }
 
   if (!requestUrl) {
@@ -85,10 +86,40 @@ export function createWebSocketServer(
   wss.on('connection', (ws: WebSocket) => {
     logger.info('WebSocket 客户端已连接');
 
-    // 心跳定时器：每 30 秒发送 ping
+    const CLIENT_ALIVE_TIMEOUT_MS = HEARTBEAT_INTERVAL_MS * 2 + 5_000;
+
+    const aliveWs = ws as WebSocket & { clientAlive: boolean };
+    aliveWs.clientAlive = true;
+    let pongTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const resetPongTimer = (): void => {
+      if (pongTimeout) {
+        clearTimeout(pongTimeout);
+      }
+      pongTimeout = setTimeout(() => {
+        logger.warn('WebSocket 客户端心跳超时，断开连接');
+        cleanupConnection();
+        ws.terminate();
+      }, CLIENT_ALIVE_TIMEOUT_MS);
+    };
+
+    resetPongTimer();
+
+    // 协议级心跳：服务端 ping，客户端浏览器自动回复 pong
+    ws.on('pong', () => {
+      aliveWs.clientAlive = true;
+      resetPongTimer();
+    });
+
     const heartbeatTimer = setInterval(() => {
+      if (!aliveWs.clientAlive) {
+        cleanupConnection();
+        ws.terminate();
+        return;
+      }
+      aliveWs.clientAlive = false;
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'ping' }));
+        ws.ping();
       }
     }, HEARTBEAT_INTERVAL_MS);
 
@@ -115,6 +146,9 @@ export function createWebSocketServer(
       cleanedUp = true;
       unsubscribeFromLogs();
       clearInterval(heartbeatTimer);
+      if (pongTimeout) {
+        clearTimeout(pongTimeout);
+      }
     };
 
     // 消息处理
@@ -152,8 +186,9 @@ async function handleWsMessage(
     return;
   }
 
-  // 处理 pong 消息（心跳回复）
+  // 处理 pong 消息（心跳回复，同时支持协议级和 JSON 级 pong）
   if (msg.type === 'pong') {
+    (ws as WebSocket & { clientAlive: boolean }).clientAlive = true;
     return;
   }
 
