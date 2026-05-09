@@ -182,14 +182,10 @@ export class Agent {
       executionContext ?? {},
     );
 
-    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles,
-      this.isSubAgentContext(executionContext));
+    const isSubAgent = executionContext !== undefined && executionContext.sendMessage === undefined;
+    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles, isSubAgent);
 
     return { prompt, tools: resolvedTools.agentTools };
-  }
-
-  private isSubAgentContext(ctx?: Partial<ToolExecutionContext>): boolean {
-    return ctx !== undefined && ctx.sendMessage === undefined;
   }
 
   private assemblePrompt(
