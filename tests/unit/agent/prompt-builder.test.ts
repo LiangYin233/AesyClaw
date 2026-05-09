@@ -121,7 +121,7 @@ describe('PromptBuilder', () => {
 
       expect(result.prompt).toContain('You are {{role}}.');
       expect(result.prompt).toContain('**greeting**: Greeting skill');
-      expect(result.prompt).toContain('## Available Roles');
+      expect(result.prompt).toContain('## 角色');
       expect(result.tools).toEqual([]);
       expect(deps.skillManager.getSkillsForRole).toHaveBeenCalledWith(role);
       expect(deps.roleManager.getEnabledRoles).toHaveBeenCalled();

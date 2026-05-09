@@ -17,6 +17,21 @@ const SKILL_SECTION_HEADER = `## 技能
 
 ### 可用技能`;
 
+const ROLE_SECTION_HEADER = `## 角色
+
+### 可用角色`;
+
+const ROLE_SECTION_RULES = `### 角色使用规则
+
+1. **切换** — 使用 \`/role switch <id>\` 切换当前角色
+2. **查看** — 使用 \`/role info [id]\` 查看角色详情
+3. **匹配** — 根据任务需求选择合适的角色`;
+
+function buildRoleSection(allRoles: RoleConfig[]): string {
+  const lines = allRoles.map((r) => `- **${r.id}** — ${r.description}`);
+  return `${ROLE_SECTION_HEADER}\n${lines.join('\n')}\n\n${ROLE_SECTION_RULES}`;
+}
+
 function buildSkillSection(skills: Skill[], skillDirs?: { userDir?: string; systemDir?: string }): string {
   const lines = skills.map((skill) => {
     const desc = skill.description || '无描述';
@@ -25,18 +40,17 @@ function buildSkillSection(skills: Skill[], skillDirs?: { userDir?: string; syst
 
   let rules = `### 技能使用规则
 
-1. **触发** — 用户明确提到技能名称，或任务明显匹配技能描述时使用
-2. **强制读取** — 执行前必须调用 \`load_skill(skillName="技能名")\` 读取完整内容，禁止凭记忆假设
-3. **渐进读取** — 只读取 SKILL.md 中明确引用的文件，不要批量加载整个技能目录
-4. **引用读取** — 若 SKILL.md 引用了其他文件（如 scripts/ 目录下的脚本），必须先通过 \`load_skill\` 读取该文件内容，再尝试执行
-5. **协作** — 多个技能适用时选最小集，并简短说明选择原因
-6. **失败处理** — 若技能无法应用，清楚说明原因后继续`;
+1. **触发** — 任务匹配技能描述时使用
+2. **读取** — 使用前必须 \`load_skill(skillName="技能名")\` 读取完整内容
+3. **渐近** — 仅读取 SKILL.md 直接引用的文件，勿批量加载
+4. **引用** — SKILL.md 引用的脚本，先 \`load_skill\` 读取文件内容再尝试执行
+5. **降级** — 若技能无法应用，说明原因后继续`;
 
   if (skillDirs?.systemDir || skillDirs?.userDir) {
     const pathLines: string[] = [];
     if (skillDirs.systemDir) pathLines.push(`- 系统技能: \`${skillDirs.systemDir}\``);
     if (skillDirs.userDir) pathLines.push(`- 用户技能: \`${skillDirs.userDir}\``);
-    rules += `\n\n7. **目录位置**\n${pathLines.join('\n')}`;
+    rules += `\n\n6. **路径**\n${pathLines.join('\n')}`;
   }
 
   return `${SKILL_SECTION_HEADER}\n${lines.join('\n')}\n\n${rules}`;
@@ -234,8 +248,7 @@ export class Agent {
     }
 
     if (allRoles.length > 0) {
-      const roleLines = allRoles.map((r) => `- **${r.id}** — ${r.description}`);
-      sections.push(`## Available Roles\n${roleLines.join('\n')}`);
+      sections.push(buildRoleSection(allRoles));
     }
 
     return sections.join('\n\n');
