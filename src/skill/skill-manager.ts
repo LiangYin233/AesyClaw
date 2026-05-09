@@ -113,7 +113,11 @@ export class SkillManager {
   }
 
   /**
-   * 从目录加载所有 `.md` 文件，递归进入子目录。
+   * 从目录加载所有技能。
+   *
+   * 遍历目录下的子目录，在每个子目录中查找 SKILL.md 并解析。
+   * 不会递归进入子目录的子目录（如 references/），
+   * 这些附加文件通过 load_skill 工具按需读取。
    *
    * @param dir      - 要扫描的目录
    * @param isSystem - 这些是否为系统技能
@@ -133,18 +137,17 @@ export class SkillManager {
     }
 
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
+      if (!entry.isDirectory()) continue;
 
-      if (entry.isDirectory()) {
-        this.loadFromDirectory(fullPath, isSystem);
+      const skillDir = path.join(dir, entry.name);
+      const skillFile = path.join(skillDir, 'SKILL.md');
+
+      if (!fs.existsSync(skillFile)) {
+        logger.debug(`技能目录缺少 SKILL.md: ${skillDir}`);
         continue;
       }
 
-      if (!entry.isFile() || !entry.name.endsWith('.md')) {
-        continue;
-      }
-
-      const skill = parseSkillFile(fullPath, isSystem);
+      const skill = parseSkillFile(skillFile, isSystem);
       if (skill) {
         if (this.skills.has(skill.name)) {
           logger.warn(`技能名称 "${skill.name}" 重复 — 覆盖之前的定义`);
