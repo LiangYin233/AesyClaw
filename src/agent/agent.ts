@@ -25,7 +25,8 @@ const ROLE_SECTION_RULES = `### 角色使用规则
 
 1. **匹配** — 根据子任务需求选择对应专长的角色
 2. **委托** — 使用 \`run_sub_agent(roleId="角色id", prompt="指令")\` 将任务委派给该角色
-3. **分工** — 复杂任务拆分至多个子代理并行或串行执行`;
+3. **临时** — 无需预定义角色时，使用 \`run_temp_sub_agent(systemPrompt="自定义提示", prompt="指令")\` 创建临时子代理
+4. **分工** — 复杂任务拆分至多个子代理并行或串行执行`;
 
 function buildRoleSection(allRoles: RoleConfig[]): string {
   const lines = allRoles.map((r) => `- **${r.id}** — ${r.description}`);
@@ -226,9 +227,14 @@ export class Agent {
       executionContext ?? {},
     );
 
-    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles);
+    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles,
+      this.isSubAgentContext(executionContext));
 
     return { prompt, tools: resolvedTools.agentTools };
+  }
+
+  private isSubAgentContext(ctx?: Partial<ToolExecutionContext>): boolean {
+    return ctx !== undefined && ctx.sendMessage === undefined;
   }
 
   private assemblePrompt(
@@ -236,6 +242,7 @@ export class Agent {
     availableTools: AesyClawTool[],
     skills: Skill[],
     allRoles: RoleConfig[],
+    isSubAgent: boolean,
   ): string {
     const sections: string[] = [this.replaceTemplateVariables(role.systemPrompt)];
 
@@ -247,7 +254,7 @@ export class Agent {
       sections.push(buildSkillSection(skills, this.skillManager.getSkillDirs()));
     }
 
-    if (allRoles.length > 0) {
+    if (allRoles.length > 0 && !isSubAgent) {
       sections.push(buildRoleSection(allRoles));
     }
 
