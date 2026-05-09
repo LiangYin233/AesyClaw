@@ -132,6 +132,12 @@ export async function dispatchMessage(
             isSystem: skill.isSystem,
           })),
         );
+      case 'reload_skills': {
+        const reloadCount = deps.skillManager.getAllSkills().length;
+        await deps.skillManager.reload();
+        const newCount = deps.skillManager.getAllSkills().length;
+        return okResponse(msg, { message: `技能已重新加载。${reloadCount} → ${newCount}` });
+      }
 
       default:
         logger.warn('未知消息类型', { type: msg.type });

@@ -1,14 +1,19 @@
 <template>
   <div>
-    <h1 class="page-title">Skills</h1>
-    <p class="page-subtitle">Browse all registered skills loaded from configuration directories.</p>
-
-    <button
-      class="mb-5 px-4 py-2 rounded font-heading text-sm font-medium bg-primary text-white hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-      @click="loadSkills"
-    >
-      Reload
-    </button>
+    <div class="flex items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 class="page-title">Skills</h1>
+        <p class="page-subtitle" style="margin: 0.25rem 0 0">
+          Browse all registered skills loaded from configuration directories.
+        </p>
+      </div>
+      <button
+        class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none btn-sm"
+        @click="loadSkills"
+      >
+        Reload
+      </button>
+    </div>
 
     <div class="overflow-x-auto rounded border border-[var(--color-border)]">
       <table class="w-full border-collapse separate font-body text-sm">
@@ -72,8 +77,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
+import { useToast } from '@/composables/useToast';
 
 const ws = useWebSocket();
+const { showToast } = useToast();
 
 interface Skill {
   name: string;
@@ -85,10 +92,12 @@ const skills = ref<Skill[]>([]);
 
 async function loadSkills() {
   try {
+    const reloadResult = await ws.send('reload_skills');
+    showToast('toast-success', (reloadResult as { message?: string })?.message ?? 'Skills reloaded');
     const data = await ws.send('get_skills');
     skills.value = Array.isArray(data) ? data : [];
   } catch (err) {
-    console.error('Failed to load skills', err);
+    showToast('toast-error', err instanceof Error ? err.message : 'Reload failed');
   }
 }
 
