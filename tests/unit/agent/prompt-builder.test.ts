@@ -74,6 +74,7 @@ describe('PromptBuilder', () => {
     };
     const skillManager = {
       getSkillsForRole: vi.fn().mockReturnValue([makeSkill()]),
+      getSkillDirs: vi.fn().mockReturnValue({}),
       ...(overrides.skillManager ?? {}),
     };
     const toolRegistry = {
@@ -301,9 +302,7 @@ Blocked content.`,
         const result = agent.buildPrompt(makeRole({ skills: ['allowed-skill'] }));
 
         expect(result.prompt).toContain('**system-skill**: System');
-        expect(result.prompt).toContain('(系统)');
         expect(result.prompt).toContain('**allowed-skill**: Allowed');
-        expect(result.prompt).toContain('(用户)');
         expect(result.prompt).not.toContain('blocked-skill');
       } finally {
         rmSync(skillRoot, { recursive: true, force: true });

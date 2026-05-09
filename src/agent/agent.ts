@@ -17,21 +17,29 @@ const SKILL_SECTION_HEADER = `## 技能
 
 ### 可用技能`;
 
-const SKILL_SECTION_RULES = `### 技能使用规则
+function buildSkillSection(skills: Skill[], skillDirs?: { userDir?: string; systemDir?: string }): string {
+  const lines = skills.map((skill) => {
+    const desc = skill.description || '无描述';
+    return `- **${skill.name}**: ${desc}`;
+  });
+
+  let rules = `### 技能使用规则
 
 1. **触发** — 用户明确提到技能名称，或任务明显匹配技能描述时使用
 2. **强制读取** — 执行前必须调用 \`load_skill(skillName="技能名")\` 读取完整内容，禁止凭记忆假设
 3. **渐进读取** — 只读取 SKILL.md 中明确引用的文件，不要批量加载整个技能目录
-4. **协作** — 多个技能适用时选最小集，并简短说明选择原因
-5. **失败处理** — 若技能无法应用，清楚说明原因后继续`;
+4. **引用读取** — 若 SKILL.md 引用了其他文件（如 scripts/ 目录下的脚本），必须先通过 \`load_skill\` 读取该文件内容，再尝试执行
+5. **协作** — 多个技能适用时选最小集，并简短说明选择原因
+6. **失败处理** — 若技能无法应用，清楚说明原因后继续`;
 
-function buildSkillSection(skills: Skill[]): string {
-  const lines = skills.map((skill) => {
-    const source = skill.isSystem ? '系统' : '用户';
-    const desc = skill.description || '无描述';
-    return `- **${skill.name}**: ${desc} (${source})`;
-  });
-  return `${SKILL_SECTION_HEADER}\n${lines.join('\n')}\n\n${SKILL_SECTION_RULES}`;
+  if (skillDirs?.systemDir || skillDirs?.userDir) {
+    const pathLines: string[] = [];
+    if (skillDirs.systemDir) pathLines.push(`- 系统技能: \`${skillDirs.systemDir}\``);
+    if (skillDirs.userDir) pathLines.push(`- 用户技能: \`${skillDirs.userDir}\``);
+    rules += `\n\n7. **目录位置**\n${pathLines.join('\n')}`;
+  }
+
+  return `${SKILL_SECTION_HEADER}\n${lines.join('\n')}\n\n${rules}`;
 }
 
 const logger = createScopedLogger('agent');
@@ -222,7 +230,7 @@ export class Agent {
     }
 
     if (skills.length > 0) {
-      sections.push(buildSkillSection(skills));
+      sections.push(buildSkillSection(skills, this.skillManager.getSkillDirs()));
     }
 
     if (allRoles.length > 0) {
