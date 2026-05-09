@@ -11,6 +11,29 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
 import { runWorkerTask } from './worker-runner';
 
+const SKILL_SECTION_HEADER = `## 技能
+
+以下是可用的专业技能模块。在使用任何技能之前，必须通过 \`load_skill\` 工具读取完整说明。
+
+### 可用技能`;
+
+const SKILL_SECTION_RULES = `### 技能使用规则
+
+1. **触发** — 用户明确提到技能名称，或任务明显匹配技能描述时使用
+2. **强制读取** — 执行前必须调用 \`load_skill(skillName="技能名")\` 读取完整内容，禁止凭记忆假设
+3. **渐进读取** — 只读取 SKILL.md 中明确引用的文件，不要批量加载整个技能目录
+4. **协作** — 多个技能适用时选最小集，并简短说明选择原因
+5. **失败处理** — 若技能无法应用，清楚说明原因后继续`;
+
+function buildSkillSection(skills: Skill[]): string {
+  const lines = skills.map((skill) => {
+    const source = skill.isSystem ? '系统' : '用户';
+    const desc = skill.description || '无描述';
+    return `- **${skill.name}**: ${desc} (${source})`;
+  });
+  return `${SKILL_SECTION_HEADER}\n${lines.join('\n')}\n\n${SKILL_SECTION_RULES}`;
+}
+
 const logger = createScopedLogger('agent');
 
 export type AgentOptions = {
@@ -199,8 +222,7 @@ export class Agent {
     }
 
     if (skills.length > 0) {
-      const skillLines = skills.map((skill) => `## Skill: ${skill.name}\n${skill.content}`);
-      sections.push(skillLines.join('\n\n'));
+      sections.push(buildSkillSection(skills));
     }
 
     if (allRoles.length > 0) {

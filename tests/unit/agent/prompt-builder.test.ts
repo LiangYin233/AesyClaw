@@ -119,7 +119,7 @@ describe('PromptBuilder', () => {
       const result = agent.buildPrompt(role);
 
       expect(result.prompt).toContain('You are {{role}}.');
-      expect(result.prompt).toContain('## Skill: greeting');
+      expect(result.prompt).toContain('**greeting**: Greeting skill');
       expect(result.prompt).toContain('## Available Roles');
       expect(result.tools).toEqual([]);
       expect(deps.skillManager.getSkillsForRole).toHaveBeenCalledWith(role);
@@ -153,7 +153,7 @@ describe('PromptBuilder', () => {
 
       const result = agent.buildPrompt(makeRole({ skills: [] }));
 
-      expect(result.prompt).not.toContain('## Skill:');
+      expect(result.prompt).not.toContain('## 技能');
     });
 
     it('should format multiple skill sections directly in the agent prompt', () => {
@@ -169,9 +169,10 @@ describe('PromptBuilder', () => {
 
       const result = agent.buildPrompt(makeRole({ skills: ['first', 'second'] }));
 
-      expect(result.prompt).toContain(
-        '## Skill: first\nFirst content.\n\n## Skill: second\nSecond content.',
-      );
+      expect(result.prompt).toContain('**first**: Greeting skill');
+      expect(result.prompt).toContain('**second**: Greeting skill');
+      expect(result.prompt).not.toContain('First content.');
+      expect(result.prompt).not.toContain('Second content.');
     });
 
     it('should include filtered internal tools in final prompt content', () => {
@@ -299,10 +300,10 @@ Blocked content.`,
       try {
         const result = agent.buildPrompt(makeRole({ skills: ['allowed-skill'] }));
 
-        expect(result.prompt).toContain('## Skill: system-skill');
-        expect(result.prompt).toContain('System content.');
-        expect(result.prompt).toContain('## Skill: allowed-skill');
-        expect(result.prompt).toContain('Allowed content.');
+        expect(result.prompt).toContain('**system-skill**: System');
+        expect(result.prompt).toContain('(系统)');
+        expect(result.prompt).toContain('**allowed-skill**: Allowed');
+        expect(result.prompt).toContain('(用户)');
         expect(result.prompt).not.toContain('blocked-skill');
       } finally {
         rmSync(skillRoot, { recursive: true, force: true });
