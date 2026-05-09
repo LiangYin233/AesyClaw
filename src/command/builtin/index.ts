@@ -26,6 +26,7 @@ import {
   createPluginEnableCommand,
   createPluginDisableCommand,
 } from './plugin-commands';
+import { createSkillReloadCommand } from './skill-commands';
 
 export type BuiltinCommandDependencies = {
   roleManager: RoleManager;
@@ -85,4 +86,5 @@ export function registerBuiltinCommands(
   registry.register(createPluginListCommand(pluginDeps));
   registry.register(createPluginEnableCommand(pluginDeps));
   registry.register(createPluginDisableCommand(pluginDeps));
+  registry.register(createSkillReloadCommand(deps.skillManager));
 }

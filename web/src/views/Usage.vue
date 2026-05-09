@@ -160,7 +160,7 @@
       </div>
     </div>
 
-    <div class="mt-8" v-if="toolData.length > 0">
+    <div class="mt-8" v-if="toolTableData.length > 0">
       <h2 class="font-heading text-base font-semibold text-dark mb-4">Tool Calls</h2>
       <div
         class="bg-white border border-[var(--color-border)] rounded-sm p-6 h-[340px] relative mb-6"
@@ -190,8 +190,8 @@
           </thead>
           <tbody>
             <tr
-              v-for="row in toolData"
-              :key="`${row.name}-${row.type}-${row.date}`"
+              v-for="row in toolTableData"
+              :key="`${row.name}-${row.type}`"
               class="bg-[#FDFBF9]"
             >
               <td
@@ -328,6 +328,20 @@ const toolChartData = computed(() => {
       count: entry.count,
       label: entry.type === 'skill' ? `${entry.name} (skill)` : entry.name,
     }));
+});
+
+const toolTableData = computed(() => {
+  const nameMap = new Map<string, { type: string; name: string; count: number }>();
+  for (const row of toolData.value) {
+    const key = `${row.type}:${row.name}`;
+    const existing = nameMap.get(key);
+    if (existing) {
+      existing.count += row.count;
+    } else {
+      nameMap.set(key, { type: row.type, name: row.name, count: row.count });
+    }
+  }
+  return [...nameMap.values()].sort((a, b) => b.count - a.count);
 });
 
 function formatNumber(n: number): string {

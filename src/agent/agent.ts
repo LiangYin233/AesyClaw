@@ -1,6 +1,7 @@
 import type { RoleConfig, Message, SessionKey, Skill } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
+import { createPersistedAssistantMessage, createUserMessage } from './agent-types';
 import type { AesyClawTool, ToolExecutionContext, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 import { estimateApproximateTokens, type Session } from '@aesyclaw/session';
@@ -150,6 +151,13 @@ export class Agent {
       sessionKey,
       sendMessage,
       toolPermission: role.toolPermission,
+      addToHistory: async (role, text) => {
+        const msg =
+          role === 'user'
+            ? createUserMessage(text)
+            : createPersistedAssistantMessage(text);
+        await this.session.add(msg);
+      },
     };
 
     const { prompt, tools } = this.buildPrompt(role, executionContext);

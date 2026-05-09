@@ -7,7 +7,6 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 import type { ToolUsageRecord, ToolUsageSummary } from '@aesyclaw/core/types';
-import { localDateToUtc } from './utils';
 
 // ─── 行类型辅助函数 ─────────────────────────────────────────────
 
@@ -36,13 +35,13 @@ export async function createToolUsageRecord(
 }
 
 /** 获取按名称 + 类型 + 日期分组的聚合调用统计，支持可选过滤条件。
- *  from / to 参数视为本地日期；过滤和日期输出均基于本地时区（localtime）。 */
+ *  from / to 参数为本地日期字符串 (YYYY-MM-DD)，过滤和日期输出均基于 SQLite localtime。 */
 export async function getToolUsageStats(
   db: DatabaseSync,
   options?: { from?: string; to?: string },
 ): Promise<ToolUsageSummary[]> {
-  const fromFilter = options?.from ? localDateToUtc(options.from, false) : null;
-  const toFilter = options?.to ? localDateToUtc(options.to, true) : null;
+  const fromFilter = options?.from ?? null;
+  const toFilter = options?.to ?? null;
 
   const rows = db
     .prepare(
@@ -52,8 +51,8 @@ export async function getToolUsageStats(
         DATE(timestamp, 'localtime') as date,
         COUNT(*) as count
       FROM tool_usage
-      WHERE (? IS NULL OR timestamp >= ?)
-        AND (? IS NULL OR timestamp <= ?)
+      WHERE (? IS NULL OR DATE(timestamp, 'localtime') >= ?)
+        AND (? IS NULL OR DATE(timestamp, 'localtime') <= ?)
       GROUP BY name, type, DATE(timestamp, 'localtime')
       ORDER BY count DESC, name ASC`,
     )

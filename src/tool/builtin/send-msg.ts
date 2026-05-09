@@ -112,6 +112,8 @@ export function createSendMsgTool(): AesyClawTool {
           };
         }
 
+        await context.addToHistory?.('assistant', text);
+
         return {
           content: `消息已发送: "${text}"`,
         };

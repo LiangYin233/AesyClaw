@@ -19,6 +19,8 @@ const logger = createScopedLogger('skill');
 
 export class SkillManager {
   private skills: Map<string, Skill> = new Map();
+  private lastUserDir?: string;
+  private lastSystemDir?: string;
 
   /**
    * 从用户目录和系统目录加载所有技能文件。
@@ -27,11 +29,20 @@ export class SkillManager {
    * @param systemDir - `skills/` 的路径（系统技能，始终包含）
    */
   async loadAll(userDir: string, systemDir: string): Promise<void> {
+    this.lastUserDir = userDir;
+    this.lastSystemDir = systemDir;
     this.skills.clear();
     this.loadFromDirectory(userDir, false);
     this.loadFromDirectory(systemDir, true);
 
     logger.info(`已加载 ${this.skills.size} 个技能`);
+  }
+
+  async reload(): Promise<void> {
+    if (!this.lastUserDir || !this.lastSystemDir) {
+      throw new Error('技能尚未加载，无法重载');
+    }
+    await this.loadAll(this.lastUserDir, this.lastSystemDir);
   }
 
   // ─── 读取 ──────────────────────────────────────────────────────

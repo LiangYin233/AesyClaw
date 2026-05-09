@@ -3,6 +3,13 @@
     <h1 class="page-title">Skills</h1>
     <p class="page-subtitle">Browse all registered skills loaded from configuration directories.</p>
 
+    <button
+      class="mb-5 px-4 py-2 rounded font-heading text-sm font-medium bg-primary text-white hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+      @click="loadSkills"
+    >
+      Reload
+    </button>
+
     <div class="overflow-x-auto rounded border border-[var(--color-border)]">
       <table class="w-full border-collapse separate font-body text-sm">
         <thead>
