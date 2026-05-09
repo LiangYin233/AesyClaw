@@ -51,6 +51,7 @@ export class Agent {
   private toolRegistry: ToolRegistry;
   private hookDispatcher: HookDispatcher;
   private registry: AgentRegistry;
+  private _promptOverride: string | null = null;
 
   constructor(options: AgentOptions) {
     this.session = options.session;
@@ -83,6 +84,10 @@ export class Agent {
       provider: this._model.provider,
       modelId: this._model.modelId,
     });
+  }
+
+  setPromptOverride(text: string | null): void {
+    this._promptOverride = text;
   }
 
   async setRole(role: RoleConfig): Promise<void> {
@@ -195,6 +200,10 @@ export class Agent {
     allRoles: RoleConfig[],
     isSubAgent: boolean,
   ): string {
+    if (this._promptOverride) {
+      return this._promptOverride;
+    }
+
     const sections: string[] = [this.replaceTemplateVariables(role.systemPrompt)];
 
     if (availableTools.length > 0) {

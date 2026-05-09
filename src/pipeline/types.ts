@@ -44,6 +44,7 @@ export type PipeCtx = {
   session?: Session;
   agent?: Agent;
   role?: RoleConfig;
+  prompt?: string;
 };
 
 /**
