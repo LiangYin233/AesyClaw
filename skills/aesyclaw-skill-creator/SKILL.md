@@ -67,6 +67,38 @@ description: 清楚描述这个 Skill 在什么场景下应该被触发
 ---
 ```
 
+### frontmatter 严格格式要求
+
+YAML 解析器对特殊字符敏感，以下情况必须用双引号包裹值，否则解析失败：
+
+**description 中出现的 YAML 特殊字符**：冒号 `:`、井号 `#`、逗号后跟空格、`{ } [ ] & * ? | - < > = ! % @ `` ` 等。
+
+❌ 错误写法（冒号被误认为 YAML 键分隔符）：
+```yaml
+description: 用于搜索、安装 Skill。Keywords: clawhub, 安装
+```
+✅ 正确写法一（双引号）：
+```yaml
+description: "用于搜索、安装 Skill。Keywords: clawhub, 安装"
+```
+✅ 正确写法二（折行块，自动转空格）：
+```yaml
+description: >
+  用于搜索、安装 Skill。适用于 clawhub 场景。
+  支持中国镜像 Registry 配置、安装路径处理。
+```
+✅ 正确写法三（保留换行的文字块）：
+```yaml
+description: |
+  用于搜索、安装 Skill。
+  适用于 clawhub 场景。
+```
+
+**其他注意事项**：
+- 文件必须保存为 **UTF-8 without BOM**（无签名 UTF-8），否则 frontmatter 可能无法识别
+- `name` 字段必须与目录名一致
+- `description` 是单行且无特殊字符时可不加引号，但只要包含 `:` 等特殊字符就必须加引号或使用块标量语法
+
 正文只保留模型真正需要的内容：
 
 - 什么时候使用
@@ -113,6 +145,8 @@ description: 清楚描述这个 Skill 在什么场景下应该被触发
 ## 完成前检查
 
 - frontmatter 的 `name` 和目录名一致
+- `description` 中如有冒号等 YAML 特殊字符，已用双引号包裹或改为块标量写法
+- 文件编码为 UTF-8 without BOM
 - `description` 足够具体，能帮助系统正确触发
 - 内容精简，没有 README 式废话
 - 目录在 `.aesyclaw/skills/<skill-name>/`
