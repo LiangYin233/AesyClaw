@@ -125,7 +125,6 @@ export class Pipeline {
 
       try {
         // ── Step 5: beforeLLM 钩子与 Agent 处理 ────────────
-        const builtPrompt = agent.buildPrompt(activeRole);
         const beforeLLMResult = await this.hooks.beforeLLM({
           message,
           sessionKey,
@@ -133,17 +132,12 @@ export class Pipeline {
           session,
           agent,
           role: activeRole,
-          prompt: builtPrompt.prompt,
         });
         if (beforeLLMResult.action !== 'continue') {
           if (beforeLLMResult.action === 'respond') {
             await this.deliver(send, { components: beforeLLMResult.components }, session.key);
           }
           return;
-        }
-
-        if (beforeLLMResult.prompt) {
-          agent.setPromptOverride(beforeLLMResult.prompt);
         }
 
         const outbound = await agent.process(message, async (msg) => {

@@ -63,7 +63,6 @@ export class Agent {
   private toolRegistry: ToolRegistry;
   private hookDispatcher: HookDispatcher;
   private registry: AgentRegistry;
-  private _promptOverride: string | null = null;
 
   /**
    * @param options - Agent 构造选项
@@ -109,20 +108,6 @@ export class Agent {
     });
   }
 
-  /**
-   * 覆盖系统提示。设置后，下一次 assemblePrompt 会使用此覆盖文本（一次性）。
-   *
-   * @param text - 提示文本，传 null 取消覆盖
-   */
-  setPromptOverride(text: string | null): void {
-    this._promptOverride = text;
-  }
-
-  /**
-   * 设置当前角色，解析角色关联的模型和工具。
-   *
-   * @param role - 角色配置
-   */
   async setRole(role: RoleConfig): Promise<void> {
     this._activeRole = role;
 
@@ -177,6 +162,21 @@ export class Agent {
       this.session.key,
       options?.ephemeral ? undefined : sendMessage,
     );
+
+    // 若 LLM 只产出了工具调用而无文本回复，追加提示要求生成文本（最多重试一次）
+    if (!result.lastAssistant && !options?.ephemeral) {
+      logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: effectiveRole.id });
+      const updatedHistory = history.concat(result.newMessages) as AgentMessage[];
+      const followUpResult = await this.callLLM(
+        effectiveRole,
+        '请根据以上工具调用结果生成回复文本，不要调用工具。',
+        updatedHistory,
+        this.session.key,
+        sendMessage,
+      );
+      result.newMessages = result.newMessages.concat(followUpResult.newMessages);
+      result.lastAssistant = followUpResult.lastAssistant;
+    }
 
     if (!options?.ephemeral) {
       await this.session.syncFromAgent(result.newMessages);
@@ -245,7 +245,8 @@ export class Agent {
     );
 
     const isSubAgent = executionContext !== undefined && executionContext.sendMessage === undefined;
-    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles, isSubAgent);
+    const isCron = executionContext?.sessionKey?.channel === 'cron';
+    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles, isSubAgent, isCron);
 
     return { prompt, tools: resolvedTools.agentTools };
   }
@@ -258,6 +259,7 @@ export class Agent {
    * @param skills - 可用技能列表
    * @param allRoles - 所有已启用的角色
    * @param isSubAgent - 是否为子 Agent（子 Agent 不注入角色切换指令）
+   * @param isCron - 是否为定时任务（定时任务不注入 send_msg 使用提示）
    * @returns 拼接后的完整 Prompt 字符串
    */
   private assemblePrompt(
@@ -266,13 +268,8 @@ export class Agent {
     skills: Skill[],
     allRoles: RoleConfig[],
     isSubAgent: boolean,
+    isCron: boolean,
   ): string {
-    if (this._promptOverride) {
-      const override = this._promptOverride;
-      this._promptOverride = null;
-      return override;
-    }
-
     const sections: string[] = [this.replaceTemplateVariables(role.systemPrompt)];
 
     if (availableTools.length > 0) {
@@ -281,6 +278,12 @@ export class Agent {
 
     if (skills.length > 0) {
       sections.push(buildSkillSection(skills, this.skillManager.getSkillDirs()));
+    }
+
+    if (!isSubAgent && !isCron) {
+      sections.push(
+        '## 用户沟通\n在任务执行过程中，如果需要向用户说明当前正在进行的步骤或进度，可使用 send_msg 工具发送消息给用户。',
+      );
     }
 
     if (allRoles.length > 0 && !isSubAgent) {
