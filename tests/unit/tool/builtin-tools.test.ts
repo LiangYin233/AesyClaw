@@ -14,6 +14,7 @@ import {
   createImageUnderstandingTool,
 } from '../../../src/tool/builtin';
 import type { Skill } from '../../../src/core/types';
+import type { Session } from '../../../src/session';
 
 vi.mock('@mariozechner/pi-ai', async () => {
   const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
@@ -60,7 +61,7 @@ function makeSkillManager(skills: Skill[] = []) {
 
 describe('built-in tools', () => {
   it('send_msg returns a truthful error when no send callback is available', async () => {
-    const tool = createSendMsgTool();
+    const tool = createSendMsgTool({ sessionManager: { get: vi.fn().mockReturnValue(undefined) } });
 
     await expect(
       tool.execute(
@@ -79,7 +80,7 @@ describe('built-in tools', () => {
   });
 
   it('send_msg uses the provided outbound send callback', async () => {
-    const tool = createSendMsgTool();
+    const tool = createSendMsgTool({ sessionManager: { get: vi.fn().mockReturnValue(undefined) } });
     const sendMessage = vi.fn().mockResolvedValue(true);
 
     await expect(
@@ -127,6 +128,7 @@ describe('built-in tools', () => {
       },
       configManager: makeConfigManager(),
       skillManager: makeSkillManager(),
+      sessionManager: { get: vi.fn() },
     });
 
     expect(registry.has('send_msg')).toBe(true);

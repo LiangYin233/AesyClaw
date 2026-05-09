@@ -50,8 +50,6 @@ export type ToolExecutionContext = {
   sendMessage?: (message: Message) => Promise<boolean>;
   /** 调用者角色的工具权限，子代理用于继承限制 */
   toolPermission?: ToolPermissionConfig;
-  /** 将消息写入当前会话记录，使 LLM 在后续回合中可见 */
-  addToHistory?: (role: 'user' | 'assistant', text: string) => Promise<void>;
 };
 
 /**

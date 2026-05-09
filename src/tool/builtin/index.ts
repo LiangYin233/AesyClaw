@@ -7,6 +7,7 @@ import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { UsageRecord } from '@aesyclaw/core/database-types';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 import type { Agent } from '@aesyclaw/agent/agent';
+import type { SessionManager } from '@aesyclaw/session';
 import { createSendMsgTool } from './send-msg';
 import { createCreateCronTool, createListCronTool, createDeleteCronTool } from './cron-tools';
 import { createRunSubAgentTool, createRunTempSubAgentTool } from './run-sub-agent';
@@ -24,6 +25,7 @@ export type BuiltinToolDependencies = {
   skillManager: Pick<SkillManager, 'getSkill'>;
   usageRepository?: { create: (record: UsageRecord) => Promise<number> };
   agentRegistry: AgentRegistry;
+  sessionManager: Pick<SessionManager, 'get'>;
 };
 
 export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
@@ -43,7 +45,7 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
     return agent.runTurn(role, content, history, sessionKey, sendMessage);
   };
 
-  registry.register(createSendMsgTool());
+  registry.register(createSendMsgTool({ sessionManager: deps.sessionManager }));
   registry.register(createCreateCronTool(cronDeps));
   registry.register(createListCronTool(cronDeps));
   registry.register(createDeleteCronTool(cronDeps));

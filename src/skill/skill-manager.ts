@@ -20,7 +20,6 @@ const logger = createScopedLogger('skill');
 export class SkillManager {
   private skills: Map<string, Skill> = new Map();
   private lastUserDir?: string;
-  private lastSystemDir?: string;
 
   /**
    * 从用户目录和系统目录加载所有技能文件。
@@ -30,7 +29,6 @@ export class SkillManager {
    */
   async loadAll(userDir: string, systemDir: string): Promise<void> {
     this.lastUserDir = userDir;
-    this.lastSystemDir = systemDir;
     this.skills.clear();
     this.loadFromDirectory(userDir, false);
     this.loadFromDirectory(systemDir, true);
@@ -39,10 +37,12 @@ export class SkillManager {
   }
 
   async reload(): Promise<void> {
-    if (!this.lastUserDir || !this.lastSystemDir) {
+    if (!this.lastUserDir) {
       throw new Error('技能尚未加载，无法重载');
     }
-    await this.loadAll(this.lastUserDir, this.lastSystemDir);
+    this.removeUserSkills();
+    this.loadFromDirectory(this.lastUserDir, false);
+    logger.info(`已重新加载用户技能，当前共 ${this.skills.size} 个技能`);
   }
 
   // ─── 读取 ──────────────────────────────────────────────────────
@@ -78,6 +78,14 @@ export class SkillManager {
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
+
+  private removeUserSkills(): void {
+    for (const [name, skill] of this.skills) {
+      if (!skill.isSystem) {
+        this.skills.delete(name);
+      }
+    }
+  }
 
   /**
    * 从目录加载所有 `.md` 文件，递归进入子目录。
