@@ -8,8 +8,8 @@
         </p>
       </div>
       <button
-        class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none btn-sm"
-        @click="loadSkills"
+        class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-primary rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-primary text-white hover:bg-primary-hover hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(217,119,87,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none btn-sm"
+        @click="reloadSkills"
       >
         Reload
       </button>
@@ -90,16 +90,20 @@ interface Skill {
 
 const skills = ref<Skill[]>([]);
 
-async function loadSkills() {
+async function fetchSkills() {
+  const data = await ws.send('get_skills');
+  skills.value = Array.isArray(data) ? data : [];
+}
+
+async function reloadSkills() {
   try {
     const reloadResult = await ws.send('reload_skills');
     showToast('toast-success', (reloadResult as { message?: string })?.message ?? 'Skills reloaded');
-    const data = await ws.send('get_skills');
-    skills.value = Array.isArray(data) ? data : [];
+    await fetchSkills();
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Reload failed');
   }
 }
 
-onMounted(loadSkills);
+onMounted(fetchSkills);
 </script>
