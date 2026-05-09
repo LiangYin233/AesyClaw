@@ -25,7 +25,7 @@ export type AgentOptions = {
   registry: AgentRegistry;
 };
 
-type RunTurnResult = {
+type CallLLMResult = {
   newMessages: AgentMessage[];
   lastAssistant: string | null;
 };
@@ -103,8 +103,9 @@ export class Agent {
   async process(
     message: Message,
     sendMessage?: (message: Message) => Promise<boolean>,
+    options?: { ephemeral?: boolean; role?: RoleConfig },
   ): Promise<Message> {
-    const role = this._activeRole;
+    const role = options?.ephemeral ? options?.role : this._activeRole;
     if (!role) {
       return { components: [{ type: 'Plain', text: '[错误: 无可用角色]' }] };
     }
@@ -115,43 +116,41 @@ export class Agent {
       sessionKey: this.session.key,
       role: role.id,
       contentLength: content.length,
+      ephemeral: !!options?.ephemeral,
     });
 
     let history = this.session.get();
-    if (this.shouldCompact(history)) {
+    if (!options?.ephemeral && this.shouldCompact(history)) {
       await this.session.compact(this.llmAdapter, role.model);
       history = this.session.get();
     }
 
-    const result = await this.runTurn(
-      role,
+    const effectiveRole = options?.ephemeral
+      ? { ...role, toolPermission: { mode: 'allowlist' as const, list: [] } }
+      : role;
+
+    const result = await this.callLLM(
+      effectiveRole,
       content,
       history as AgentMessage[],
       this.session.key,
-      sendMessage,
+      options?.ephemeral ? undefined : sendMessage,
     );
-    await this.session.syncFromAgent(result.newMessages);
 
-    return this.toMessage(role.id, result);
+    if (!options?.ephemeral) {
+      await this.session.syncFromAgent(result.newMessages);
+    }
+
+    return this.toMessage(effectiveRole.id, result);
   }
 
-  async processEphemeral(role: RoleConfig, content: string): Promise<Message> {
-    const ephemeralRole: RoleConfig = {
-      ...role,
-      toolPermission: { mode: 'allowlist', list: [] },
-    };
-    const history = this.session.get() as AgentMessage[];
-    const result = await this.runTurn(ephemeralRole, content, history, this.session.key);
-    return this.toMessage(role.id, result);
-  }
-
-  async runTurn(
+  async callLLM(
     role: RoleConfig,
     content: string,
     history: AgentMessage[],
     sessionKey: SessionKey,
     sendMessage?: (message: Message) => Promise<boolean>,
-  ): Promise<RunTurnResult> {
+  ): Promise<CallLLMResult> {
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
       sendMessage,
@@ -235,7 +234,7 @@ export class Agent {
     return `## Available Tools\n${toolLines.join('\n')}`;
   }
 
-  private toMessage(roleId: string, result: RunTurnResult): Message {
+  private toMessage(roleId: string, result: CallLLMResult): Message {
     if (result.lastAssistant) {
       return { components: [{ type: 'Plain', text: result.lastAssistant }] };
     }

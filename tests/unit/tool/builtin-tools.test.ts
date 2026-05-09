@@ -443,7 +443,7 @@ describe('built-in tools', () => {
   });
 
   it('run_sub_agent delegates to the sandbox and returns the result', async () => {
-    const runTurn = vi
+    const callLLM = vi
       .fn()
       .mockResolvedValue({ newMessages: [], lastAssistant: 'delegated answer' });
     const roleManager = {
@@ -458,7 +458,7 @@ describe('built-in tools', () => {
         enabled: true,
       }),
     };
-    const tool = createRunSubAgentTool({ runTurn, roleManager });
+    const tool = createRunSubAgentTool({ callLLM, roleManager });
     const sendMessage = vi.fn().mockResolvedValue(true);
 
     await expect(
@@ -473,7 +473,7 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({ content: 'delegated answer' });
 
-    expect(runTurn).toHaveBeenCalledWith(
+    expect(callLLM).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'researcher' }),
       'Investigate this.',
       [],
@@ -482,7 +482,7 @@ describe('built-in tools', () => {
   });
 
   it('run_temp_sub_agent returns structured tool errors on sandbox failure', async () => {
-    const runTurn = vi.fn().mockRejectedValue(new Error('sandbox offline'));
+    const callLLM = vi.fn().mockRejectedValue(new Error('sandbox offline'));
     const roleManager = {
       getDefaultRole: vi.fn().mockReturnValue({
         id: 'default',
@@ -495,7 +495,7 @@ describe('built-in tools', () => {
         enabled: true,
       }),
     };
-    const tool = createRunTempSubAgentTool({ runTurn, roleManager });
+    const tool = createRunTempSubAgentTool({ callLLM, roleManager });
 
     await expect(
       tool.execute(

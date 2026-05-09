@@ -31,9 +31,9 @@ export type BuiltinToolDependencies = {
 export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
   const cronDeps = { cronManager: deps.cronManager };
 
-  const lookupRunTurn: (
-    ...params: Parameters<InstanceType<typeof Agent>['runTurn']>
-  ) => ReturnType<InstanceType<typeof Agent>['runTurn']> = (
+  const lookupCallLLM: (
+    ...params: Parameters<InstanceType<typeof Agent>['callLLM']>
+  ) => ReturnType<InstanceType<typeof Agent>['callLLM']> = (
     role,
     content,
     history,
@@ -42,7 +42,7 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
   ) => {
     const agent = deps.agentRegistry.getAgent(sessionKey);
     if (!agent) throw new Error('未找到活跃 Agent');
-    return agent.runTurn(role, content, history, sessionKey, sendMessage);
+    return agent.callLLM(role, content, history, sessionKey, sendMessage);
   };
 
   registry.register(createSendMsgTool({ sessionManager: deps.sessionManager }));
@@ -50,10 +50,10 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
   registry.register(createListCronTool(cronDeps));
   registry.register(createDeleteCronTool(cronDeps));
   registry.register(
-    createRunSubAgentTool({ roleManager: deps.roleManager, runTurn: lookupRunTurn }),
+    createRunSubAgentTool({ roleManager: deps.roleManager, callLLM: lookupCallLLM }),
   );
   registry.register(
-    createRunTempSubAgentTool({ roleManager: deps.roleManager, runTurn: lookupRunTurn }),
+    createRunTempSubAgentTool({ roleManager: deps.roleManager, callLLM: lookupCallLLM }),
   );
   registry.register(createLoadSkillTool({ skillManager: deps.skillManager }));
   registry.register(createSpeechToTextTool(deps));

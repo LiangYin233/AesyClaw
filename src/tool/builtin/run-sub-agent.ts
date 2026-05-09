@@ -25,7 +25,7 @@ const RUN_TEMP_SUB_AGENT_SCHEMA = Type.Object({
 
 export function createRunSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getRole'>;
-  runTurn: (
+  callLLM: (
     role: RoleConfig,
     content: string,
     history: AgentMessage[],
@@ -52,7 +52,7 @@ export function createRunSubAgentTool(deps: {
         const baseRole = deps.roleManager.getRole(roleId);
         const role = applyToolOverride(baseRole, enableTools);
 
-        const result = await deps.runTurn(role, prompt, [], context.sessionKey);
+        const result = await deps.callLLM(role, prompt, [], context.sessionKey);
         return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {
@@ -66,7 +66,7 @@ export function createRunSubAgentTool(deps: {
 
 export function createRunTempSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getDefaultRole'>;
-  runTurn: (
+  callLLM: (
     role: RoleConfig,
     content: string,
     history: AgentMessage[],
@@ -100,7 +100,7 @@ export function createRunTempSubAgentTool(deps: {
         const role =
           enableTools === false ? applyToolOverride(roleWithPerms, false) : roleWithPerms;
 
-        const result = await deps.runTurn(role, prompt, [], context.sessionKey);
+        const result = await deps.callLLM(role, prompt, [], context.sessionKey);
         return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {

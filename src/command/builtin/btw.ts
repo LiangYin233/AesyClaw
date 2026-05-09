@@ -50,7 +50,11 @@ export function createBtwCommand(
         compressionThreshold,
         registry: agentRegistry,
       });
-      const outbound = await agent.processEphemeral(role, content);
+      const outbound = await agent.process(
+        { components: [{ type: 'Plain', text: content }] },
+        undefined,
+        { ephemeral: true, role },
+      );
 
       return getMessageText(outbound);
     },

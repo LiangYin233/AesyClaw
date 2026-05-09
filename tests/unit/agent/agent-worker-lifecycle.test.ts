@@ -193,7 +193,7 @@ describe('Agent worker lifecycle', () => {
     });
     const role = makeWorkerRole();
     await agent.setRole(role);
-    vi.spyOn(agent, 'runTurn').mockResolvedValue({ newMessages: [], lastAssistant: 'ok' });
+    vi.spyOn(agent, 'callLLM').mockResolvedValue({ newMessages: [], lastAssistant: 'ok' });
 
     await agent.process({ components: [{ type: 'Plain', text: 'hello' }] });
 
@@ -206,10 +206,10 @@ describe('Agent worker lifecycle', () => {
     const agent = makeAgent(registry);
     const role = makeWorkerRole();
 
-    const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
+    const turn1 = agent.callLLM(role, 'first turn', [], agent.session.key);
     await Promise.resolve();
 
-    const turn2 = agent.runTurn(role, 'second turn', [], agent.session.key);
+    const turn2 = agent.callLLM(role, 'second turn', [], agent.session.key);
     await Promise.resolve();
     await Promise.resolve();
 
@@ -245,7 +245,7 @@ describe('Agent worker lifecycle', () => {
     const agent = makeAgent(registry);
     const role = makeWorkerRole();
 
-    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    const turn = agent.callLLM(role, 'turn', [], agent.session.key);
     await Promise.resolve();
 
     getWorker(0).emit('message', {
@@ -268,7 +268,7 @@ describe('Agent worker lifecycle', () => {
     const agent = makeAgent(registry);
     const role = makeWorkerRole();
 
-    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    const turn = agent.callLLM(role, 'turn', [], agent.session.key);
     await Promise.resolve();
 
     getWorker(0).emit('message', {
@@ -306,7 +306,7 @@ describe('Agent worker lifecycle', () => {
     const agent = makeAgent(registry);
     const role = makeWorkerRole();
 
-    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    const turn = agent.callLLM(role, 'turn', [], agent.session.key);
     await Promise.resolve();
 
     getWorker(0).emit('message', {
@@ -505,10 +505,10 @@ describe('Agent worker lifecycle', () => {
     const agent = makeAgent(registry);
     const role = makeWorkerRole();
 
-    const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
+    const turn1 = agent.callLLM(role, 'first turn', [], agent.session.key);
     await Promise.resolve();
 
-    const turn2 = agent.runTurn(role, 'second turn', [], agent.session.key);
+    const turn2 = agent.callLLM(role, 'second turn', [], agent.session.key);
     await Promise.resolve();
     await Promise.resolve();
 
@@ -528,7 +528,7 @@ describe('Agent worker lifecycle', () => {
     const agent = makeAgent(registry);
     const role = makeWorkerRole();
 
-    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    const turn = agent.callLLM(role, 'turn', [], agent.session.key);
     await Promise.resolve();
 
     registry.cancel(agent.session.key);
@@ -547,7 +547,7 @@ describe('Agent worker lifecycle', () => {
     const agent = makeAgent(registry);
     const role = makeWorkerRole();
 
-    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    const turn = agent.callLLM(role, 'turn', [], agent.session.key);
     await Promise.resolve();
 
     getWorker(0).emit('error', new Error('boom'));
