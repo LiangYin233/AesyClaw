@@ -49,6 +49,12 @@ watch(token, (newToken) => {
   }
 });
 
+/**
+ * 认证管理 composable。
+ * token 持久化到 sessionStorage 和 cookie，登录/登出时同步管理 WebSocket 连接。
+ *
+ * @returns token ref 和 login、logout 方法
+ */
 export function useAuth() {
   return { token, login, logout };
 }

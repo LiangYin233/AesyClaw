@@ -23,6 +23,9 @@ type LogQuery = {
 
 /**
  * 获取最近日志条目。
+ *
+ * @param params - 查询参数（可指定 limit）
+ * @returns 日志条目数组和实际使用的限制值
  */
 export function getLogs(params?: LogQuery): {
   entries: ReturnType<typeof getRecentLogEntries>;

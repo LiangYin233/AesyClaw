@@ -22,6 +22,10 @@ let config: OneBotChannelConfig | null = null;
 let client: OneBotWebSocketClient | null = null;
 let destroyed = false;
 
+/**
+ * OneBot 渠道插件。
+ * 连接到远程 OneBot/NapCat WebSocket 服务器并路由消息。
+ */
 export const channel: ChannelPlugin = {
   name: 'onebot',
   version: '0.1.0',

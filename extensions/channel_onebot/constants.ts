@@ -1,14 +1,18 @@
 import type { MediaComponent, OneBotAttachmentType } from './types';
 
+/** OneBot 渠道默认配置 */
 export const DEFAULT_CONFIG = {
   enabled: false,
   serverUrl: 'ws://127.0.0.1:3001/',
   accessToken: '',
 };
 
+/** 流式传输分块大小（64KB） */
 export const STREAM_CHUNK_SIZE = 64 * 1024;
+/** 流式文件保留时长（5分钟） */
 export const STREAM_FILE_RETENTION_MS = 5 * 60 * 1000;
 
+/** 附件类型到组件类型、分段类型、默认扩展名的映射 */
 export const ATTACHMENT_KIND = {
   image: { componentType: 'Image', segmentType: 'image', defaultExtension: '.png' },
   audio: { componentType: 'Record', segmentType: 'record', defaultExtension: '.mp3' },
@@ -23,6 +27,7 @@ export const ATTACHMENT_KIND = {
   }
 >;
 
+/** 出站组件类型到 OneBot 附件类型的映射 */
 export const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<MediaComponent['type'], OneBotAttachmentType> = {
   Image: 'image',
   Record: 'audio',
@@ -30,6 +35,7 @@ export const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<MediaComponent['type'
   File: 'file',
 };
 
+/** OneBot 分段类型到附件类型的反向映射 */
 export const ATTACHMENT_TYPE_BY_SEGMENT: Record<string, OneBotAttachmentType | undefined> = {
   [ATTACHMENT_KIND.image.segmentType]: 'image',
   [ATTACHMENT_KIND.audio.segmentType]: 'audio',
@@ -37,6 +43,7 @@ export const ATTACHMENT_TYPE_BY_SEGMENT: Record<string, OneBotAttachmentType | u
   [ATTACHMENT_KIND.file.segmentType]: 'file',
 };
 
+/** 聊天类型到发送 API Action 的映射 */
 export const SEND_ACTION_BY_CHAT_TYPE: Record<
   string,
   { action: string; idParam: 'user_id' | 'group_id' } | undefined
@@ -45,6 +52,7 @@ export const SEND_ACTION_BY_CHAT_TYPE: Record<
   group: { action: 'send_group_msg', idParam: 'group_id' },
 };
 
+/** 分段类型到下载 API Action 的映射 */
 export const DOWNLOAD_REQUEST_BY_SEGMENT: Record<
   string,
   | {
@@ -69,6 +77,7 @@ export const DOWNLOAD_REQUEST_BY_SEGMENT: Record<
   },
 };
 
+/** MIME 类型到文件扩展名的映射 */
 export const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',

@@ -4,8 +4,10 @@ import { isRecord } from '@aesyclaw/core/utils';
 
 /**
  * 校验未知值的扩展基础结构（name、version、init、destroy 等）。
- *
  * 返回已验证的记录以便调用方继续使用；校验失败则返回 `false`。
+ *
+ * @param value - 待校验的未知值
+ * @returns 校验通过返回原值，失败返回 false
  */
 export function validateExtension<T>(value: unknown): T | false {
   if (!isRecord(value)) {

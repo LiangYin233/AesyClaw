@@ -14,6 +14,9 @@ import { buildRoleSection, buildSkillSection } from './prompt-sections';
 
 const logger = createScopedLogger('agent');
 
+/**
+ * Agent 构造选项。
+ */
 export type AgentOptions = {
   session: Session;
   llmAdapter: LlmAdapter;
@@ -25,16 +28,25 @@ export type AgentOptions = {
   registry: AgentRegistry;
 };
 
+/**
+ * callLLM 的返回结果。
+ */
 type CallLLMResult = {
   newMessages: AgentMessage[];
   lastAssistant: string | null;
 };
 
+/**
+ * buildPrompt 的返回结果。
+ */
 type BuildPromptResult = {
   prompt: string;
   tools: AgentTool[];
 };
 
+/**
+ * Agent 核心类，承担消息处理、LLM 调用和 Prompt 构建的职责。
+ */
 export class Agent {
   readonly session: Session;
   roleId?: string;
@@ -53,6 +65,9 @@ export class Agent {
   private registry: AgentRegistry;
   private _promptOverride: string | null = null;
 
+  /**
+   * @param options - Agent 构造选项
+   */
   constructor(options: AgentOptions) {
     this.session = options.session;
     this.llmAdapter = options.llmAdapter;
@@ -66,18 +81,26 @@ export class Agent {
     this.registry.registerAgent(this.session.key, this);
   }
 
+  /** 当前解析后的模型配置 */
   get model(): ResolvedModel {
     return this._model;
   }
 
+  /** 当前角色允许使用的工具列表 */
   get allowedTools(): AesyClawTool[] {
     return this._allowedTools;
   }
 
+  /** 当前激活的角色配置 */
   get activeRole(): RoleConfig | null {
     return this._activeRole;
   }
 
+  /**
+   * 设置当前使用的模型。
+   *
+   * @param modelId - 模型标识符，例如 "openai/gpt-4o"
+   */
   setModel(modelId: string): void {
     this._model = this.llmAdapter.resolveModel(modelId);
     logger.info('模型已切换', {
@@ -86,10 +109,20 @@ export class Agent {
     });
   }
 
+  /**
+   * 覆盖系统提示。设置后，下一次 assemblePrompt 会使用此覆盖文本（一次性）。
+   *
+   * @param text - 提示文本，传 null 取消覆盖
+   */
   setPromptOverride(text: string | null): void {
     this._promptOverride = text;
   }
 
+  /**
+   * 设置当前角色，解析角色关联的模型和工具。
+   *
+   * @param role - 角色配置
+   */
   async setRole(role: RoleConfig): Promise<void> {
     this._activeRole = role;
 
@@ -100,6 +133,14 @@ export class Agent {
     this.roleId = role.id;
   }
 
+  /**
+   * 处理用户消息，调用 LLM 并返回回复。
+   *
+   * @param message - 用户消息
+   * @param sendMessage - 可选的发消息回调
+   * @param options - 可选配置（ephemeral 标记、临时角色）
+   * @returns Agent 回复消息
+   */
   async process(
     message: Message,
     sendMessage?: (message: Message) => Promise<boolean>,
@@ -144,6 +185,16 @@ export class Agent {
     return this.toMessage(effectiveRole.id, result);
   }
 
+  /**
+   * 调用 LLM，在 Worker 线程中执行提示循环。
+   *
+   * @param role - 角色配置
+   * @param content - 用户输入文本
+   * @param history - 历史消息
+   * @param sessionKey - 会话标识
+   * @param sendMessage - 可选的发消息回调
+   * @returns LLM 调用结果
+   */
   async callLLM(
     role: RoleConfig,
     content: string,
@@ -173,6 +224,13 @@ export class Agent {
     });
   }
 
+  /**
+   * 构建发送给 LLM 的完整 Prompt，包含系统提示、工具列表、技能和角色信息。
+   *
+   * @param role - 角色配置
+   * @param executionContext - 可选的工具执行上下文
+   * @returns Prompt 文本和工具列表
+   */
   buildPrompt(
     role: RoleConfig,
     executionContext?: Partial<ToolExecutionContext>,
@@ -192,6 +250,16 @@ export class Agent {
     return { prompt, tools: resolvedTools.agentTools };
   }
 
+  /**
+   * 组装完整的系统 Prompt。
+   *
+   * @param role - 角色配置
+   * @param availableTools - 可用工具列表
+   * @param skills - 可用技能列表
+   * @param allRoles - 所有已启用的角色
+   * @param isSubAgent - 是否为子 Agent（子 Agent 不注入角色切换指令）
+   * @returns 拼接后的完整 Prompt 字符串
+   */
   private assemblePrompt(
     role: RoleConfig,
     availableTools: AesyClawTool[],
@@ -222,6 +290,12 @@ export class Agent {
     return sections.join('\n\n');
   }
 
+  /**
+   * 替换 Prompt 模板中的占位变量。
+   *
+   * @param template - 包含 {{date}}、{{os}}、{{systemLang}} 占位符的模板字符串
+   * @returns 替换后的字符串
+   */
   private replaceTemplateVariables(template: string): string {
     return template
       .replace(/\{\{date}}/g, new Date().toISOString().split('T')[0] ?? '')
@@ -229,11 +303,24 @@ export class Agent {
       .replace(/\{\{systemLang}}/g, process.env['LANG'] ?? 'unknown');
   }
 
+  /**
+   * 构建工具列表的 Markdown 描述段落。
+   *
+   * @param tools - 可用工具列表
+   * @returns Markdown 格式的工具描述段落
+   */
   private buildToolSection(tools: AesyClawTool[]): string {
     const toolLines = tools.map((tool) => `- **${tool.name}**: ${tool.description}`);
     return `## Available Tools\n${toolLines.join('\n')}`;
   }
 
+  /**
+   * 将 LLM 调用结果转换为用户可见的 Message。
+   *
+   * @param roleId - 角色标识
+   * @param result - LLM 调用结果
+   * @returns 包含文本组件的 Message
+   */
   private toMessage(roleId: string, result: CallLLMResult): Message {
     if (result.lastAssistant) {
       return { components: [{ type: 'Plain', text: result.lastAssistant }] };
@@ -242,6 +329,12 @@ export class Agent {
     return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
   }
 
+  /**
+   * 判断消息历史是否超过压缩阈值，需要触发历史压缩。
+   *
+   * @param messages - 消息历史
+   * @returns 如果超过阈值返回 true
+   */
   private shouldCompact(messages: readonly AgentMessage[]): boolean {
     return estimateApproximateTokens(messages) >= this._model.contextWindow * this.compressionThreshold;
   }

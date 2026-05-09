@@ -112,15 +112,25 @@ type AppConfig = Static<typeof AppConfigSchema>;
 
 export {
   // 模式
+  /** 提供商 API 协议类型联合模式 */
   ApiProtocolSchema,
+  /** 模型能力预设模式 */
   ModelPresetSchema,
+  /** 提供商配置模式（含 API 密钥、端点、模型列表） */
   ProviderConfigSchema,
+  /** 服务器配置模式 */
   ServerConfigSchema,
+  /** 代理配置模式 */
   AgentConfigSchema,
+  /** 记忆压缩配置模式 */
   MemoryConfigSchema,
+  /** 多模态配置模式（语音转文本 / 图像理解） */
   MultimodalConfigSchema,
+  /** MCP 服务器配置模式 */
   McpServerConfigSchema,
+  /** 插件配置条目模式 */
   PluginConfigEntrySchema,
+  /** 顶层应用配置模式 */
   AppConfigSchema,
   // 派生类型
   type ProviderConfig,

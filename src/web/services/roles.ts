@@ -6,6 +6,9 @@ import { parseModelIdentifier } from '@aesyclaw/core/utils';
 
 /**
  * 获取所有角色。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @returns 角色配置数组
  */
 export function getRoles(deps: WebUiManagerDependencies): RoleConfig[] {
   return deps.roleManager.getAllRoles();
@@ -13,6 +16,11 @@ export function getRoles(deps: WebUiManagerDependencies): RoleConfig[] {
 
 /**
  * 获取单个角色。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param id - 角色 ID
+ * @returns 角色配置
+ * @throws 角色未找到时抛出
  */
 export function getRole(deps: WebUiManagerDependencies, id: string): RoleConfig {
   // getRole 在未找到时抛出异常
@@ -34,6 +42,11 @@ function validateProviderModel(deps: WebUiManagerDependencies, model: string): v
 
 /**
  * 创建角色。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param body - 角色部分配置（model 为必填）
+ * @returns 创建的角色配置
+ * @throws model 缺失或提供商/模型校验失败时抛出
  */
 export async function createRole(
   deps: WebUiManagerDependencies,
@@ -59,6 +72,12 @@ export async function createRole(
 
 /**
  * 更新角色。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param id - 角色 ID
+ * @param body - 要更新的字段
+ * @returns 更新后的角色配置
+ * @throws id 不一致或提供商/模型校验失败时抛出
  */
 export async function updateRole(
   deps: WebUiManagerDependencies,
@@ -80,6 +99,9 @@ export async function updateRole(
 
 /**
  * 删除角色。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param id - 角色 ID
  */
 export async function deleteRole(deps: WebUiManagerDependencies, id: string): Promise<void> {
   await deps.roleManager.deleteRole(id);

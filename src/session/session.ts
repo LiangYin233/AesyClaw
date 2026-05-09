@@ -19,12 +19,23 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('session');
 
+/**
+ * Session — 会话实例，管理消息历史与并发锁。
+ *
+ * 持有会话消息列表、数据库持久化、用量记录等功能。
+ * 每次只允许一个 Agent 处理请求（通过 lock/unlock 控制）。
+ */
 export class Session {
   readonly sessionId: string;
   readonly key: SessionKey;
   private _messages: AgentMessage[] = [];
   private _locked = false;
 
+  /**
+   * @param sessionId - 数据库中的会话 ID
+   * @param key - 会话键
+   * @param db - 数据库访问层（messages / usage / toolUsage）
+   */
   constructor(
     sessionId: string,
     key: SessionKey,
@@ -38,24 +49,37 @@ export class Session {
     this.key = key;
   }
 
+  /** 会话当前是否被锁定（有正在进行的 Agent 处理） */
   get isLocked(): boolean {
     return this._locked;
   }
 
+  /**
+   * 锁定会话，确保同一时间只有一个 Agent 处理。
+   * @returns true 表示锁定成功，false 表示已被锁定
+   */
   lock(): boolean {
     if (this._locked) return false;
     this._locked = true;
     return true;
   }
 
+  /** 解除会话锁定 */
   unlock(): void {
     this._locked = false;
   }
 
+  /**
+   * 获取当前消息列表的只读副本。
+   * @returns 当前会话中的所有消息
+   */
   get(): readonly AgentMessage[] {
     return this._messages;
   }
 
+  /**
+   * 从数据库加载历史消息并绑定到内存。
+   */
   async bind(): Promise<void> {
     const records = await this.db.messages.loadHistory(this.sessionId);
     this._messages = records.map((r) =>
@@ -65,6 +89,12 @@ export class Session {
     );
   }
 
+  /**
+   * 添加一条消息到会话。
+   *
+   * 消息会同时写入数据库持久化。
+   * @param message - 要添加的消息
+   */
   async add(message: AgentMessage): Promise<void> {
     await this.recordUsageIfApplicable(message);
     this._messages.push(message);
@@ -75,6 +105,12 @@ export class Session {
     await this.db.messages.save(this.sessionId, persistable);
   }
 
+  /**
+   * 从 Agent 同步消息列表到会话。
+   *
+   * 会清理无效的 toolCall 块并记录工具调用统计。
+   * @param agentMessages - Agent 返回的消息列表
+   */
   async syncFromAgent(agentMessages: AgentMessage[]): Promise<void> {
     sanitizeGhostToolCalls(agentMessages);
 
@@ -85,12 +121,23 @@ export class Session {
     await this.recordToolCallsFromMessages(agentMessages);
   }
 
+  /**
+   * 清除当前会话的所有消息历史。
+   */
   async clear(): Promise<void> {
     this._messages = [];
     await this.db.messages.clearHistory(this.sessionId);
     logger.info('会话历史已清除', { sessionId: this.sessionId });
   }
 
+  /**
+   * 使用 LLM 压缩会话历史为摘要文本。
+   *
+   * 原始消息会被替换为压缩摘要，消息列表重新从数据库加载。
+   * @param llmAdapter - LLM 适配器
+   * @param modelIdentifier - 模型标识符
+   * @returns 压缩后的摘要文本
+   */
   async compact(llmAdapter: LlmAdapter, modelIdentifier: string): Promise<string> {
     const model = llmAdapter.resolveModel(modelIdentifier);
     logger.info('正在压缩会话历史', {
@@ -126,6 +173,11 @@ export class Session {
     return summary;
   }
 
+  /**
+   * 筛选符合条件的消息。
+   * @param pred - 筛选谓词函数
+   * @returns 匹配的消息数组
+   */
   filter(pred: (msg: AgentMessage) => boolean): AgentMessage[] {
     return this._messages.filter(pred);
   }
@@ -258,6 +310,13 @@ function parseTimestamp(timestamp?: string): number {
   return Number.isNaN(parsed) ? Date.now() : parsed;
 }
 
+/**
+ * 估算消息列表的近似 token 数量。
+ *
+ * 使用粗略的 4 字符 ≈ 1 token 估算。
+ * @param messages - 消息列表
+ * @returns 估计的 token 数
+ */
 export function estimateApproximateTokens(messages: readonly AgentMessage[]): number {
   const textLength = messages.reduce((total, message) => total + extractMessageText(message).length, 0);
   return Math.ceil(textLength / 4);

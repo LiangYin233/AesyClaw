@@ -5,13 +5,14 @@
  * 日志级别由 `config.server.logLevel` 控制，并可在运行时通过 `setLogLevel()` 更新。
  *
  * 禁止直接使用 `console.log/warn/error` —— 始终使用带作用域的日志器。
- * 唯一的例外是日志器初始化前的 `index.ts`。
  */
 
 import { inspect } from 'node:util';
 
+/** 日志级别 */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+/** 单条日志条目，包含格式化输出和元数据 */
 export type LogEntry = {
   id: number;
   timestamp: string;
@@ -175,11 +176,23 @@ function log(
   globalThis.console[consoleMethod](formatMessage(scope, level, message), ...args);
 }
 
+/**
+ * 获取最近 N 条日志条目。
+ *
+ * @param limit - 返回数量上限（默认 200，最大 500）
+ * @returns 最近的日志条目数组
+ */
 export function getRecentLogEntries(limit = 200): LogEntry[] {
   const normalizedLimit = Math.max(1, Math.min(limit, MAX_LOG_BUFFER_SIZE));
   return recentLogBuffer.slice(-normalizedLimit);
 }
 
+/**
+ * 订阅实时日志条目通知。
+ *
+ * @param subscriber - 每次写入日志时调用的回调
+ * @returns 取消订阅的函数
+ */
 export function subscribeToLogEntries(subscriber: LogSubscriber): () => void {
   logSubscribers.add(subscriber);
   return () => {
@@ -187,6 +200,7 @@ export function subscribeToLogEntries(subscriber: LogSubscriber): () => void {
   };
 }
 
+/** 清空日志缓冲区（仅限测试环境调用） */
 export function clearRecentLogEntriesForTests(): void {
   if (process.env['VITEST'] === undefined) {
     throw new Error('clearRecentLogEntriesForTests 仅可在测试环境中使用');
@@ -196,6 +210,7 @@ export function clearRecentLogEntriesForTests(): void {
   logSubscribers.clear();
 }
 
+/** 作用域日志器接口 — 提供 debug/info/warn/error 四级日志方法 */
 export type Logger = {
   debug(message: string, ...args: unknown[]): void;
   info(message: string, ...args: unknown[]): void;

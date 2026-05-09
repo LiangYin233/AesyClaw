@@ -5,6 +5,15 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
+/**
+ * 创建 /compact 命令，使用 LLM 压缩当前会话历史为摘要。
+ * @param sessionManager - 会话管理器（仅需 get 方法）
+ * @param llmAdapter - LLM 适配器
+ * @param roleManager - 角色管理器（仅需 getRole 和 getDefaultRole）
+ * @param databaseManager - 数据库管理器（仅需 roleBindings 和 sessions）
+ * @param agentRegistry - Agent 注册表
+ * @returns 命令定义
+ */
 export function createCompactCommand(
   sessionManager: Pick<SessionManager, 'get'>,
   llmAdapter: LlmAdapter,

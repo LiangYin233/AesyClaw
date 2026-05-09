@@ -11,6 +11,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('command-registry');
 
+/** 解析后的命令，包含命令定义、参数和元信息。 */
 export type ResolvedCommand = {
   command: CommandDefinition;
   args: string[];
@@ -49,6 +50,7 @@ export class CommandRegistry {
   /**
    * 注册一个命令。
    *
+   * @param command - 命令定义
    * @throws Error 如果已存在具有相同注册键的命令
    */
   register(command: CommandDefinition): void {
@@ -64,6 +66,8 @@ export class CommandRegistry {
    * 按名称和可选命名空间注销命令。
    *
    * 如果命令不存在，则不执行任何操作。
+   * @param name - 命令名称
+   * @param namespace - 可选命名空间
    */
   unregister(name: string, namespace?: string): void {
     const key = CommandRegistry.registryKeyForParts(name, namespace);
@@ -77,6 +81,7 @@ export class CommandRegistry {
    * 注销指定作用域的所有命令。
    *
    * 在插件或 MCP 服务器卸载时用于清理。
+   * @param scope - 工具所有者作用域
    */
   unregisterByScope(scope: ToolOwner): void {
     let count = 0;
@@ -173,12 +178,17 @@ export class CommandRegistry {
    *
    * 如果输入以 "/" 开头且命令存在于注册表中，则返回 true。
    * 不会执行命令。
+   * @param input - 原始输入字符串
+   * @returns true 表示是已注册命令
    */
   isCommand(input: string): boolean {
     return this.resolve(input) !== null;
   }
 
-  /** 获取所有已注册的命令。 */
+  /**
+   * 获取所有已注册的命令。
+   * @returns 命令定义数组
+   */
   getAll(): CommandDefinition[] {
     return [...this.commands.values()];
   }

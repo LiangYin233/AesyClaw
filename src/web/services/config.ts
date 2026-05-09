@@ -6,6 +6,9 @@ import type { DeepPartial } from '@aesyclaw/core/types';
 
 /**
  * 获取当前配置。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @returns 完整的应用配置对象
  */
 export function getConfig(deps: WebUiManagerDependencies): AppConfig {
   return {
@@ -20,6 +23,8 @@ export function getConfig(deps: WebUiManagerDependencies): AppConfig {
 
 /**
  * 获取配置 JSON Schema。
+ *
+ * @returns AppConfig 的 JSON Schema 定义
  */
 export function getConfigSchema(): typeof AppConfigSchema {
   return AppConfigSchema;
@@ -27,6 +32,9 @@ export function getConfigSchema(): typeof AppConfigSchema {
 
 /**
  * 更新配置。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param body - 部分配置更新对象
  */
 export async function updateConfig(
   deps: WebUiManagerDependencies,

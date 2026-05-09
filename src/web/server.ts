@@ -1,4 +1,4 @@
-/** Hono 应用工厂 — 仅保留 SPA 回退。REST API 已停用，全部走 WebSocket。 */
+/** Hono 应用工厂 — 提供 SPA 回退和静态资源服务。 */
 
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';

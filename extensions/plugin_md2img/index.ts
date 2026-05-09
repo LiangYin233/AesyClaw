@@ -24,12 +24,20 @@ function isMarkdown(text: string): boolean {
 
 // ─── Document builder ───────────────────────────────────────────
 
+/**
+ * 将渲染后的 HTML 内容填充到模板中，生成完整的 HTML 文档。
+ *
+ * @param htmlContent - 渲染后的 HTML 内容（由 marked 生成）
+ * @param htmlTemplate - HTML 模板字符串，需包含 {{content}} 占位符
+ * @returns 完整的 HTML 文档字符串
+ */
 export function buildMarkdownDocument(htmlContent: string, htmlTemplate: string): string {
   return htmlTemplate.replace('{{content}}', htmlContent);
 }
 
 // ─── Playwright renderer ───────────────────────────────────────
 
+/** HTML 到 PNG 渲染器接口 */
 export type Md2ImgHtmlRenderer = {
   renderHtmlToPng(htmlDocument: string): Promise<Buffer>;
   destroy?(): Promise<void>;
@@ -39,6 +47,7 @@ type PlaywrightMarkdownRendererOptions = {
   launchBrowser?: () => Promise<Browser>;
 };
 
+/** 基于 Playwright 无头浏览器的 HTML 到 PNG 渲染器 */
 export class PlaywrightMarkdownRenderer implements Md2ImgHtmlRenderer {
   private browser: Browser | null = null;
   private readonly launchBrowserFn: () => Promise<Browser>;
@@ -93,6 +102,14 @@ export class PlaywrightMarkdownRenderer implements Md2ImgHtmlRenderer {
 
 // ─── Conversion pipeline ────────────────────────────────────────
 
+/**
+ * 将 Markdown 文本转换为 PNG 图片。
+ *
+ * @param markdown - Markdown 文本
+ * @param htmlTemplate - HTML 模板
+ * @param deps - 可选依赖注入（自定义渲染器）
+ * @returns PNG 图片 Buffer
+ */
 export async function convertMarkdownToImage(
   markdown: string,
   htmlTemplate: string,
@@ -114,6 +131,13 @@ function resolveEnabledChannels(config: Record<string, unknown>): string[] {
   return ['*'];
 }
 
+/**
+ * onSend 钩子处理函数。检测 Markdown 内容并渲染为图片后替换原消息。
+ *
+ * @param context - 发送上下文
+ * @param deps - 依赖项（模板、日志、插件配置、转换函数）
+ * @returns 管线结果
+ */
 export async function handleMd2ImgSend(
   context: OnSendContext,
   deps: {

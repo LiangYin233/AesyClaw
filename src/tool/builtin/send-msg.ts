@@ -81,6 +81,7 @@ function toMediaComponent(media: MediaParam[]): MediaComponent[] {
 /**
  * 创建 send_msg 工具定义。
  *
+ * @param deps - 依赖项，包含 sessionManager 用于获取会话
  * @returns send_msg 工具的 AesyClawTool 定义
  */
 export function createSendMsgTool(deps: {

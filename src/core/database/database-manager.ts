@@ -12,11 +12,12 @@ import * as toolUsageRepo from './repositories/tool-usage-repository';
 const logger = createScopedLogger('database-manager');
 
 /**
- * 仓库 API 类型 — 由 DatabaseManager 在 `initialize()` 时一次性构造,
- * 供其它子系统直接消费。注释标注的类型也用作 *Like 鸭子接口的替代,
- * 让 MemoryManager / CronManager 等不再各自重声明
- * 同样的子集类型。
+ * 仓库 API 类型 — 由 DatabaseManager 在 initialize() 时一次性构造,
+ * 供其它子系统直接消费。通过方法签名声明接口，避免各子系统
+ * 重复声明相同子集类型。
  */
+
+/** 会话仓库 API 类型 */
 export type SessionsRepository = {
   findOrCreate: (
     key: Parameters<typeof sessions.findOrCreateSession>[1],
@@ -28,6 +29,7 @@ export type SessionsRepository = {
   findById: (id: string) => ReturnType<typeof sessions.findSessionById>;
 };
 
+/** 消息仓库 API 类型 */
 export type MessagesRepository = {
   save: (
     sessionId: string,
@@ -41,6 +43,7 @@ export type MessagesRepository = {
   ) => ReturnType<typeof messages.replaceMessageWithSummary>;
 };
 
+/** 角色绑定仓库 API 类型 */
 export type RoleBindingsRepository = {
   getActiveRole: (sessionId: string) => ReturnType<typeof roleBindings.getActiveRoleBinding>;
   setActiveRole: (
@@ -49,6 +52,7 @@ export type RoleBindingsRepository = {
   ) => ReturnType<typeof roleBindings.setActiveRoleBinding>;
 };
 
+/** 定时任务仓库 API 类型 */
 export type CronJobsRepository = {
   create: (
     params: Parameters<typeof cron.createCronJob>[1],
@@ -59,6 +63,7 @@ export type CronJobsRepository = {
   updateNextRun: (id: string, nextRun: Date | null) => ReturnType<typeof cron.updateCronJobNextRun>;
 };
 
+/** 定时任务执行仓库 API 类型 */
 export type CronRunsRepository = {
   create: (params: { jobId: string }) => ReturnType<typeof cron.createCronRun>;
   markCompleted: (runId: string, result: string) => ReturnType<typeof cron.markCronRunCompleted>;
@@ -68,6 +73,7 @@ export type CronRunsRepository = {
   findByJobId: (jobId: string) => ReturnType<typeof cron.findCronRunsByJobId>;
 };
 
+/** 用量统计仓库 API 类型 */
 export type UsageRepository = {
   create: (
     record: Parameters<typeof usageRepo.createUsageRecord>[1],
@@ -78,6 +84,7 @@ export type UsageRepository = {
   getTodaySummary: () => ReturnType<typeof usageRepo.getTodayUsageSummary>;
 };
 
+/** 工具使用统计仓库 API 类型 */
 export type ToolUsageRepository = {
   create: (
     record: Parameters<typeof toolUsageRepo.createToolUsageRecord>[1],
@@ -87,6 +94,12 @@ export type ToolUsageRepository = {
   ) => ReturnType<typeof toolUsageRepo.getToolUsageStats>;
 };
 
+/**
+ * SQLite 数据库管理器。
+ *
+ * 负责数据库连接生命周期、建表、迁移和仓库实例的组装。
+ * 所有仓库 API 在 initialize() 后即可直接访问。
+ */
 export class DatabaseManager {
   private db: DatabaseSync | null = null;
 
@@ -100,7 +113,9 @@ export class DatabaseManager {
   toolUsage!: ToolUsageRepository;
 
   /**
-   * 初始化数据库连接,确保父目录存在,运行迁移,并创建仓库实例。
+   * 初始化数据库连接，确保父目录存在，运行迁移，并创建仓库实例。
+   *
+   * @param dbPath - SQLite 数据库文件路径
    */
   async initialize(dbPath: string): Promise<void> {
     if (this.db) {

@@ -1,6 +1,11 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/session';
 
+/**
+ * 创建 /clear 命令，用于清除当前会话历史。
+ * @param sessionManager - 会话管理器（仅需 clear 方法）
+ * @returns 命令定义
+ */
 export function createClearCommand(
   sessionManager: Pick<SessionManager, 'clear'>,
 ): CommandDefinition {

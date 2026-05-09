@@ -13,6 +13,10 @@ type UsageQuery = {
 
 /**
  * 获取用量统计数据。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param params - 查询参数（model、from、to）
+ * @returns 用量统计结果
  */
 export async function getUsage(
   deps: WebUiManagerDependencies,
@@ -32,6 +36,9 @@ export async function getUsage(
 
 /**
  * 获取今日用量汇总。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @returns 今日用量汇总数据
  */
 export async function getUsageToday(deps: WebUiManagerDependencies): Promise<unknown> {
   try {
@@ -44,6 +51,10 @@ export async function getUsageToday(deps: WebUiManagerDependencies): Promise<unk
 
 /**
  * 获取工具调用统计数据。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param params - 查询参数（from、to）
+ * @returns 工具调用统计结果
  */
 export async function getUsageTools(
   deps: WebUiManagerDependencies,

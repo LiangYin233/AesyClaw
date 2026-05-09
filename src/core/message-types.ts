@@ -81,6 +81,12 @@ export type Message = {
   components: MessageComponent[];
 };
 
+/**
+ * 从消息中提取所有纯文本组件的内容并拼接为字符串。
+ *
+ * @param message - 包含 components 属性的消息对象
+ * @returns 拼接后的纯文本
+ */
 export function getMessageText(message: Pick<Message, 'components'>): string {
   return message.components
     .filter(

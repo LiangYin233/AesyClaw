@@ -38,6 +38,12 @@ export class SkillManager {
     logger.info(`已加载 ${this.skills.size} 个技能`);
   }
 
+  /**
+   * 重新加载所有用户技能文件。
+   *
+   * 仅重新加载用户技能，系统技能保持不变。
+   * @throws Error 如果尚未调用 loadAll
+   */
   async reload(): Promise<void> {
     if (!this.lastUserDir) {
       throw new Error('技能尚未加载，无法重载');
@@ -49,17 +55,27 @@ export class SkillManager {
 
   // ─── 读取 ──────────────────────────────────────────────────────
 
-  /** 返回所有已加载的技能（系统 + 用户）。 */
+  /**
+   * 返回所有已加载的技能（系统 + 用户）。
+   * @returns 技能数组
+   */
   getAllSkills(): Skill[] {
     return [...this.skills.values()];
   }
 
-  /** 返回用户和系统技能目录的绝对路径。 */
+  /**
+   * 返回用户和系统技能目录的绝对路径。
+   * @returns 包含 userDir 和 systemDir 的对象
+   */
   getSkillDirs(): { userDir?: string; systemDir?: string } {
     return { userDir: this.lastUserDir, systemDir: this.lastSystemDir };
   }
 
-  /** 按名称获取已加载的技能。 */
+  /**
+   * 按名称获取已加载的技能。
+   * @param name - 技能名称
+   * @returns 技能对象，若不存在则返回 undefined
+   */
   getSkill(name: string): Skill | undefined {
     return this.skills.get(name);
   }
@@ -70,6 +86,8 @@ export class SkillManager {
    * - 系统技能始终包含。
    * - 如果 `role.skills` 为 `['*']`，则返回所有技能。
    * - 否则，仅包含名称在 `role.skills` 中的用户技能。
+   * @param role - 角色配置
+   * @returns 适用于该角色的技能数组
    */
   getSkillsForRole(role: RoleConfig): Skill[] {
     const isWildcard = role.skills.length === 1 && role.skills[0] === '*';

@@ -18,6 +18,14 @@ const IMAGE_UNDERSTANDING_SCHEMA = Type.Object({
   question: Type.Optional(Type.String({ description: '对图片提出的问题' })),
 });
 
+/**
+ * 创建 image_understanding 工具定义。
+ *
+ * 使用配置的多模态模型分析图片内容，支持 data URI、URL 或本地文件路径。
+ *
+ * @param deps - 依赖项，包含 configManager、llmAdapter 和可选 usageRepository
+ * @returns image_understanding 工具的 AesyClawTool 定义
+ */
 export function createImageUnderstandingTool(deps: {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;

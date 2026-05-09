@@ -5,6 +5,9 @@ import { APP_NAME, APP_VERSION } from '@aesyclaw/core/types';
 
 /**
  * 获取应用状态。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @returns 包含应用名、版本、运行时长、频道和数据库状态的对象
  */
 export function getStatus(deps: WebUiManagerDependencies): {
   app: string;

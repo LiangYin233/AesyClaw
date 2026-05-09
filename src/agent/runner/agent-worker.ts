@@ -27,7 +27,7 @@ type ToolDef = {
   parameters: unknown;
 };
 
-/** 工具调用请求（Worker → 主线程） */
+/** 工具调用请求消息（Worker → 主线程） */
 type IpcToolCallMessage = {
   type: 'toolCall';
   callId: string;
@@ -36,7 +36,7 @@ type IpcToolCallMessage = {
   params: unknown;
 };
 
-/** 工具调用结果（主线程 → Worker） */
+/** 工具调用结果消息（主线程 → Worker） */
 type IpcToolResultMessage = {
   type: 'toolResult';
   callId: string;
@@ -45,7 +45,7 @@ type IpcToolResultMessage = {
   isError?: boolean;
 };
 
-/** Worker 初始化消息（主线程 → Worker） */
+/** Worker 初始化消息（主线程 → Worker），包含 Agent 启动所需的全部配置 */
 type IpcInitMessage = {
   type: 'init';
   systemPrompt: string;
@@ -61,17 +61,7 @@ type IpcInitMessage = {
 /** Worker 可接收的所有 IPC 消息类型的联合 */
 type IpcMessage = IpcInitMessage | IpcToolCallMessage | IpcToolResultMessage;
 
-/** 提取 parentPort，不可用时抛出异常（Worker 必须有 parentPort） */
-const parent = parentPort;
-if (parent === null) {
-  throw new Error('parentPort is required in worker thread');
-}
-/** 使用显式 MessagePort 类型变量，使闭包也能看到非 null 类型 */
-const port: MessagePort = parent;
-
-/**
- * 工具代理 — 将工具调用通过 IPC 委托给主线程执行。
- */
+/** 工具代理 — 将工具调用通过 IPC 委托给主线程执行 */
 type ToolProxy = {
   name: string;
   label: string;
@@ -79,6 +69,14 @@ type ToolProxy = {
   parameters: unknown;
   execute: (toolCallId: string, params: unknown) => Promise<unknown>;
 };
+
+/** 提取 parentPort，不可用时抛出异常（Worker 必须有 parentPort） */
+const parent = parentPort;
+if (parent === null) {
+  throw new Error('parentPort is required in worker thread');
+}
+/** 使用显式 MessagePort 类型变量，使闭包也能看到非 null 类型 */
+const port: MessagePort = parent;
 
 /**
  * 根据工具定义创建工具代理对象。
@@ -208,8 +206,6 @@ async function handleInit(msg: IpcMessage): Promise<void> {
   } = msg;
 
   const agentTools = toolDefs.map(createToolProxy);
-  // 强制类型转换：IPC 代理不满足 AgentTool.execute 的精确返回类型
-  // 契约（Promise<AgentToolResult>），但 PiAgent 在运行时按结构类型接受。
   const tools = agentTools as unknown as AgentTool<TSchema, unknown>[];
   const agent = new PiAgent({
     initialState: {

@@ -25,11 +25,24 @@ const ROLE_RULES = `### 角色使用规则
 3. **临时** — 无需预定义角色时，使用 \`run_temp_sub_agent(systemPrompt="自定义提示", prompt="指令")\` 创建临时子代理
 4. **分工** — 复杂任务拆分至多个子代理并行或串行执行`;
 
+/**
+ * 构建角色列表的 Prompt 段落，包含可用角色描述和使用规则。
+ *
+ * @param allRoles - 所有已启用的角色配置
+ * @returns Markdown 格式的角色段落
+ */
 export function buildRoleSection(allRoles: RoleConfig[]): string {
   const lines = allRoles.map((r) => `- **${r.id}** — ${r.description}`);
   return `${ROLE_HEADER}\n${lines.join('\n')}\n\n${ROLE_RULES}`;
 }
 
+/**
+ * 构建技能列表的 Prompt 段落，包含可用技能描述和使用规则。
+ *
+ * @param skills - 可用技能列表
+ * @param skillDirs - 可选的技能目录路径（用户 / 系统）
+ * @returns Markdown 格式的技能段落
+ */
 export function buildSkillSection(
   skills: Skill[],
   skillDirs?: { userDir?: string; systemDir?: string },

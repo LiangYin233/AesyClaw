@@ -5,7 +5,7 @@
  * 此为内部组织细节，不暴露为公开导入路径。
  */
 
-// ─── 重导出 — 向后兼容 ─────────────────────────────────────────────
+// ─── 重导出 ────────────────────────────────────────────────────────
 
 export {
   APP_NAME,
@@ -99,7 +99,7 @@ export type CommandExecuteFn = (args: string[], context: CommandContext) => Prom
 
 // ─── 实用类型 ──────────────────────────────────────────────────────
 
-/** 递归地将所有属性设为可选 */
+/** 递归地将类型 T 的所有属性设为可选 */
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };

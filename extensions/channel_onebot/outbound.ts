@@ -10,6 +10,14 @@ import type { MediaComponent, OneBotLogger, OneBotMessageSegment, UploadedAttach
 import { isMediaComponent, numericOrStringId } from './utils';
 import type { OneBotActionTransport } from './websocket-client';
 
+/**
+ * 发送消息到 OneBot 服务端。将内部消息格式转换为 OneBot 分段后通过 API 发送。
+ *
+ * @param sessionKey - 会话键，含渠道名、聊天类型和聊天 ID
+ * @param message - 待发送的消息
+ * @param transport - API 请求传输层
+ * @param logger - 可选的日志记录器
+ */
 export async function sendOneBotMessage(
   sessionKey: SessionKey,
   message: Message,

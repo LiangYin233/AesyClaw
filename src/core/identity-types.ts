@@ -66,10 +66,23 @@ export type ToolOwner = 'system' | `plugin:${string}` | `mcp:${string}`;
 
 // ─── SessionKey 序列化 ────────────────────────────────────────────
 
+/**
+ * 将 SessionKey 序列化为 JSON 字符串。
+ *
+ * @param key - 会话标识键
+ * @returns JSON 字符串
+ */
 export function serializeSessionKey(key: SessionKey): string {
   return JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
 }
 
+/**
+ * 从 JSON 字符串反序列化 SessionKey。
+ *
+ * @param value - JSON 序列化的 SessionKey 字符串
+ * @returns SessionKey 对象
+ * @throws 如果字符串格式无效
+ */
 export function parseSerializedSessionKey(value: string): SessionKey {
   const parsed: unknown = JSON.parse(value);
   if (
@@ -83,7 +96,6 @@ export function parseSerializedSessionKey(value: string): SessionKey {
     throw new Error(`无效的 SessionKey 序列化: ${value}`);
   }
   const record = parsed as Record<string, string>;
-  // 上述验证已确保这三个字段存在且为 string 类型
   const channel = record['channel'];
   const type = record['type'];
   const chatId = record['chatId'];

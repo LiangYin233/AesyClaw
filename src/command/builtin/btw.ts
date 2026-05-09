@@ -10,6 +10,23 @@ import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 import { Agent } from '@aesyclaw/agent/agent';
 
+/**
+ * 创建 /btw 命令，在当前会话上下文中执行一次独立的 LLM 提问。
+ *
+ * 与普通对话不同，/btw 的响应不写入会话历史。
+ * @param sessionManager - 会话管理器（仅需 create 方法）
+ * @param getRoleOrFallback - 按 ID 获取角色或返回回退角色
+ * @param getDefaultRole - 获取默认角色
+ * @param llmAdapter - LLM 适配器
+ * @param roleManager - 角色管理器
+ * @param skillManager - 技能管理器
+ * @param toolRegistry - 工具注册表
+ * @param hookDispatcher - 钩子派发器
+ * @param databaseManager - 数据库管理器（仅需 roleBindings 和 sessions）
+ * @param compressionThreshold - 压缩阈值
+ * @param agentRegistry - Agent 注册表
+ * @returns 命令定义
+ */
 export function createBtwCommand(
   sessionManager: Pick<SessionManager, 'create'>,
   getRoleOrFallback: (roleId: string) => RoleConfig,

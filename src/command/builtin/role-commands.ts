@@ -3,12 +3,18 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
+/** role 子命令所需的依赖集合 */
 export type RoleCommandDeps = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
   agentRegistry: AgentRegistry;
 };
 
+/**
+ * 创建 /role list 命令，列出所有已启用的角色。
+ * @param deps - 角色命令依赖
+ * @returns 命令定义
+ */
 export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'list',
@@ -34,6 +40,11 @@ export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition 
   };
 }
 
+/**
+ * 创建 /role switch <id> 命令，切换当前会话的角色。
+ * @param deps - 角色命令依赖
+ * @returns 命令定义
+ */
 export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'switch',
@@ -67,6 +78,11 @@ export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinitio
   };
 }
 
+/**
+ * 创建 /role info 命令，显示当前会话的角色信息。
+ * @param deps - 角色命令依赖
+ * @returns 命令定义
+ */
 export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'info',

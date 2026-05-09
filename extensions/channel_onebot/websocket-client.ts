@@ -6,6 +6,7 @@ const RECONNECT_INTERVAL_MS = 5000;
 const ACTION_TIMEOUT_MS = 15000;
 const DOWNLOAD_STREAM_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** OneBot API 响应格式 */
 export type OneBotApiResponse = {
   status?: string;
   retcode?: number;
@@ -15,10 +16,12 @@ export type OneBotApiResponse = {
   data?: unknown;
 };
 
+/** OneBot Action 请求传输接口 */
 export type OneBotActionTransport = {
   sendAction(action: string, params: Record<string, unknown>): Promise<OneBotApiResponse>;
 };
 
+/** 平台无关的 WebSocket 接口抽象 */
 export type WebSocketLike = {
   readonly readyState: number;
   send(data: string): void;
@@ -48,18 +51,27 @@ type GlobalWithWebSocket = {
   WebSocket?: new (url: string) => WebSocketLike;
 };
 
+/** WebSocket 客户端构造选项 */
 export type OneBotWebSocketClientOptions = {
   config: OneBotChannelConfig;
   logger: OneBotLogger;
   onPayload(payload: Record<string, unknown>): Promise<void>;
 };
 
+/** OneBot WebSocket 客户端接口 */
 export type OneBotWebSocketClient = OneBotActionTransport & {
   start(initial?: boolean): Promise<void>;
   stop(error: Error): void;
   sendStreamAction(action: string, params: Record<string, unknown>): Promise<OneBotApiResponse[]>;
 };
 
+/**
+ * 创建 OneBot WebSocket 客户端实例。
+ * 支持自动重连、请求/响应匹配、流式下载。
+ *
+ * @param options - 客户端配置选项
+ * @returns WebSocket 客户端实例
+ */
 export function createOneBotWebSocketClient({
   config,
   logger,

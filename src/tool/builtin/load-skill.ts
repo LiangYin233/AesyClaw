@@ -26,6 +26,15 @@ const LOAD_SKILL_SCHEMA = Type.Object({
   ),
 });
 
+/**
+ * 创建 load_skill 工具定义。
+ *
+ * 从指定技能的专用目录中读取文本文件（默认 SKILL.md），
+ * 内含路径遍历防护和 UTF-8 文本校验。
+ *
+ * @param deps - 依赖项，包含 skillManager 用于查找已加载技能
+ * @returns load_skill 工具的 AesyClawTool 定义
+ */
 export function createLoadSkillTool(deps: {
   skillManager: Pick<SkillManager, 'getSkill'>;
 }): AesyClawTool {

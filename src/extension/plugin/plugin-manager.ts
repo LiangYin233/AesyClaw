@@ -23,6 +23,11 @@ import { pluginOwner, discoverPluginDefinition } from './plugin-types';
 
 const logger = createScopedLogger('plugin-manager');
 
+/**
+ * 插件管理器 — 负责插件的发现、加载、卸载、启用/禁用及配置热重载。
+ *
+ * @param deps - 插件管理器依赖项
+ */
 export class PluginManager implements ExtensionLifecycle {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   private readonly failedPlugins = new Map<string, string>();
@@ -36,6 +41,7 @@ export class PluginManager implements ExtensionLifecycle {
 
   // ─── ExtensionLifecycle ──────────────────────────────────────────
 
+  /** 发现并加载所有已启用的插件。 */
   async setup(): Promise<void> {
     const pluginDirs = await this.discoverPluginDirs();
     for (const pluginDir of pluginDirs) {
@@ -54,12 +60,19 @@ export class PluginManager implements ExtensionLifecycle {
     }
   }
 
+  /** 卸载所有已加载的插件。 */
   async destroy(): Promise<void> {
     await this.unloadAll();
   }
 
   // ─── 加载 / 卸载 ─────────────────────────────────────────────────
 
+  /**
+   * 加载单个插件。
+   *
+   * @param pluginDir - 插件目录路径
+   * @returns 加载成功返回 LoadedPlugin，插件被禁用则返回 null
+   */
   async load(pluginDir: string): Promise<LoadedPlugin | null> {
     const module = await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
     const pluginName = module.definition.name;
@@ -122,6 +135,7 @@ export class PluginManager implements ExtensionLifecycle {
     return loaded;
   }
 
+  /** 按逆序卸载所有已加载的插件。 */
   async unloadAll(): Promise<void> {
     const names = [...this.loadedPlugins.keys()].reverse();
     for (const pluginName of names) {
@@ -136,6 +150,11 @@ export class PluginManager implements ExtensionLifecycle {
 
   // ─── 运行时控制 ─────────────────────────────────────────────────
 
+  /**
+   * 启用指定插件（写入配置并加载）。
+   *
+   * @param pluginName - 插件名称或目录名
+   */
   async enable(pluginName: string): Promise<void> {
     await this.setPluginEnabled(pluginName, true);
     const match = await this.findPlugin(pluginName);
@@ -148,11 +167,17 @@ export class PluginManager implements ExtensionLifecycle {
     }
   }
 
+  /**
+   * 禁用指定插件（卸载并写入配置）。
+   *
+   * @param pluginName - 插件名称或目录名
+   */
   async disable(pluginName: string): Promise<void> {
     await this.unload(pluginName);
     await this.setPluginEnabled(pluginName, false);
   }
 
+  /** 卸载全部插件并重新加载（配置热重载）。 */
   async handleConfigReload(): Promise<void> {
     await this.unloadAll();
     this.moduleCache.clear();
@@ -161,6 +186,11 @@ export class PluginManager implements ExtensionLifecycle {
 
   // ─── 查询 ────────────────────────────────────────────────────────
 
+  /**
+   * 列出所有插件的运行时状态。
+   *
+   * @returns 按目录名排序的插件状态列表
+   */
   async listPlugins(): Promise<PluginStatus[]> {
     const statuses = new Map<string, PluginStatus>();
     for (const loaded of this.loadedPlugins.values()) {
@@ -202,6 +232,12 @@ export class PluginManager implements ExtensionLifecycle {
     return [...statuses.values()].sort((a, b) => a.directoryName.localeCompare(b.directoryName));
   }
 
+  /**
+   * 按名称或目录名查找插件模块。
+   *
+   * @param nameOrAlias - 插件名称或目录名
+   * @returns 找到的模块，未找到返回 null
+   */
   async findPlugin(nameOrAlias: string): Promise<PluginModule | null> {
     const loaded = this.findLoadedPlugin(nameOrAlias);
     if (loaded) {
@@ -228,6 +264,11 @@ export class PluginManager implements ExtensionLifecycle {
     return null;
   }
 
+  /**
+   * 获取所有已发现插件的定义（名称、版本、描述、默认配置）。
+   *
+   * @returns 插件定义数组
+   */
   async getPluginDefinitions(): Promise<
     Array<{
       name: string;
@@ -252,6 +293,12 @@ export class PluginManager implements ExtensionLifecycle {
     return result;
   }
 
+  /**
+   * 获取已加载插件的运行时实例。
+   *
+   * @param pluginName - 插件名称
+   * @returns 已加载的插件，未找到返回 undefined
+   */
   getLoaded(pluginName: string): LoadedPlugin | undefined {
     return this.findLoadedPlugin(pluginName);
   }

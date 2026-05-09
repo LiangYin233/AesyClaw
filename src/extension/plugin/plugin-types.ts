@@ -20,6 +20,7 @@ import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { isRecord } from '@aesyclaw/core/utils';
 import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
+/** 插件初始化时接收的受限上下文。 */
 export type PluginContext = {
   config: Record<string, unknown>;
   paths: Readonly<ResolvedPaths>;
@@ -30,6 +31,7 @@ export type PluginContext = {
   logger: Logger;
 };
 
+/** 插件模块必须导出的定义结构。 */
 export type PluginDefinition = {
   name: string;
   version: string;
@@ -40,6 +42,7 @@ export type PluginDefinition = {
   hooks?: PluginHooks;
 };
 
+/** 内存中已加载插件的运行时表示。 */
 export type LoadedPlugin = {
   definition: PluginDefinition;
   directory: string;
@@ -49,8 +52,10 @@ export type LoadedPlugin = {
   loadedAt: Date;
 };
 
+/** 插件生命周期的 4 种状态。 */
 export type PluginLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
 
+/** 前端查询单个插件时的状态快照。 */
 export type PluginStatus = {
   name: string;
   directoryName: string;
@@ -62,6 +67,7 @@ export type PluginStatus = {
   error?: string;
 };
 
+/** 从磁盘加载完成后用于缓存的插件模块。 */
 export type PluginModule = {
   definition: PluginDefinition;
   directory: string;
@@ -69,6 +75,7 @@ export type PluginModule = {
   entryPath: string;
 };
 
+/** PluginManager 构造函数依赖项。 */
 export type PluginManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
@@ -78,6 +85,7 @@ export type PluginManagerDependencies = {
   paths: Readonly<ResolvedPaths>;
 };
 
+/** 从配置中查找插件启用/禁用状态和选项的结果。 */
 export type PluginConfigLookup = {
   entry?: Readonly<PluginConfigEntry>;
   enabled: boolean;
@@ -86,6 +94,12 @@ export type PluginConfigLookup = {
 
 export { type PluginHooks };
 
+/**
+ * 生成插件的所有权标识符。
+ *
+ * @param pluginName - 插件名称
+ * @returns 格式为 "plugin:" + 插件名称的所有权字符串
+ */
 export function pluginOwner(pluginName: string): ToolOwner {
   return `plugin:${pluginName}`;
 }

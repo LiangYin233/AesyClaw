@@ -28,6 +28,7 @@ import {
 } from './plugin-commands';
 import { createSkillReloadCommand } from './skill-commands';
 
+/** 注册内置命令所需的完整依赖集合。 */
 export type BuiltinCommandDependencies = {
   roleManager: RoleManager;
   pluginManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
@@ -41,6 +42,11 @@ export type BuiltinCommandDependencies = {
   agentRegistry: AgentRegistry;
 };
 
+/**
+ * 向命令注册表中注册所有内置命令。
+ * @param registry - 命令注册表
+ * @param deps - 内置命令所需的依赖集合
+ */
 export function registerBuiltinCommands(
   registry: CommandRegistry,
   deps: BuiltinCommandDependencies,

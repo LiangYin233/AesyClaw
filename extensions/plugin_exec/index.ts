@@ -8,6 +8,7 @@ import type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/sdk';
 const DEFAULT_TIMEOUT_MS = 30_000;
 const POSIX_FORCE_KILL_DELAY_MS = 1_000;
 
+/** exec 工具参数 Schema */
 export const ExecParamsSchema = Type.Object({
   command: Type.String({ minLength: 1, description: 'Shell command to execute.' }),
   cwd: Type.Optional(
@@ -25,8 +26,10 @@ export const ExecParamsSchema = Type.Object({
   ),
 });
 
+/** exec 工具参数类型 */
 export type ExecParams = Static<typeof ExecParamsSchema>;
 
+/** 命令执行结果详情 */
 export type ExecResultDetails = {
   command: string;
   cwd: string;
@@ -43,11 +46,19 @@ export type ExecResultDetails = {
   error?: string;
 };
 
+/** 命令执行选项 */
 export type ExecuteCommandOptions = {
   workspaceDir: string;
   platform?: NodeJS.Platform;
 };
 
+/**
+ * 执行指定的 shell 命令并返回结果。
+ *
+ * @param params - 命令执行参数（command、cwd、timeoutMs）
+ * @param options - 执行选项（工作目录、平台）
+ * @returns 工具执行结果
+ */
 export async function executeCommand(
   params: ExecParams,
   options: ExecuteCommandOptions,
@@ -189,6 +200,12 @@ function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * 创建 exec 工具定义，注册到 SDK 工具系统。
+ *
+ * @param workspaceDir - 工作区根目录
+ * @returns 工具定义
+ */
 export function createExecTool(workspaceDir: string): AesyClawTool {
   return {
     name: 'exec',

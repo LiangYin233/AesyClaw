@@ -65,6 +65,7 @@ export class HookDispatcher {
    * 注销插件的钩子。
    *
    * 如果插件没有已注册的钩子，则为空操作。
+   * @param pluginName - 要注销的插件标识符
    */
   unregister(pluginName: string): void {
     const before = this.entries.length;
@@ -76,11 +77,23 @@ export class HookDispatcher {
 
   /**
    * 清除所有已注册的钩子条目。
+   *
+   * 通常在 Pipeline 销毁时调用。
+   * @returns 无返回值
    */
   clearAll(): void {
     this.entries = [];
   }
 
+  /**
+   * 派发管道生命周期钩子，按注册顺序遍历所有插件。
+   *
+   * 任一钩子返回终止结果（action !== 'continue'）即停止调度。
+   * @param hookName - 钩子名称（用于日志）
+   * @param getHook - 从 PluginHooks 中提取目标钩子函数的访问器
+   * @param ctx - 传递给钩子的上下文
+   * @returns 终止结果或默认 continue
+   */
   private async dispatchPipelineHook<TCtx>(
     hookName: string,
     getHook: (hooks: PluginHooks) => ((ctx: TCtx) => Promise<PipelineResult>) | undefined,
@@ -101,6 +114,16 @@ export class HookDispatcher {
     return { action: 'continue' };
   }
 
+  /**
+   * 派发工具钩子，按注册顺序遍历所有插件。
+   *
+   * 通过 shouldStop 判断是否终止调度，返回首个触发停止的结果。
+   * @param hookName - 钩子名称（用于日志）
+   * @param getHook - 从 PluginHooks 中提取目标钩子函数的访问器
+   * @param ctx - 传递给钩子的上下文
+   * @param shouldStop - 判断结果是否应终止调度
+   * @returns 首个触发停止的结果，或 undefined 表示无钩子返回停止结果
+   */
   private async dispatchToolHook<TCtx, TResult extends object>(
     hookName: string,
     getHook: (hooks: PluginHooks) => ((ctx: TCtx) => Promise<TResult>) | undefined,
@@ -126,7 +149,8 @@ export class HookDispatcher {
 
   /**
    * 派发 onReceive 钩子 — 消息进入管道后的第一步。
-   * 返回终止结果或默认 continue。
+   * @param ctx - 管道上下文（message/sessionKey/sender 已可用）
+   * @returns 终止结果或默认 continue
    */
   async onReceive(ctx: PipeCtx): Promise<PipelineResult> {
     return await this.dispatchPipelineHook('onReceive', (hooks) => hooks.onReceive, ctx);
@@ -134,7 +158,8 @@ export class HookDispatcher {
 
   /**
    * 派发 onSend 钩子 — 出站消息发送前。
-   * 返回终止结果或默认 continue。
+   * @param ctx - 出站上下文（message/sessionKey 已可用）
+   * @returns 终止结果或默认 continue
    */
   async onSend(ctx: SendCtx): Promise<PipelineResult> {
     return await this.dispatchPipelineHook('onSend', (hooks) => hooks.onSend, ctx);
@@ -142,7 +167,10 @@ export class HookDispatcher {
 
   /**
    * 派发 beforeLLM 钩子 — Agent 处理 LLM 调用前。
-   * session/agent/role 均已解析完毕。返回终止结果或默认 continue。
+   *
+   * session/agent/role 均已解析完毕。
+   * @param ctx - 管道上下文（session/agent/role/prompt 已可用）
+   * @returns 终止结果或默认 continue
    */
   async beforeLLM(ctx: PipeCtx): Promise<PipelineResult> {
     return await this.dispatchPipelineHook('beforeLLM', (hooks) => hooks.beforeLLM, ctx);
@@ -150,7 +178,10 @@ export class HookDispatcher {
 
   /**
    * 派发 beforeToolCall 钩子 — 工具执行前。
+   *
    * 如果某钩子返回 block 或 shortCircuit，则停止调度并返回该结果。
+   * @param ctx - 工具调用前上下文
+   * @returns 工具调用前结果，默认返回空对象
    */
   async beforeToolCall(ctx: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult> {
     return (
@@ -165,7 +196,10 @@ export class HookDispatcher {
 
   /**
    * 派发 afterToolCall 钩子 — 工具执行后。
+   *
    * 如果某钩子返回 override，则停止调度并返回该结果。
+   * @param ctx - 工具调用后上下文
+   * @returns 工具调用后结果，默认返回空对象
    */
   async afterToolCall(ctx: AfterToolCallHookContext): Promise<AfterToolCallHookResult> {
     return (

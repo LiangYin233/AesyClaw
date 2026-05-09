@@ -23,6 +23,14 @@ const RUN_TEMP_SUB_AGENT_SCHEMA = Type.Object({
   enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
 });
 
+/**
+ * 创建 run_sub_agent 工具定义。
+ *
+ * 按角色 ID 查找角色配置并委托子代理执行，支持工具权限覆盖。
+ *
+ * @param deps - 依赖项，包含 roleManager 和 callLLM
+ * @returns run_sub_agent 工具的 AesyClawTool 定义
+ */
 export function createRunSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getRole'>;
   callLLM: (
@@ -64,6 +72,15 @@ export function createRunSubAgentTool(deps: {
   };
 }
 
+/**
+ * 创建 run_temp_sub_agent 工具定义。
+ *
+ * 以自定义系统提示和可选模型为基础创建临时角色，
+ * 委托子代理执行，默认继承调用者工具权限。
+ *
+ * @param deps - 依赖项，包含 roleManager 和 callLLM
+ * @returns run_temp_sub_agent 工具的 AesyClawTool 定义
+ */
 export function createRunTempSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getDefaultRole'>;
   callLLM: (

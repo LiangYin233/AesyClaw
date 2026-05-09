@@ -19,6 +19,11 @@ import { isChannelEnabled, discoverChannelDefinition } from './channel-types';
 
 const logger = createScopedLogger('channel-manager');
 
+/**
+ * 频道管理器 — 注册、启动、停止频道适配器，并将入站消息桥接到管道。
+ *
+ * @param deps - 频道管理器依赖项
+ */
 export class ChannelManager implements ExtensionLifecycle {
   private readonly definitions = new Map<string, ChannelPlugin>();
   private readonly loadedChannels = new Map<string, LoadedChannel>();
@@ -37,17 +42,28 @@ export class ChannelManager implements ExtensionLifecycle {
 
   // ─── ExtensionLifecycle ──────────────────────────────────────────
 
+  /**
+   * 从磁盘注册频道定义并启动所有已启用的频道。
+   */
   async setup(): Promise<void> {
     await this.registerFromDisk();
     await this.startAll();
   }
 
+  /** 停止所有已加载的频道。 */
   async destroy(): Promise<void> {
     await this.stopAll();
   }
 
   // ─── 注册 / 注销 ─────────────────────────────────────────────────
 
+  /**
+   * 注册频道定义。
+   *
+   * @param channel - 频道插件定义
+   * @param owner - 可选的所属方标识
+   * @throws 频道名称已注册时抛出
+   */
   register(channel: ChannelPlugin, owner?: string): void {
     const existing = this.definitions.get(channel.name);
     if (existing && existing !== channel) {
@@ -62,10 +78,21 @@ export class ChannelManager implements ExtensionLifecycle {
     logger.debug('频道已注册', { channel: channel.name });
   }
 
+  /**
+   * 检查频道是否已注册。
+   *
+   * @param channelName - 频道名称
+   * @returns 已注册返回 true
+   */
   has(channelName: string): boolean {
     return this.definitions.has(channelName);
   }
 
+  /**
+   * 注销并停止指定频道。
+   *
+   * @param channelName - 频道名称
+   */
   async unregister(channelName: string): Promise<void> {
     await this.stop(channelName);
     this.definitions.delete(channelName);
@@ -74,6 +101,11 @@ export class ChannelManager implements ExtensionLifecycle {
     logger.debug('频道已注销', { channel: channelName });
   }
 
+  /**
+   * 注销指定所有者注册的全部频道。
+   *
+   * @param owner - 所有者标识
+   */
   async unregisterByOwner(owner: string): Promise<void> {
     for (const [channelName, channelOwner] of this.channelOwners) {
       if (channelOwner === owner) {
@@ -84,6 +116,7 @@ export class ChannelManager implements ExtensionLifecycle {
 
   // ─── 启动 / 停止 ─────────────────────────────────────────────────
 
+  /** 启动所有已注册且已启用的频道。 */
   async startAll(): Promise<void> {
     for (const channel of this.definitions.values()) {
       if (!this.isEnabled(channel.name)) {
@@ -101,6 +134,7 @@ export class ChannelManager implements ExtensionLifecycle {
     }
   }
 
+  /** 按逆序停止所有已加载的频道。 */
   async stopAll(): Promise<void> {
     const names = [...this.loadedChannels.keys()].reverse();
     for (const name of names) {
@@ -113,6 +147,13 @@ export class ChannelManager implements ExtensionLifecycle {
     logger.info('所有频道已停止');
   }
 
+  /**
+   * 启动指定频道（加载配置并调用 init）。
+   *
+   * @param channelName - 频道名称
+   * @returns 已加载的频道
+   * @throws 频道未注册时抛出
+   */
   async start(channelName: string): Promise<LoadedChannel> {
     const definition = this.definitions.get(channelName);
     if (!definition) {
@@ -142,6 +183,11 @@ export class ChannelManager implements ExtensionLifecycle {
     return loaded;
   }
 
+  /**
+   * 停止指定频道（调用 destroy 并清理）。
+   *
+   * @param channelName - 频道名称
+   */
   async stop(channelName: string): Promise<void> {
     const loaded = this.loadedChannels.get(channelName);
     if (!loaded) {
@@ -161,11 +207,25 @@ export class ChannelManager implements ExtensionLifecycle {
 
   // ─── 运行时 ──────────────────────────────────────────────────────
 
+  /**
+   * 通过已加载的频道发送消息。
+   *
+   * @param sessionKey - 会话键
+   * @param message - 待发送的消息
+   */
   async send(sessionKey: SessionKey, message: Message): Promise<void> {
     const loaded = this.requireLoaded(sessionKey.channel);
     await loaded.definition.send(sessionKey, message);
   }
 
+  /**
+   * 接收入站消息并路由到管道处理。
+   *
+   * @param channelName - 频道名称
+   * @param inbound - 入站消息
+   * @param sessionKey - 会话键
+   * @param sender - 可选的发送者信息
+   */
   async receive(
     channelName: string,
     inbound: Message,
@@ -178,6 +238,7 @@ export class ChannelManager implements ExtensionLifecycle {
     });
   }
 
+  /** 停止全部频道并重新启动（配置热重载）。 */
   async handleConfigReload(): Promise<void> {
     await this.stopAll();
     await this.startAll();
@@ -185,6 +246,11 @@ export class ChannelManager implements ExtensionLifecycle {
 
   // ─── 查询 ────────────────────────────────────────────────────────
 
+  /**
+   * 列出所有已注册频道的状态。
+   *
+   * @returns 按名称排序的频道状态列表
+   */
   listChannels(): ChannelStatus[] {
     const statuses: ChannelStatus[] = [];
     for (const definition of this.definitions.values()) {
@@ -208,10 +274,21 @@ export class ChannelManager implements ExtensionLifecycle {
     return statuses.sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /**
+   * 获取已加载频道的运行时实例。
+   *
+   * @param channelName - 频道名称
+   * @returns 已加载的频道，未找到返回 undefined
+   */
   getLoaded(channelName: string): LoadedChannel | undefined {
     return this.loadedChannels.get(channelName);
   }
 
+  /**
+   * 获取所有已注册频道的定义信息。
+   *
+   * @returns 频道定义数组（名称、版本、描述、默认配置）
+   */
   getRegisteredChannels(): Array<{
     name: string;
     version: string;

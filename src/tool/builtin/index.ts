@@ -17,6 +17,11 @@ import { createLoadSkillTool } from './load-skill';
 
 export { createSpeechToTextTool, createImageUnderstandingTool };
 
+/**
+ * 注册内置工具所需的依赖项。
+ *
+ * 每个依赖项使用 `Pick<>` 声明最小接口，仅声明内置工具实际使用的方法。
+ */
 export type BuiltinToolDependencies = {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
@@ -28,6 +33,12 @@ export type BuiltinToolDependencies = {
   sessionManager: Pick<SessionManager, 'get'>;
 };
 
+/**
+ * 将所有内置工具注册到 ToolRegistry。
+ *
+ * @param registry - 工具注册表实例
+ * @param deps - 内置工具所需的依赖项
+ */
 export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
   const cronDeps = { cronManager: deps.cronManager };
 

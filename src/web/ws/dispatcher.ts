@@ -24,6 +24,10 @@ const logger = createScopedLogger('webui:ws');
 
 /**
  * 消息分发器 — 接收 WebSocket 消息，路由到对应的 service handler，返回响应。
+ *
+ * @param msg - 客户端发来的 WebSocket 消息
+ * @param deps - WebUI 管理器依赖项
+ * @returns 封装为 WsResponse 的处理结果
  */
 export async function dispatchMessage(
   msg: WsMessage,

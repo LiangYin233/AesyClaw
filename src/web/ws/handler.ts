@@ -51,6 +51,10 @@ function validateWsToken(requestUrl: string | undefined, configManager: ConfigMa
 /**
  * 创建 WebSocket 服务器并绑定到 HTTP server。
  * 使用 `noServer: true` 模式，通过 HTTP server 的 upgrade 事件处理。
+ *
+ * @param httpServer - Node.js HTTP 服务器实例
+ * @param deps - WebUI 管理器依赖项
+ * @returns 已配置的 WebSocketServer
  */
 export function createWebSocketServer(
   httpServer: Server,

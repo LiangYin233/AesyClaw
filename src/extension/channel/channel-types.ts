@@ -8,6 +8,7 @@ import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { isRecord } from '@aesyclaw/core/utils';
 import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
+/** 频道初始化时接收的上下文（包含名称、配置、接收回调等）。 */
 export type ChannelContext = {
   name: string;
   config: Record<string, unknown>;
@@ -16,6 +17,7 @@ export type ChannelContext = {
   logger: Logger;
 };
 
+/** 频道插件必须导出的定义结构。 */
 export type ChannelPlugin = {
   name: string;
   version: string;
@@ -27,14 +29,17 @@ export type ChannelPlugin = {
   send(sessionKey: SessionKey, message: Message): Promise<void>;
 };
 
+/** 内存中已加载频道的运行时表示。 */
 export type LoadedChannel = {
   definition: ChannelPlugin;
   config: Record<string, unknown>;
   loadedAt: Date;
 };
 
+/** 频道生命周期的 4 种状态。 */
 export type ChannelLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
 
+/** 前端查询单个频道时的状态快照。 */
 export type ChannelStatus = {
   name: string;
   version?: string;
@@ -44,6 +49,7 @@ export type ChannelStatus = {
   error?: string;
 };
 
+/** ChannelManager 构造函数依赖项。 */
 export type ChannelManagerDependencies = {
   configManager: ConfigManager;
   pipeline: Pipeline;
@@ -51,6 +57,7 @@ export type ChannelManagerDependencies = {
   paths: Readonly<ResolvedPaths>;
 };
 
+/** 从磁盘加载完成后的频道模块。 */
 export type ChannelModule = {
   definition: ChannelPlugin;
   directory: string;

@@ -1,6 +1,11 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 
+/**
+ * 创建 /skill reload 命令，用于重新加载所有技能文件。
+ * @param skillManager - 技能管理器实例
+ * @returns 命令定义
+ */
 export function createSkillReloadCommand(skillManager: SkillManager): CommandDefinition {
   return {
     name: 'reload',

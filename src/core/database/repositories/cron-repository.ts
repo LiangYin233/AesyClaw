@@ -58,7 +58,12 @@ function mapRunRow(row: CronRunRow): CronRunRecord {
 
 // ─── 定时任务 ────────────────────────────────────────────────────
 
-/** 创建一个新的定时任务并返回其生成的 ID */
+/** 创建一个新的定时任务并返回其生成的 ID。
+ *
+ * @param db - 数据库实例
+ * @param params - 定时任务参数
+ * @returns 新定时任务的 ID
+ */
 export async function createCronJob(
   db: DatabaseSync,
   params: {
@@ -89,13 +94,22 @@ export async function createCronJob(
   return id;
 }
 
-/** 按 ID 查找定时任务。未找到时返回 null。 */
+/** 按 ID 查找定时任务。
+ *
+ * @param db - 数据库实例
+ * @param id - 定时任务 ID
+ * @returns 定时任务记录，未找到时返回 null
+ */
 export async function findCronJobById(db: DatabaseSync, id: string): Promise<CronJobRecord | null> {
   const row = db.prepare('SELECT * FROM cron_jobs WHERE id = ?').get(id) as CronJobRow | undefined;
   return row ? mapJobRow(row) : null;
 }
 
-/** 获取所有定时任务 */
+/** 获取所有定时任务。
+ *
+ * @param db - 数据库实例
+ * @returns 按下次执行时间升序排列的定时任务列表
+ */
 export async function findAllCronJobs(db: DatabaseSync): Promise<CronJobRecord[]> {
   const rows = db
     .prepare('SELECT * FROM cron_jobs ORDER BY next_run ASC')
@@ -103,7 +117,12 @@ export async function findAllCronJobs(db: DatabaseSync): Promise<CronJobRecord[]
   return rows.map(mapJobRow);
 }
 
-/** 按 ID 删除定时任务。有行被删除时返回 true。 */
+/** 按 ID 删除定时任务及其关联执行记录。
+ *
+ * @param db - 数据库实例
+ * @param id - 定时任务 ID
+ * @returns 有行被删除时返回 true
+ */
 export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boolean> {
   db.exec('BEGIN');
 
@@ -118,7 +137,13 @@ export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boole
   }
 }
 
-/** 更新定时任务的 next_run 时间。有行被更新时返回 true。 */
+/** 更新定时任务的 next_run 时间。
+ *
+ * @param db - 数据库实例
+ * @param id - 定时任务 ID
+ * @param nextRun - 下次运行时间，null 表示取消调度
+ * @returns 有行被更新时返回 true
+ */
 export async function updateCronJobNextRun(
   db: DatabaseSync,
   id: string,
@@ -131,7 +156,12 @@ export async function updateCronJobNextRun(
 
 // ─── 定时任务执行 ────────────────────────────────────────────────────
 
-/** 创建一个新的定时任务执行记录。返回生成的执行 ID。 */
+/** 创建一个新的定时任务执行记录。
+ *
+ * @param db - 数据库实例
+ * @param params - 执行参数，包含 jobId
+ * @returns 新执行记录的 ID
+ */
 export async function createCronRun(db: DatabaseSync, params: { jobId: string }): Promise<string> {
   const id = randomUUID();
   const now = new Date().toISOString();
@@ -146,7 +176,12 @@ export async function createCronRun(db: DatabaseSync, params: { jobId: string })
   return id;
 }
 
-/** 将执行标记为已完成 */
+/** 将执行记录标记为已完成。
+ *
+ * @param db - 数据库实例
+ * @param runId - 执行记录 ID
+ * @param result - 执行结果文本
+ */
 export async function markCronRunCompleted(
   db: DatabaseSync,
   runId: string,
@@ -161,7 +196,12 @@ export async function markCronRunCompleted(
   );
 }
 
-/** 将执行标记为失败 */
+/** 将执行记录标记为失败。
+ *
+ * @param db - 数据库实例
+ * @param runId - 执行记录 ID
+ * @param error - 错误信息
+ */
 export async function markCronRunFailed(
   db: DatabaseSync,
   runId: string,
@@ -176,7 +216,11 @@ export async function markCronRunFailed(
   );
 }
 
-/** 将多个执行标记为已放弃（例如启动时处理遗留的 'running' 执行） */
+/** 将多个执行记录标记为已放弃（例如启动时处理仍在进行的执行）。
+ *
+ * @param db - 数据库实例
+ * @param runIds - 要标记为已放弃的执行记录 ID 列表
+ */
 export async function markCronRunsAbandoned(db: DatabaseSync, runIds: string[]): Promise<void> {
   if (runIds.length === 0) return;
 
@@ -196,7 +240,11 @@ export async function markCronRunsAbandoned(db: DatabaseSync, runIds: string[]):
   }
 }
 
-/** 查找所有当前正在执行的运行 */
+/** 查找所有当前正在执行的运行记录。
+ *
+ * @param db - 数据库实例
+ * @returns 状态为 'running' 的执行记录列表
+ */
 export async function findRunningCronRuns(db: DatabaseSync): Promise<CronRunRecord[]> {
   const rows = db
     .prepare("SELECT * FROM cron_runs WHERE status = 'running'")
@@ -204,7 +252,12 @@ export async function findRunningCronRuns(db: DatabaseSync): Promise<CronRunReco
   return rows.map(mapRunRow);
 }
 
-/** 查找特定任务的所有执行记录，按开始时间排序（最新的在前）。 */
+/** 查找特定任务的所有执行记录。
+ *
+ * @param db - 数据库实例
+ * @param jobId - 定时任务 ID
+ * @returns 按开始时间降序排列的执行记录列表
+ */
 export async function findCronRunsByJobId(
   db: DatabaseSync,
   jobId: string,

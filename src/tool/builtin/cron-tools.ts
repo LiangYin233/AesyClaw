@@ -32,6 +32,14 @@ const DELETE_CRON_SCHEMA = Type.Object({
 
 // ─── create_cron ───────────────────────────────────────────────────
 
+/**
+ * 创建 create_cron 工具定义。
+ *
+ * 为当前会话创建一次性、每日或间隔定时任务。
+ *
+ * @param deps - 依赖项，包含 cronManager
+ * @returns create_cron 工具的 AesyClawTool 定义
+ */
 export function createCreateCronTool(deps: {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
 }): AesyClawTool {
@@ -68,6 +76,14 @@ export function createCreateCronTool(deps: {
 
 // ─── list_cron ─────────────────────────────────────────────────────
 
+/**
+ * 创建 list_cron 工具定义。
+ *
+ * 列出当前会话的所有定时任务及其状态。
+ *
+ * @param deps - 依赖项，包含 cronManager
+ * @returns list_cron 工具的 AesyClawTool 定义
+ */
 export function createListCronTool(deps: {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
 }): AesyClawTool {
@@ -101,6 +117,14 @@ export function createListCronTool(deps: {
 
 // ─── delete_cron ───────────────────────────────────────────────────
 
+/**
+ * 创建 delete_cron 工具定义。
+ *
+ * 按 ID 删除指定定时任务及其所有执行记录。
+ *
+ * @param deps - 依赖项，包含 cronManager
+ * @returns delete_cron 工具的 AesyClawTool 定义
+ */
 export function createDeleteCronTool(deps: {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
 }): AesyClawTool {

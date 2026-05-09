@@ -3,13 +3,21 @@
 import { Kind, type TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 
+/**
+ * 工具参数验证结果。
+ *
+ * 成功时包含验证后的 value，失败时包含错误信息。
+ */
 export type ValidationResult =
   | { success: true; value: unknown }
   | { success: false; error: string };
 
 /**
- * 验证工具参数是否符合 schema。
- * 应用默认值并检查类型正确性。
+ * 验证工具参数是否符合 schema，应用默认值并检查类型正确性。
+ *
+ * @param schema - TypeBox 参数 schema
+ * @param params - LLM 传入的原始参数
+ * @returns 验证结果，成功时 value 已应用默认值
  */
 export function validateParams(
   schema: TSchema,

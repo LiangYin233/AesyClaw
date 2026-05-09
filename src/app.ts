@@ -78,6 +78,10 @@ function createSubsystems(): AppSubsystems {
   };
 }
 
+/**
+ * 应用主类。
+ * 负责创建和管理所有子系统，并协调启动/关闭生命周期。
+ */
 export class Application {
   private readonly coreLifecycle: CoreLifecycle;
   private started = false;

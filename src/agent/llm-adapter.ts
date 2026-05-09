@@ -4,9 +4,21 @@ import type { ProviderConfig } from '@aesyclaw/core/config/schema';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { makeExtraBodyOnPayload, type ResolvedModel, type StreamFn } from './agent-types';
 
+/**
+ * LLM 适配器，负责解析模型配置和创建流式调用函数。
+ */
 export class LlmAdapter {
+  /**
+   * @param configManager - 配置管理器
+   */
   constructor(private configManager: ConfigManager) {}
 
+  /**
+   * 根据模型标识符解析完整的模型配置，包含 API 密钥、上下文窗口、成本等信息。
+   *
+   * @param modelIdentifier - 模型标识符，例如 "openai/gpt-4o"
+   * @returns 解析后的模型配置
+   */
   resolveModel(modelIdentifier: string): ResolvedModel {
     const configManager = this.configManager;
 
@@ -54,6 +66,11 @@ export class LlmAdapter {
     };
   }
 
+  /**
+   * 创建 PiAgent 使用的流式调用函数。返回的函数在每次调用时从模型配置中提取 API 密钥和额外请求体。
+   *
+   * @returns 适配 PiAgent StreamFn 接口的函数
+   */
   createStreamFn(): StreamFn {
     return (model, context, options) => {
       const runtimeModel = model as ResolvedModel;
@@ -70,6 +87,11 @@ export class LlmAdapter {
     };
   }
 
+  /**
+   * 创建根据提供者名称获取 API 密钥的函数。
+   *
+   * @returns 接收提供者名称、返回 API 密钥或 undefined 的函数
+   */
   createGetApiKey(): (provider: string) => string | undefined {
     return (provider: string): string | undefined => {
       const providerConfig = this.configManager.get(`providers.${provider}`) as
@@ -79,6 +101,13 @@ export class LlmAdapter {
     };
   }
 
+  /**
+   * 尝试从 pi-ai 内置模型库中查找模型。找不到时返回 null。
+   *
+   * @param provider - 提供者名称
+   * @param modelId - 模型标识
+   * @returns 内置模型配置，未找到返回 null
+   */
   private tryGetBuiltInModel(provider: string, modelId: string): Model<Api> | null {
     try {
       return getModel(provider as KnownProvider, modelId as never) as Model<Api>;

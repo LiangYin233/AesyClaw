@@ -16,6 +16,14 @@ const SPEECH_TO_TEXT_SCHEMA = Type.Object({
   }),
 });
 
+/**
+ * 创建 speech_to_text 工具定义。
+ *
+ * 使用配置的语音转文本模型将音频转录为文本，支持 data URI、URL 或本地文件路径。
+ *
+ * @param deps - 依赖项，包含 configManager 和 llmAdapter
+ * @returns speech_to_text 工具的 AesyClawTool 定义
+ */
 export function createSpeechToTextTool(deps: {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;

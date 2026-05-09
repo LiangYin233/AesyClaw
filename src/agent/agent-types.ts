@@ -6,16 +6,27 @@ import type { Api, Model, TextContent, ToolCall, Usage } from '@mariozechner/pi-
 import type { SessionKey } from '@aesyclaw/core/types';
 import type { ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
-
+/**
+ * PiAgent 的消息类型别名。
+ */
 export type AgentMessage = PiAgentMessage;
+
+/**
+ * 解析后的模型配置，包含 modelId、API 密钥、API 类型和额外请求体。
+ */
 export type ResolvedModel = Model<Api> & {
   modelId: string;
   apiKey?: string;
   apiType: Api;
   extraBody?: Record<string, unknown>;
 };
+
 export type { StreamFn };
 
+/**
+ * Agent 可用的工具定义。
+ * execute 函数在工具被调用时执行，返回 AgentToolResult。
+ */
 export type AgentTool = {
   name: string;
   label: string;
@@ -24,6 +35,9 @@ export type AgentTool = {
   execute: (toolCallId: string, params: unknown, signal?: AbortSignal) => Promise<AgentToolResult>;
 };
 
+/**
+ * 工具执行结果，包含文本内容块和元信息。
+ */
 export type AgentToolResult = {
   content: TextContent[];
   details: unknown;
@@ -31,12 +45,18 @@ export type AgentToolResult = {
   terminate?: boolean;
 };
 
+/**
+ * 工具调用前钩子的上下文信息。
+ */
 export type BeforeToolCallHookContext = {
   toolName: string;
   params: unknown;
   sessionKey: SessionKey;
 };
 
+/**
+ * 工具调用后钩子的上下文信息。
+ */
 export type AfterToolCallHookContext = {
   toolName: string;
   params: unknown;
@@ -44,17 +64,26 @@ export type AfterToolCallHookContext = {
   sessionKey: SessionKey;
 };
 
+/**
+ * 工具调用前钩子的返回结果，可阻止或短路工具调用。
+ */
 export type BeforeToolCallHookResult = {
   block?: boolean;
   reason?: string;
   shortCircuit?: ToolExecutionResult;
 };
 
+/**
+ * 工具调用后钩子的返回结果，可覆盖执行结果。
+ */
 export type AfterToolCallHookResult = {
   override?: Partial<ToolExecutionResult>;
 };
 
 
+/**
+ * 支持的 LLM API 类型常量映射。
+ */
 export const ApiType = {
   OPENAI_RESPONSES: 'openai-responses',
   OPENAI_COMPLETIONS: 'openai-completions',

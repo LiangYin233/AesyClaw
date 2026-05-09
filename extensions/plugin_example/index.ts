@@ -2,6 +2,9 @@ import { Type } from '@sinclair/typebox';
 import type { PluginDefinition } from '@aesyclaw/sdk';
 import { isRecord } from '@aesyclaw/sdk';
 
+/**
+ * 示例插件。演示工具注册、命令注册和钩子的基本用法。
+ */
 const plugin: PluginDefinition = {
   name: 'example',
   version: '0.1.0',

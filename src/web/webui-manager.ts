@@ -20,6 +20,7 @@ import { createWebSocketServer } from './ws/handler';
 
 const logger = createScopedLogger('webui');
 
+/** WebUiManager 的依赖项集合。 */
 export type WebUiManagerDependencies = {
   configManager: ConfigManager;
   databaseManager: DatabaseManager;
@@ -33,6 +34,13 @@ export type WebUiManagerDependencies = {
   paths: Readonly<ResolvedPaths>;
 };
 
+/**
+ * WebUiManager — WebUI 管理后台的 HTTP + WebSocket 服务器。
+ *
+ * 负责创建 Hono HTTP 服务器和 WebSocket 服务器，处理自动令牌生成与生命周期管理。
+ *
+ * @param deps - WebUI 管理器依赖项
+ */
 export class WebUiManager {
   private deps: WebUiManagerDependencies;
   private app: ReturnType<typeof createApp> | null = null;
@@ -43,6 +51,7 @@ export class WebUiManager {
     this.deps = deps;
   }
 
+  /** 初始化 HTTP 和 WebSocket 服务器。 */
   async initialize(): Promise<void> {
     if (this.server) {
       logger.warn('WebUiManager 已初始化 — 跳过');
@@ -75,6 +84,7 @@ export class WebUiManager {
     logger.info('WebUI 服务器已启动（HTTP + WebSocket）', { host, port });
   }
 
+  /** 关闭 WebSocket 和 HTTP 服务器，清理资源。 */
   async destroy(): Promise<void> {
     if (this.wss) {
       this.wss.close();

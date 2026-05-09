@@ -13,6 +13,14 @@ import {
 } from './utils';
 import type { MediaComponent, OneBotDownloadResult, OneBotInboundAttachmentSegment } from './types';
 
+/**
+ * 将 OneBot 事件映射为内部 Message 格式。
+ * 仅处理 post_type === 'message' 且 message_type 为 private 或 group 的事件。
+ *
+ * @param event - OneBot 原始事件数据
+ * @param channelName - 渠道名称，默认 'onebot'
+ * @returns 解析后的消息、会话键和发送者信息，不匹配时返回 null
+ */
 export function mapOneBotEventToMessage(
   event: unknown,
   channelName = 'onebot',
@@ -49,6 +57,15 @@ export function mapOneBotEventToMessage(
   };
 }
 
+/**
+ * 下载消息中的附件（图片、音频、视频、文件）到本地。
+ *
+ * @param inbound - 入站消息
+ * @param event - OneBot 原始事件
+ * @param sendStreamAction - 流式 API 请求回调
+ * @param mediaDir - 媒体文件存储目录
+ * @returns 追加了下载结果标注的消息
+ */
 export async function enrichMessageWithDownloads(
   inbound: Message,
   event: Record<string, unknown>,
@@ -109,6 +126,13 @@ export async function enrichMessageWithDownloads(
   };
 }
 
+/**
+ * 通过 API 获取 Reply 组件的引用消息内容，填充组件详情。
+ *
+ * @param inbound - 入站消息
+ * @param sendAction - API 请求回调
+ * @returns 填充了回复内容的消息
+ */
 export async function enrichMessageWithReplyContent(
   inbound: Message,
   sendAction: (action: string, params: Record<string, unknown>) => Promise<OneBotApiResponse>,
@@ -165,6 +189,13 @@ export async function enrichMessageWithReplyContent(
   return { ...inbound, components };
 }
 
+/**
+ * 在消息成分列表中查找与给定附件分段匹配的媒体组件的索引。
+ *
+ * @param components - 消息成分列表
+ * @param segment - OneBot 附件分段
+ * @returns 匹配的组件索引，未找到返回 -1
+ */
 export function findDownloadComponentIndex(
   components: MessageComponent[],
   segment: OneBotInboundAttachmentSegment,
@@ -179,6 +210,13 @@ export function findDownloadComponentIndex(
   );
 }
 
+/**
+ * 将下载结果合并到对应的消息组件中。
+ *
+ * @param component - 原始消息组件
+ * @param downloaded - 下载结果
+ * @returns 合并了路径和 URL 的组件
+ */
 export function mergeDownloadedComponent(
   component: MessageComponent | undefined,
   downloaded: OneBotDownloadResult,
@@ -192,6 +230,12 @@ export function mergeDownloadedComponent(
   };
 }
 
+/**
+ * 从 OneBot 消息数组中提取消息成分列表。
+ *
+ * @param message - OneBot message 字段，可以是字符串或分段数组
+ * @returns 消息成分数组
+ */
 export function extractOneBotComponents(message: unknown): MessageComponent[] {
   if (typeof message === 'string') {
     return [{ type: 'Plain', text: message }];
@@ -204,6 +248,12 @@ export function extractOneBotComponents(message: unknown): MessageComponent[] {
   return message.map((segment) => mapOneBotSegmentToComponent(segment));
 }
 
+/**
+ * 从 OneBot 消息中提取需要下载的附件分段信息。
+ *
+ * @param message - OneBot message 数组
+ * @returns 需下载的附件分段列表
+ */
 export function extractOneBotInboundAttachmentSegments(
   message: unknown,
 ): OneBotInboundAttachmentSegment[] {
@@ -234,6 +284,12 @@ export function extractOneBotInboundAttachmentSegments(
     .filter((segment): segment is OneBotInboundAttachmentSegment => segment !== null);
 }
 
+/**
+ * 将 OneBot 分段或附件分段映射为消息组件（不依赖事件上下文）。
+ *
+ * @param segment - OneBot 分段或带 segmentType 的附件对象
+ * @returns 映射后的消息组件，无法映射时返回 null
+ */
 export function mapOneBotAttachmentComponent(segment: unknown): MessageComponent | null {
   if (!isRecord(segment) || !isRecord(segment['data'])) {
     return null;
@@ -257,6 +313,12 @@ export function mapOneBotAttachmentComponent(segment: unknown): MessageComponent
   return mapMediaSegmentToComponent(componentTypeFromAttachment(attachmentType), segment['data']);
 }
 
+/**
+ * 将单个 OneBot 消息分段转换为内部消息组件。
+ *
+ * @param segment - OneBot 分段对象
+ * @returns 消息组件
+ */
 export function mapOneBotSegmentToComponent(segment: unknown): MessageComponent {
   if (!isRecord(segment) || typeof segment['type'] !== 'string') {
     return { type: 'Unknown' };
@@ -290,6 +352,13 @@ export function mapOneBotSegmentToComponent(segment: unknown): MessageComponent 
   }
 }
 
+/**
+ * 将媒体分段的数据映射为 Image/Record/Video/File 类型的消息组件。
+ *
+ * @param type - 组件类型
+ * @param data - 分段数据
+ * @returns 媒体组件
+ */
 export function mapMediaSegmentToComponent(
   type: Extract<MessageComponent['type'], 'Image' | 'Record' | 'Video' | 'File'>,
   data: Record<string, unknown>,
@@ -306,6 +375,12 @@ export function mapMediaSegmentToComponent(
   return { type, ...fields } as MediaComponent;
 }
 
+/**
+ * 将文件分段的数据映射为 File 类型的消息组件（含 file_id、name 等扩展字段）。
+ *
+ * @param data - 文件分段数据
+ * @returns File 组件
+ */
 export function mapFileSegmentToComponent(data: Record<string, unknown>): MessageComponent {
   const url = typeof data['url'] === 'string' ? data['url'] : undefined;
   const pathValue = typeof data['path'] === 'string' ? data['path'] : undefined;

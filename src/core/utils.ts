@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+/** 已加载的媒体源 — 包含二进制数据和元数据 */
 export type LoadedMediaSource = {
   data: Uint8Array;
   base64: string;
@@ -10,6 +11,12 @@ export type LoadedMediaSource = {
 
 const DATA_URI_RE = /^data:([^;,]+);base64,(.+)$/s;
 
+/**
+ * 解析媒体来源字符串，返回类型标识和对应数据。
+ *
+ * @param source - data URI、HTTP(s) URL、file:// 路径或普通文件路径
+ * @returns 包含类型标签和对应字段的解析结果
+ */
 export function parseSource(
   source: string,
 ):
@@ -30,6 +37,12 @@ export function parseSource(
   return { type: 'file', filePath: source };
 }
 
+/**
+ * 根据来源字符串加载媒体数据（支持 data URI、远程 URL、本地文件）。
+ *
+ * @param source - 媒体来源字符串
+ * @returns 包含二进制数据、base64、MIME 类型和文件名的 LoadedMediaSource
+ */
 export async function loadMediaSource(source: string): Promise<LoadedMediaSource> {
   const parsed = parseSource(source);
   switch (parsed.type) {
@@ -89,21 +102,46 @@ function extractMimeFromPath(fileName: string): string {
   return map[ext] ?? 'application/octet-stream';
 }
 
-/** Shared small utilities for backend managers and runtime helpers. */
-
+/**
+ * 将任意错误对象转为字符串消息。
+ *
+ * @param error - 捕获的错误对象
+ * @returns 错误消息字符串
+ */
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * 断言管理器已初始化，未初始化则抛出错误。
+ *
+ * @param value - 待检查的值
+ * @param managerName - 管理器名称（用于错误消息）
+ * @returns 非空的值
+ */
 export function requireInitialized<T>(value: T | null | undefined, managerName: string): T {
   if (value === null || value === undefined) throw new Error(`${managerName} 未初始化`);
   return value;
 }
 
+/**
+ * 类型守卫 — 检查值是否为非数组的普通对象。
+ *
+ * @param value - 待检查的值
+ * @returns 是否为 Record<string, unknown>
+ */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * 深度合并默认配置，支持嵌套对象递归合并。
+ *
+ * @param defaults - 默认配置对象
+ * @param overrides - 覆盖配置对象
+ * @param options - 合并选项，overwrite 为 false 时不覆盖已有值
+ * @returns 合并后的新对象
+ */
 export function mergeDefaults(
   defaults: Record<string, unknown>,
   overrides: Record<string, unknown>,
@@ -134,6 +172,12 @@ export function mergeDefaults(
   return merged;
 }
 
+/**
+ * 解析模型标识符字符串，拆分为 provider 和 modelId。
+ *
+ * @param modelIdentifier - 格式为 "provider/modelId" 的标识符
+ * @returns 包含 provider 和 modelId 的对象
+ */
 export function parseModelIdentifier(modelIdentifier: string): {
   provider: string;
   modelId: string;

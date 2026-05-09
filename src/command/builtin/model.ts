@@ -2,6 +2,12 @@ import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
+/**
+ * 创建 /model 命令，用于切换当前 Agent 使用的模型。
+ * @param llmAdapter - LLM 适配器
+ * @param agentRegistry - Agent 注册表
+ * @returns 命令定义
+ */
 export function createModelCommand(llmAdapter: LlmAdapter, agentRegistry: AgentRegistry): CommandDefinition {
   return {
     name: 'model',

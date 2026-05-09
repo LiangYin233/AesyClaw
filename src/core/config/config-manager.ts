@@ -20,6 +20,13 @@ export class ConfigManager {
 
   private configMutex = new AsyncMutex();
 
+  /**
+   * 创建配置管理器实例。
+   *
+   * 初始化时将加载或创建配置文件，并确保运行时目录存在。
+   *
+   * @param root - 项目根目录，默认为 process.cwd()
+   */
   constructor(root: string = process.cwd()) {
     this.paths = resolvePaths(root);
     this.ensureRuntimeDirs();
@@ -38,15 +45,28 @@ export class ConfigManager {
     });
   }
 
+  /** 获取已解析的运行时路径（只读）。 */
   get resolvedPaths(): Readonly<ResolvedPaths> {
     return this.paths;
   }
 
+  /**
+   * 按点分隔路径读取配置值。
+   *
+   * @param path - 点分隔的配置路径，如 "server.port"
+   * @returns 配置值的深拷贝，路径不存在时返回 undefined
+   */
   get(path: string): unknown {
     const value = getPathValue(this.lastKnownConfig as Record<string, unknown>, path);
     return value === undefined ? undefined : structuredClone(value);
   }
 
+  /**
+   * 按点分隔路径设置配置值，验证后持久化。
+   *
+   * @param path - 点分隔的配置路径
+   * @param value - 要设置的新值
+   */
   async set(path: string, value: unknown): Promise<void> {
     const nextConfig = structuredClone(this.lastKnownConfig) as Record<string, unknown>;
     setPathValue(nextConfig, path, value);
@@ -54,6 +74,13 @@ export class ConfigManager {
     await this.persistWithGuard(validatedConfig);
   }
 
+  /**
+   * 合并补丁到配置路径的当前值，验证后持久化。
+   *
+   * @param path - 点分隔的配置路径（必须是对象类型）
+   * @param value - 要合并到现有值的对象
+   * @throws Error 如果路径值不是对象或路径不存在
+   */
   async patch(path: string, value: Record<string, unknown>): Promise<void> {
     if (!isRecord(value)) {
       throw new Error('patch 值必须是对象');
@@ -71,10 +98,21 @@ export class ConfigManager {
     await this.persistWithGuard(validatedConfig);
   }
 
+  /**
+   * 注册键对应的默认值，供后续 syncDefaults 合并使用。
+   *
+   * @param key - 默认值注册键（支持点分隔路径）
+   * @param defaults - 要注册的默认值对象
+   */
   registerDefaults(key: string, defaults: Record<string, unknown>): void {
     this.registeredDefaults.set(key, defaults);
   }
 
+  /**
+   * 将所有已注册的默认值合并到当前配置并持久化。
+   *
+   * 不覆盖已有值，仅补充缺失字段。
+   */
   async syncDefaults(): Promise<void> {
     let mergedConfig = structuredClone(this.lastKnownConfig);
     for (const [key, defaults] of this.registeredDefaults) {
@@ -92,6 +130,7 @@ export class ConfigManager {
     await this.persistWithGuard(validatedConfig);
   }
 
+  /** 启动配置文件热重载监视器。 */
   startHotReload(): void {
     this.stopHotReload();
 
@@ -102,6 +141,7 @@ export class ConfigManager {
     logger.info('热重载监视器已启动');
   }
 
+  /** 停止配置文件热重载监视器。 */
   stopHotReload(): void {
     this.unsubscribeHotReload?.();
     this.unsubscribeHotReload = undefined;

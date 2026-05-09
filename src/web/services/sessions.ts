@@ -4,6 +4,9 @@ import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
 
 /**
  * 获取所有会话列表。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @returns 会话列表
  */
 export async function getSessions(deps: WebUiManagerDependencies): Promise<unknown> {
   const sessions = await deps.databaseManager.sessions.findAll();
@@ -12,6 +15,11 @@ export async function getSessions(deps: WebUiManagerDependencies): Promise<unkno
 
 /**
  * 获取指定会话的消息历史。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param sessionId - 会话 ID
+ * @returns 消息历史列表
+ * @throws 会话未找到时抛出
  */
 export async function getSessionMessages(
   deps: WebUiManagerDependencies,
