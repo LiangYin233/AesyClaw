@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Agent } from '../../../src/agent/agent';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
+import {
+  createInitMessage,
+  type WorkerRunParams,
+} from '../../../src/agent/runner/agent-worker-protocol';
 import { runWorkerTask } from '../../../src/agent/runner/agent-worker-host';
 import { makeRole } from '../../helpers/role';
 
@@ -111,6 +115,29 @@ function makeWorkerRole() {
     toolPermission: { mode: 'allowlist', list: [] },
     skills: [],
   });
+}
+
+function makeWorkerRunParams(overrides: Partial<WorkerRunParams> = {}): WorkerRunParams {
+  return {
+    roleId: 'assistant',
+    model: {
+      provider: 'openai',
+      modelId: 'gpt-4o',
+      apiKey: 'sk-test',
+      apiType: 'openai-responses',
+      id: 'gpt-4o',
+      contextWindow: 128000,
+      reasoning: false,
+    } as never,
+    prompt: 'system',
+    tools: [],
+    history: [],
+    content: 'hello',
+    sessionKey: { channel: 'test', type: 'private', chatId: 'worker-lifecycle' },
+    compressionThreshold: 0.8,
+    registry: new AgentRegistry(),
+    ...overrides,
+  };
 }
 
 let agentRegistry = new AgentRegistry();
@@ -233,7 +260,7 @@ describe('Agent worker lifecycle', () => {
     expect(session.compact).not.toHaveBeenCalled();
   });
 
-  it('assigns unique session ids to parallel workers', async () => {
+  it('assigns stable provider cache keys to parallel workers in the same session', async () => {
     const dateNow = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
     const registry = new AgentRegistry();
     const agent = makeAgent(registry);
@@ -260,9 +287,8 @@ describe('Agent worker lifecycle', () => {
           (message as { type?: string }).type === 'init',
       ) as { sessionId?: string } | undefined;
 
-      expect(worker1Init?.sessionId).toBeDefined();
-      expect(worker2Init?.sessionId).toBeDefined();
-      expect(worker1Init?.sessionId).not.toBe(worker2Init?.sessionId);
+      expect(worker1Init?.sessionId).toBe('session:test:private:worker-lifecycle');
+      expect(worker2Init?.sessionId).toBe('session:test:private:worker-lifecycle');
     } finally {
       dateNow.mockRestore();
       registry.cancel(agent.session.key);
@@ -270,6 +296,23 @@ describe('Agent worker lifecycle', () => {
       getWorker(1).finishTermination(1);
       await Promise.allSettled([turn1, turn2]);
     }
+  });
+
+  it('uses different provider cache keys for different sessions', () => {
+    const params = makeWorkerRunParams({
+      sessionKey: { channel: 'test', type: 'private', chatId: 'worker-a' },
+    });
+    const first = createInitMessage(params, 'run-a');
+    const second = createInitMessage(
+      {
+        ...params,
+        sessionKey: { channel: 'test', type: 'private', chatId: 'worker-b' },
+      },
+      'run-b',
+    );
+
+    expect(first.sessionId).toBe('session:test:private:worker-a');
+    expect(second.sessionId).toBe('session:test:private:worker-b');
   });
 
   it('logs when a turn completes', async () => {

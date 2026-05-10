@@ -94,7 +94,7 @@ export type WorkerRunPromiseHandlers = {
  * @returns Worker 初始化消息
  */
 export function createInitMessage(params: WorkerRunParams, runId: string): HostToWorkerInitMessage {
-  const { roleId, model, prompt, tools, history, content } = params;
+  const { model, prompt, tools, history, content, sessionKey } = params;
   if (!model.apiKey) {
     throw new Error(`未为提供者 "${model.provider}" 配置 API 密钥`);
   }
@@ -111,8 +111,12 @@ export function createInitMessage(params: WorkerRunParams, runId: string): HostT
     history,
     content,
     extraBody: model.extraBody,
-    sessionId: `worker:${roleId}:${runId}`,
+    sessionId: createProviderCacheKey(sessionKey),
   };
+}
+
+export function createProviderCacheKey(sessionKey: SessionKey): string {
+  return `session:${sessionKey.channel}:${sessionKey.type}:${sessionKey.chatId}`;
 }
 
 /**
