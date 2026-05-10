@@ -1,4 +1,4 @@
-import type { RoleConfig, Message, SessionKey, Skill } from '@aesyclaw/core/types';
+import type { RoleConfig, Message, SessionKey } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
 import type { AesyClawTool, ToolExecutionContext, ToolRegistry } from '@aesyclaw/tool/tool-registry';
@@ -10,7 +10,7 @@ import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
 import { runWorkerTask } from './runner/agent-worker-host';
-import { buildRoleSection, buildSkillSection } from './prompt-sections';
+import { buildAgentPrompt } from './agent-prompt';
 
 const logger = createScopedLogger('agent');
 
@@ -236,85 +236,23 @@ export class Agent {
     executionContext?: Partial<ToolExecutionContext>,
   ): BuildPromptResult {
     const allRoles = this.roleManager.getEnabledRoles();
-    const skills: Skill[] = this.skillManager.getSkillsForRole(role);
-
+    const skills = this.skillManager.getSkillsForRole(role);
     const resolvedTools = this.toolRegistry.resolveForRole(
       role,
       this.hookDispatcher,
       executionContext ?? {},
     );
-
-    const isSubAgent = executionContext !== undefined && executionContext.sendMessage === undefined;
-    const isCron = executionContext?.sessionKey?.channel === 'cron';
-    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles, isSubAgent, isCron);
+    const prompt = buildAgentPrompt({
+      role,
+      availableTools: resolvedTools.tools,
+      skills,
+      allRoles,
+      skillDirs: this.skillManager.getSkillDirs(),
+      isSubAgent: executionContext !== undefined && executionContext.sendMessage === undefined,
+      isCron: executionContext?.sessionKey?.channel === 'cron',
+    });
 
     return { prompt, tools: resolvedTools.agentTools };
-  }
-
-  /**
-   * 组装完整的系统 Prompt。
-   *
-   * @param role - 角色配置
-   * @param availableTools - 可用工具列表
-   * @param skills - 可用技能列表
-   * @param allRoles - 所有已启用的角色
-   * @param isSubAgent - 是否为子 Agent（子 Agent 不注入角色切换指令）
-   * @param isCron - 是否为定时任务（定时任务不注入 send_msg 使用提示）
-   * @returns 拼接后的完整 Prompt 字符串
-   */
-  private assemblePrompt(
-    role: RoleConfig,
-    availableTools: AesyClawTool[],
-    skills: Skill[],
-    allRoles: RoleConfig[],
-    isSubAgent: boolean,
-    isCron: boolean,
-  ): string {
-    const sections: string[] = [this.replaceTemplateVariables(role.systemPrompt)];
-
-    if (availableTools.length > 0) {
-      sections.push(this.buildToolSection(availableTools));
-    }
-
-    if (skills.length > 0) {
-      sections.push(buildSkillSection(skills, this.skillManager.getSkillDirs()));
-    }
-
-    if (!isSubAgent && !isCron) {
-      sections.push(
-        '## 用户沟通\n在任务执行过程中，如果需要向用户说明当前正在进行的步骤或进度，可使用 send_msg 工具发送消息给用户。',
-      );
-    }
-
-    if (allRoles.length > 0 && !isSubAgent) {
-      sections.push(buildRoleSection(allRoles));
-    }
-
-    return sections.join('\n\n');
-  }
-
-  /**
-   * 替换 Prompt 模板中的占位变量。
-   *
-   * @param template - 包含 {{date}}、{{os}}、{{systemLang}} 占位符的模板字符串
-   * @returns 替换后的字符串
-   */
-  private replaceTemplateVariables(template: string): string {
-    return template
-      .replace(/\{\{date}}/g, new Date().toISOString().split('T')[0] ?? '')
-      .replace(/\{\{os}}/g, process.platform)
-      .replace(/\{\{systemLang}}/g, process.env['LANG'] ?? 'unknown');
-  }
-
-  /**
-   * 构建工具列表的 Markdown 描述段落。
-   *
-   * @param tools - 可用工具列表
-   * @returns Markdown 格式的工具描述段落
-   */
-  private buildToolSection(tools: AesyClawTool[]): string {
-    const toolLines = tools.map((tool) => `- **${tool.name}**: ${tool.description}`);
-    return `## Available Tools\n${toolLines.join('\n')}`;
   }
 
   /**

@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Agent } from '../../../src/agent/agent';
+import { buildAgentPrompt } from '../../../src/agent/agent-prompt';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
 import type { Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/skill-manager';
@@ -96,6 +97,59 @@ describe('PromptBuilder', () => {
       registry,
     });
   }
+
+  describe('buildAgentPrompt', () => {
+    it('should replace template variables and include prompt sections', () => {
+      const prompt = buildAgentPrompt({
+        role: makeRole({ systemPrompt: 'Today is {{date}} on {{os}} using {{systemLang}}.' }),
+        availableTools: [makeTool({ name: 'send-msg' })],
+        skills: [makeSkill()],
+        allRoles: [makeRole({ id: 'helper' })],
+        skillDirs: {},
+        isSubAgent: false,
+        isCron: false,
+      });
+
+      expect(prompt).not.toContain('{{date}}');
+      expect(prompt).not.toContain('{{os}}');
+      expect(prompt).not.toContain('{{systemLang}}');
+      expect(prompt).toContain('## Available Tools');
+      expect(prompt).toContain('**send-msg**: A test tool');
+      expect(prompt).toContain('**greeting**: Greeting skill');
+      expect(prompt).toContain('## 用户沟通');
+      expect(prompt).toContain('**helper** — A helpful assistant');
+    });
+
+    it('should omit communication and role sections for sub agents', () => {
+      const prompt = buildAgentPrompt({
+        role: makeRole(),
+        availableTools: [],
+        skills: [],
+        allRoles: [makeRole({ id: 'helper' })],
+        skillDirs: {},
+        isSubAgent: true,
+        isCron: false,
+      });
+
+      expect(prompt).not.toContain('## 用户沟通');
+      expect(prompt).not.toContain('## 角色');
+    });
+
+    it('should omit only the communication section for cron prompts', () => {
+      const prompt = buildAgentPrompt({
+        role: makeRole(),
+        availableTools: [],
+        skills: [],
+        allRoles: [makeRole({ id: 'helper' })],
+        skillDirs: {},
+        isSubAgent: false,
+        isCron: true,
+      });
+
+      expect(prompt).not.toContain('## 用户沟通');
+      expect(prompt).toContain('## 角色');
+    });
+  });
 
   describe('buildPrompt', () => {
     it('should build a prompt with role, tools, and skills', () => {
