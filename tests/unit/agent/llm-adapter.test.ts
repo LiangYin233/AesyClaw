@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { completeSimple } from '@mariozechner/pi-ai';
+import { streamSimple } from '@mariozechner/pi-ai';
 import { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import type { ConfigManager } from '../../../src/core/config/config-manager';
@@ -16,7 +16,7 @@ vi.mock('@mariozechner/pi-ai', async () => {
   const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
   return {
     ...actual,
-    completeSimple: vi.fn(),
+    streamSimple: vi.fn(),
   };
 });
 
@@ -75,10 +75,11 @@ function makeMockConfigManager(config: AppConfig): ConfigManager {
 
 describe('LlmAdapter', () => {
   let adapter: LlmAdapter;
-  const mockedCompleteSimple = vi.mocked(completeSimple);
+  const mockedStreamSimple = vi.mocked(streamSimple);
 
   beforeEach(async () => {
-    mockedCompleteSimple.mockReset();
+    mockedStreamSimple.mockReset();
+    mockedStreamSimple.mockReturnValue({} as ReturnType<typeof streamSimple>);
     const config = makeConfigWithProviders();
     const configManager = makeMockConfigManager(config);
     adapter = new LlmAdapter(configManager);
@@ -151,20 +152,85 @@ describe('LlmAdapter', () => {
 
   describe('createStreamFn', () => {
     it('should return a stream function', () => {
-      const streamFn = adapter.createStreamFn('openai/gpt-4o');
+      const streamFn = adapter.createStreamFn();
 
       expect(typeof streamFn).toBe('function');
     });
 
     it('should reject missing model apiKey before provider env fallback can run', () => {
       vi.stubEnv('OPENAI_API_KEY', 'env-key-must-not-be-used');
-      const streamFn = adapter.createStreamFn('openai/gpt-4o');
+      const streamFn = adapter.createStreamFn();
       const model = {
         ...adapter.resolveModel('openai/gpt-4o'),
         apiKey: undefined,
       };
 
       expect(() => streamFn(model, { messages: [] })).toThrow('未为提供者 "openai" 配置 API 密钥');
+    });
+
+    it('defaults prompt cache settings for OpenAI Responses stream calls', () => {
+      const streamFn = adapter.createStreamFn();
+      const model = adapter.resolveModel('openai/gpt-4o');
+      const context = { messages: [] };
+
+      streamFn(model, context, { sessionId: 'session:test:private:adapter' });
+
+      expect(mockedStreamSimple).toHaveBeenCalledWith(
+        expect.objectContaining({
+          api: 'openai-responses',
+          compat: expect.objectContaining({ sendSessionIdHeader: true }),
+        }),
+        context,
+        expect.objectContaining({
+          apiKey: 'sk-test-key',
+          cacheRetention: 'long',
+          sessionId: 'session:test:private:adapter',
+        }),
+      );
+    });
+
+    it('defaults prompt cache settings for OpenAI-compatible Completions stream calls', () => {
+      const config = makeConfigWithProviders({
+        compatible: {
+          apiType: 'openai-completions',
+          apiKey: 'sk-compatible-test-key',
+          baseUrl: 'https://compatible.example/v1',
+          models: {
+            chat: { contextWindow: 128000 },
+          },
+        },
+      });
+      const streamFn = new LlmAdapter(makeMockConfigManager(config)).createStreamFn();
+      const model = new LlmAdapter(makeMockConfigManager(config)).resolveModel('compatible/chat');
+      const context = { messages: [] };
+
+      streamFn(model, context, { sessionId: 'session:test:private:compatible' });
+
+      expect(mockedStreamSimple).toHaveBeenCalledWith(
+        expect.objectContaining({
+          api: 'openai-completions',
+          compat: expect.objectContaining({ sendSessionAffinityHeaders: true }),
+        }),
+        context,
+        expect.objectContaining({
+          apiKey: 'sk-compatible-test-key',
+          cacheRetention: 'long',
+          sessionId: 'session:test:private:compatible',
+        }),
+      );
+    });
+
+    it('does not default prompt cache settings for non-OpenAI-compatible stream calls', () => {
+      const streamFn = adapter.createStreamFn();
+      const model = adapter.resolveModel('anthropic/claude-3-opus');
+
+      streamFn(model, { messages: [] });
+
+      expect(mockedStreamSimple).toHaveBeenCalledWith(
+        expect.objectContaining({ api: 'anthropic-messages' }),
+        { messages: [] },
+        expect.not.objectContaining({ cacheRetention: 'long' }),
+      );
     });
   });
 });

@@ -9,6 +9,7 @@ import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ProviderConfig } from '@aesyclaw/core/config/schema';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { makeExtraBodyOnPayload, type ResolvedModel, type StreamFn } from './agent-types';
+import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './llm-cache-options';
 
 /**
  * LLM 适配器，负责解析模型配置和创建流式调用函数。
@@ -85,11 +86,16 @@ export class LlmAdapter {
           `未为提供者 "${runtimeModel.provider}" 配置 API 密钥。请在 config.json > providers.${runtimeModel.provider} 下添加 apiKey。`,
         );
       }
-      return streamSimple(runtimeModel, context, {
-        ...options,
-        apiKey: runtimeModel.apiKey,
-        onPayload: makeExtraBodyOnPayload(runtimeModel),
-      });
+      const cacheModel = withDefaultPromptCacheModel(runtimeModel);
+      return streamSimple(
+        cacheModel,
+        context,
+        withDefaultPromptCacheOptions(cacheModel, {
+          ...options,
+          apiKey: runtimeModel.apiKey,
+          onPayload: makeExtraBodyOnPayload(runtimeModel),
+        }),
+      );
     };
   }
 

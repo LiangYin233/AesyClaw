@@ -148,6 +148,82 @@ describe('Session.syncFromAgent', () => {
       'final reply',
     ]);
   });
+
+  it('does not persist assistant text metadata from non-send_msg tool results', async () => {
+    const messagesRepo = {
+      save: vi.fn().mockResolvedValue(undefined),
+      loadHistory: vi.fn().mockResolvedValue([]),
+      clearHistory: vi.fn().mockResolvedValue(undefined),
+      replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const sessionKey: SessionKey = {
+      channel: 'channel-1',
+      type: 'private',
+      chatId: 'chat-1',
+    };
+    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+
+    await session.syncFromAgent([
+      { role: 'user', content: 'run other tool' } as AgentMessage,
+      {
+        role: 'toolResult',
+        toolCallId: 'call-1',
+        toolName: 'other_tool',
+        content: [{ type: 'text', text: 'tool output' }],
+        details: { persistAsAssistantText: 'must not persist' },
+      } as AgentMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'final reply' }],
+      } as AgentMessage,
+    ]);
+
+    expect(messagesRepo.save.mock.calls.map((call) => call[1].content)).toEqual([
+      'run other tool',
+      'final reply',
+    ]);
+  });
+
+  it('defaults OpenAI-compatible prompt cache settings while compacting', async () => {
+    const messagesRepo = {
+      save: vi.fn().mockResolvedValue(undefined),
+      loadHistory: vi.fn().mockResolvedValue([]),
+      clearHistory: vi.fn().mockResolvedValue(undefined),
+      replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+    };
+    const sessionKey: SessionKey = {
+      channel: 'channel-1',
+      type: 'private',
+      chatId: 'chat-1',
+    };
+    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    await session.add({ role: 'user', content: 'hello' } as AgentMessage);
+    const model = {
+      api: 'openai-responses',
+      apiKey: 'sk-test',
+      modelId: 'gpt-4o',
+      id: 'gpt-4o',
+      contextWindow: 128000,
+    };
+    const llmAdapter = {
+      resolveModel: vi.fn().mockReturnValue(model),
+    };
+
+    await session.compact(llmAdapter as never, 'openai/gpt-4o');
+
+    expect(vi.mocked(completeSimple)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        api: 'openai-responses',
+        compat: expect.objectContaining({ sendSessionIdHeader: true }),
+      }),
+      expect.anything(),
+      expect.objectContaining({
+        cacheRetention: 'long',
+        sessionId: 'session-1',
+      }),
+    );
+  });
 });
 
 function makeSummaryMessage() {

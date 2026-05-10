@@ -3,6 +3,7 @@ import { Agent } from '../../../src/agent/agent';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
 import {
   createInitMessage,
+  createProviderCacheKey,
   type WorkerRunParams,
 } from '../../../src/agent/runner/agent-worker-protocol';
 import { runWorkerTask } from '../../../src/agent/runner/agent-worker-host';
@@ -287,8 +288,12 @@ describe('Agent worker lifecycle', () => {
           (message as { type?: string }).type === 'init',
       ) as { sessionId?: string } | undefined;
 
-      expect(worker1Init?.sessionId).toBe('session:test:private:worker-lifecycle');
-      expect(worker2Init?.sessionId).toBe('session:test:private:worker-lifecycle');
+      expect(worker1Init?.sessionId).toBe(
+        'session:{"channel":"test","type":"private","chatId":"worker-lifecycle"}',
+      );
+      expect(worker2Init?.sessionId).toBe(
+        'session:{"channel":"test","type":"private","chatId":"worker-lifecycle"}',
+      );
     } finally {
       dateNow.mockRestore();
       registry.cancel(agent.session.key);
@@ -311,8 +316,19 @@ describe('Agent worker lifecycle', () => {
       'run-b',
     );
 
-    expect(first.sessionId).toBe('session:test:private:worker-a');
-    expect(second.sessionId).toBe('session:test:private:worker-b');
+    expect(first.sessionId).toBe(
+      'session:{"channel":"test","type":"private","chatId":"worker-a"}',
+    );
+    expect(second.sessionId).toBe(
+      'session:{"channel":"test","type":"private","chatId":"worker-b"}',
+    );
+  });
+
+  it('encodes provider cache keys without delimiter collisions', () => {
+    const first = createProviderCacheKey({ channel: 'a', type: 'b:c', chatId: 'd' });
+    const second = createProviderCacheKey({ channel: 'a:b', type: 'c', chatId: 'd' });
+
+    expect(first).not.toBe(second);
   });
 
   it('logs when a turn completes', async () => {

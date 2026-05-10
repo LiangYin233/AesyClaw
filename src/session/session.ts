@@ -9,6 +9,10 @@ import {
   type ResolvedModel,
 } from '@aesyclaw/agent/agent-types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import {
+  withDefaultPromptCacheModel,
+  withDefaultPromptCacheOptions,
+} from '@aesyclaw/agent/llm-cache-options';
 import type {
   MessagesRepository,
   UsageRepository,
@@ -243,8 +247,9 @@ export class Session {
   ): Promise<{ summary: string; message: AssistantMessage }> {
     const prompt = buildSummaryPrompt(messages);
 
+    const cacheModel = withDefaultPromptCacheModel(model);
     const response = await completeSimple(
-      model,
+      cacheModel,
       {
         systemPrompt: [
           'You are a conversation archivist. Summarize the following dialogue into a compact record for future turns.',
@@ -266,11 +271,11 @@ export class Session {
         ].join('\n'),
         messages: [{ role: 'user', content: prompt, timestamp: Date.now() }],
       },
-      {
+      withDefaultPromptCacheOptions(cacheModel, {
         apiKey: model.apiKey,
         sessionId: this.sessionId,
         onPayload: makeExtraBodyOnPayload(model),
-      },
+      }),
     );
 
     const summary = extractMessageText(response).trim();
@@ -310,6 +315,7 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
 
 function getPersistedAssistantTextFromToolResult(message: AgentMessage): string | null {
   if (message.role !== 'toolResult') return null;
+  if (message.toolName !== 'send_msg' || message.isError === true) return null;
 
   const details = (message as unknown as Record<string, unknown>)['details'];
   if (typeof details !== 'object' || details === null) return null;

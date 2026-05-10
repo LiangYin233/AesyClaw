@@ -6,7 +6,7 @@ import {
   type ResolvedModel,
 } from '../agent-types';
 import type { AgentRegistry } from '../agent-registry';
-import type { SessionKey } from '@aesyclaw/core/types';
+import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type {
   HostToWorkerInitMessage,
@@ -116,7 +116,7 @@ export function createInitMessage(params: WorkerRunParams, runId: string): HostT
 }
 
 export function createProviderCacheKey(sessionKey: SessionKey): string {
-  return `session:${sessionKey.channel}:${sessionKey.type}:${sessionKey.chatId}`;
+  return `session:${serializeSessionKey(sessionKey)}`;
 }
 
 /**

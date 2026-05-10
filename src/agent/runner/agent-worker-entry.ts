@@ -19,6 +19,7 @@ import type {
   HostToWorkerMessage,
   WorkerToHostToolCallMessage,
 } from './agent-worker-ipc';
+import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from '../llm-cache-options';
 
 /**
  * IPC 消息类型 — Worker 与主线程之间的通信协议。
@@ -112,21 +113,33 @@ function createStreamFn(
 ): StreamFn {
   const hasExtra = extraBody !== undefined && Object.keys(extraBody).length > 0;
   if (!hasExtra) {
-    return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) =>
-      streamSimple(m, ctx, {
+    return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) => {
+      const cacheModel = withDefaultPromptCacheModel(m);
+      return streamSimple(
+        cacheModel,
+        ctx,
+        withDefaultPromptCacheOptions(cacheModel, {
+          ...opts,
+          apiKey,
+        }),
+      );
+    };
+  }
+  return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) => {
+    const cacheModel = withDefaultPromptCacheModel(m);
+    return streamSimple(
+      cacheModel,
+      ctx,
+      withDefaultPromptCacheOptions(cacheModel, {
         ...opts,
         apiKey,
-      });
-  }
-  return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) =>
-    streamSimple(m, ctx, {
-      ...opts,
-      apiKey,
-      onPayload: (p: unknown): unknown =>
-        typeof p === 'object' && p !== null
-          ? { ...(p as Record<string, unknown>), ...extraBody }
-          : p,
-    });
+        onPayload: (p: unknown): unknown =>
+          typeof p === 'object' && p !== null
+            ? { ...(p as Record<string, unknown>), ...extraBody }
+            : p,
+      }),
+    );
+  };
 }
 
 /**
