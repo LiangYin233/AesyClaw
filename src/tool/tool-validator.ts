@@ -19,10 +19,7 @@ export type ValidationResult =
  * @param params - LLM 传入的原始参数
  * @returns 验证结果，成功时 value 已应用默认值
  */
-export function validateParams(
-  schema: TSchema,
-  params: unknown,
-): ValidationResult {
+export function validateParams(schema: TSchema, params: unknown): ValidationResult {
   if ((schema as { [Kind]?: unknown })[Kind] === 'Unsafe') {
     return { success: true, value: params };
   }

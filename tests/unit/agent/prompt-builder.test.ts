@@ -201,10 +201,12 @@ describe('PromptBuilder', () => {
     it('should format multiple skill sections directly in the agent prompt', () => {
       const deps = makeDeps({
         skillManager: {
-          getSkillsForRole: vi.fn().mockReturnValue([
-            makeSkill({ name: 'first', content: 'First content.' }),
-            makeSkill({ name: 'second', content: 'Second content.' }),
-          ]),
+          getSkillsForRole: vi
+            .fn()
+            .mockReturnValue([
+              makeSkill({ name: 'first', content: 'First content.' }),
+              makeSkill({ name: 'second', content: 'Second content.' }),
+            ]),
         },
       });
       const agent = makeAgent(deps, agentRegistry);

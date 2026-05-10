@@ -13,8 +13,8 @@
   --color-warning: #c9a35a;
   --color-surface: #fdfbf9;
 
-  --font-family-heading: 'Poppins', Arial, sans-serif;
-  --font-family-body: 'Lora', Georgia, serif;
+  --font-heading: 'Poppins', Arial, sans-serif;
+  --font-body: 'Lora', Georgia, serif;
 
   --radius: 8px;
   --radius-sm: 6px;

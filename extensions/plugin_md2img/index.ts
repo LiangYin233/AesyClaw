@@ -22,7 +22,8 @@ function isMarkdown(text: string): boolean {
   return MARKDOWN_RE.test(text);
 }
 
-const HTML_RE = /<\s*(?:html|head|body|div|p|span|h[1-6]|table|ul|ol|li|a|img|br|hr|pre|code|blockquote)\b/i;
+const HTML_RE =
+  /<\s*(?:html|head|body|div|p|span|h[1-6]|table|ul|ol|li|a|img|br|hr|pre|code|blockquote)\b/i;
 
 function isHtml(text: string): boolean {
   return HTML_RE.test(text);

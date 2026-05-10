@@ -443,7 +443,6 @@
         </div>
       </section>
     </div>
-
   </div>
 </template>
 
@@ -536,7 +535,7 @@ const hasExtraBodyErrors = computed(() => Object.keys(extraBodyErrors.value).len
 
 async function loadSchema() {
   try {
-    const schema = await ws.send('get_config_schema') as Record<string, unknown>;
+    const schema = (await ws.send('get_config_schema')) as Record<string, unknown>;
     editableSchema.value = omitTopLevelSchemaProperties(schema, hiddenSchemaKeys);
   } catch (err) {
     console.error('Failed to load schema', err);
@@ -547,7 +546,7 @@ async function loadConfig() {
   loading.value = true;
   error.value = '';
   try {
-    const config = await ws.send('get_config') as Record<string, unknown>;
+    const config = (await ws.send('get_config')) as Record<string, unknown>;
     fullConfig.value = config;
     editableConfig.value = omitTopLevelConfigKeys(config, excludedTopLevelKeys);
     extraBodyErrors.value = {};
@@ -915,12 +914,20 @@ function renameExtraBodyState(providerKey: string, oldModelKey: string, newModel
 function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: string) {
   const errors: Record<string, string> = {};
   for (const [key, value] of Object.entries(extraBodyErrors.value)) {
-    errors[key.startsWith(`${oldProviderKey}:`) ? `${newProviderKey}:${key.slice(oldProviderKey.length + 1)}` : key] = value;
+    errors[
+      key.startsWith(`${oldProviderKey}:`)
+        ? `${newProviderKey}:${key.slice(oldProviderKey.length + 1)}`
+        : key
+    ] = value;
   }
   extraBodyErrors.value = errors;
   const drafts: Record<string, string> = {};
   for (const [key, value] of Object.entries(extraBodyDrafts.value)) {
-    drafts[key.startsWith(`${oldProviderKey}:`) ? `${newProviderKey}:${key.slice(oldProviderKey.length + 1)}` : key] = value;
+    drafts[
+      key.startsWith(`${oldProviderKey}:`)
+        ? `${newProviderKey}:${key.slice(oldProviderKey.length + 1)}`
+        : key
+    ] = value;
   }
   extraBodyDrafts.value = drafts;
 }
@@ -948,7 +955,8 @@ function normalizeProviderModels(value: unknown): ProviderModelForm[] {
     return {
       ...source,
       key,
-      contextWindow: typeof source['contextWindow'] === 'number' ? source['contextWindow'] : undefined,
+      contextWindow:
+        typeof source['contextWindow'] === 'number' ? source['contextWindow'] : undefined,
       extraBody: isRecord(source['extraBody']) ? source['extraBody'] : undefined,
     };
   });
@@ -986,7 +994,9 @@ function isMcpTransport(value: unknown): value is McpTransport {
 }
 
 function isApiType(value: unknown): value is ApiType {
-  return value === 'openai-responses' || value === 'openai-completions' || value === 'anthropic-messages';
+  return (
+    value === 'openai-responses' || value === 'openai-completions' || value === 'anthropic-messages'
+  );
 }
 
 function toJson(value: unknown): string {

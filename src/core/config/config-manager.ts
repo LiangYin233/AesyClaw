@@ -210,11 +210,7 @@ export class ConfigManager {
       structuredClone(DEFAULT_CONFIG) as Record<string, unknown>,
       parsed as Record<string, unknown>,
     ) as AppConfig;
-    const validated = this.validateWithSchema<AppConfig>(
-      AppConfigSchema,
-      merged,
-      '配置',
-    );
+    const validated = this.validateWithSchema<AppConfig>(AppConfigSchema, merged, '配置');
 
     const missingFields = this.findMissingFields(
       parsed as Record<string, unknown>,

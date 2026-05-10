@@ -8,7 +8,10 @@ import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
  * @param agentRegistry - Agent 注册表
  * @returns 命令定义
  */
-export function createModelCommand(llmAdapter: LlmAdapter, agentRegistry: AgentRegistry): CommandDefinition {
+export function createModelCommand(
+  llmAdapter: LlmAdapter,
+  agentRegistry: AgentRegistry,
+): CommandDefinition {
   return {
     name: 'model',
     description: '切换模型 (用法: /model <provider/modelId>)',

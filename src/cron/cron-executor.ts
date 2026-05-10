@@ -1,6 +1,12 @@
 /** 定时任务执行器 — 记录定时任务运行并将任务注入管道。 */
 
-import { getMessageText, parseSerializedSessionKey, type CronJobRecord, type Message, type SessionKey } from '@aesyclaw/core/types';
+import {
+  getMessageText,
+  parseSerializedSessionKey,
+  type CronJobRecord,
+  type Message,
+  type SessionKey,
+} from '@aesyclaw/core/types';
 import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { SessionManager } from '@aesyclaw/session';
@@ -40,8 +46,8 @@ export class CronExecutor {
     try {
       const targetSessionKey = sessionKeys?.target ?? parseSerializedSessionKey(job.sessionKey);
       const contextSessionKey = sessionKeys?.context ?? createCronContextSessionKey(job.id);
-    const outboundMessages: Message[] = [];
-    const inbound: Message = {
+      const outboundMessages: Message[] = [];
+      const inbound: Message = {
         components: [{ type: 'Plain', text: job.prompt }],
       };
 

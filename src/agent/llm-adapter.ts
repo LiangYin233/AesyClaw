@@ -1,4 +1,10 @@
-import { getModel, streamSimple, type Api, type KnownProvider, type Model } from '@mariozechner/pi-ai';
+import {
+  getModel,
+  streamSimple,
+  type Api,
+  type KnownProvider,
+  type Model,
+} from '@mariozechner/pi-ai';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ProviderConfig } from '@aesyclaw/core/config/schema';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';

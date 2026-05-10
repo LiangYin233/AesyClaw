@@ -254,9 +254,8 @@ describe('ChannelManager', () => {
   });
 
   it('discovers only static default or channel exports', async () => {
-    const { discoverChannelDefinition } = await import(
-      '../../../src/extension/channel/channel-types'
-    );
+    const { discoverChannelDefinition } =
+      await import('../../../src/extension/channel/channel-types');
     const staticChannel = makeChannel({ name: 'static' });
 
     expect(discoverChannelDefinition({ default: staticChannel })).toBe(staticChannel);

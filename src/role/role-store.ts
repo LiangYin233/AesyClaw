@@ -80,7 +80,10 @@ export class RoleStore {
     return roles;
   }
 
-  private writeRolesToStore(store: Conf<Record<string, unknown>>, roles: readonly RoleConfig[]): void {
+  private writeRolesToStore(
+    store: Conf<Record<string, unknown>>,
+    roles: readonly RoleConfig[],
+  ): void {
     store.store = {
       [this.ROLES_STORE_KEY]: structuredClone(roles),
     } as Record<string, unknown>;

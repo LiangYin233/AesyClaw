@@ -5,7 +5,11 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage, loadMediaSource } from '@aesyclaw/core/utils';
-import { extractMessageText, makeExtraBodyOnPayload, type ResolvedModel } from '@aesyclaw/agent/agent-types';
+import {
+  extractMessageText,
+  makeExtraBodyOnPayload,
+  type ResolvedModel,
+} from '@aesyclaw/agent/agent-types';
 import { completeSimple } from '@mariozechner/pi-ai';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';

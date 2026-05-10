@@ -18,11 +18,7 @@ export type OneBotDownloadResult = {
 };
 
 /** 媒体消息组件联合类型（Image | Record | Video | File） */
-export type MediaComponent =
-  | ImageComponent
-  | RecordComponent
-  | VideoComponent
-  | FileComponent;
+export type MediaComponent = ImageComponent | RecordComponent | VideoComponent | FileComponent;
 
 /** OneBot 渠道配置 */
 export type OneBotChannelConfig = {

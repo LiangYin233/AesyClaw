@@ -8,7 +8,10 @@ import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
  * @param agentRegistry - Agent 注册表
  * @returns 命令定义
  */
-export function createStopCommand(sessionManager: Pick<SessionManager, 'get'>, agentRegistry: AgentRegistry): CommandDefinition {
+export function createStopCommand(
+  sessionManager: Pick<SessionManager, 'get'>,
+  agentRegistry: AgentRegistry,
+): CommandDefinition {
   return {
     name: 'stop',
     description: '中止当前正在进行的 Agent 处理',

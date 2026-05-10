@@ -287,7 +287,14 @@ describe('plugin_md2img', () => {
     const convertHtml = vi.fn(async () => pngBuffer);
     const result = await handleMd2ImgSend(
       {
-        message: { components: [{ type: 'Plain', text: '<table><tr><td>content</td></tr></table>\n\n# 标题\n\n- 列表项' }] },
+        message: {
+          components: [
+            {
+              type: 'Plain',
+              text: '<table><tr><td>content</td></tr></table>\n\n# 标题\n\n- 列表项',
+            },
+          ],
+        },
         sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
       },
       {

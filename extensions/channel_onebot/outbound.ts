@@ -6,7 +6,12 @@ import {
   OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE,
   SEND_ACTION_BY_CHAT_TYPE,
 } from './constants';
-import type { MediaComponent, OneBotLogger, OneBotMessageSegment, UploadedAttachment } from './types';
+import type {
+  MediaComponent,
+  OneBotLogger,
+  OneBotMessageSegment,
+  UploadedAttachment,
+} from './types';
 import { isMediaComponent, numericOrStringId } from './utils';
 import type { OneBotActionTransport } from './websocket-client';
 

@@ -1,7 +1,12 @@
 import type { MessageComponent, SenderInfo } from '@aesyclaw/sdk';
 import { isRecord } from '@aesyclaw/sdk';
 import { ATTACHMENT_KIND, ATTACHMENT_TYPE_BY_SEGMENT, DEFAULT_CONFIG } from './constants';
-import type { MediaComponent, OneBotAttachmentType, OneBotChannelConfig, OneBotInboundAttachmentSegment } from './types';
+import type {
+  MediaComponent,
+  OneBotAttachmentType,
+  OneBotChannelConfig,
+  OneBotInboundAttachmentSegment,
+} from './types';
 
 /**
  * 从原始配置中解析 OneBot 渠道配置。

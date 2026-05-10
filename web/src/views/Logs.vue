@@ -114,7 +114,10 @@ async function loadLogs(): Promise<void> {
   loading.value = true;
   errorMessage.value = '';
   try {
-    const data = await ws.send('get_logs', { limit: String(requestLimit) }) as { entries: LogEntry[]; limit: number };
+    const data = (await ws.send('get_logs', { limit: String(requestLimit) })) as {
+      entries: LogEntry[];
+      limit: number;
+    };
     if (data && Array.isArray(data['entries'])) {
       entries.value = data['entries'];
       lastUpdatedAt.value = new Date();

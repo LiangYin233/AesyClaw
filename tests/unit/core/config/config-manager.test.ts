@@ -288,9 +288,9 @@ describe('ConfigManager', () => {
 
       await expect(manager.syncDefaults()).rejects.toBeInstanceOf(Error);
       expect(manager.get('providers')).toEqual({});
-      const fileContent = JSON.parse(
-        readFileSync(configPath, 'utf-8'),
-      ) as { providers: Record<string, unknown> };
+      const fileContent = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+        providers: Record<string, unknown>;
+      };
       expect(fileContent.providers).toEqual({});
     });
   });

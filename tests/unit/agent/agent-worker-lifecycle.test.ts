@@ -99,7 +99,9 @@ function getLastToolResultMessage(index = 0) {
         typeof message === 'object' &&
         message !== null &&
         (message as { type?: string }).type === 'toolResult',
-    ) as { result?: { content: Array<{ type: 'text'; text: string }>; details?: unknown } } | undefined;
+    ) as
+    | { result?: { content: Array<{ type: 'text'; text: string }>; details?: unknown } }
+    | undefined;
 }
 
 function makeWorkerRole() {

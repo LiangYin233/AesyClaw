@@ -28,7 +28,10 @@ export const ATTACHMENT_KIND = {
 >;
 
 /** 出站组件类型到 OneBot 附件类型的映射 */
-export const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<MediaComponent['type'], OneBotAttachmentType> = {
+export const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<
+  MediaComponent['type'],
+  OneBotAttachmentType
+> = {
   Image: 'image',
   Record: 'audio',
   Video: 'video',

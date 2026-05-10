@@ -305,7 +305,7 @@ async function loadConfig() {
   loading.value = true;
   error.value = '';
   try {
-    const config = await ws.send('get_config') as Record<string, unknown>;
+    const config = (await ws.send('get_config')) as Record<string, unknown>;
     fullConfig.value = config;
     sectionValue.value = getSectionValue(config, props.sectionKey);
   } catch (err) {

@@ -320,7 +320,9 @@ describe('ToolAdapter', () => {
       controller.abort();
 
       const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
-      await expect(agentTool.execute('call-1', { input: 'test' }, controller.signal)).resolves.toMatchObject({
+      await expect(
+        agentTool.execute('call-1', { input: 'test' }, controller.signal),
+      ).resolves.toMatchObject({
         content: [{ type: 'text', text: '工具调用 "test-tool" 被中止' }],
         details: {},
         isError: true,

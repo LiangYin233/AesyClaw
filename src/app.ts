@@ -56,11 +56,7 @@ function createSubsystems(): AppSubsystems {
     agentRegistry,
   });
 
-  const mcpManager = new McpManager(
-    configManager,
-    toolRegistry,
-    new SdkMcpClientFactory(),
-  );
+  const mcpManager = new McpManager(configManager, toolRegistry, new SdkMcpClientFactory());
 
   return {
     configManager,

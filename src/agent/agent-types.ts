@@ -1,7 +1,4 @@
-import type {
-  AgentMessage as PiAgentMessage,
-  StreamFn,
-} from '@mariozechner/pi-agent-core';
+import type { AgentMessage as PiAgentMessage, StreamFn } from '@mariozechner/pi-agent-core';
 import type { Api, Model, TextContent, ToolCall, Usage } from '@mariozechner/pi-ai';
 import type { SessionKey } from '@aesyclaw/core/types';
 import type { ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
@@ -79,7 +76,6 @@ export type BeforeToolCallHookResult = {
 export type AfterToolCallHookResult = {
   override?: Partial<ToolExecutionResult>;
 };
-
 
 /**
  * 支持的 LLM API 类型常量映射。

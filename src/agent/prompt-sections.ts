@@ -48,9 +48,8 @@ export function buildSkillSection(
   skillDirs?: { userDir?: string; systemDir?: string },
 ): string {
   const lines = skills.map((s) => `- **${s.name}**: ${s.description || '无描述'}`);
-  const rules = skillDirs?.systemDir || skillDirs?.userDir
-    ? buildSkillRulesWithPaths(skillDirs)
-    : SKILL_RULES;
+  const rules =
+    skillDirs?.systemDir || skillDirs?.userDir ? buildSkillRulesWithPaths(skillDirs) : SKILL_RULES;
   return `${SKILL_HEADER}\n${lines.join('\n')}\n\n${rules}`;
 }
 

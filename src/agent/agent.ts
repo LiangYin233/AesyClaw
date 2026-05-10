@@ -1,7 +1,11 @@
 import type { RoleConfig, Message, SessionKey } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
-import type { AesyClawTool, ToolExecutionContext, ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type {
+  AesyClawTool,
+  ToolExecutionContext,
+  ToolRegistry,
+} from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 import { estimateApproximateTokens, type Session } from '@aesyclaw/session';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
@@ -316,6 +320,8 @@ export class Agent {
    * @returns 如果超过阈值返回 true
    */
   private shouldCompact(messages: readonly AgentMessage[]): boolean {
-    return estimateApproximateTokens(messages) >= this._model.contextWindow * this.compressionThreshold;
+    return (
+      estimateApproximateTokens(messages) >= this._model.contextWindow * this.compressionThreshold
+    );
   }
 }

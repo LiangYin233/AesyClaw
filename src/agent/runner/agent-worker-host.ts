@@ -21,7 +21,8 @@ const WORKER_ENTRY_PATH = fileURLToPath(new URL('./agent-worker-entry.ts', impor
  * @returns Worker 运行结果
  */
 export function runWorkerTask(params: WorkerRunParams): Promise<WorkerRunResult> {
-  const { roleId, model, tools, history, content, sessionKey, compressionThreshold, registry } = params;
+  const { roleId, model, tools, history, content, sessionKey, compressionThreshold, registry } =
+    params;
   const toolMap = new Map(tools.map((t) => [t.name, t]));
   const toolResultBudget = calculateToolResultBudget(model, compressionThreshold, history, content);
   const worker = new Worker(WORKER_ENTRY_PATH);

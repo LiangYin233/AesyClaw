@@ -9,7 +9,13 @@
  * 5. 结果投递（含 onSend 钩子）
  */
 
-import { getMessageText, type Message, type SessionKey, type SenderInfo, type SendFn } from '@aesyclaw/core/types';
+import {
+  getMessageText,
+  type Message,
+  type SessionKey,
+  type SenderInfo,
+  type SendFn,
+} from '@aesyclaw/core/types';
 import type { PipelineDependencies } from './types';
 import { HookDispatcher } from './hook-dispatcher';
 import { Agent } from '@aesyclaw/agent/agent';

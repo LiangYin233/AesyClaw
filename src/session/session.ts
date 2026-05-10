@@ -318,7 +318,10 @@ function parseTimestamp(timestamp?: string): number {
  * @returns 估计的 token 数
  */
 export function estimateApproximateTokens(messages: readonly AgentMessage[]): number {
-  const textLength = messages.reduce((total, message) => total + extractMessageText(message).length, 0);
+  const textLength = messages.reduce(
+    (total, message) => total + extractMessageText(message).length,
+    0,
+  );
   return Math.ceil(textLength / 4);
 }
 

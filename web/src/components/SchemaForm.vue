@@ -39,7 +39,11 @@
         <legend v-if="label" class="px-3 font-heading font-semibold text-sm text-dark">
           {{ displayLabel }}
         </legend>
-        <div v-for="(entry, idx) in recordEntries" :key="`${entry.key}-${idx}`" class="flex items-start gap-2 mb-2">
+        <div
+          v-for="(entry, idx) in recordEntries"
+          :key="`${entry.key}-${idx}`"
+          class="flex items-start gap-2 mb-2"
+        >
           <input
             :value="entry.key"
             class="flex-1 w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
@@ -78,7 +82,11 @@
         <legend v-if="label" class="px-3 font-heading font-semibold text-sm text-dark">
           {{ displayLabel }}
         </legend>
-        <div v-for="(item, idx) in modelValueArr" :key="`item-${idx}`" class="flex items-start gap-2 mb-2">
+        <div
+          v-for="(item, idx) in modelValueArr"
+          :key="`item-${idx}`"
+          class="flex items-start gap-2 mb-2"
+        >
           <SchemaForm
             :schema="resolvedSchema.items!"
             :model-value="item"
@@ -245,9 +253,7 @@ const sortedKeys = computed(() => {
 });
 
 const modelValueObj = computed<Record<string, unknown>>(() => {
-  return typeof model.value === 'object' &&
-    model.value !== null &&
-    !Array.isArray(model.value)
+  return typeof model.value === 'object' && model.value !== null && !Array.isArray(model.value)
     ? (model.value as Record<string, unknown>)
     : {};
 });

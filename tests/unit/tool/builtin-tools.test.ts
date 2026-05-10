@@ -6,7 +6,10 @@ import { completeSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { createSendMsgTool } from '../../../src/tool/builtin/send-msg';
-import { createRunSubAgentTool, createRunTempSubAgentTool } from '../../../src/tool/builtin/run-sub-agent';
+import {
+  createRunSubAgentTool,
+  createRunTempSubAgentTool,
+} from '../../../src/tool/builtin/run-sub-agent';
 import { createLoadSkillTool } from '../../../src/tool/builtin/load-skill';
 import {
   registerBuiltinTools,

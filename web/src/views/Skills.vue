@@ -98,7 +98,10 @@ async function fetchSkills() {
 async function reloadSkills() {
   try {
     const reloadResult = await ws.send('reload_skills');
-    showToast('toast-success', (reloadResult as { message?: string })?.message ?? 'Skills reloaded');
+    showToast(
+      'toast-success',
+      (reloadResult as { message?: string })?.message ?? 'Skills reloaded',
+    );
     await fetchSkills();
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Reload failed');

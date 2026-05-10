@@ -1,10 +1,4 @@
-import type {
-  ChannelContext,
-  ChannelPlugin,
-  Message,
-  SenderInfo,
-  SessionKey,
-} from '@aesyclaw/sdk';
+import type { ChannelContext, ChannelPlugin, Message, SenderInfo, SessionKey } from '@aesyclaw/sdk';
 import { DEFAULT_CONFIG } from './constants';
 import {
   enrichMessageWithDownloads,

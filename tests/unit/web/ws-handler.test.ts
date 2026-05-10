@@ -38,7 +38,12 @@ const { MockWebSocket, MockWebSocketServer } = vi.hoisted(() => {
       }
     }
 
-    handleUpgrade(_request: unknown, _socket: unknown, _head: unknown, callback: (ws: MockWebSocket) => void): void {
+    handleUpgrade(
+      _request: unknown,
+      _socket: unknown,
+      _head: unknown,
+      callback: (ws: MockWebSocket) => void,
+    ): void {
       callback(new MockWebSocket());
     }
 

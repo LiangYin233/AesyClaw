@@ -4,7 +4,9 @@ import type { PipelineDependencies } from '../../../src/pipeline/types';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '../../../src/session';
 
 const agentSetRole = vi.fn(async () => undefined);
-const agentProcess = vi.fn(async () => ({ components: [{ type: 'Plain' as const, text: 'agent' }] }));
+const agentProcess = vi.fn(async () => ({
+  components: [{ type: 'Plain' as const, text: 'agent' }],
+}));
 
 vi.mock('@aesyclaw/agent/agent', () => ({
   Agent: vi.fn(function () {

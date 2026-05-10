@@ -4,7 +4,16 @@
 
 import { parentPort, type MessagePort } from 'node:worker_threads';
 import { Agent as PiAgent, type AgentTool, type StreamFn } from '@mariozechner/pi-agent-core';
-import { streamSimple, type Api, type Context, type Message, type Model, type SimpleStreamOptions, type TSchema, type TextContent } from '@mariozechner/pi-ai';
+import {
+  streamSimple,
+  type Api,
+  type Context,
+  type Message,
+  type Model,
+  type SimpleStreamOptions,
+  type TSchema,
+  type TextContent,
+} from '@mariozechner/pi-ai';
 import type {
   AgentWorkerToolDefinition,
   HostToWorkerMessage,

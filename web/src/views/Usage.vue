@@ -189,11 +189,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="row in toolTableData"
-              :key="`${row.name}-${row.type}`"
-              class="bg-[#FDFBF9]"
-            >
+            <tr v-for="row in toolTableData" :key="`${row.name}-${row.type}`" class="bg-[#FDFBF9]">
               <td
                 class="px-4 py-3 border-b border-[var(--color-border)] font-heading text-xs font-medium"
               >
@@ -323,14 +319,12 @@ const aggregatedToolData = computed(() => {
 });
 
 const toolChartData = computed(() => {
-  return aggregatedToolData.value
-    .slice(0, 15)
-    .map((entry) => ({
-      name: entry.name,
-      type: entry.type,
-      count: entry.count,
-      label: entry.type === 'skill' ? `${entry.name} (skill)` : entry.name,
-    }));
+  return aggregatedToolData.value.slice(0, 15).map((entry) => ({
+    name: entry.name,
+    type: entry.type,
+    count: entry.count,
+    label: entry.type === 'skill' ? `${entry.name} (skill)` : entry.name,
+  }));
 });
 
 const toolTableData = computed(() => {
@@ -343,11 +337,10 @@ function formatNumber(n: number): string {
 
 async function loadModelOptions() {
   try {
-    const config = await ws.send('get_config') as Record<string, unknown>;
-    const providers = config['providers'] as Record<
-      string,
-      { models?: Record<string, unknown> }
-    > | undefined;
+    const config = (await ws.send('get_config')) as Record<string, unknown>;
+    const providers = config['providers'] as
+      | Record<string, { models?: Record<string, unknown> }>
+      | undefined;
     const opts: string[] = [];
     if (providers) {
       for (const provider of Object.values(providers)) {
@@ -525,23 +518,17 @@ function renderToolChart() {
   });
 }
 
-watch(
-  chartData,
-  () => {
-    nextTick(() => {
-      renderChart();
-    });
-  },
-);
+watch(chartData, () => {
+  nextTick(() => {
+    renderChart();
+  });
+});
 
-watch(
-  toolChartData,
-  () => {
-    nextTick(() => {
-      renderToolChart();
-    });
-  },
-);
+watch(toolChartData, () => {
+  nextTick(() => {
+    renderToolChart();
+  });
+});
 
 function localDateStr(date: Date): string {
   const y = date.getFullYear();

@@ -271,7 +271,9 @@
                           class="accent-primary"
                           @change="isWildcard ? clearAllTools() : selectAllTools()"
                         />
-                        <span class="font-heading text-sm font-medium text-dark">All tools (*)</span>
+                        <span class="font-heading text-sm font-medium text-dark"
+                          >All tools (*)</span
+                        >
                       </label>
 
                       <label
@@ -288,7 +290,10 @@
                           @change="toggleTool(tool.name)"
                         />
                         <span class="flex-1 font-body text-sm text-dark">{{ tool.name }}</span>
-                        <span class="font-heading text-[0.65rem] text-mid-gray uppercase tracking-[0.04em]">{{ tool.owner }}</span>
+                        <span
+                          class="font-heading text-[0.65rem] text-mid-gray uppercase tracking-[0.04em]"
+                          >{{ tool.owner }}</span
+                        >
                       </label>
 
                       <div
@@ -299,7 +304,9 @@
                       </div>
                     </div>
 
-                    <div class="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] bg-[#FAF8F3]">
+                    <div
+                      class="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] bg-[#FAF8F3]"
+                    >
                       <span class="font-heading text-xs text-mid-gray">
                         {{ isWildcard ? 'All' : (form.toolPermission.list?.length ?? 0) }} selected
                       </span>
@@ -359,14 +366,18 @@
                           class="accent-primary"
                           @change="isSkillWildcard ? clearAllSkills() : selectAllSkills()"
                         />
-                        <span class="font-heading text-sm font-medium text-dark">All skills (*)</span>
+                        <span class="font-heading text-sm font-medium text-dark"
+                          >All skills (*)</span
+                        >
                       </label>
 
                       <label
                         v-for="skill in filteredSkills"
                         :key="skill.name"
                         class="flex items-center gap-2 px-[0.5rem] py-[0.35rem] rounded-sm cursor-pointer hover:bg-light-gray transition-colors duration-[0.1s] ease"
-                        :class="{ 'opacity-50 pointer-events-none': isSkillWildcard || skill.isSystem }"
+                        :class="{
+                          'opacity-50 pointer-events-none': isSkillWildcard || skill.isSystem,
+                        }"
                       >
                         <input
                           type="checkbox"
@@ -379,7 +390,8 @@
                         <span
                           v-if="skill.isSystem"
                           class="font-heading text-[0.65rem] text-mid-gray uppercase tracking-[0.04em]"
-                        >system</span>
+                          >system</span
+                        >
                       </label>
 
                       <div
@@ -390,7 +402,9 @@
                       </div>
                     </div>
 
-                    <div class="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] bg-[#FAF8F3]">
+                    <div
+                      class="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] bg-[#FAF8F3]"
+                    >
                       <span class="font-heading text-xs text-mid-gray">
                         {{ isSkillWildcard ? 'All' : allSelectedSkillNames.size }} selected
                       </span>
@@ -428,7 +442,6 @@
         </div>
       </Transition>
     </Teleport>
-
   </div>
 </template>
 
@@ -501,11 +514,10 @@ async function loadRoles() {
 
 async function loadModelOptions() {
   try {
-    const config = await ws.send('get_config') as Record<string, unknown>;
-    const providers = config['providers'] as Record<
-      string,
-      { models?: Record<string, unknown> }
-    > | undefined;
+    const config = (await ws.send('get_config')) as Record<string, unknown>;
+    const providers = config['providers'] as
+      | Record<string, { models?: Record<string, unknown> }>
+      | undefined;
     const opts: ModelOption[] = [];
     if (providers) {
       for (const [providerName, providerCfg] of Object.entries(providers)) {
@@ -586,11 +598,11 @@ function isValidToolPermissionMode(mode: string): mode is ToolPermission['mode']
 
 const filteredTools = computed(() => {
   const q = toolSearch.value.toLowerCase();
-  return allTools.value.filter(t => !q || t.name.toLowerCase().includes(q));
+  return allTools.value.filter((t) => !q || t.name.toLowerCase().includes(q));
 });
 
-const isWildcard = computed(() =>
-  form.value.toolPermission.list?.length === 1 && form.value.toolPermission.list[0] === '*'
+const isWildcard = computed(
+  () => form.value.toolPermission.list?.length === 1 && form.value.toolPermission.list[0] === '*',
 );
 
 const toolSelectionLabel = computed(() => {
@@ -601,15 +613,15 @@ const toolSelectionLabel = computed(() => {
 
 const filteredSkills = computed(() => {
   const q = skillSearch.value.toLowerCase();
-  return allSkills.value.filter(s => !q || s.name.toLowerCase().includes(q));
+  return allSkills.value.filter((s) => !q || s.name.toLowerCase().includes(q));
 });
 
-const isSkillWildcard = computed(() =>
-  form.value.skills?.length === 1 && form.value.skills[0] === '*'
+const isSkillWildcard = computed(
+  () => form.value.skills?.length === 1 && form.value.skills[0] === '*',
 );
 
 const allSelectedSkillNames = computed(() => {
-  const names = new Set(allSkills.value.filter(s => s.isSystem).map(s => s.name));
+  const names = new Set(allSkills.value.filter((s) => s.isSystem).map((s) => s.name));
   for (const name of form.value.skills ?? []) names.add(name);
   return names;
 });
@@ -617,7 +629,7 @@ const allSelectedSkillNames = computed(() => {
 const skillSelectionLabel = computed(() => {
   if (isSkillWildcard.value) return 'All skills (*)';
   const total = allSelectedSkillNames.value.size;
-  const systemCount = allSkills.value.filter(s => s.isSystem).length;
+  const systemCount = allSkills.value.filter((s) => s.isSystem).length;
   if (total === 0) return 'Select skills';
   let label = `${total} skill${total > 1 ? 's' : ''} selected`;
   if (systemCount > 0) label += ` (${systemCount} system)`;
@@ -656,13 +668,13 @@ function closeToolDropdown() {
 }
 
 function isSkillSelected(name: string): boolean {
-  const skill = allSkills.value.find(s => s.name === name);
+  const skill = allSkills.value.find((s) => s.name === name);
   if (skill?.isSystem) return true;
   return form.value.skills?.includes(name) ?? false;
 }
 
 function toggleSkill(name: string) {
-  const skill = allSkills.value.find(s => s.name === name);
+  const skill = allSkills.value.find((s) => s.name === name);
   if (skill?.isSystem) return;
   if (!form.value.skills) form.value.skills = [];
   const idx = form.value.skills.indexOf(name);

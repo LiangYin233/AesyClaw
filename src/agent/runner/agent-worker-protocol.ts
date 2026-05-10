@@ -1,5 +1,10 @@
 import type { Worker } from 'node:worker_threads';
-import { extractMessageText, type AgentMessage, type AgentTool, type ResolvedModel } from '../agent-types';
+import {
+  extractMessageText,
+  type AgentMessage,
+  type AgentTool,
+  type ResolvedModel,
+} from '../agent-types';
 import type { AgentRegistry } from '../agent-registry';
 import type { SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -88,10 +93,7 @@ export type WorkerRunPromiseHandlers = {
  * @param runId - 当前 Worker 运行标识
  * @returns Worker 初始化消息
  */
-export function createInitMessage(
-  params: WorkerRunParams,
-  runId: string,
-): HostToWorkerInitMessage {
+export function createInitMessage(params: WorkerRunParams, runId: string): HostToWorkerInitMessage {
   const { roleId, model, prompt, tools, history, content } = params;
   if (!model.apiKey) {
     throw new Error(`未为提供者 "${model.provider}" 配置 API 密钥`);
@@ -203,7 +205,9 @@ async function handleToolCall(
     const toolResult = await tool.execute(String(msg.toolCallId), msg.params);
     if (toolResult.isError) {
       const errorContent =
-        typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content);
+        typeof toolResult.content === 'string'
+          ? toolResult.content
+          : JSON.stringify(toolResult.content);
       logger.error('工具调用返回错误', { toolName: msg.toolName, error: errorContent });
       postToolError(context.worker, msg.callId, errorContent, true);
       return;
@@ -246,8 +250,11 @@ function postToolError(worker: Worker, callId: unknown, error: string, isError?:
  * @returns 标准化后的运行结果
  */
 function normalizeWorkerDoneMessage(msg: Record<string, unknown>): WorkerRunResult {
-  const newMessages = Array.isArray(msg['newMessages']) ? (msg['newMessages'] as AgentMessage[]) : [];
-  const workerLastAssistant = typeof msg['lastAssistant'] === 'string' ? msg['lastAssistant'] : null;
+  const newMessages = Array.isArray(msg['newMessages'])
+    ? (msg['newMessages'] as AgentMessage[])
+    : [];
+  const workerLastAssistant =
+    typeof msg['lastAssistant'] === 'string' ? msg['lastAssistant'] : null;
 
   return {
     newMessages,
@@ -344,11 +351,13 @@ function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string
  * @param budget - 内容预算
  * @returns 截断后的工具结果
  */
-function limitToolResultContent<T extends { content: Array<{ type: 'text'; text: string }>; details: unknown }>(
-  result: T,
-  budget: { maxToolResultTokens: number; maxToolResultChars: number },
-): T {
-  const originalContentLength = result.content.reduce((total, block) => total + block.text.length, 0);
+function limitToolResultContent<
+  T extends { content: Array<{ type: 'text'; text: string }>; details: unknown },
+>(result: T, budget: { maxToolResultTokens: number; maxToolResultChars: number }): T {
+  const originalContentLength = result.content.reduce(
+    (total, block) => total + block.text.length,
+    0,
+  );
   if (originalContentLength <= budget.maxToolResultChars) return result;
 
   let remainingChars = budget.maxToolResultChars;
@@ -363,7 +372,9 @@ function limitToolResultContent<T extends { content: Array<{ type: 'text'; text:
     ...result,
     content,
     details: {
-      ...(typeof result.details === 'object' && result.details !== null && !Array.isArray(result.details)
+      ...(typeof result.details === 'object' &&
+      result.details !== null &&
+      !Array.isArray(result.details)
         ? result.details
         : {}),
       truncated: true,
