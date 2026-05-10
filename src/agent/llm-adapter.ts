@@ -88,20 +88,6 @@ export class LlmAdapter {
   }
 
   /**
-   * 创建根据提供者名称获取 API 密钥的函数。
-   *
-   * @returns 接收提供者名称、返回 API 密钥或 undefined 的函数
-   */
-  createGetApiKey(): (provider: string) => string | undefined {
-    return (provider: string): string | undefined => {
-      const providerConfig = this.configManager.get(`providers.${provider}`) as
-        | ProviderConfig
-        | undefined;
-      return providerConfig?.apiKey;
-    };
-  }
-
-  /**
    * 尝试从 pi-ai 内置模型库中查找模型。找不到时返回 null。
    *
    * @param provider - 提供者名称

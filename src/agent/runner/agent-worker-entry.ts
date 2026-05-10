@@ -10,8 +10,8 @@ import { streamSimple, type Api, type Context, type Message, type Model, type Si
  * IPC 消息类型 — Worker 与主线程之间的通信协议。
  *
  * - `init`: 主线程通知 Worker 启动一个 agent 会话
- * - `toolCall`: Worker 向主线程请求执行某个工具
- * - `toolResult`: 主线程将工具执行结果返回给 Worker
+ * - `toolCall`: Worker 向主线程请求执行工具
+ * - `toolResult`: 主线程向 Worker 返回工具结果
  */
 
 /** 工具定义，由主线程序列化后传给 Worker */
@@ -22,7 +22,7 @@ type ToolDef = {
 };
 
 /** 工具调用请求消息（Worker → 主线程） */
-type IpcToolCallMessage = {
+type IpcToolCallRequestMessage = {
   type: 'toolCall';
   callId: string;
   toolName: string;
@@ -52,8 +52,8 @@ type IpcInitMessage = {
   sessionId?: string;
 };
 
-/** Worker 可接收的所有 IPC 消息类型的联合 */
-type IpcMessage = IpcInitMessage | IpcToolCallMessage | IpcToolResultMessage;
+/** Worker 从主线程接收的 IPC 消息类型。 */
+type IpcFromHostMessage = IpcInitMessage | IpcToolResultMessage;
 
 /** 工具代理 — 将工具调用通过 IPC 委托给主线程执行 */
 type ToolProxy = {
@@ -85,14 +85,14 @@ function createToolProxy(def: ToolDef): ToolProxy {
     execute: async (toolCallId: string, params: unknown): Promise<unknown> => {
       const callId = crypto.randomUUID();
       port.postMessage({
-        type: 'toolCall' as const,
+        type: 'toolCall' satisfies IpcToolCallRequestMessage['type'],
         callId,
         toolName: def.name,
         toolCallId,
         params,
       });
       return await new Promise<unknown>((resolve, reject) => {
-        const handler = (msg: IpcMessage): void => {
+        const handler = (msg: IpcFromHostMessage): void => {
           if (msg.type === 'toolResult' && msg.callId === callId) {
             port.removeListener('message', handler);
             if (msg.error !== undefined && msg.isError === true) {
@@ -183,7 +183,7 @@ function findLastAssistantText(messages: readonly Message[]): string | null {
  *
  * @param msg - 从主线程收到的 IPC 消息（仅处理 type === 'init' 的情况）
  */
-async function handleInit(msg: IpcMessage): Promise<void> {
+async function handleInit(msg: IpcFromHostMessage): Promise<void> {
   if (msg.type !== 'init') return;
 
   const {
@@ -232,6 +232,6 @@ async function handleInit(msg: IpcMessage): Promise<void> {
 /**
  * 接收主线程初始化消息并启动 Agent 执行。
  */
-port.on('message', (msg: IpcMessage) => {
+port.on('message', (msg: IpcFromHostMessage) => {
   void handleInit(msg);
 });

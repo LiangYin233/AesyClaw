@@ -2,7 +2,7 @@
  * LlmAdapter unit tests.
  *
  * Tests cover: resolveModel ("provider/model" format, errors),
- * createGetApiKey, createStreamFn.
+ * createStreamFn.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -144,22 +144,6 @@ describe('LlmAdapter', () => {
 
     it('should throw for unknown provider', () => {
       expect(() => adapter.resolveModel('unknown/model')).toThrow(/配置中未找到提供者/);
-    });
-  });
-
-  // ─── createGetApiKey ─────────────────────────────────────────
-
-  describe('createGetApiKey', () => {
-    it('should return a function that resolves API keys from config', () => {
-      const getApiKey = adapter.createGetApiKey();
-
-      expect(getApiKey('openai')).toBe('sk-test-key');
-      expect(getApiKey('anthropic')).toBe('sk-ant-test-key');
-    });
-
-    it('should return undefined for unknown provider', () => {
-      const getApiKey = adapter.createGetApiKey();
-      expect(getApiKey('unknown')).toBeUndefined();
     });
   });
 
