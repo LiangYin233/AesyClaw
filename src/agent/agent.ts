@@ -9,7 +9,7 @@ import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
-import { runWorkerTask } from './worker-runner';
+import { runWorkerTask } from './runner/agent-worker-host';
 import { buildRoleSection, buildSkillSection } from './prompt-sections';
 
 const logger = createScopedLogger('agent');

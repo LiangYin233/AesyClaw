@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Agent } from '../../../src/agent/agent';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
-import { runWorkerTask } from '../../../src/agent/worker-runner';
+import { runWorkerTask } from '../../../src/agent/runner/agent-worker-host';
 import { makeRole } from '../../helpers/role';
 
 function defer<T>() {
@@ -494,6 +494,94 @@ describe('Agent worker lifecycle', () => {
     expect(toolResult).toMatchObject({
       error: JSON.stringify([{ type: 'text', text: 'e'.repeat(400) }]),
       isError: true,
+    });
+
+    getWorker(0).emit('message', { type: 'done', newMessages: [], lastAssistant: 'ok' });
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'ok' });
+  });
+
+  it('returns a tool result error when the worker requests an unknown tool', async () => {
+    const registry = new AgentRegistry();
+    const turn = runWorkerTask({
+      roleId: 'assistant',
+      model: {
+        provider: 'openai',
+        modelId: 'gpt-4o',
+        apiKey: 'sk-test',
+        apiType: 'openai-responses',
+        id: 'gpt-4o',
+        contextWindow: 100,
+        reasoning: false,
+      } as never,
+      prompt: 'system',
+      tools: [],
+      history: [],
+      content: 'user input',
+      sessionKey: { channel: 'test', type: 'private', chatId: 'unknown-tool' },
+      registry,
+      compressionThreshold: 0.8,
+    });
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'toolCall',
+      callId: 'ipc_missing',
+      toolName: 'missing_tool',
+      toolCallId: 'call_missing',
+      params: {},
+    });
+    await Promise.resolve();
+
+    expect(getLastToolResultMessage()).toMatchObject({
+      error: '工具 "missing_tool" 未找到',
+    });
+
+    getWorker(0).emit('message', { type: 'done', newMessages: [], lastAssistant: 'ok' });
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'ok' });
+  });
+
+  it('returns a tool result error when tool execution throws', async () => {
+    const registry = new AgentRegistry();
+    const turn = runWorkerTask({
+      roleId: 'assistant',
+      model: {
+        provider: 'openai',
+        modelId: 'gpt-4o',
+        apiKey: 'sk-test',
+        apiType: 'openai-responses',
+        id: 'gpt-4o',
+        contextWindow: 100,
+        reasoning: false,
+      } as never,
+      prompt: 'system',
+      tools: [
+        {
+          name: 'throwing_tool',
+          label: 'throwing_tool',
+          description: 'throws during execution',
+          parameters: {},
+          execute: vi.fn().mockRejectedValue(new Error('tool exploded')),
+        },
+      ],
+      history: [],
+      content: 'user input',
+      sessionKey: { channel: 'test', type: 'private', chatId: 'throwing-tool' },
+      registry,
+      compressionThreshold: 0.8,
+    });
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'toolCall',
+      callId: 'ipc_throw',
+      toolName: 'throwing_tool',
+      toolCallId: 'call_throw',
+      params: {},
+    });
+    await Promise.resolve();
+
+    expect(getLastToolResultMessage()).toMatchObject({
+      error: 'tool exploded',
     });
 
     getWorker(0).emit('message', { type: 'done', newMessages: [], lastAssistant: 'ok' });

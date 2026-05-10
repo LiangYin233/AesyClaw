@@ -1,11 +1,5 @@
 /**
- * Agent Worker — 在独立线程中运行 PiAgent 提示循环。
- *
- * 工具调用的 execute 函数通过 IPC 代理到主线程执行，
- * 主线程在 ToolRegistry 中查找工具并返回结果。
- *
- * 注意：此文件必须是自包含的 — 不导入任何项目内的 TS 模块，
- * 因为 Worker 线程运行在独立 V8 isolate 中，没有 tsx/vitest 的加载器。
+ * Worker 线程入口，在独立线程中运行 PiAgent 提示循环。
  */
 
 import { parentPort, type MessagePort } from 'node:worker_threads';
@@ -70,12 +64,10 @@ type ToolProxy = {
   execute: (toolCallId: string, params: unknown) => Promise<unknown>;
 };
 
-/** 提取 parentPort，不可用时抛出异常（Worker 必须有 parentPort） */
 const parent = parentPort;
 if (parent === null) {
   throw new Error('parentPort is required in worker thread');
 }
-/** 使用显式 MessagePort 类型变量，使闭包也能看到非 null 类型 */
 const port: MessagePort = parent;
 
 /**
@@ -237,7 +229,9 @@ async function handleInit(msg: IpcMessage): Promise<void> {
   }
 }
 
-/** 监听主线程消息，收到 init 后启动 agent 循环 */
+/**
+ * 接收主线程初始化消息并启动 Agent 执行。
+ */
 port.on('message', (msg: IpcMessage) => {
   void handleInit(msg);
 });
