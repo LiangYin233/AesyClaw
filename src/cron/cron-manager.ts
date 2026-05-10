@@ -57,7 +57,7 @@ export class CronManager {
     const cronJobs = dependencies.databaseManager.cronJobs;
     const cronRuns = dependencies.databaseManager.cronRuns;
     const scheduler = dependencies.scheduler ?? new CronScheduler();
-    const executor = new CronExecutor(cronRuns, dependencies.pipeline, dependencies.send);
+    const executor = new CronExecutor(cronRuns, dependencies.pipeline, dependencies.send, dependencies.sessionManager);
     this.pipeline = dependencies.pipeline;
     this.sessionManager = dependencies.sessionManager;
 

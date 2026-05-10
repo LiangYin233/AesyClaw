@@ -3,6 +3,8 @@
 import { getMessageText, parseSerializedSessionKey, type CronJobRecord, type Message, type SessionKey } from '@aesyclaw/core/types';
 import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import type { SessionManager } from '@aesyclaw/session';
+import { createPersistedAssistantMessage } from '@aesyclaw/agent/agent-types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('cron');
@@ -20,6 +22,7 @@ export class CronExecutor {
     private cronRuns: CronRunsRepository,
     private pipeline: Pick<Pipeline, 'receiveWithSend'>,
     private send: (sessionKey: SessionKey, message: Message) => Promise<void>,
+    private sessionManager: SessionManager,
   ) {}
 
   /**
@@ -51,6 +54,14 @@ export class CronExecutor {
           outboundMessages.push(message);
         },
       );
+
+      if (outboundMessages.length > 0) {
+        const session = await this.sessionManager.create(targetSessionKey);
+        for (const msg of outboundMessages) {
+          const text = getMessageText(msg).trim();
+          if (text) await session.add(createPersistedAssistantMessage(text));
+        }
+      }
 
       const result = formatResult(outboundMessages);
       await this.cronRuns.markCompleted(runId, result);

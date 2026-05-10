@@ -121,6 +121,7 @@ function makeSend() {
 function makeSessionManager(existingSession?: { clear: () => Promise<void> }): SessionManager {
   return {
     get: vi.fn((_sessionKey: SessionKey) => existingSession ?? null),
+    create: vi.fn().mockResolvedValue({ add: vi.fn().mockResolvedValue(undefined) }),
   } as unknown as SessionManager;
 }
 
