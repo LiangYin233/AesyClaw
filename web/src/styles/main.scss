@@ -1,15 +1,35 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
+@theme {
   --color-dark: #141413;
   --color-light: #faf9f5;
   --color-mid-gray: #b0aea5;
   --color-light-gray: #e8e6dc;
-  --color-accent-orange: #d97757;
+  --color-primary: #d97757;
+  --color-primary-hover: #c96a4b;
   --color-accent-blue: #6a9bcc;
   --color-accent-green: #788c5d;
+  --color-danger: #c45b5b;
+  --color-warning: #c9a35a;
+  --color-surface: #fdfbf9;
+
+  --font-family-heading: 'Poppins', Arial, sans-serif;
+  --font-family-body: 'Lora', Georgia, serif;
+
+  --radius: 8px;
+  --radius-sm: 6px;
+
+  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.06), 0 1px 3px rgba(20, 20, 19, 0.04);
+  --shadow: 0 4px 6px -1px rgba(20, 20, 19, 0.07), 0 2px 4px -2px rgba(20, 20, 19, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(20, 20, 19, 0.08), 0 4px 6px -4px rgba(20, 20, 19, 0.04);
+
+  --spacing-sidebar: 240px;
+  --spacing-topbar: 64px;
+}
+
+:root {
+  --font-heading: 'Poppins', Arial, sans-serif;
+  --font-body: 'Lora', Georgia, serif;
 
   --color-text: var(--color-dark);
   --color-text-muted: var(--color-mid-gray);
@@ -19,23 +39,10 @@
   --color-border: rgba(176, 174, 165, 0.45);
   --color-border-strong: var(--color-mid-gray);
 
-  --color-primary: var(--color-accent-orange);
-  --color-primary-hover: #c96a4b;
-  --color-danger: #c45b5b;
   --color-success: var(--color-accent-green);
-  --color-warning: #c9a35a;
 
-  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.06), 0 1px 3px rgba(20, 20, 19, 0.04);
-  --shadow: 0 4px 6px -1px rgba(20, 20, 19, 0.07), 0 2px 4px -2px rgba(20, 20, 19, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(20, 20, 19, 0.08), 0 4px 6px -4px rgba(20, 20, 19, 0.04);
-
-  --radius: 8px;
-  --radius-sm: 6px;
   --sidebar-width: 240px;
   --topbar-height: 64px;
-
-  --font-heading: 'Poppins', Arial, sans-serif;
-  --font-body: 'Lora', Georgia, serif;
 
   --transition-fast: 0.15s ease;
   --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
