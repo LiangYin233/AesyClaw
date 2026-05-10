@@ -111,7 +111,7 @@ function makeWorkerRole() {
   });
 }
 
-let agentRegistry: AgentRegistry;
+let agentRegistry = new AgentRegistry();
 
 afterEach(() => {
   agentRegistry = new AgentRegistry();
@@ -140,6 +140,7 @@ function makeAgent(registry: AgentRegistry = agentRegistry): Agent {
     } as never,
     skillManager: {
       getSkillsForRole: vi.fn().mockReturnValue([]),
+      getSkillDirs: vi.fn().mockReturnValue({}),
     } as never,
     toolRegistry: {
       resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
@@ -152,6 +153,35 @@ function makeAgent(registry: AgentRegistry = agentRegistry): Agent {
 }
 
 describe('Agent worker lifecycle', () => {
+  it('should preserve public role state after setRole', async () => {
+    const agent = makeAgent();
+    const role = makeRole({
+      id: 'stateful-role',
+      model: 'openai/gpt-4o',
+      toolPermission: { mode: 'allowlist', list: ['stateful-tool'] },
+    });
+    const tool = {
+      name: 'stateful-tool',
+      description: 'Stateful tool',
+      parameters: {},
+      execute: vi.fn(),
+    };
+    const getForRole = vi.fn().mockReturnValue([tool]);
+
+    Object.defineProperty(agent, 'toolRegistry', {
+      value: {
+        resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
+        getForRole,
+      },
+    });
+
+    await agent.setRole(role);
+
+    expect(agent.roleId).toBe('stateful-role');
+    expect(agent.activeRole).toBe(role);
+    expect(agent.allowedTools).toEqual([tool]);
+  });
+
   it('uses context window and compression threshold before compacting', async () => {
     const registry = new AgentRegistry();
     const session = {
@@ -182,6 +212,7 @@ describe('Agent worker lifecycle', () => {
       } as never,
       skillManager: {
         getSkillsForRole: vi.fn().mockReturnValue([]),
+        getSkillDirs: vi.fn().mockReturnValue({}),
       } as never,
       toolRegistry: {
         resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),

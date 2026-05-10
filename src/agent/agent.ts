@@ -44,6 +44,17 @@ type BuildPromptResult = {
   tools: AgentTool[];
 };
 
+type ProcessOptions = {
+  ephemeral?: boolean;
+  role?: RoleConfig;
+};
+
+type ProcessContext = {
+  role: RoleConfig;
+  effectiveRole: RoleConfig;
+  ephemeral: boolean;
+};
+
 /**
  * Agent 核心类，承担消息处理、LLM 调用和 Prompt 构建的职责。
  */
@@ -129,12 +140,13 @@ export class Agent {
   async process(
     message: Message,
     sendMessage?: (message: Message) => Promise<boolean>,
-    options?: { ephemeral?: boolean; role?: RoleConfig },
+    options?: ProcessOptions,
   ): Promise<Message> {
-    const role = options?.ephemeral ? options?.role : this._activeRole;
-    if (!role) {
+    const context = this.createProcessContext(options);
+    if (!context) {
       return { components: [{ type: 'Plain', text: '[错误: 无可用角色]' }] };
     }
+    const { role, effectiveRole, ephemeral } = context;
 
     const content = getMessageText(message);
 
@@ -142,47 +154,28 @@ export class Agent {
       sessionKey: this.session.key,
       role: role.id,
       contentLength: content.length,
-      ephemeral: !!options?.ephemeral,
+      ephemeral,
     });
 
-    let history = this.session.get();
-    if (!options?.ephemeral && this.shouldCompact(history)) {
-      await this.session.compact(this.llmAdapter, role.model);
-      history = this.session.get();
-    }
-
-    const effectiveRole = options?.ephemeral
-      ? { ...role, toolPermission: { mode: 'allowlist' as const, list: [] } }
-      : role;
+    const history = await this.loadHistory(role, ephemeral);
 
     const result = await this.callLLM(
       effectiveRole,
       content,
-      history as AgentMessage[],
+      history,
       this.session.key,
-      options?.ephemeral ? undefined : sendMessage,
+      ephemeral ? undefined : sendMessage,
     );
 
-    // 若 LLM 只产出了工具调用而无文本回复，追加提示要求生成文本（最多重试一次）
-    if (!result.lastAssistant && !options?.ephemeral) {
-      logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: effectiveRole.id });
-      const updatedHistory = history.concat(result.newMessages) as AgentMessage[];
-      const followUpResult = await this.callLLM(
-        effectiveRole,
-        '请根据以上工具调用结果生成回复文本，不要调用工具。',
-        updatedHistory,
-        this.session.key,
-        sendMessage,
-      );
-      result.newMessages = result.newMessages.concat(followUpResult.newMessages);
-      result.lastAssistant = followUpResult.lastAssistant;
+    const finalResult = ephemeral
+      ? result
+      : await this.ensureAssistantText(effectiveRole, history, result, sendMessage);
+
+    if (!ephemeral) {
+      await this.session.syncFromAgent(finalResult.newMessages);
     }
 
-    if (!options?.ephemeral) {
-      await this.session.syncFromAgent(result.newMessages);
-    }
-
-    return this.toMessage(effectiveRole.id, result);
+    return this.toMessage(effectiveRole.id, finalResult);
   }
 
   /**
@@ -253,6 +246,52 @@ export class Agent {
     });
 
     return { prompt, tools: resolvedTools.agentTools };
+  }
+
+  private createProcessContext(options?: ProcessOptions): ProcessContext | null {
+    const ephemeral = options?.ephemeral === true;
+    const role = ephemeral ? options?.role : this._activeRole;
+    if (!role) return null;
+
+    return {
+      role,
+      effectiveRole: ephemeral
+        ? { ...role, toolPermission: { mode: 'allowlist' as const, list: [] } }
+        : role,
+      ephemeral,
+    };
+  }
+
+  private async loadHistory(role: RoleConfig, ephemeral: boolean): Promise<AgentMessage[]> {
+    let history = this.session.get();
+    if (!ephemeral && this.shouldCompact(history)) {
+      await this.session.compact(this.llmAdapter, role.model);
+      history = this.session.get();
+    }
+    return history as AgentMessage[];
+  }
+
+  private async ensureAssistantText(
+    role: RoleConfig,
+    history: AgentMessage[],
+    result: CallLLMResult,
+    sendMessage?: (message: Message) => Promise<boolean>,
+  ): Promise<CallLLMResult> {
+    if (result.lastAssistant) return result;
+
+    logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: role.id });
+    const followUpResult = await this.callLLM(
+      role,
+      '请根据以上工具调用结果生成回复文本，不要调用工具。',
+      history.concat(result.newMessages),
+      this.session.key,
+      sendMessage,
+    );
+
+    return {
+      newMessages: result.newMessages.concat(followUpResult.newMessages),
+      lastAssistant: followUpResult.lastAssistant,
+    };
   }
 
   /**
