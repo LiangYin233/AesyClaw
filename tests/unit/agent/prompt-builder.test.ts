@@ -236,8 +236,12 @@ describe('PromptBuilder', () => {
       mkdirSync(systemDir, { recursive: true });
       mkdirSync(userDir, { recursive: true });
 
+      mkdirSync(join(systemDir, 'system-skill'), { recursive: true });
+      mkdirSync(join(userDir, 'allowed-skill'), { recursive: true });
+      mkdirSync(join(userDir, 'blocked-skill'), { recursive: true });
+
       writeFileSync(
-        join(systemDir, 'system-skill.md'),
+        join(systemDir, 'system-skill', 'SKILL.md'),
         `---
 name: system-skill
 description: System
@@ -245,7 +249,7 @@ description: System
 System content.`,
       );
       writeFileSync(
-        join(userDir, 'allowed-skill.md'),
+        join(userDir, 'allowed-skill', 'SKILL.md'),
         `---
 name: allowed-skill
 description: Allowed
@@ -253,7 +257,7 @@ description: Allowed
 Allowed content.`,
       );
       writeFileSync(
-        join(userDir, 'blocked-skill.md'),
+        join(userDir, 'blocked-skill', 'SKILL.md'),
         `---
 name: blocked-skill
 description: Blocked

@@ -910,7 +910,7 @@ function createTestChannel(
 } {
   const sockets = options.sockets ?? [new FakeWebSocket()];
   let nextSocketIndex = 0;
-  const constructorMock = vi.fn((url: string) => {
+  const constructorMock = vi.fn(function (this: FakeWebSocket, url: string) {
     options.onConnectedUrl?.(url);
     const socket = sockets[nextSocketIndex];
     nextSocketIndex += 1;

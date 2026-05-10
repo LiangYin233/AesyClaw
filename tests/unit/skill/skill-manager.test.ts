@@ -15,6 +15,11 @@ import { makeRole } from '../../helpers/role';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-skill-manager');
 
+function writeSkill(baseDir: string, name: string, content: string): void {
+  mkdirSync(join(baseDir, name), { recursive: true });
+  writeFileSync(join(baseDir, name, 'SKILL.md'), content);
+}
+
 function expectSkill(skill: SkillDefinition | undefined, name: string): SkillDefinition {
   expect(skill).toBeDefined();
   if (skill === undefined) {
@@ -44,8 +49,9 @@ describe('SkillManager', () => {
 
   describe('loadAll', () => {
     it('should load system skills from the system directory', async () => {
-      writeFileSync(
-        join(systemDir, 'sys-skill.md'),
+      writeSkill(
+        systemDir,
+        'sys-skill',
         `---
 name: sys-skill
 description: A system skill
@@ -63,8 +69,9 @@ System content.`,
     });
 
     it('should load user skills from the user directory', async () => {
-      writeFileSync(
-        join(userDir, 'user-skill.md'),
+      writeSkill(
+        userDir,
+        'user-skill',
         `---
 name: user-skill
 description: A user skill
@@ -82,8 +89,9 @@ User content.`,
     });
 
     it('should load both system and user skills', async () => {
-      writeFileSync(
-        join(systemDir, 'system-skill.md'),
+      writeSkill(
+        systemDir,
+        'system-skill',
         `---
 name: system-skill
 description: System
@@ -91,8 +99,9 @@ description: System
 Sys content.`,
       );
 
-      writeFileSync(
-        join(userDir, 'user-skill.md'),
+      writeSkill(
+        userDir,
+        'user-skill',
         `---
 name: user-skill
 description: User
@@ -109,8 +118,9 @@ User content.`,
     });
 
     it('should give system skills priority over user skills on name collision', async () => {
-      writeFileSync(
-        join(systemDir, 'conflict.md'),
+      writeSkill(
+        systemDir,
+        'conflict',
         `---
 name: conflict
 description: System version
@@ -118,8 +128,9 @@ description: System version
 System content.`,
       );
 
-      writeFileSync(
-        join(userDir, 'conflict.md'),
+      writeSkill(
+        userDir,
+        'conflict',
         `---
 name: conflict
 description: User version
@@ -137,8 +148,9 @@ User content.`,
     });
 
     it('should skip malformed skill files gracefully', async () => {
-      writeFileSync(
-        join(systemDir, 'valid.md'),
+      writeSkill(
+        systemDir,
+        'valid',
         `---
 name: valid
 description: Valid
@@ -146,7 +158,8 @@ description: Valid
 Valid content.`,
       );
 
-      writeFileSync(join(systemDir, 'malformed.md'), 'No frontmatter here');
+      mkdirSync(join(systemDir, 'malformed'), { recursive: true });
+      writeFileSync(join(systemDir, 'malformed', 'SKILL.md'), 'No frontmatter here');
 
       await manager.loadAll(userDir, systemDir);
 
@@ -168,8 +181,9 @@ Valid content.`,
 
   describe('getSkillsForRole', () => {
     it('should always include system skills', async () => {
-      writeFileSync(
-        join(systemDir, 'system-skill.md'),
+      writeSkill(
+        systemDir,
+        'system-skill',
         `---
 name: system-skill
 description: System
@@ -187,8 +201,9 @@ Sys content.`,
     });
 
     it('should return all skills for wildcard role', async () => {
-      writeFileSync(
-        join(systemDir, 'sys1.md'),
+      writeSkill(
+        systemDir,
+        'sys1',
         `---
 name: sys1
 description: System 1
@@ -196,8 +211,9 @@ description: System 1
 Sys1 content.`,
       );
 
-      writeFileSync(
-        join(userDir, 'usr1.md'),
+      writeSkill(
+        userDir,
+        'usr1',
         `---
 name: usr1
 description: User 1
@@ -213,8 +229,9 @@ Usr1 content.`,
     });
 
     it('should filter user skills by role skill list', async () => {
-      writeFileSync(
-        join(systemDir, 'system-skill.md'),
+      writeSkill(
+        systemDir,
+        'system-skill',
         `---
 name: system-skill
 description: System
@@ -222,8 +239,9 @@ description: System
 Sys content.`,
       );
 
-      writeFileSync(
-        join(userDir, 'usr1.md'),
+      writeSkill(
+        userDir,
+        'usr1',
         `---
 name: usr1
 description: User 1
@@ -231,8 +249,9 @@ description: User 1
 Usr1 content.`,
       );
 
-      writeFileSync(
-        join(userDir, 'usr2.md'),
+      writeSkill(
+        userDir,
+        'usr2',
         `---
 name: usr2
 description: User 2
