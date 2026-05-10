@@ -116,6 +116,10 @@ export class Session {
 
     for (const msg of agentMessages) {
       await this.add(msg);
+      const persistedToolText = getPersistedAssistantTextFromToolResult(msg);
+      if (persistedToolText) {
+        await this.add(createPersistedAssistantMessage(persistedToolText));
+      }
     }
 
     await this.recordToolCallsFromMessages(agentMessages);
@@ -302,6 +306,16 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
   if (text.length === 0) return null;
 
   return { role: message.role, content: text, timestamp: new Date().toISOString() };
+}
+
+function getPersistedAssistantTextFromToolResult(message: AgentMessage): string | null {
+  if (message.role !== 'toolResult') return null;
+
+  const details = (message as unknown as Record<string, unknown>)['details'];
+  if (typeof details !== 'object' || details === null) return null;
+
+  const text = (details as Record<string, unknown>)['persistAsAssistantText'];
+  return typeof text === 'string' && text.trim().length > 0 ? text.trim() : null;
 }
 
 function parseTimestamp(timestamp?: string): number {

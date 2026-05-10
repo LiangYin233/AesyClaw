@@ -182,7 +182,6 @@ export class CoreLifecycle {
       skillManager: this.resolvedDeps.skillManager,
       usageRepository: this.resolvedDeps.databaseManager.usage,
       agentRegistry: this.resolvedDeps.agentRegistry,
-      sessionManager: this.resolvedDeps.sessionManager,
     });
 
     const webUiManager = new WebUiManager({

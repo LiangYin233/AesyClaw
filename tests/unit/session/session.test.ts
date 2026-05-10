@@ -107,6 +107,47 @@ describe('Session.syncFromAgent', () => {
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     );
   });
+
+  it('persists send_msg output while syncing agent messages in order', async () => {
+    const messagesRepo = {
+      save: vi.fn().mockResolvedValue(undefined),
+      loadHistory: vi.fn().mockResolvedValue([]),
+      clearHistory: vi.fn().mockResolvedValue(undefined),
+      replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const sessionKey: SessionKey = {
+      channel: 'channel-1',
+      type: 'private',
+      chatId: 'chat-1',
+    };
+    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+
+    await session.syncFromAgent([
+      { role: 'user', content: 'send text and file' } as AgentMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'toolCall', id: 'call-1', name: 'send_msg', arguments: {} }],
+      } as AgentMessage,
+      {
+        role: 'toolResult',
+        toolCallId: 'call-1',
+        toolName: 'send_msg',
+        content: [{ type: 'text', text: '消息已发送: "visible text"' }],
+        details: { persistAsAssistantText: 'visible text' },
+      } as AgentMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'final reply' }],
+      } as AgentMessage,
+    ]);
+
+    expect(messagesRepo.save.mock.calls.map((call) => call[1].content)).toEqual([
+      'send text and file',
+      'visible text',
+      'final reply',
+    ]);
+  });
 });
 
 function makeSummaryMessage() {

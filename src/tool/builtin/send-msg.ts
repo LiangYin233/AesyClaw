@@ -20,8 +20,6 @@ import type {
   FileComponent,
   ToolOwner,
 } from '@aesyclaw/core/types';
-import type { SessionManager } from '@aesyclaw/session';
-import { createPersistedAssistantMessage } from '@aesyclaw/agent/agent-types';
 
 const MEDIA_TYPE_MAP = {
   image: 'Image',
@@ -81,13 +79,9 @@ function toMediaComponent(media: MediaParam[]): MediaComponent[] {
 /**
  * 创建 send_msg 工具定义。
  *
- * @param deps - 依赖项，包含 sessionManager 用于获取会话
  * @returns send_msg 工具的 AesyClawTool 定义
  */
-export function createSendMsgTool(deps: {
-  sessionManager: Pick<SessionManager, 'get'>;
-}): AesyClawTool {
-  const { sessionManager } = deps;
+export function createSendMsgTool(): AesyClawTool {
   return {
     name: 'send_msg',
     description: '向当前会话发送文本消息，可附带媒体附件',
@@ -118,13 +112,9 @@ export function createSendMsgTool(deps: {
           };
         }
 
-        const session = sessionManager.get(context.sessionKey);
-        if (session) {
-          await session.add(createPersistedAssistantMessage(text));
-        }
-
         return {
           content: `消息已发送: "${text}"`,
+          details: { persistAsAssistantText: text },
         };
       } catch (err) {
         return { content: errorMessage(err), isError: true };

@@ -63,7 +63,7 @@ function makeSkillManager(skills: Skill[] = []) {
 
 describe('built-in tools', () => {
   it('send_msg returns a truthful error when no send callback is available', async () => {
-    const tool = createSendMsgTool({ sessionManager: { get: vi.fn().mockReturnValue(undefined) } });
+    const tool = createSendMsgTool();
 
     await expect(
       tool.execute(
@@ -82,7 +82,7 @@ describe('built-in tools', () => {
   });
 
   it('send_msg uses the provided outbound send callback', async () => {
-    const tool = createSendMsgTool({ sessionManager: { get: vi.fn().mockReturnValue(undefined) } });
+    const tool = createSendMsgTool();
     const sendMessage = vi.fn().mockResolvedValue(true);
 
     await expect(
@@ -98,13 +98,35 @@ describe('built-in tools', () => {
           sendMessage,
         },
       ),
-    ).resolves.toEqual({ content: '消息已发送: "hello"' });
+    ).resolves.toEqual({
+      content: '消息已发送: "hello"',
+      details: { persistAsAssistantText: 'hello' },
+    });
 
     expect(sendMessage).toHaveBeenCalledWith({
       components: [
         { type: 'Plain', text: 'hello' },
         { type: 'Image', url: 'https://example.com/image.png' },
       ],
+    });
+  });
+
+  it('send_msg returns persistence metadata without touching history', async () => {
+    const tool = createSendMsgTool();
+
+    await expect(
+      tool.execute(
+        { text: 'hello' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+          sendMessage: vi.fn().mockResolvedValue(true),
+        },
+      ),
+    ).resolves.toEqual({
+      content: '消息已发送: "hello"',
+      details: { persistAsAssistantText: 'hello' },
     });
   });
 
@@ -130,7 +152,6 @@ describe('built-in tools', () => {
       },
       configManager: makeConfigManager(),
       skillManager: makeSkillManager(),
-      sessionManager: { get: vi.fn() },
     });
 
     expect(registry.has('send_msg')).toBe(true);

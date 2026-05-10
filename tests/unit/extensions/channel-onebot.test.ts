@@ -273,6 +273,178 @@ describe('channel_onebot', () => {
     expect(logger.debug).not.toHaveBeenCalled();
   });
 
+  it('sends text before file attachments in a separate OneBot action', async () => {
+    const sendAction = vi.fn(async (action: string, params: Record<string, unknown>) => {
+      if (action === 'upload_file_stream' && params.is_complete === true) {
+        return {
+          status: 'ok',
+          retcode: 0,
+          data: {
+            type: 'response',
+            file_path: 'C:/NapCatTemp/report.pdf',
+          },
+        };
+      }
+
+      return {
+        status: 'ok',
+        retcode: 0,
+        data: {
+          type: 'stream',
+        },
+      };
+    });
+
+    await sendOneBotMessage(
+      groupSession('67890'),
+      {
+        components: [
+          { type: 'Plain', text: 'please see report' },
+          {
+            type: 'File',
+            base64: Buffer.from('file-bytes').toString('base64'),
+            mimeType: 'application/pdf',
+          },
+        ],
+      },
+      { sendAction },
+    );
+
+    expect(sendAction).toHaveBeenNthCalledWith(3, 'send_group_msg', {
+      group_id: 67890,
+      message: 'please see report',
+    });
+    expect(sendAction).toHaveBeenNthCalledWith(4, 'send_group_msg', {
+      group_id: 67890,
+      message: [
+        {
+          type: 'file',
+          data: {
+            file: 'C:/NapCatTemp/report.pdf',
+            file_path: 'C:/NapCatTemp/report.pdf',
+            name: expect.stringMatching(/^File-.*\.pdf$/),
+          },
+        },
+      ],
+    });
+  });
+
+  it('keeps text and image attachments in a single OneBot action', async () => {
+    const sendAction = vi.fn(async (action: string, params: Record<string, unknown>) => {
+      if (action === 'upload_file_stream' && params.is_complete === true) {
+        return {
+          status: 'ok',
+          retcode: 0,
+          data: {
+            type: 'response',
+            file_path: 'C:/NapCatTemp/image.png',
+          },
+        };
+      }
+
+      return {
+        status: 'ok',
+        retcode: 0,
+        data: {
+          type: 'stream',
+        },
+      };
+    });
+
+    await sendOneBotMessage(
+      groupSession('67890'),
+      {
+        components: [
+          { type: 'Plain', text: 'please see image' },
+          {
+            type: 'Image',
+            base64: Buffer.from('image-bytes').toString('base64'),
+            mimeType: 'image/png',
+          },
+        ],
+      },
+      { sendAction },
+    );
+
+    expect(sendAction).toHaveBeenNthCalledWith(3, 'send_group_msg', {
+      group_id: 67890,
+      message: [
+        { type: 'text', data: { text: 'please see image' } },
+        {
+          type: 'image',
+          data: {
+            file: 'C:/NapCatTemp/image.png',
+            file_path: 'C:/NapCatTemp/image.png',
+            name: expect.stringMatching(/^Image-.*\.png$/),
+          },
+        },
+      ],
+    });
+    expect(sendAction).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    ['Record' as const, 'record' as const, 'audio/mpeg', 'C:/NapCatTemp/audio.mp3'],
+    ['Video' as const, 'video' as const, 'video/mp4', 'C:/NapCatTemp/video.mp4'],
+  ])(
+    'sends text before %s attachments in a separate OneBot action',
+    async (componentType, segmentType, mimeType, uploadedPath) => {
+      const sendAction = vi.fn(async (action: string, params: Record<string, unknown>) => {
+        if (action === 'upload_file_stream' && params.is_complete === true) {
+          return {
+            status: 'ok',
+            retcode: 0,
+            data: {
+              type: 'response',
+              file_path: uploadedPath,
+            },
+          };
+        }
+
+        return {
+          status: 'ok',
+          retcode: 0,
+          data: {
+            type: 'stream',
+          },
+        };
+      });
+
+      await sendOneBotMessage(
+        groupSession('67890'),
+        {
+          components: [
+            { type: 'Plain', text: 'please see media' },
+            {
+              type: componentType,
+              base64: Buffer.from('media-bytes').toString('base64'),
+              mimeType,
+            },
+          ],
+        },
+        { sendAction },
+      );
+
+      expect(sendAction).toHaveBeenNthCalledWith(3, 'send_group_msg', {
+        group_id: 67890,
+        message: 'please see media',
+      });
+      expect(sendAction).toHaveBeenNthCalledWith(4, 'send_group_msg', {
+        group_id: 67890,
+        message: [
+          {
+            type: segmentType,
+            data: {
+              file: uploadedPath,
+              file_path: uploadedPath,
+              name: expect.stringMatching(new RegExp(`^${componentType}-.*\\.`)),
+            },
+          },
+        ],
+      });
+    },
+  );
+
   it('logs attachment upload failures before the OneBot send handoff', async () => {
     const logger = makeLogger();
     const error = new Error('upload exploded');

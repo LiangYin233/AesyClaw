@@ -30,63 +30,66 @@ export async function sendOneBotMessage(
   logger?: OneBotLogger,
 ): Promise<void> {
   const summary = summarizeMessage(sessionKey, message);
-  const { action, params } = await buildSendAction(sessionKey, message, transport, logger, summary);
+  const actions = await buildSendActions(sessionKey, message, transport, logger, summary);
 
-  try {
-    const response = await transport.sendAction(action, params);
-    validateApiResponse(response);
-  } catch (err) {
-    logger?.error(
-      'OneBot outbound message send failed',
-      {
-        ...summary,
-        stage: 'message-send',
-        action,
-      },
-      err,
-    );
-    throw err;
+  for (const { action, params } of actions) {
+    try {
+      const response = await transport.sendAction(action, params);
+      validateApiResponse(response);
+    } catch (err) {
+      logger?.error(
+        'OneBot outbound message send failed',
+        {
+          ...summary,
+          stage: 'message-send',
+          action,
+        },
+        err,
+      );
+      throw err;
+    }
   }
 }
 
-async function buildSendAction(
+async function buildSendActions(
   sessionKey: SessionKey,
   message: Message,
   transport: OneBotActionTransport,
   logger: OneBotLogger | undefined,
   summary: ReturnType<typeof summarizeMessage>,
-): Promise<{ action: string; params: Record<string, unknown> }> {
-  const outboundMessage = await buildOneBotSegments(message, transport, logger, summary);
+): Promise<Array<{ action: string; params: Record<string, unknown> }>> {
+  const outboundMessages = await buildOneBotMessages(message, transport, logger, summary);
   const actionConfig = SEND_ACTION_BY_CHAT_TYPE[sessionKey.type];
 
   if (actionConfig) {
-    return {
+    return outboundMessages.map((outboundMessage) => ({
       action: actionConfig.action,
       params: {
         [actionConfig.idParam]: numericOrStringId(sessionKey.chatId),
         message: outboundMessage,
       },
-    };
+    }));
   }
 
   throw new Error(`OneBot channel cannot send to chat type "${sessionKey.type}"`);
 }
 
-async function buildOneBotSegments(
+async function buildOneBotMessages(
   message: Message,
   transport: OneBotActionTransport,
   logger: OneBotLogger | undefined,
   summary: ReturnType<typeof summarizeMessage>,
-): Promise<string | OneBotMessageSegment[]> {
+): Promise<Array<string | OneBotMessageSegment[]>> {
   const mediaComponents = message.components.filter(isMediaComponent);
 
   if (mediaComponents.length === 0) {
-    return getMessageText(message);
+    return [getMessageText(message)];
   }
 
   const segments: OneBotMessageSegment[] = [];
   const text = getMessageText(message);
-  if (text.length > 0) {
+  const shouldSplitText = mediaComponents.some((component) => component.type !== 'Image');
+  if (text.length > 0 && !shouldSplitText) {
     segments.push({ type: 'text', data: { text } });
   }
 
@@ -123,7 +126,7 @@ async function buildOneBotSegments(
     throw new Error('OneBot outbound message has no components to send');
   }
 
-  return segments;
+  return text.length > 0 && shouldSplitText ? [text, segments] : [segments];
 }
 
 function summarizeMessage(
