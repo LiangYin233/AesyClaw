@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  convertHtmlToImage,
   convertMarkdownToImage,
   handleMd2ImgSend,
   PlaywrightMarkdownRenderer,
@@ -255,5 +256,73 @@ describe('plugin_md2img', () => {
 
     await expect(renderPromise).resolves.toEqual(Buffer.from('png-bytes'));
     expect(harness.screenshot).toHaveBeenCalledOnce();
+  });
+
+  it('converts HTML into an image without debug diagnostics', async () => {
+    const logger = createLogger();
+    const pngBuffer = Buffer.from('png-html-bytes');
+    const result = await handleMd2ImgSend(
+      {
+        message: { components: [{ type: 'Plain', text: '<div><p>Hello</p></div>' }] },
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+      },
+      {
+        htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+        logger,
+        pluginConfig: { enabledChannels: ['onebot'] },
+        convertHtml: vi.fn(async () => pngBuffer),
+      },
+    );
+    expect(result).toEqual({
+      action: 'respond',
+      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
+    });
+    expect(logger.debug).not.toHaveBeenCalled();
+  });
+
+  it('handles mixed HTML and Markdown by using the Markdown path', async () => {
+    const logger = createLogger();
+    const pngBuffer = Buffer.from('png-combined-bytes');
+    const convertMd = vi.fn(async () => pngBuffer);
+    const convertHtml = vi.fn(async () => pngBuffer);
+    const result = await handleMd2ImgSend(
+      {
+        message: { components: [{ type: 'Plain', text: '<table><tr><td>content</td></tr></table>\n\n# 标题\n\n- 列表项' }] },
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+      },
+      {
+        htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+        logger,
+        pluginConfig: { enabledChannels: ['onebot'] },
+        convert: convertMd,
+        convertHtml,
+      },
+    );
+    expect(convertMd).toHaveBeenCalledOnce();
+    expect(convertHtml).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      action: 'respond',
+      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
+    });
+    expect(logger.debug).not.toHaveBeenCalled();
+  });
+
+  it('passes raw HTML into the renderer without markdown parsing', async () => {
+    const renderHtmlToPng = vi.fn(async (htmlDocument: string) => {
+      expect(htmlDocument).toContain('md2img-root');
+      expect(htmlDocument).toContain('<table>');
+      expect(htmlDocument).toContain('<tr><td>hello</td></tr>');
+      expect(htmlDocument).not.toContain('<p>'); // No markdown wrapping
+      return Buffer.from('png-bytes');
+    });
+
+    const png = await convertHtmlToImage(
+      '<table><tr><td>hello</td></tr></table>',
+      '<div id="md2img-root">{{content}}</div>',
+      { renderHtmlToPng },
+    );
+
+    expect(png).toEqual(Buffer.from('png-bytes'));
+    expect(renderHtmlToPng).toHaveBeenCalledOnce();
   });
 });

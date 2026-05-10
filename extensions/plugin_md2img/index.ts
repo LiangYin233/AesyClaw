@@ -13,13 +13,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');
 const FONT_PATH = resolve(__dirname, 'SourceHanSerif-VF.otf.woff2');
 
-// ─── Markdown detection ─────────────────────────────────────────
+// ─── Content detection ──────────────────────────────────────────
 
 const MARKDOWN_RE =
   /(?:^|\n)(?:\s*(?:#{1,6}|[*\-+]|\d+\.|```|>|---|\|))|[*_~]{2}|`{1,2}|\[.+?\]\(.+?\)|(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_)/;
 
 function isMarkdown(text: string): boolean {
   return MARKDOWN_RE.test(text);
+}
+
+const HTML_RE = /<\s*(?:html|head|body|div|p|span|h[1-6]|table|ul|ol|li|a|img|br|hr|pre|code|blockquote)\b/i;
+
+function isHtml(text: string): boolean {
+  return HTML_RE.test(text);
 }
 
 // ─── Document builder ───────────────────────────────────────────
@@ -121,6 +127,27 @@ export async function convertMarkdownToImage(
   return await render(htmlDocument);
 }
 
+/**
+ * 将 HTML 文本转换为 PNG 图片。
+ *
+ * 与 convertMarkdownToImage 不同，此函数直接使用原始 HTML，
+ * 不经过 marked 解析。
+ *
+ * @param htmlContent - HTML 文本
+ * @param htmlTemplate - HTML 模板
+ * @param deps - 可选依赖注入（自定义渲染器）
+ * @returns PNG 图片 Buffer
+ */
+export async function convertHtmlToImage(
+  htmlContent: string,
+  htmlTemplate: string,
+  deps?: { renderHtmlToPng?: (htmlDocument: string) => Promise<Buffer> },
+): Promise<Buffer> {
+  const htmlDocument = buildMarkdownDocument(htmlContent, htmlTemplate);
+  const render = deps?.renderHtmlToPng ?? ((doc: string) => getRenderer().renderHtmlToPng(doc));
+  return await render(htmlDocument);
+}
+
 // ─── Hook handler ───────────────────────────────────────────────
 
 function resolveEnabledChannels(config: Record<string, unknown>): string[] {
@@ -132,7 +159,7 @@ function resolveEnabledChannels(config: Record<string, unknown>): string[] {
 }
 
 /**
- * onSend 钩子处理函数。检测 Markdown 内容并渲染为图片后替换原消息。
+ * onSend 钩子处理函数。检测 Markdown / HTML 内容并渲染为图片后替换原消息。
  *
  * @param context - 发送上下文
  * @param deps - 依赖项（模板、日志、插件配置、转换函数）
@@ -145,13 +172,20 @@ export async function handleMd2ImgSend(
     logger: PluginContext['logger'];
     pluginConfig: Record<string, unknown>;
     convert?: typeof convertMarkdownToImage;
+    convertHtml?: typeof convertHtmlToImage;
   },
 ): Promise<PipelineResult> {
   const { message, sessionKey } = context;
   const { htmlTemplate: template, logger, pluginConfig: config } = deps;
 
   const text = getMessageText(message);
-  if (!template || !isMarkdown(text)) {
+  if (!template) {
+    return { action: 'continue' };
+  }
+
+  const isHtmlContent = isHtml(text);
+  const isMarkdownContent = isMarkdown(text);
+  if (!isHtmlContent && !isMarkdownContent) {
     return { action: 'continue' };
   }
 
@@ -161,8 +195,11 @@ export async function handleMd2ImgSend(
   }
 
   try {
-    const convert = deps.convert ?? convertMarkdownToImage;
-    const pngBuffer = await convert(text, template);
+    const convertMd = deps.convert ?? convertMarkdownToImage;
+    const convertHtml = deps.convertHtml ?? convertHtmlToImage;
+    const pngBuffer = isMarkdownContent
+      ? await convertMd(text, template)
+      : await convertHtml(text, template);
 
     return {
       action: 'respond',
@@ -184,7 +221,7 @@ const plugin: PluginDefinition = {
   name: 'md2img',
   version: '0.1.0',
   description:
-    'Detects Markdown in LLM output and sends it as a rendered image instead of raw text.',
+    'Detects Markdown / HTML in LLM output and sends it as a rendered image instead of raw text.',
   defaultConfig: { enabledChannels: ['*'] },
   hooks: {
     async onSend({ message, sessionKey }) {
