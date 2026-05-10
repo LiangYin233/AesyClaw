@@ -5,6 +5,11 @@
 import { parentPort, type MessagePort } from 'node:worker_threads';
 import { Agent as PiAgent, type AgentTool, type StreamFn } from '@mariozechner/pi-agent-core';
 import { streamSimple, type Api, type Context, type Message, type Model, type SimpleStreamOptions, type TSchema, type TextContent } from '@mariozechner/pi-ai';
+import type {
+  AgentWorkerToolDefinition,
+  HostToWorkerMessage,
+  WorkerToHostToolCallMessage,
+} from './agent-worker-ipc';
 
 /**
  * IPC 消息类型 — Worker 与主线程之间的通信协议。
@@ -13,47 +18,6 @@ import { streamSimple, type Api, type Context, type Message, type Model, type Si
  * - `toolCall`: Worker 向主线程请求执行工具
  * - `toolResult`: 主线程向 Worker 返回工具结果
  */
-
-/** 工具定义，由主线程序列化后传给 Worker */
-type ToolDef = {
-  name: string;
-  description: string;
-  parameters: unknown;
-};
-
-/** 工具调用请求消息（Worker → 主线程） */
-type IpcToolCallRequestMessage = {
-  type: 'toolCall';
-  callId: string;
-  toolName: string;
-  toolCallId: string;
-  params: unknown;
-};
-
-/** 工具调用结果消息（主线程 → Worker） */
-type IpcToolResultMessage = {
-  type: 'toolResult';
-  callId: string;
-  result?: unknown;
-  error?: string;
-  isError?: boolean;
-};
-
-/** Worker 初始化消息（主线程 → Worker），包含 Agent 启动所需的全部配置 */
-type IpcInitMessage = {
-  type: 'init';
-  systemPrompt: string;
-  model: Model<Api>;
-  apiKey: string;
-  tools: ToolDef[];
-  history: Message[];
-  content: string;
-  extraBody?: Record<string, unknown>;
-  sessionId?: string;
-};
-
-/** Worker 从主线程接收的 IPC 消息类型。 */
-type IpcFromHostMessage = IpcInitMessage | IpcToolResultMessage;
 
 /** 工具代理 — 将工具调用通过 IPC 委托给主线程执行 */
 type ToolProxy = {
@@ -76,41 +40,51 @@ const port: MessagePort = parent;
  * @param def - 工具定义（名称、描述、参数 Schema）
  * @returns 适配 PiAgent AgentTool 接口的代理对象
  */
-function createToolProxy(def: ToolDef): ToolProxy {
+function createHostBackedToolProxy(def: AgentWorkerToolDefinition): ToolProxy {
   return {
     name: def.name,
     label: def.name,
     description: def.description,
     parameters: def.parameters,
     execute: async (toolCallId: string, params: unknown): Promise<unknown> => {
-      const callId = crypto.randomUUID();
-      port.postMessage({
-        type: 'toolCall' satisfies IpcToolCallRequestMessage['type'],
-        callId,
-        toolName: def.name,
-        toolCallId,
-        params,
-      });
-      return await new Promise<unknown>((resolve, reject) => {
-        const handler = (msg: IpcFromHostMessage): void => {
-          if (msg.type === 'toolResult' && msg.callId === callId) {
-            port.removeListener('message', handler);
-            if (msg.error !== undefined && msg.isError === true) {
-              resolve({
-                content: [{ type: 'text' as const, text: msg.error }],
-                isError: true,
-              });
-            } else if (msg.error !== undefined) {
-              reject(new Error(msg.error));
-            } else {
-              resolve(msg.result);
-            }
-          }
-        };
-        port.on('message', handler);
-      });
+      return await requestHostToolExecution(def.name, toolCallId, params);
     },
   };
+}
+
+async function requestHostToolExecution(
+  toolName: string,
+  toolCallId: string,
+  params: unknown,
+): Promise<unknown> {
+  const callId = crypto.randomUUID();
+  const message: WorkerToHostToolCallMessage = {
+    type: 'toolCall',
+    callId,
+    toolName,
+    toolCallId,
+    params,
+  };
+  port.postMessage(message);
+
+  return await new Promise<unknown>((resolve, reject) => {
+    const handler = (msg: HostToWorkerMessage): void => {
+      if (msg.type !== 'toolResult' || msg.callId !== callId) return;
+
+      port.removeListener('message', handler);
+      if (msg.error !== undefined && msg.isError === true) {
+        resolve({
+          content: [{ type: 'text' as const, text: msg.error }],
+          isError: true,
+        });
+      } else if (msg.error !== undefined) {
+        reject(new Error(msg.error));
+      } else {
+        resolve(msg.result);
+      }
+    };
+    port.on('message', handler);
+  });
 }
 
 /**
@@ -183,7 +157,7 @@ function findLastAssistantText(messages: readonly Message[]): string | null {
  *
  * @param msg - 从主线程收到的 IPC 消息（仅处理 type === 'init' 的情况）
  */
-async function handleInit(msg: IpcFromHostMessage): Promise<void> {
+async function handleHostToWorkerInitMessage(msg: HostToWorkerMessage): Promise<void> {
   if (msg.type !== 'init') return;
 
   const {
@@ -197,7 +171,7 @@ async function handleInit(msg: IpcFromHostMessage): Promise<void> {
     sessionId,
   } = msg;
 
-  const agentTools = toolDefs.map(createToolProxy);
+  const agentTools = toolDefs.map(createHostBackedToolProxy);
   const tools = agentTools as unknown as AgentTool<TSchema, unknown>[];
   const agent = new PiAgent({
     initialState: {
@@ -232,6 +206,6 @@ async function handleInit(msg: IpcFromHostMessage): Promise<void> {
 /**
  * 接收主线程初始化消息并启动 Agent 执行。
  */
-port.on('message', (msg: IpcFromHostMessage) => {
-  void handleInit(msg);
+port.on('message', (msg: HostToWorkerMessage) => {
+  void handleHostToWorkerInitMessage(msg);
 });

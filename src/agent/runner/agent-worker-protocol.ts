@@ -3,6 +3,12 @@ import { extractMessageText, type AgentMessage, type AgentTool, type ResolvedMod
 import type { AgentRegistry } from '../agent-registry';
 import type { SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import type {
+  HostToWorkerInitMessage,
+  HostToWorkerToolResultMessage,
+  WorkerToHostMessage,
+  WorkerToHostToolCallMessage,
+} from './agent-worker-ipc';
 
 const logger = createScopedLogger('agent-worker-protocol');
 
@@ -38,48 +44,6 @@ export type WorkerRunResult = {
   newMessages: AgentMessage[];
   /** 最终助手文本；无可用文本时为 null。 */
   lastAssistant: string | null;
-};
-
-type WorkerDoneMessage = {
-  type: 'done';
-  newMessages?: unknown;
-  lastAssistant?: unknown;
-};
-
-export type WorkerToolCallMessage = {
-  /** Worker 请求主线程执行工具。 */
-  type: 'toolCall';
-  /** IPC 往返标识，用于将 toolResult 匹配回 Worker 内的等待调用。 */
-  callId: unknown;
-  /** 被调用的工具名称。 */
-  toolName: unknown;
-  /** LLM 侧工具调用 ID。 */
-  toolCallId: unknown;
-  /** 工具调用参数。 */
-  params: unknown;
-};
-
-type WorkerFatalMessage = {
-  type: 'fatal';
-  message?: unknown;
-};
-
-export type WorkerMessage = WorkerDoneMessage | WorkerToolCallMessage | WorkerFatalMessage;
-
-type WorkerInitMessage = {
-  type: 'init';
-  systemPrompt: string;
-  model: ResolvedModel;
-  apiKey: string | undefined;
-  tools: Array<{
-    name: string;
-    description: string;
-    parameters: unknown;
-  }>;
-  history: AgentMessage[];
-  content: string;
-  extraBody: ResolvedModel['extraBody'];
-  sessionId: string;
 };
 
 export type WorkerToolCallContext = {
@@ -124,8 +88,14 @@ export type WorkerRunPromiseHandlers = {
  * @param runId - 当前 Worker 运行标识
  * @returns Worker 初始化消息
  */
-export function buildWorkerInitMessage(params: WorkerRunParams, runId: string): WorkerInitMessage {
+export function createInitMessage(
+  params: WorkerRunParams,
+  runId: string,
+): HostToWorkerInitMessage {
   const { roleId, model, prompt, tools, history, content } = params;
+  if (!model.apiKey) {
+    throw new Error(`未为提供者 "${model.provider}" 配置 API 密钥`);
+  }
   return {
     type: 'init',
     systemPrompt: prompt,
@@ -153,7 +123,7 @@ export function buildWorkerInitMessage(params: WorkerRunParams, runId: string): 
 export async function handleWorkerMessage(
   context: WorkerRunContext,
   handlers: WorkerRunPromiseHandlers,
-  msg: WorkerMessage,
+  msg: WorkerToHostMessage,
 ): Promise<void> {
   if (msg.type === 'done') {
     context.markSettled();
@@ -171,7 +141,7 @@ export async function handleWorkerMessage(
   }
 
   if (msg.type === 'toolCall') {
-    await handleToolCallMessage(context, msg);
+    await handleToolCall(context, msg);
     return;
   }
 
@@ -218,9 +188,9 @@ export function calculateToolResultBudget(
  * @param context - 工具调用上下文
  * @param msg - 工具调用 IPC 消息
  */
-async function handleToolCallMessage(
+async function handleToolCall(
   context: WorkerToolCallContext,
-  msg: WorkerToolCallMessage,
+  msg: WorkerToHostToolCallMessage,
 ): Promise<void> {
   const toolName = String(msg.toolName);
   const tool = context.toolMap.get(toolName);
@@ -260,12 +230,13 @@ async function handleToolCallMessage(
  * @param isError - 是否标记为模型可见的工具错误
  */
 function postToolError(worker: Worker, callId: unknown, error: string, isError?: true): void {
-  worker.postMessage({
+  const message: HostToWorkerToolResultMessage = {
     type: 'toolResult',
     callId,
     error,
     ...(isError === true ? { isError } : {}),
-  });
+  };
+  worker.postMessage(message);
 }
 
 /**

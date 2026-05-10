@@ -2,13 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import {
-  buildWorkerInitMessage,
   calculateToolResultBudget,
+  createInitMessage,
   handleWorkerMessage,
-  type WorkerMessage,
   type WorkerRunParams,
   type WorkerRunResult,
 } from './agent-worker-protocol';
+import type { WorkerToHostMessage } from './agent-worker-ipc';
 
 export type { WorkerRunParams, WorkerRunResult } from './agent-worker-protocol';
 
@@ -52,7 +52,7 @@ export function runWorkerTask(params: WorkerRunParams): Promise<WorkerRunResult>
       reject(new Error('Agent 处理已中止'));
     };
 
-    const onMessage = (msg: WorkerMessage): void => {
+    const onMessage = (msg: WorkerToHostMessage): void => {
       void handleWorkerMessage(
         {
           worker,
@@ -75,6 +75,6 @@ export function runWorkerTask(params: WorkerRunParams): Promise<WorkerRunResult>
     worker.on('error', onError);
     worker.on('exit', onExit);
 
-    worker.postMessage(buildWorkerInitMessage(params, runId));
+    worker.postMessage(createInitMessage(params, runId));
   });
 }
