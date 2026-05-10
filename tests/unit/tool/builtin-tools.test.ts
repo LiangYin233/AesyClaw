@@ -512,6 +512,49 @@ describe('built-in tools', () => {
     });
   });
 
+  it('run_temp_sub_agent blocks nested delegation tools when inheriting wildcard permissions', async () => {
+    const callLLM = vi
+      .fn()
+      .mockResolvedValue({ newMessages: [], lastAssistant: 'temporary answer' });
+    const roleManager = {
+      getDefaultRole: vi.fn().mockReturnValue({
+        id: 'default',
+        name: 'Default',
+        description: 'Default role',
+        systemPrompt: 'You are helpful.',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist' as const, list: ['*'] },
+        skills: ['*'] as ['*'],
+        enabled: true,
+      }),
+    };
+    const tool = createRunTempSubAgentTool({ callLLM, roleManager });
+
+    await expect(
+      tool.execute(
+        { systemPrompt: 'You are concise.', prompt: 'Summarize this.' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+          toolPermission: { mode: 'allowlist', list: ['*'] },
+        },
+      ),
+    ).resolves.toEqual({ content: 'temporary answer' });
+
+    expect(callLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolPermission: {
+          mode: 'denylist',
+          list: ['run_sub_agent', 'run_temp_sub_agent', 'send_msg'],
+        },
+      }),
+      'Summarize this.',
+      [],
+      SESSION_KEY,
+    );
+  });
+
   it('speech_to_text loads local audio and returns a transcription', async () => {
     vi.stubGlobal(
       'fetch',

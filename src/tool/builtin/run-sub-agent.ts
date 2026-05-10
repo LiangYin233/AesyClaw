@@ -114,8 +114,7 @@ export function createRunTempSubAgentTool(deps: {
           { systemPrompt, model },
           context.toolPermission,
         );
-        const role =
-          enableTools === false ? applyToolOverride(roleWithPerms, false) : roleWithPerms;
+        const role = applyToolOverride(roleWithPerms, enableTools);
 
         const result = await deps.callLLM(role, prompt, [], context.sessionKey);
         return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
