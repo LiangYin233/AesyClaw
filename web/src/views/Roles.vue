@@ -116,6 +116,18 @@
                 </div>
               </div>
 
+              <div class="mb-5">
+                <label
+                  class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
+                  >System Prompt</label
+                >
+                <textarea
+                  v-model="form.systemPrompt"
+                  class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[160px] resize-y leading-relaxed font-mono"
+                  rows="8"
+                />
+              </div>
+
               <div class="flex gap-4 items-end mb-5">
                 <div class="flex-1">
                   <label
