@@ -79,6 +79,8 @@ export class Agent {
   private hookDispatcher: HookDispatcher;
   private registry: AgentRegistry;
 
+  private _cachedSystemPrompt: string | null = null;
+
   /**
    * @param options - Agent 构造选项
    */
@@ -131,6 +133,7 @@ export class Agent {
     this._model = this.llmAdapter.resolveModel(role.model);
 
     this.roleId = role.id;
+    this._cachedSystemPrompt = null;
   }
 
   /**
@@ -205,7 +208,11 @@ export class Agent {
       toolPermission: role.toolPermission,
     };
 
-    const { prompt, tools } = this.buildPrompt(role, executionContext);
+    const { prompt: builtPrompt, tools } = this.buildPrompt(role, executionContext);
+    const prompt = this._cachedSystemPrompt ?? builtPrompt;
+    if (this._cachedSystemPrompt === null) {
+      this._cachedSystemPrompt = builtPrompt;
+    }
     const model = this.llmAdapter.resolveModel(role.model);
 
     return await runAgentTask({
