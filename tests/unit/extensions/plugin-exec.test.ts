@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import plugin, {
   createExecTool,
   executeCommand,
+  smartDecodeOutput,
   type ExecResultDetails,
 } from '../../../extensions/plugin_exec/index';
 import type { Logger } from '../../../src/core/logger';
@@ -177,6 +178,38 @@ describe('plugin_exec', () => {
     expect(result.content).toContain('你好，世界');
   });
 
+  it('passes Python UTF-8 environment variables to child processes', async () => {
+    const repoRoot = await makeRepoRoot();
+    const result = await executeCommand(
+      { command: nodeEnvCommand() },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
+    );
+    const details = result.details as ExecResultDetails;
+
+    expect(result.isError).toBe(false);
+    expect(details.stdout.trim()).toBe('utf-8|1');
+  });
+
+  it('decodes Windows GB18030 output when UTF-8 decoding fails', () => {
+    const gb18030NiHao = Buffer.from([0xc4, 0xe3, 0xba, 0xc3]);
+
+    expect(smartDecodeOutput(gb18030NiHao, 'win32')).toBe('你好');
+  });
+
+  it('does not truncate large command output', async () => {
+    const repoRoot = await makeRepoRoot();
+    const payload = 'x'.repeat(40_000);
+    const result = await executeCommand(
+      { command: printLiteralCommand(payload) },
+      { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
+    );
+    const details = result.details as ExecResultDetails;
+
+    expect(result.isError).toBe(false);
+    expect(details.stdout.trim()).toBe(payload);
+    expect(details.stdout).not.toContain('truncated');
+  });
+
   it('uses PowerShell on Windows and bash otherwise', () => {
     const tool = createExecTool(path.join(tmpdir(), 'aesyclaw-exec-tool-test'));
 
@@ -236,6 +269,21 @@ function childProcessTimeoutCommand(readyPath: string, markerPath: string): stri
 
 function chineseCommand(): string {
   return isWindows ? "Write-Output '你好，世界'" : "printf '你好，世界\\n'";
+}
+
+function nodeEnvCommand(): string {
+  const script = "console.log(`${process.env.PYTHONIOENCODING ?? ''}|${process.env.PYTHONUTF8 ?? ''}`)";
+  return nodeCommand(script);
+}
+
+function printLiteralCommand(value: string): string {
+  return nodeCommand(`console.log('x'.repeat(${value.length}))`);
+}
+
+function nodeCommand(script: string): string {
+  return isWindows
+    ? `& ${psQuote(process.execPath)} -e ${psQuote(script)}`
+    : `${shQuote(process.execPath)} -e ${shQuote(script)}`;
 }
 
 function psQuote(value: string): string {

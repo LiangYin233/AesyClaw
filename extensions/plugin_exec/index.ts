@@ -68,9 +68,12 @@ export async function executeCommand(
   const cwd = resolveExecutionCwd(params.cwd, options.workspaceDir);
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const shell = createShellInvocation(params.command, platform);
-  let stdout = '';
-  let stderr = '';
+  const stdoutChunks: Buffer[] = [];
+  const stderrChunks: Buffer[] = [];
   let timedOut = false;
+
+  const getStdout = (): string => smartDecodeOutput(Buffer.concat(stdoutChunks), platform);
+  const getStderr = (): string => smartDecodeOutput(Buffer.concat(stderrChunks), platform);
 
   if (!params.cwd) {
     try {
@@ -87,8 +90,8 @@ export async function executeCommand(
         timedOut,
         timeoutMs,
         durationMs: Date.now() - startedAt,
-        stdout,
-        stderr,
+        stdout: getStdout(),
+        stderr: getStderr(),
         error: getErrorMessage(err),
       });
     }
@@ -101,6 +104,11 @@ export async function executeCommand(
         return spawn(shell.command, shell.args, {
           cwd,
           detached: platform !== 'win32',
+          env: {
+            ...process.env,
+            PYTHONIOENCODING: 'utf-8',
+            PYTHONUTF8: '1',
+          },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
         });
@@ -118,8 +126,8 @@ export async function executeCommand(
             timedOut,
             timeoutMs,
             durationMs: Date.now() - startedAt,
-            stdout,
-            stderr,
+            stdout: getStdout(),
+            stderr: getStderr(),
             error: getErrorMessage(err),
           }),
         );
@@ -131,13 +139,11 @@ export async function executeCommand(
       return;
     }
 
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => {
-      stdout += chunk;
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      stdoutChunks.push(toBuffer(chunk));
     });
-    child.stderr.on('data', (chunk: string) => {
-      stderr += chunk;
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      stderrChunks.push(toBuffer(chunk));
     });
 
     const timeout = setTimeout(() => {
@@ -163,8 +169,8 @@ export async function executeCommand(
           timedOut,
           timeoutMs,
           durationMs: Date.now() - startedAt,
-          stdout,
-          stderr,
+          stdout: getStdout(),
+          stderr: getStderr(),
           error: err.message,
         }),
       );
@@ -188,8 +194,8 @@ export async function executeCommand(
           timedOut,
           timeoutMs,
           durationMs: Date.now() - startedAt,
-          stdout,
-          stderr,
+          stdout: getStdout(),
+          stderr: getStderr(),
         }),
       );
     });
@@ -243,8 +249,8 @@ function createShellInvocation(
 ): { name: 'powershell' | 'bash'; command: string; args: string[] } {
   if (platform === 'win32') {
     const utf8Command =
-      '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); ' +
-      '$OutputEncoding = [Console]::OutputEncoding; ' +
+      '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ' +
+      '$OutputEncoding = [System.Text.Encoding]::UTF8; ' +
       'chcp 65001 > $null; ' +
       command;
     return {
@@ -319,6 +325,32 @@ function makeToolResult(details: ExecResultDetails): ToolExecutionResult {
     details,
     isError: failed,
   };
+}
+
+function toBuffer(chunk: Buffer | string): Buffer {
+  return typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+}
+
+export function smartDecodeOutput(buf: Buffer, platform: NodeJS.Platform = process.platform): string {
+  if (buf.length === 0) {
+    return '';
+  }
+
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    // Fall through to Windows codepage fallback.
+  }
+
+  if (platform === 'win32') {
+    try {
+      return new TextDecoder('gb18030').decode(buf);
+    } catch {
+      // Fall through to lossy UTF-8 fallback.
+    }
+  }
+
+  return buf.toString('utf8');
 }
 
 function formatResultContent(details: ExecResultDetails): string {
