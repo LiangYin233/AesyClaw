@@ -40,7 +40,8 @@
           <tr
             v-for="skill in skills"
             :key="skill.name"
-            class="bg-[#FDFBF9] transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
+            class="cursor-pointer bg-[#FDFBF9] transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
+            @click="openDrawer(skill.name)"
           >
             <td
               class="px-4 py-3 border-b border-[var(--color-border)] font-heading font-medium text-dark"
@@ -71,11 +72,66 @@
         </tbody>
       </table>
     </div>
+
+    <Teleport to="body">
+      <Transition name="drawer">
+        <div
+          v-if="drawerOpen"
+          class="fixed inset-0 bg-[rgba(20,20,19,0.25)] backdrop-blur-sm z-[100] flex justify-end"
+          @click.self="closeDrawer"
+        >
+          <div
+            class="w-full max-w-[640px] h-full bg-light border-l border-[var(--color-border)] flex flex-col shadow-[-10px_0_30px_rgba(20,20,19,0.08)]"
+          >
+            <div
+              class="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)] shrink-0"
+            >
+              <div class="flex items-center gap-3">
+                <h3 class="font-heading text-lg font-semibold text-dark">
+                  {{ activeSkillName }}
+                </h3>
+                <span
+                  v-if="activeSkill?.isSystem"
+                  class="inline-flex items-center px-2 py-[0.15rem] rounded font-heading text-[0.7rem] font-medium lowercase bg-[rgba(106,155,204,0.12)] text-[#4a7aa8]"
+                >
+                  system
+                </span>
+                <span
+                  v-else-if="activeSkill"
+                  class="inline-flex items-center px-2 py-[0.15rem] rounded font-heading text-[0.7rem] font-medium lowercase bg-[rgba(120,140,93,0.12)] text-[#5a6e47]"
+                >
+                  user
+                </span>
+              </div>
+              <button
+                class="bg-none border-none cursor-pointer text-mid-gray p-1 flex items-center justify-center rounded transition-all duration-[0.15s] ease hover:bg-light-gray hover:text-dark"
+                @click="closeDrawer"
+              >
+                <XMarkIcon class="w-[18px] h-[18px]" />
+              </button>
+            </div>
+
+            <div class="flex-1 overflow-auto p-6">
+              <div v-if="loadingContent" class="flex items-center justify-center h-full">
+                <span class="text-mid-gray font-body text-sm">Loading...</span>
+              </div>
+              <div v-else-if="skillContent" class="bg-dark text-light rounded-sm p-5 overflow-auto max-h-full">
+                <pre class="font-mono text-[0.8rem] leading-relaxed whitespace-pre-wrap break-words m-0">{{ skillContent }}</pre>
+              </div>
+              <div v-else class="flex items-center justify-center h-full">
+                <span class="text-mid-gray font-body text-sm">Failed to load skill content.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { XMarkIcon } from '@heroicons/vue/24/outline';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 
@@ -89,6 +145,12 @@ interface Skill {
 }
 
 const skills = ref<Skill[]>([]);
+const drawerOpen = ref(false);
+const activeSkillName = ref('');
+const skillContent = ref('');
+const loadingContent = ref(false);
+
+const activeSkill = ref<Skill | null>(null);
 
 async function fetchSkills() {
   const data = await ws.send('get_skills');
@@ -106,6 +168,32 @@ async function reloadSkills() {
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Reload failed');
   }
+}
+
+async function openDrawer(name: string) {
+  activeSkillName.value = name;
+  activeSkill.value = skills.value.find((s) => s.name === name) ?? null;
+  drawerOpen.value = true;
+  loadingContent.value = true;
+  skillContent.value = '';
+
+  try {
+    const result = (await ws.send('get_skill_content', { name })) as {
+      name: string;
+      content: string;
+    };
+    skillContent.value = result.content ?? '';
+  } catch {
+    skillContent.value = '';
+  } finally {
+    loadingContent.value = false;
+  }
+}
+
+function closeDrawer() {
+  drawerOpen.value = false;
+  activeSkill.value = null;
+  skillContent.value = '';
 }
 
 onMounted(fetchSkills);

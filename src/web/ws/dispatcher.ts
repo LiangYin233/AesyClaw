@@ -138,6 +138,17 @@ export async function dispatchMessage(
         const newCount = deps.skillManager.getAllSkills().length;
         return okResponse(msg, { message: `技能已重新加载。${reloadCount} → ${newCount}` });
       }
+      case 'get_skill_content': {
+        const data = msg.data as { name: string };
+        if (!data?.name) {
+          return errorResponse(msg, '缺少技能名称');
+        }
+        const skill = deps.skillManager.getSkill(data.name);
+        if (!skill) {
+          return errorResponse(msg, `技能 "${data.name}" 未找到`);
+        }
+        return okResponse(msg, { name: skill.name, content: skill.content });
+      }
 
       default:
         logger.warn('未知消息类型', { type: msg.type });
