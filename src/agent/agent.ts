@@ -13,7 +13,7 @@ import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
-import { runWorkerTask } from './runner/agent-worker-host';
+import { runAgentTask } from './runner/agent-runner';
 import { buildAgentPrompt } from './agent-prompt';
 
 const logger = createScopedLogger('agent');
@@ -183,7 +183,7 @@ export class Agent {
   }
 
   /**
-   * 调用 LLM，在 Worker 线程中执行提示循环。
+   * 调用 LLM，异步执行提示循环。
    *
    * @param role - 角色配置
    * @param content - 用户输入文本
@@ -208,7 +208,7 @@ export class Agent {
     const { prompt, tools } = this.buildPrompt(role, executionContext);
     const model = this.llmAdapter.resolveModel(role.model);
 
-    return await runWorkerTask({
+    return await runAgentTask({
       roleId: role.id,
       model,
       prompt,

@@ -1,4 +1,3 @@
-import type { Worker } from 'node:worker_threads';
 import type { SessionKey } from '@aesyclaw/core/types';
 import { serializeSessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -6,12 +5,16 @@ import type { Agent } from './agent';
 
 const logger = createScopedLogger('agent-registry');
 
+export type AgentRunHandle = {
+  cancel: () => void;
+};
+
 /**
- * Agent 注册中心，管理 Agent 实例和 Worker 线程的生命周期。
+ * Agent 注册中心，管理 Agent 实例和运行任务的生命周期。
  */
 export class AgentRegistry {
   private readonly agents = new Map<string, Agent>();
-  private readonly workers = new Map<string, { worker: Worker; sessionKeyId: string }>();
+  private readonly runs = new Map<string, { run: AgentRunHandle; sessionKeyId: string }>();
 
   /**
    * 注册 Agent 实例。
@@ -34,61 +37,61 @@ export class AgentRegistry {
   }
 
   /**
-   * 注册 Worker 线程，关联到指定的 runId 和会话。
+   * 注册 Agent 运行，关联到指定的 runId 和会话。
    *
    * @param runId - 运行标识
-   * @param worker - Worker 线程实例
+   * @param run - 可取消的 Agent 运行句柄
    * @param sessionKey - 会话标识
    */
-  registerWorker(runId: string, worker: Worker, sessionKey: SessionKey): void {
-    this.workers.set(runId, { worker, sessionKeyId: serializeSessionKey(sessionKey) });
+  registerRun(runId: string, run: AgentRunHandle, sessionKey: SessionKey): void {
+    this.runs.set(runId, { run, sessionKeyId: serializeSessionKey(sessionKey) });
   }
 
   /**
-   * 取消注册 Worker 线程。仅当 runId 和 worker 实例匹配时才移除。
+   * 取消注册 Agent 运行。仅当 runId 和运行句柄匹配时才移除。
    *
    * @param runId - 运行标识
-   * @param worker - Worker 线程实例
+   * @param run - Agent 运行句柄
    */
-  unregisterWorker(runId: string, worker: Worker): void {
-    const entry = this.workers.get(runId);
-    if (entry?.worker === worker) {
-      this.workers.delete(runId);
+  unregisterRun(runId: string, run: AgentRunHandle): void {
+    const entry = this.runs.get(runId);
+    if (entry?.run === run) {
+      this.runs.delete(runId);
     }
   }
 
   /**
-   * 取消指定会话下的所有 Worker 线程。
+   * 取消指定会话下的所有 Agent 运行。
    *
    * @param sessionKey - 会话标识
-   * @returns 如果有 Worker 被取消则返回 true
+   * @returns 如果有运行任务被取消则返回 true
    */
   cancel(sessionKey: SessionKey): boolean {
-    const cancelledWorkers = this.cancelWorkersForSession(sessionKey);
-    if (cancelledWorkers === 0) return false;
-    logger.info('Agent 已被 /stop 命令中止', { sessionKey, cancelledWorkers });
+    const cancelledRuns = this.cancelRunsForSession(sessionKey);
+    if (cancelledRuns === 0) return false;
+    logger.info('Agent 已被 /stop 命令中止', { sessionKey, cancelledRuns });
     return true;
   }
 
   /**
-   * 终止指定会话下的所有 Worker 线程。
+   * 取消指定会话下的所有 Agent 运行。
    *
    * @param sessionKey - 会话标识
-   * @returns 被取消的 Worker 数量
+   * @returns 被取消的运行数量
    */
-  private cancelWorkersForSession(sessionKey: SessionKey): number {
+  private cancelRunsForSession(sessionKey: SessionKey): number {
     const serialized = serializeSessionKey(sessionKey);
     let cancelled = 0;
 
-    for (const [runId, entry] of this.workers) {
+    for (const [runId, entry] of this.runs) {
       if (entry.sessionKeyId !== serialized) continue;
-      this.workers.delete(runId);
-      void entry.worker.terminate();
+      this.runs.delete(runId);
+      entry.run.cancel();
       cancelled += 1;
     }
 
     if (cancelled > 0) {
-      logger.info('Agent worker 已取消', { sessionKey, cancelledWorkers: cancelled });
+      logger.info('Agent 运行已取消', { sessionKey, cancelledRuns: cancelled });
     }
 
     return cancelled;
