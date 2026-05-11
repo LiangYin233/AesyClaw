@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { Agent as PiAgent, type AgentTool as PiAgentTool, type StreamFn } from '@mariozechner/pi-agent-core';
+import {
+  Agent as PiAgent,
+  type AfterToolCallContext,
+  type AfterToolCallResult,
+  type AgentTool as PiAgentTool,
+  type StreamFn,
+} from '@mariozechner/pi-agent-core';
 import {
   streamSimple,
   type Api,
@@ -123,7 +129,7 @@ type PiAgentToolAdapter = {
   label: string;
   description: string;
   parameters: unknown;
-  execute: (toolCallId: string, params: unknown) => Promise<unknown>;
+  execute: (toolCallId: string, params: unknown, signal?: AbortSignal) => Promise<unknown>;
 };
 
 export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResult> {
@@ -135,37 +141,36 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
 
   const runId = randomUUID();
   const abortController = new AbortController();
+  const toolResultBudget = calculateToolResultBudget(
+    model,
+    compressionThreshold,
+    history,
+    content,
+  );
+  const agentTools = toolDefs.map((tool) => adaptToolForPiAgent(tool, abortController.signal));
+  const agent = new PiAgent({
+    initialState: {
+      systemPrompt: params.prompt,
+      model,
+      tools: agentTools as unknown as PiAgentTool<TSchema, unknown>[],
+      messages: history,
+    },
+    streamFn: createStreamFn(model.apiKey, model.extraBody),
+    getApiKey: () => model.apiKey,
+    sessionId: createProviderCacheKey(sessionKey),
+    afterToolCall: createToolResultBudgetHandler(toolResultBudget),
+  });
   const runHandle: AgentRunHandle = {
     cancel: () => {
       if (!abortController.signal.aborted) {
         abortController.abort(new AgentRunCancelledError());
       }
+      agent.abort();
     },
   };
   registry.registerRun(runId, runHandle, sessionKey);
 
   try {
-    const toolResultBudget = calculateToolResultBudget(
-      model,
-      compressionThreshold,
-      history,
-      content,
-    );
-    const agentTools = toolDefs.map((tool) =>
-      adaptToolForPiAgent(tool, toolResultBudget, abortController.signal),
-    );
-    const agent = new PiAgent({
-      initialState: {
-        systemPrompt: params.prompt,
-        model,
-        tools: agentTools as unknown as PiAgentTool<TSchema, unknown>[],
-        messages: history,
-      },
-      streamFn: createStreamFn(model.apiKey, model.extraBody),
-      getApiKey: () => model.apiKey,
-      sessionId: createProviderCacheKey(sessionKey),
-    });
-
     throwIfCancelled(abortController.signal);
     await agent.prompt(content);
     await agent.waitForIdle();
@@ -190,29 +195,53 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
   }
 }
 
-function adaptToolForPiAgent(
-  tool: AgentTool,
-  toolResultBudget: { maxToolResultTokens: number; maxToolResultChars: number },
-  signal: AbortSignal,
-): PiAgentToolAdapter {
+function adaptToolForPiAgent(tool: AgentTool, signal: AbortSignal): PiAgentToolAdapter {
   return {
     name: tool.name,
     label: tool.name,
     description: tool.description,
     parameters: tool.parameters,
-    execute: async (toolCallId: string, params: unknown): Promise<AgentToolResult> => {
+    execute: async (toolCallId: string, params: unknown, piSignal?: AbortSignal): Promise<AgentToolResult> => {
+      const toolSignal = piSignal ?? signal;
       throwIfCancelled(signal);
-      const result = await tool.execute(toolCallId, params, signal);
+      throwIfCancelled(toolSignal);
+
+      const result = await tool.execute(toolCallId, params, toolSignal);
+
       throwIfCancelled(signal);
+      throwIfCancelled(toolSignal);
 
       if (result.isError) {
         const errorContent = result.content.map((content) => content.text).join('\n');
         logger.error('工具调用返回错误', { toolName: tool.name, error: errorContent });
-        return result;
       }
 
-      return limitToolResultContent(result, toolResultBudget);
+      return result;
     },
+  };
+}
+
+function createToolResultBudgetHandler(
+  toolResultBudget: { maxToolResultTokens: number; maxToolResultChars: number },
+): (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined> {
+  return async (context, signal) => {
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : new AgentRunCancelledError();
+    }
+
+    const result = context.result as AgentToolResult;
+    if (context.isError || result.isError) return undefined;
+
+    const limited = limitToolResultContent(result, toolResultBudget);
+    if (limited === result) return undefined;
+
+    const override: AfterToolCallResult = {
+      content: limited.content,
+      details: limited.details,
+    };
+    if (limited.isError !== undefined) override.isError = limited.isError;
+    if (limited.terminate !== undefined) override.terminate = limited.terminate;
+    return override;
   };
 }
 

@@ -16,23 +16,37 @@ const runnerMock = vi.hoisted(() => {
     return { promise, resolve, reject };
   }
 
-  const instances: Array<{
-    state: { messages: unknown[] };
-    options: {
-      initialState: { model: unknown; messages: unknown[]; tools: Array<{ execute: (...args: unknown[]) => Promise<unknown> }> };
-      streamFn: (model: unknown, context: unknown, options?: unknown) => unknown;
-      sessionId: string;
+  const instances: MockPiAgent[] = [];
+
+  type MockAgentOptions = {
+    initialState: {
+      model: unknown;
+      messages: unknown[];
+      tools: Array<{ execute: (...args: unknown[]) => Promise<unknown> }>;
     };
-    promptDeferred: ReturnType<typeof defer<void>>;
-    toolResult?: unknown;
-    finish: (newMessages?: unknown[]) => void;
-  }> = [];
+    streamFn: (model: unknown, context: unknown, options?: unknown) => unknown;
+    sessionId: string;
+    afterToolCall?: (context: {
+      result: unknown;
+      isError: boolean;
+      toolCall: { id: string; name: string };
+      args: unknown;
+      context: unknown;
+    }, signal?: AbortSignal) => Promise<Record<string, unknown> | undefined>;
+  };
 
   class MockPiAgent {
     state: { messages: unknown[] };
-    options: (typeof instances)[number]['options'];
+    options: MockAgentOptions;
     promptDeferred = defer<void>();
+    rawToolResult?: unknown;
     toolResult?: unknown;
+    afterToolCallCalls: Array<{ result: unknown; override: unknown }> = [];
+    abort = vi.fn(() => {
+      this.abortController.abort();
+    });
+    waitForIdle = vi.fn(async () => {});
+    private readonly abortController = new AbortController();
 
     constructor(options: MockPiAgent['options']) {
       this.options = options;
@@ -48,7 +62,18 @@ const runnerMock = vi.hoisted(() => {
       if (content === 'call-tool') {
         const tool = this.options.initialState.tools[0];
         if (!tool) throw new Error('Expected a tool');
-        this.toolResult = await tool.execute('call_1', {});
+        const rawResult = await tool.execute('call_1', {}, this.abortController.signal);
+        this.rawToolResult = rawResult;
+        const resultRecord = rawResult as Record<string, unknown>;
+        const override = await this.options.afterToolCall?.({
+          result: rawResult,
+          isError: resultRecord['isError'] === true,
+          toolCall: { id: 'call_1', name: 'big_tool' },
+          args: {},
+          context: { messages: this.state.messages, tools: this.options.initialState.tools },
+        }, this.abortController.signal);
+        this.afterToolCallCalls.push({ result: rawResult, override });
+        this.toolResult = override ? { ...resultRecord, ...override } : rawResult;
         this.state.messages = [
           ...this.options.initialState.messages,
           { role: 'assistant', content: [{ type: 'text', text: 'tool done' }], stopReason: 'stop' },
@@ -58,8 +83,6 @@ const runnerMock = vi.hoisted(() => {
 
       await this.promptDeferred.promise;
     }
-
-    async waitForIdle(): Promise<void> {}
 
     finish(newMessages: unknown[] = [
       { role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop' },
@@ -162,6 +185,7 @@ describe('agent runner', () => {
     await Promise.resolve();
 
     expect(registry.cancel(sessionKey)).toBe(true);
+    expect(runnerMock.instances[0]?.abort).toHaveBeenCalledTimes(1);
 
     runnerMock.instances[0]?.finish([
       { role: 'assistant', content: [{ type: 'text', text: 'late' }], stopReason: 'stop' },
@@ -170,7 +194,7 @@ describe('agent runner', () => {
     await expect(turn).resolves.toEqual({ newMessages: [], lastAssistant: null });
   });
 
-  it('passes cancellation signals to tools and truncates oversized tool results', async () => {
+  it('passes PiAgent cancellation signals to tools and trims oversized successful tool results after execution', async () => {
     let receivedSignal: AbortSignal | undefined;
     const turn = runAgentTask(
       makeRunParams({
@@ -208,6 +232,62 @@ describe('agent runner', () => {
         truncatedContentLength: 168,
       }),
     });
+    expect(runnerMock.instances[0]?.rawToolResult).toMatchObject({
+      content: [{ type: 'text', text: 'x'.repeat(400) }],
+      details: { source: 'test' },
+    });
+    expect(runnerMock.instances[0]?.afterToolCallCalls).toHaveLength(1);
+    expect(runnerMock.instances[0]?.afterToolCallCalls[0]?.override).toMatchObject({
+      content: [{ type: 'text', text: 'x'.repeat(168) }],
+      details: expect.objectContaining({
+        truncated: true,
+        originalContentLength: 400,
+        truncatedContentLength: 168,
+      }),
+    });
+  });
+
+  it('does not trim oversized tool error results in afterToolCall', async () => {
+    const turn = runAgentTask(
+      makeRunParams({
+        content: 'call-tool',
+        model: {
+          ...makeRunParams().model,
+          contextWindow: 100,
+        },
+        compressionThreshold: 1,
+        tools: [
+          {
+            name: 'big_tool',
+            label: 'big_tool',
+            description: 'returns too much error text',
+            parameters: {},
+            execute: vi.fn().mockResolvedValue({
+              content: [{ type: 'text', text: 'e'.repeat(400) }],
+              details: { source: 'test' },
+              isError: true,
+            }),
+          },
+        ],
+      }),
+    );
+
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'tool done' });
+    expect(runnerMock.instances[0]?.toolResult).toMatchObject({
+      content: [{ type: 'text', text: 'e'.repeat(400) }],
+      details: { source: 'test' },
+      isError: true,
+    });
+  });
+
+  it('waits for PiAgent idle before returning successful runs', async () => {
+    const turn = runAgentTask(makeRunParams());
+    await Promise.resolve();
+
+    runnerMock.instances[0]?.finish();
+
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'ok' });
+    expect(runnerMock.instances[0]?.waitForIdle).toHaveBeenCalledTimes(1);
   });
 
   it('keeps OpenAI-compatible prompt cache defaults', async () => {
