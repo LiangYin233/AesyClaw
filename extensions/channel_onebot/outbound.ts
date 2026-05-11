@@ -88,10 +88,6 @@ async function buildOneBotMessages(
 
   const segments: OneBotMessageSegment[] = [];
   const text = getMessageText(message);
-  const shouldSplitText = mediaComponents.some((component) => component.type !== 'Image');
-  if (text.length > 0 && !shouldSplitText) {
-    segments.push({ type: 'text', data: { text } });
-  }
 
   for (const [attachmentIndex, component] of mediaComponents.entries()) {
     let uploaded: UploadedAttachment | undefined;
@@ -126,7 +122,7 @@ async function buildOneBotMessages(
     throw new Error('OneBot outbound message has no components to send');
   }
 
-  return text.length > 0 && shouldSplitText ? [text, segments] : [segments];
+  return text.length > 0 ? [text, segments] : [segments];
 }
 
 function summarizeMessage(

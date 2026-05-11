@@ -258,8 +258,11 @@ describe('channel_onebot', () => {
     );
     expect(sendAction).toHaveBeenNthCalledWith(3, 'send_group_msg', {
       group_id: 67890,
+      message: 'hello',
+    });
+    expect(sendAction).toHaveBeenNthCalledWith(4, 'send_group_msg', {
+      group_id: 67890,
       message: [
-        { type: 'text', data: { text: 'hello' } },
         {
           type: 'image',
           data: {
@@ -329,7 +332,7 @@ describe('channel_onebot', () => {
     });
   });
 
-  it('keeps text and image attachments in a single OneBot action', async () => {
+  it('sends text and image attachments in separate OneBot actions', async () => {
     const sendAction = vi.fn(async (action: string, params: Record<string, unknown>) => {
       if (action === 'upload_file_stream' && params.is_complete === true) {
         return {
@@ -368,8 +371,11 @@ describe('channel_onebot', () => {
 
     expect(sendAction).toHaveBeenNthCalledWith(3, 'send_group_msg', {
       group_id: 67890,
+      message: 'please see image',
+    });
+    expect(sendAction).toHaveBeenNthCalledWith(4, 'send_group_msg', {
+      group_id: 67890,
       message: [
-        { type: 'text', data: { text: 'please see image' } },
         {
           type: 'image',
           data: {
@@ -380,7 +386,7 @@ describe('channel_onebot', () => {
         },
       ],
     });
-    expect(sendAction).toHaveBeenCalledTimes(3);
+    expect(sendAction).toHaveBeenCalledTimes(4);
   });
 
   it.each([
