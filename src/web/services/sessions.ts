@@ -32,3 +32,26 @@ export async function getSessionMessages(
   const messages = await deps.databaseManager.messages.loadHistory(sessionId);
   return messages;
 }
+
+/**
+ * 清空指定会话的消息历史。
+ *
+ * @param deps - WebUI 管理器依赖项
+ * @param sessionId - 会话 ID
+ * @throws 会话未找到时抛出
+ */
+export async function clearSessionHistory(
+  deps: WebUiManagerDependencies,
+  sessionId: string,
+): Promise<void> {
+  const session = await deps.databaseManager.sessions.findById(sessionId);
+  if (!session) {
+    throw new Error('会话未找到');
+  }
+  await deps.databaseManager.messages.clearHistory(sessionId);
+  await deps.sessionManager.clear({
+    channel: session.channel,
+    type: session.type,
+    chatId: session.chatId,
+  });
+}

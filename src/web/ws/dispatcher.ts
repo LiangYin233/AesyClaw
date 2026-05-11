@@ -3,7 +3,11 @@
 import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
 import type { WsMessage, WsResponse } from './types';
 
-import { getSessions, getSessionMessages } from '@aesyclaw/web/services/sessions';
+import {
+  clearSessionHistory,
+  getSessions,
+  getSessionMessages,
+} from '@aesyclaw/web/services/sessions';
 import { getConfig, getConfigSchema, updateConfig } from '@aesyclaw/web/services/config';
 import { getCronJobs, getCronJobRuns } from '@aesyclaw/web/services/cron';
 import {
@@ -41,6 +45,11 @@ export async function dispatchMessage(
       case 'get_messages': {
         const sessionId = extractStringData(msg.data, 'sessionId');
         return okResponse(msg, await getSessionMessages(deps, sessionId));
+      }
+      case 'clear_session': {
+        const sessionId = extractStringData(msg.data, 'sessionId');
+        await clearSessionHistory(deps, sessionId);
+        return okResponse(msg);
       }
 
       // 配置

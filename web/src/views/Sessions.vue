@@ -67,15 +67,27 @@
                 {{ formatDate(session.lastActivity) }}
               </td>
               <td
-                class="px-4 py-3 border-b border-[var(--color-border)] text-right"
+                class="relative px-4 py-3 border-b border-[var(--color-border)] text-right"
                 style="width: 40px"
               >
                 <button
                   class="bg-none border-none cursor-pointer text-mid-gray p-1 flex items-center justify-center rounded transition-all duration-[0.15s] ease hover:bg-light-gray hover:text-dark"
-                  @click.stop
+                  @click.stop="toggleSessionMenu(session.id)"
                 >
                   <EllipsisHorizontalIcon class="w-4 h-4" />
                 </button>
+                <div
+                  v-if="openMenuSessionId === session.id"
+                  class="absolute right-4 mt-1 z-20 min-w-[150px] rounded-sm border border-[var(--color-border)] bg-light shadow-lg py-1 text-left"
+                  @click.stop
+                >
+                  <button
+                    class="w-full px-3 py-2 text-left font-body text-sm text-danger bg-transparent border-none cursor-pointer hover:bg-light-gray"
+                    @click="clearSession(session.id)"
+                  >
+                    Clear history
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="expanded === session.id" class="bg-[rgba(20,20,19,0.02)]">
@@ -186,6 +198,7 @@ const sessions = ref<Session[]>([]);
 const expanded = ref<string | null>(null);
 const messages = ref<PersistableMessage[]>([]);
 const messagesLoading = ref(false);
+const openMenuSessionId = ref<string | null>(null);
 
 async function loadSessions() {
   try {
@@ -197,6 +210,7 @@ async function loadSessions() {
 }
 
 async function toggleSession(id: string) {
+  openMenuSessionId.value = null;
   if (expanded.value === id) {
     collapseSession();
     return;
@@ -217,10 +231,24 @@ async function toggleSession(id: string) {
   }
 }
 
+function toggleSessionMenu(id: string) {
+  openMenuSessionId.value = openMenuSessionId.value === id ? null : id;
+}
+
+async function clearSession(id: string) {
+  openMenuSessionId.value = null;
+  await ws.send('clear_session', { sessionId: id });
+  if (expanded.value === id) {
+    messages.value = [];
+  }
+  await loadSessions();
+}
+
 function collapseSession() {
   expanded.value = null;
   messages.value = [];
   messagesLoading.value = false;
+  openMenuSessionId.value = null;
 }
 
 function formatTime(iso: string | null | undefined): string {

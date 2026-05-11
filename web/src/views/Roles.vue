@@ -8,7 +8,7 @@
         </p>
       </div>
       <button
-        class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none btn-sm"
+        class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
         @click="openCreate"
       >
         + Add Role
@@ -101,6 +101,18 @@
             </div>
 
             <div class="flex-1 overflow-auto p-6">
+              <div v-if="creating" class="mb-5">
+                <label
+                  class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
+                  >Role ID</label
+                >
+                <input
+                  v-model="form.id"
+                  class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                  placeholder="Leave blank to auto-generate"
+                />
+              </div>
+
               <div class="mb-5">
                 <label
                   class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
@@ -734,10 +746,10 @@ async function saveRole() {
   saving.value = true;
   try {
     const formData = { ...form.value };
-    const { id: _excluded, ...payload } = formData;
+    const { id: formId, ...payload } = formData;
 
     if (creating.value) {
-      await ws.send('create_role', payload);
+      await ws.send('create_role', formId.trim() ? { ...payload, id: formId.trim() } : payload);
       showToast('toast-success', 'Role created');
       await loadRoles();
       closeEditor();

@@ -57,6 +57,7 @@ export async function createRole(
   }
 
   validateProviderModel(deps, body.model);
+  const id = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : undefined;
 
   const role = await deps.roleManager.createRole({
     description: body.description ?? '',
@@ -65,7 +66,7 @@ export async function createRole(
     toolPermission: body.toolPermission ?? { mode: 'allowlist', list: [] },
     skills: body.skills ?? ([] as string[]),
     enabled: body.enabled ?? true,
-    id: body.id,
+    id,
   });
   return role;
 }

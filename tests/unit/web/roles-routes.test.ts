@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { updateRole } from '../../../src/web/services/roles';
+import { createRole, updateRole } from '../../../src/web/services/roles';
 import type { RoleConfig } from '../../../src/core/types';
 import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';
 import { makeRole } from '../../helpers/role';
@@ -9,6 +9,7 @@ function makeDeps(role = makeRole()) {
     roleManager: {
       getRole: vi.fn(() => role),
       getAllRoles: vi.fn(() => [role]),
+      createRole: vi.fn(async (body: Partial<RoleConfig>) => ({ ...role, ...body })),
       saveRole: vi.fn(async (_id: string, _updated: RoleConfig) => undefined),
       deleteRole: vi.fn(async (_id: string) => true),
     },
@@ -22,6 +23,16 @@ function makeDeps(role = makeRole()) {
 }
 
 describe('roles service', () => {
+  it('treats blank create id as omitted', async () => {
+    const deps = makeDeps();
+
+    await createRole(deps, { id: '   ', model: 'openai/gpt-4o' });
+
+    expect(deps.roleManager.createRole).toHaveBeenCalledWith(
+      expect.not.objectContaining({ id: expect.any(String) }),
+    );
+  });
+
   it('rejects update when body id differs from route id', async () => {
     const deps = makeDeps();
     await expect(updateRole(deps, 'default', { id: 'other', name: 'Renamed' })).rejects.toThrow(

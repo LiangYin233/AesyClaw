@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getConfig, updateConfig } from '../../../src/web/services/config';
+import { clearSessionHistory } from '../../../src/web/services/sessions';
 import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';
 
 function makeDeps(config: Record<string, unknown>) {
@@ -43,5 +44,46 @@ describe('config service', () => {
     await updateConfig(deps, body);
 
     expect(deps.configManager.set).toHaveBeenCalledWith('providers', body.providers);
+  });
+});
+
+describe('sessions service', () => {
+  it('clears message history for an existing session', async () => {
+    const sessionKey = { channel: 'onebot', type: 'private', chatId: '42' } as const;
+    const deps = {
+      sessionManager: {
+        clear: vi.fn(async () => undefined),
+      },
+      databaseManager: {
+        sessions: {
+          findById: vi.fn(async () => ({ id: 'session-1', ...sessionKey })),
+        },
+        messages: {
+          clearHistory: vi.fn(async () => undefined),
+        },
+      },
+    } as unknown as WebUiManagerDependencies;
+
+    await clearSessionHistory(deps, 'session-1');
+
+    expect(deps.databaseManager.sessions.findById).toHaveBeenCalledWith('session-1');
+    expect(deps.databaseManager.messages.clearHistory).toHaveBeenCalledWith('session-1');
+    expect(deps.sessionManager.clear).toHaveBeenCalledWith(sessionKey);
+  });
+
+  it('rejects clearing a missing session', async () => {
+    const deps = {
+      databaseManager: {
+        sessions: {
+          findById: vi.fn(async () => null),
+        },
+        messages: {
+          clearHistory: vi.fn(async () => undefined),
+        },
+      },
+    } as unknown as WebUiManagerDependencies;
+
+    await expect(clearSessionHistory(deps, 'missing')).rejects.toThrow('会话未找到');
+    expect(deps.databaseManager.messages.clearHistory).not.toHaveBeenCalled();
   });
 });
