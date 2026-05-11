@@ -293,19 +293,23 @@ export class Agent {
     if (result.lastAssistant) return result;
 
     const combinedHistory = history.concat(result.newMessages);
+    let followUpHistory = combinedHistory;
+
     if (estimateApproximateTokens(combinedHistory) >= this.compressionThreshold * this._model.contextWindow) {
-      logger.warn('Agent 追加文本前发现上下文已接近阈值', {
+      logger.info('Agent 追加文本前压缩上下文', {
         role: role.id,
         estimatedTokens: estimateApproximateTokens(combinedHistory),
         contextWindow: this._model.contextWindow,
       });
+      await this.session.compact(this.llmAdapter, role.model);
+      followUpHistory = [...this.session.get()].concat(result.newMessages);
     }
 
     logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: role.id });
     const followUpResult = await this.callLLM(
       role,
       '请根据以上工具调用结果生成回复文本，不要调用工具。',
-      combinedHistory,
+      followUpHistory,
       this.session.key,
       sendMessage,
     );
