@@ -215,13 +215,15 @@ export class Agent {
     }
     const model = this.llmAdapter.resolveModel(role.model);
 
+    const contentWithDate = `Current date: ${new Date().toISOString().split('T')[0] ?? 'unknown'}\n\n${content}`;
+
     return await runAgentTask({
       roleId: role.id,
       model,
       prompt,
       tools,
       history,
-      content,
+      content: contentWithDate,
       sessionKey,
       compressionThreshold: this.compressionThreshold,
       registry: this.registry,
@@ -290,11 +292,20 @@ export class Agent {
   ): Promise<CallLLMResult> {
     if (result.lastAssistant) return result;
 
+    const combinedHistory = history.concat(result.newMessages);
+    if (estimateApproximateTokens(combinedHistory) >= this.compressionThreshold * this._model.contextWindow) {
+      logger.warn('Agent 追加文本前发现上下文已接近阈值', {
+        role: role.id,
+        estimatedTokens: estimateApproximateTokens(combinedHistory),
+        contextWindow: this._model.contextWindow,
+      });
+    }
+
     logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: role.id });
     const followUpResult = await this.callLLM(
       role,
       '请根据以上工具调用结果生成回复文本，不要调用工具。',
-      history.concat(result.newMessages),
+      combinedHistory,
       this.session.key,
       sendMessage,
     );

@@ -39,7 +39,6 @@ export function buildAgentPrompt(input: BuildAgentPromptInput): string {
 
 function replaceTemplateVariables(template: string): string {
   return template
-    .replace(/\{\{date}}/g, new Date().toISOString().split('T')[0] ?? '')
     .replace(/\{\{os}}/g, process.platform)
     .replace(/\{\{systemLang}}/g, process.env['LANG'] ?? 'unknown');
 }

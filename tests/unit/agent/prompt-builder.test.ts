@@ -110,7 +110,7 @@ describe('PromptBuilder', () => {
         isCron: false,
       });
 
-      expect(prompt).not.toContain('{{date}}');
+      expect(prompt).toContain('{{date}}');
       expect(prompt).not.toContain('{{os}}');
       expect(prompt).not.toContain('{{systemLang}}');
       expect(prompt).toContain('## Available Tools');

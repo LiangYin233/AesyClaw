@@ -48,13 +48,13 @@ export function calculateToolResultBudget(
     (total, message) => total + extractMessageText(message).length,
     0,
   );
-  const usedTokens = Math.ceil(historyTextLength / 4) + Math.ceil(content.length / 4);
+  const usedTokens = Math.ceil(historyTextLength / 3.5) + Math.ceil(content.length / 3.5);
   const remainingTokens = Math.max(0, compressionLimitTokens - usedTokens);
   const maxToolResultTokens = Math.floor(remainingTokens * 0.5);
 
   return {
     maxToolResultTokens,
-    maxToolResultChars: maxToolResultTokens * 4,
+    maxToolResultChars: Math.floor(maxToolResultTokens * 3.5),
   };
 }
 

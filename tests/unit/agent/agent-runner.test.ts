@@ -201,11 +201,11 @@ describe('agent runner', () => {
     await expect(turn).resolves.toMatchObject({ lastAssistant: 'tool done' });
     expect(receivedSignal).toBeInstanceOf(AbortSignal);
     expect(runnerMock.instances[0]?.toolResult).toMatchObject({
-      content: [{ type: 'text', text: 'x'.repeat(192) }],
+      content: [{ type: 'text', text: 'x'.repeat(168) }],
       details: expect.objectContaining({
         truncated: true,
         originalContentLength: 400,
-        truncatedContentLength: 192,
+        truncatedContentLength: 168,
       }),
     });
   });
