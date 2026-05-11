@@ -39,6 +39,10 @@
             >
               Enabled
             </th>
+            <th
+              class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0"
+              style="width: 40px"
+            ></th>
           </tr>
         </thead>
         <tbody>
@@ -66,9 +70,22 @@
                 <XMarkIcon class="w-4 h-4 text-danger stroke-[2.5]" />
               </span>
             </td>
+            <td
+              class="px-4 py-3 border-b border-[var(--color-border)] text-right"
+              style="width: 40px"
+            >
+              <button
+                class="bg-none border-none cursor-pointer text-mid-gray p-1 flex items-center justify-center rounded transition-all duration-[0.15s] ease hover:bg-light-gray hover:text-danger disabled:opacity-40 disabled:cursor-not-allowed"
+                :disabled="role.id === 'default'"
+                title="Delete role"
+                @click.stop="deleteRole(role)"
+              >
+                <TrashIcon class="w-4 h-4" />
+              </button>
+            </td>
           </tr>
           <tr v-if="roles.length === 0">
-            <td colspan="4" class="text-mid-gray text-center py-10 font-body italic text-sm">
+            <td colspan="5" class="text-mid-gray text-center py-10 font-body italic text-sm">
               No roles
             </td>
           </tr>
@@ -478,6 +495,7 @@ import {
   XMarkIcon,
   InformationCircleIcon,
   ChevronUpDownIcon,
+  TrashIcon,
 } from '@heroicons/vue/24/outline';
 import type { Role, ToolPermission } from '@/types/api';
 
@@ -763,6 +781,18 @@ async function saveRole() {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');
   } finally {
     saving.value = false;
+  }
+}
+
+async function deleteRole(role: Role) {
+  if (!confirm(`Delete role "${role.id}"?`)) return;
+  try {
+    await ws.send('delete_role', { id: role.id });
+    showToast('toast-success', 'Role deleted');
+    if (editingRole.value?.id === role.id) closeEditor();
+    await loadRoles();
+  } catch (err) {
+    showToast('toast-error', err instanceof Error ? err.message : 'Delete failed');
   }
 }
 

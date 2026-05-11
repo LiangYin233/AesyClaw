@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRole, updateRole } from '../../../src/web/services/roles';
+import { createRole, deleteRole, updateRole } from '../../../src/web/services/roles';
 import type { RoleConfig } from '../../../src/core/types';
 import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';
 import { makeRole } from '../../helpers/role';
@@ -48,5 +48,13 @@ describe('roles service', () => {
       'default',
       expect.objectContaining({ id: 'default', name: 'Renamed' }),
     );
+  });
+
+  it('deletes a role by id', async () => {
+    const deps = makeDeps();
+
+    await deleteRole(deps, 'temporary');
+
+    expect(deps.roleManager.deleteRole).toHaveBeenCalledWith('temporary');
   });
 });
