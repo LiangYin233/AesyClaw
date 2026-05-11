@@ -113,18 +113,6 @@ export function errorMessage(error: unknown): string {
 }
 
 /**
- * 断言管理器已初始化，未初始化则抛出错误。
- *
- * @param value - 待检查的值
- * @param managerName - 管理器名称（用于错误消息）
- * @returns 非空的值
- */
-export function requireInitialized<T>(value: T | null | undefined, managerName: string): T {
-  if (value === null || value === undefined) throw new Error(`${managerName} 未初始化`);
-  return value;
-}
-
-/**
  * 类型守卫 — 检查值是否为非数组的普通对象。
  *
  * @param value - 待检查的值

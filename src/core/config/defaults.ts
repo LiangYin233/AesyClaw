@@ -4,8 +4,7 @@ import { DEFAULTS } from '@aesyclaw/core/types';
 /**
  * 默认应用配置。
  *
- * 当配置文件不存在时用作初始配置，
- * 并作为热重载比较的基线。
+ * 当配置文件不存在时用作初始配置，并为缺失配置项提供默认值。
  */
 export const DEFAULT_CONFIG: AppConfig = {
   server: {

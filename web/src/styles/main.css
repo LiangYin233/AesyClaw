@@ -90,12 +90,7 @@ h3,
 h4,
 h5,
 h6,
-.page-title,
-.card-title,
-.modal-title,
-.stat-value,
-.stat-label,
-.brand-text {
+.page-title {
   font-family: var(--font-heading);
   margin: 0;
 }
@@ -147,12 +142,6 @@ tbody tr:last-child td {
   to {
     transform: translateX(0);
     opacity: 1;
-  }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 

@@ -81,10 +81,4 @@ export interface LogEntry {
   scope: string;
   message: string;
   details: string | null;
-  formatted: string;
-}
-
-export interface LogsResponse {
-  entries: LogEntry[];
-  limit: number;
 }

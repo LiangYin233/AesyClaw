@@ -20,11 +20,6 @@
       </div>
       <div class="flex items-center gap-2">
         <button
-          class="flex items-center justify-center w-8 h-8 rounded-sm border border-[var(--color-border)] bg-transparent text-mid-gray cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#FAF7F4] hover:text-dark"
-        >
-          <SunIcon class="w-[18px] h-[18px]" />
-        </button>
-        <button
           class="inline-flex items-center gap-1.5 px-3 py-[0.4rem] border border-[var(--color-border)] rounded-sm bg-transparent text-mid-gray font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#FAF7F4] hover:text-dark hover:border-mid-gray"
           @click="handleLogout"
         >
@@ -97,7 +92,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 import { useAppInfo } from '@/composables/useAppInfo';
 import ToastContainer from '@/components/ToastContainer.vue';
@@ -113,14 +108,12 @@ import {
   DocumentTextIcon,
   WrenchScrewdriverIcon,
   LightBulbIcon,
-  SunIcon,
   ArrowLeftEndOnRectangleIcon,
   Bars3Icon,
 } from '@heroicons/vue/24/outline';
 
 const drawerOpen = ref(false);
 
-const route = useRoute();
 const router = useRouter();
 const { logout } = useAuth();
 const { appVersion, fetchVersion } = useAppInfo();

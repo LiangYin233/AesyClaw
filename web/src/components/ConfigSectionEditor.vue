@@ -255,6 +255,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 import ToggleSwitch from '@/components/ToggleSwitch.vue';
+import { isRecord, toJson } from '@/lib/object';
 import { TrashIcon } from '@heroicons/vue/24/outline';
 
 interface PluginEntry extends Record<string, unknown> {
@@ -277,7 +278,6 @@ const props = defineProps<{
 const ws = useWebSocket();
 const { showToast } = useToast();
 
-const fullConfig = ref<Record<string, unknown>>({});
 const sectionValue = ref<unknown>(props.sectionKey === 'plugins' ? [] : {});
 const loading = ref(true);
 const saving = ref(false);
@@ -306,7 +306,6 @@ async function loadConfig() {
   error.value = '';
   try {
     const config = (await ws.send('get_config')) as Record<string, unknown>;
-    fullConfig.value = config;
     sectionValue.value = getSectionValue(config, props.sectionKey);
   } catch (err) {
     error.value = err instanceof Error ? err.message : `Failed to load ${props.sectionKey} config`;
@@ -320,7 +319,6 @@ async function saveSection() {
   try {
     const payload = { [props.sectionKey]: sectionValue.value };
     await ws.send('update_config', payload);
-    fullConfig.value = { ...fullConfig.value, [props.sectionKey]: sectionValue.value };
     showToast('toast-success', `${props.title} configuration saved`);
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');
@@ -485,10 +483,6 @@ function getSectionValue(source: unknown, key: 'channels' | 'plugins'): unknown 
   return isRecord(value) ? value : {};
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
 function normalizePluginEntry(value: unknown): PluginEntry {
   const source = isRecord(value) ? value : {};
   return {
@@ -502,10 +496,6 @@ function normalizePluginEntry(value: unknown): PluginEntry {
 function getRawPlugins(): Record<string, unknown>[] {
   if (!Array.isArray(sectionValue.value)) return [];
   return sectionValue.value.map((item) => (isRecord(item) ? { ...item } : {}));
-}
-
-function toJson(value: unknown): string {
-  return JSON.stringify(value, null, 2);
 }
 
 onMounted(() => {

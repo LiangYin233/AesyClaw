@@ -453,6 +453,7 @@ import { useToast } from '@/composables/useToast';
 import SchemaForm from '@/components/SchemaForm.vue';
 import JsonEditor from '@/components/JsonEditor.vue';
 import ToggleSwitch from '@/components/ToggleSwitch.vue';
+import { isRecord, toJson } from '@/lib/object';
 import { TrashIcon } from '@heroicons/vue/24/outline';
 
 type McpTransport = 'stdio' | 'sse' | 'http';
@@ -499,7 +500,6 @@ const { showToast } = useToast();
 
 const editableSchema = ref<Record<string, unknown>>({});
 const editableConfig = ref<Record<string, unknown>>({});
-const fullConfig = ref<Record<string, unknown>>({});
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
@@ -547,7 +547,6 @@ async function loadConfig() {
   error.value = '';
   try {
     const config = (await ws.send('get_config')) as Record<string, unknown>;
-    fullConfig.value = config;
     editableConfig.value = omitTopLevelConfigKeys(config, excludedTopLevelKeys);
     extraBodyErrors.value = {};
     extraBodyDrafts.value = {};
@@ -566,7 +565,6 @@ async function saveConfig() {
   saving.value = true;
   try {
     await ws.send('update_config', editableConfig.value);
-    fullConfig.value = { ...fullConfig.value, ...editableConfig.value };
     showToast('toast-success', 'Configuration saved successfully');
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');
@@ -999,10 +997,6 @@ function isApiType(value: unknown): value is ApiType {
   );
 }
 
-function toJson(value: unknown): string {
-  return JSON.stringify(value, null, 2);
-}
-
 type JsonParseResult = { ok: true; value: unknown } | { ok: false; error: string };
 
 function parseJson(value: string): JsonParseResult {
@@ -1069,10 +1063,6 @@ function getSectionSubtitle(key: string): string {
     subtitles[key] ??
     'Edit this config section while preserving unknown fields from the config API.'
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {

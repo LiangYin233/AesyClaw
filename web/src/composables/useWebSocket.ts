@@ -13,7 +13,6 @@ import { ref } from 'vue';
 
 type MessageHandler = (data: unknown) => void;
 
-export type WsMessage = { type: string; requestId?: string; data?: unknown };
 export type WsResponse = {
   type: string;
   requestId?: string;

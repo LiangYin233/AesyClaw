@@ -2,7 +2,7 @@
  * MessageRepository — messages 表的数据访问层。
  *
  * 仅应持久化用户和纯文本助手消息。
- * 工具调用和工具结果由 MemoryManager 过滤掉。
+ * 工具调用和工具结果在会话同步为可持久化消息时过滤掉。
  */
 
 import type { DatabaseSync } from 'node:sqlite';
