@@ -47,17 +47,8 @@ export class AgentRegistry {
     this.runs.set(runId, { run, sessionKeyId: serializeSessionKey(sessionKey) });
   }
 
-  /**
-   * 取消注册 Agent 运行。仅当 runId 和运行句柄匹配时才移除。
-   *
-   * @param runId - 运行标识
-   * @param run - Agent 运行句柄
-   */
-  unregisterRun(runId: string, run: AgentRunHandle): void {
-    const entry = this.runs.get(runId);
-    if (entry?.run === run) {
-      this.runs.delete(runId);
-    }
+  unregisterRun(runId: string): void {
+    this.runs.delete(runId);
   }
 
   /**

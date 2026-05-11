@@ -173,7 +173,7 @@ describe('LlmAdapter', () => {
       const model = adapter.resolveModel('openai/gpt-4o');
       const context = { messages: [] };
 
-      streamFn(model, context, { sessionId: 'session:test:private:adapter' });
+      void streamFn(model, context, { sessionId: 'session:test:private:adapter' });
 
       expect(mockedStreamSimple).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -204,7 +204,7 @@ describe('LlmAdapter', () => {
       const model = new LlmAdapter(makeMockConfigManager(config)).resolveModel('compatible/chat');
       const context = { messages: [] };
 
-      streamFn(model, context, { sessionId: 'session:test:private:compatible' });
+      void streamFn(model, context, { sessionId: 'session:test:private:compatible' });
 
       expect(mockedStreamSimple).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -224,7 +224,7 @@ describe('LlmAdapter', () => {
       const streamFn = adapter.createStreamFn();
       const model = adapter.resolveModel('anthropic/claude-3-opus');
 
-      streamFn(model, { messages: [] });
+      void streamFn(model, { messages: [] });
 
       expect(mockedStreamSimple).toHaveBeenCalledWith(
         expect.objectContaining({ api: 'anthropic-messages' }),

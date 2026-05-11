@@ -4,30 +4,113 @@ import {
   streamSimple,
   type Api,
   type Context,
-  type Message,
   type Model,
   type SimpleStreamOptions,
   type TSchema,
-  type TextContent,
 } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { AgentRunHandle } from '../agent-registry';
-import type { AgentTool, AgentToolResult } from '../agent-types';
+import type { AgentRegistry, AgentRunHandle } from '../agent-registry';
+import { extractMessageText, type AgentMessage, type AgentTool, type AgentToolResult, type ResolvedModel } from '../agent-types';
+import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from '../llm-cache-options';
-import {
-  calculateToolResultBudget,
-  createAgentRunResult,
-  createCancelledRunResult,
-  createProviderCacheKey,
-  getFinalAssistantMeta,
-  limitToolResultContent,
-  type AgentRunParams,
-  type AgentRunResult,
-} from './agent-runner-protocol';
-
-export type { AgentRunParams, AgentRunResult } from './agent-runner-protocol';
 
 const logger = createScopedLogger('agent-runner');
+
+export type AgentRunParams = {
+  roleId: string;
+  model: ResolvedModel;
+  prompt: string;
+  tools: AgentTool[];
+  history: AgentMessage[];
+  content: string;
+  sessionKey: SessionKey;
+  compressionThreshold: number;
+  registry: AgentRegistry;
+};
+
+export type AgentRunResult = {
+  newMessages: AgentMessage[];
+  lastAssistant: string | null;
+};
+
+export function createProviderCacheKey(sessionKey: SessionKey): string {
+  return `session:${serializeSessionKey(sessionKey)}`;
+}
+
+export function calculateToolResultBudget(
+  model: ResolvedModel,
+  compressionThreshold: number,
+  history: readonly AgentMessage[],
+  content: string,
+): { maxToolResultTokens: number; maxToolResultChars: number } {
+  const compressionLimitTokens = Math.floor(model.contextWindow * compressionThreshold);
+  const historyTextLength = history.reduce(
+    (total, message) => total + extractMessageText(message).length,
+    0,
+  );
+  const usedTokens = Math.ceil(historyTextLength / 4) + Math.ceil(content.length / 4);
+  const remainingTokens = Math.max(0, compressionLimitTokens - usedTokens);
+  const maxToolResultTokens = Math.floor(remainingTokens * 0.5);
+
+  return {
+    maxToolResultTokens,
+    maxToolResultChars: maxToolResultTokens * 4,
+  };
+}
+
+export function createAgentRunResult(newMessages: readonly AgentMessage[]): AgentRunResult {
+  return {
+    newMessages: [...newMessages],
+    lastAssistant: resolveLastAssistant(newMessages),
+  };
+}
+
+export function createCancelledRunResult(): AgentRunResult {
+  return { newMessages: [], lastAssistant: null };
+}
+
+export function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string, unknown> {
+  const finalAssistant = findFinalAssistant(messages);
+  if (!finalAssistant) return { lastAssistantRole: null };
+
+  const record = finalAssistant as unknown as Record<string, unknown>;
+  return {
+    lastAssistantRole: finalAssistant.role,
+    lastAssistantStopReason: record['stopReason'],
+    lastAssistantErrorMessage: record['errorMessage'],
+    lastAssistantTextLength: extractAssistantText(finalAssistant).length,
+  };
+}
+
+export function limitToolResultContent<T extends AgentToolResult>(
+  result: T,
+  budget: { maxToolResultTokens: number; maxToolResultChars: number },
+): T {
+  const originalContentLength = result.content.reduce((total, block) => total + block.text.length, 0);
+  if (originalContentLength <= budget.maxToolResultChars) return result;
+
+  let remainingChars = budget.maxToolResultChars;
+  const content = result.content.map((block) => {
+    const text = block.text.slice(0, Math.max(0, remainingChars));
+    remainingChars -= text.length;
+    return { ...block, text };
+  });
+  const truncatedContentLength = content.reduce((total, block) => total + block.text.length, 0);
+
+  return {
+    ...result,
+    content,
+    details: {
+      ...(typeof result.details === 'object' && result.details !== null && !Array.isArray(result.details)
+        ? result.details
+        : {}),
+      truncated: true,
+      originalContentLength,
+      truncatedContentLength,
+      maxToolResultTokens: budget.maxToolResultTokens,
+    },
+  };
+}
 
 class AgentRunCancelledError extends Error {
   constructor() {
@@ -35,7 +118,7 @@ class AgentRunCancelledError extends Error {
   }
 }
 
-type ToolProxy = {
+type PiAgentToolAdapter = {
   name: string;
   label: string;
   description: string;
@@ -69,7 +152,7 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
       content,
     );
     const agentTools = toolDefs.map((tool) =>
-      createInProcessToolProxy(tool, toolResultBudget, abortController.signal),
+      adaptToolForPiAgent(tool, toolResultBudget, abortController.signal),
     );
     const agent = new PiAgent({
       initialState: {
@@ -78,7 +161,7 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
         tools: agentTools as unknown as PiAgentTool<TSchema, unknown>[],
         messages: history,
       },
-      streamFn: createStreamFn(model, model.apiKey, model.extraBody),
+      streamFn: createStreamFn(model.apiKey, model.extraBody),
       getApiKey: () => model.apiKey,
       sessionId: createProviderCacheKey(sessionKey),
     });
@@ -89,7 +172,7 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     if (abortController.signal.aborted) return createCancelledRunResult();
 
     const newMessages = agent.state.messages.slice(history.length);
-    const result = createAgentRunResult(newMessages, findLastAssistantText(newMessages));
+    const result = createAgentRunResult(newMessages);
     logger.info('Agent 处理已完成', {
       sessionKey,
       role: roleId,
@@ -103,15 +186,15 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     }
     throw err;
   } finally {
-    registry.unregisterRun(runId, runHandle);
+    registry.unregisterRun(runId);
   }
 }
 
-function createInProcessToolProxy(
+function adaptToolForPiAgent(
   tool: AgentTool,
   toolResultBudget: { maxToolResultTokens: number; maxToolResultChars: number },
   signal: AbortSignal,
-): ToolProxy {
+): PiAgentToolAdapter {
   return {
     name: tool.name,
     label: tool.name,
@@ -140,7 +223,6 @@ function throwIfCancelled(signal: AbortSignal): void {
 }
 
 function createStreamFn(
-  model: Model<Api>,
   apiKey: string,
   extraBody?: Record<string, unknown>,
 ): StreamFn {
@@ -173,20 +255,37 @@ function createStreamFn(
   };
 }
 
-function findLastAssistantText(messages: readonly Message[]): string | null {
+function resolveLastAssistant(newMessages: readonly AgentMessage[]): string | null {
+  const finalAssistant = findFinalAssistant(newMessages);
+  if (!finalAssistant) return null;
+
+  const errorMessage = getAssistantErrorMessage(finalAssistant);
+  if (errorMessage) return `[模型错误: ${errorMessage}]`;
+
+  const text = extractAssistantText(finalAssistant).trim();
+  return text.length > 0 ? text : null;
+}
+
+function findFinalAssistant(messages: readonly AgentMessage[]): AgentMessage | null {
   for (const message of [...messages].reverse()) {
-    if (message.role !== 'assistant') continue;
-    const text = extractMessageText(message);
-    if (text.trim().length > 0) return text;
+    if (message.role === 'assistant') return message;
   }
   return null;
 }
 
-function extractMessageText(message: Message): string {
-  const { content } = message;
-  if (typeof content === 'string') return content;
-  return content
-    .filter((c): c is TextContent => c.type === 'text')
-    .map((c) => c.text)
+function getAssistantErrorMessage(message: AgentMessage): string | null {
+  if (message.role !== 'assistant') return null;
+  const record = message as unknown as Record<string, unknown>;
+  if (record['stopReason'] !== 'error') return null;
+  return typeof record['errorMessage'] === 'string' && record['errorMessage'].trim().length > 0
+    ? record['errorMessage'].trim()
+    : '模型调用失败但未返回错误详情';
+}
+
+function extractAssistantText(message: AgentMessage): string {
+  if (message.role !== 'assistant') return '';
+  return message.content
+    .filter((content): content is { type: 'text'; text: string } => content.type === 'text')
+    .map((content) => content.text)
     .join('\n');
 }
