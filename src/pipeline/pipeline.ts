@@ -81,8 +81,10 @@ export class Pipeline {
       // ── Step 2: 会话与 Agent 解析 ────────────────────────
       const session = await deps.sessionManager.create(sessionKey);
 
-      const activeRoleId =
-        (await deps.databaseManager.roleBindings.getActiveRole(session.sessionId)) ?? undefined;
+      const activeRoleId = await Agent.resolveActiveRoleId(
+        { sessionKey },
+        { databaseManager: deps.databaseManager, agentRegistry: deps.agentRegistry },
+      );
 
       const activeRole = activeRoleId
         ? deps.roleManager.getRole(activeRoleId)

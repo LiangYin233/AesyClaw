@@ -7,15 +7,16 @@ const agentSetRole = vi.fn(async () => undefined);
 const agentProcess = vi.fn(async () => ({
   components: [{ type: 'Plain' as const, text: 'agent' }],
 }));
+const resolveActiveRoleId = vi.fn(async () => undefined);
 
 vi.mock('@aesyclaw/agent/agent', () => ({
-  Agent: vi.fn(function () {
+  Agent: Object.assign(vi.fn(function () {
     return {
       buildPrompt: vi.fn(() => ({ prompt: 'system', tools: [] })),
       setRole: agentSetRole,
       process: agentProcess,
     };
-  }),
+  }), { resolveActiveRoleId }),
 }));
 
 const sessionKey: SessionKey = { channel: 'test', type: 'private', chatId: '1' };

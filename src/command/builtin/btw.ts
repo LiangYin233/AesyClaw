@@ -54,7 +54,10 @@ export function createBtwCommand(
 
       const session = await sessionManager.create(context.sessionKey);
 
-      const activeRoleId = await resolveActiveRoleId(context, databaseManager, agentRegistry);
+      const activeRoleId = await Agent.resolveActiveRoleId(context, {
+        databaseManager,
+        agentRegistry,
+      });
       const role = activeRoleId ? getRoleOrFallback(activeRoleId) : getDefaultRole();
 
       const agent = new Agent({
@@ -76,18 +79,4 @@ export function createBtwCommand(
       return getMessageText(outbound);
     },
   };
-}
-
-async function resolveActiveRoleId(
-  context: CommandContext,
-  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
-  agentRegistry: AgentRegistry,
-): Promise<string | undefined> {
-  const agent = agentRegistry.getAgent(context.sessionKey);
-  if (agent?.roleId) return agent.roleId;
-
-  const session = await databaseManager.sessions.findByKey(context.sessionKey);
-  if (!session) return undefined;
-
-  return (await databaseManager.roleBindings.getActiveRole(session.id)) ?? undefined;
 }

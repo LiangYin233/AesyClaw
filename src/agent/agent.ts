@@ -1,5 +1,6 @@
-import type { RoleConfig, Message, SessionKey } from '@aesyclaw/core/types';
+import type { CommandContext, RoleConfig, Message, SessionKey } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
+import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
 import type {
   AesyClawTool,
@@ -80,6 +81,22 @@ export class Agent {
   private registry: AgentRegistry;
 
   private _cachedSystemPrompt: string | null = null;
+
+  static async resolveActiveRoleId(
+    context: CommandContext,
+    deps: {
+      databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
+      agentRegistry: AgentRegistry;
+    },
+  ): Promise<string | undefined> {
+    const agent = deps.agentRegistry.getAgent(context.sessionKey);
+    if (agent?.roleId) return agent.roleId;
+
+    const session = await deps.databaseManager.sessions.findByKey(context.sessionKey);
+    if (!session) return undefined;
+
+    return (await deps.databaseManager.roleBindings.getActiveRole(session.id)) ?? undefined;
+  }
 
   /**
    * @param options - Agent 构造选项

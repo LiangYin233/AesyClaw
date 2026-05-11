@@ -2,6 +2,7 @@ import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import { Agent } from '@aesyclaw/agent/agent';
 
 /** role 子命令所需的依赖集合 */
 export type RoleCommandDeps = {
@@ -29,7 +30,7 @@ export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition 
         return '当前没有可用角色。';
       }
 
-      const activeRoleId = await resolveActiveRoleId(context, deps);
+      const activeRoleId = await Agent.resolveActiveRoleId(context, deps);
       const lines = roles.map((role) => {
         const current = role.id === activeRoleId ? '（当前）' : '';
         return `- ${role.id} — ${role.description}${current}`;
@@ -91,7 +92,7 @@ export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition 
     usage: '/role info',
     scope: 'system',
     execute: async (_args: string[], context: CommandContext): Promise<string> => {
-      const activeRoleId = await resolveActiveRoleId(context, deps);
+      const activeRoleId = await Agent.resolveActiveRoleId(context, deps);
       if (!activeRoleId) {
         return '当前没有活跃角色。';
       }
@@ -101,17 +102,4 @@ export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition 
       );
     },
   };
-}
-
-async function resolveActiveRoleId(
-  context: CommandContext,
-  deps: RoleCommandDeps,
-): Promise<string | undefined> {
-  const agent = deps.agentRegistry.getAgent(context.sessionKey);
-  if (agent?.roleId) return agent.roleId;
-
-  const session = await deps.databaseManager.sessions.findByKey(context.sessionKey);
-  if (!session) return undefined;
-
-  return (await deps.databaseManager.roleBindings.getActiveRole(session.id)) ?? undefined;
 }

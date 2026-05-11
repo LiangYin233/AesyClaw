@@ -4,6 +4,7 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import { Agent } from '@aesyclaw/agent/agent';
 
 /**
  * 创建 /compact 命令，使用 LLM 压缩当前会话历史为摘要。
@@ -31,25 +32,14 @@ export function createCompactCommand(
         return '没有找到活跃会话。';
       }
 
-      const activeRoleId = await resolveActiveRoleId(context, databaseManager, agentRegistry);
+      const activeRoleId = await Agent.resolveActiveRoleId(context, {
+        databaseManager,
+        agentRegistry,
+      });
       const role = activeRoleId ? roleManager.getRole(activeRoleId) : roleManager.getDefaultRole();
 
       const summary = await session.compact(llmAdapter, role.model);
       return `会话已压缩完成。\n${summary}`;
     },
   };
-}
-
-async function resolveActiveRoleId(
-  context: CommandContext,
-  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
-  agentRegistry: AgentRegistry,
-): Promise<string | undefined> {
-  const agent = agentRegistry.getAgent(context.sessionKey);
-  if (agent?.roleId) return agent.roleId;
-
-  const session = await databaseManager.sessions.findByKey(context.sessionKey);
-  if (!session) return undefined;
-
-  return (await databaseManager.roleBindings.getActiveRole(session.id)) ?? undefined;
 }
