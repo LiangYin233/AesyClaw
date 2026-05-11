@@ -106,10 +106,10 @@
                   class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
                   >Description</label
                 >
-                <textarea
+                <input
                   v-model="form.description"
-                  class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[100px] resize-y leading-relaxed"
-                  rows="3"
+                  class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                  maxlength="500"
                 />
                 <div class="text-right font-body text-xs text-mid-gray mt-1">
                   {{ (form.description || '').length }} / 500

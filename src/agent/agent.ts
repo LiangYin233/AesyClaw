@@ -210,9 +210,7 @@ export class Agent {
 
     const { prompt: builtPrompt, tools } = this.buildPrompt(role, executionContext);
     const prompt = this._cachedSystemPrompt ?? builtPrompt;
-    if (this._cachedSystemPrompt === null) {
-      this._cachedSystemPrompt = builtPrompt;
-    }
+    this._cachedSystemPrompt ??= builtPrompt;
     const model = this.llmAdapter.resolveModel(role.model);
 
     const contentWithDate = `Current date: ${new Date().toISOString().split('T')[0] ?? 'unknown'}\n\n${content}`;
