@@ -1,8 +1,7 @@
 /**
  * ToolAdapter unit tests.
  *
- * Tests cover: hook integration (before/after), short-circuit,
- * abort signal, and error handling.
+ * Tests cover: hook integration (before/after), abort signal, and error handling.
  */
 
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
@@ -40,25 +39,6 @@ function makeBlockingHookDispatcher(reason: string): HookDispatcher {
   return {
     async beforeToolCall() {
       return { block: true, reason };
-    },
-    async afterToolCall() {
-      return {};
-    },
-  } as unknown as HookDispatcher;
-}
-
-function makeShortCircuitHookDispatcher(result: {
-  content: string;
-  isError?: boolean;
-}): HookDispatcher {
-  return {
-    async beforeToolCall() {
-      return {
-        shortCircuit: {
-          content: result.content,
-          isError: result.isError,
-        },
-      };
     },
     async afterToolCall() {
       return {};
@@ -216,39 +196,6 @@ describe('ToolAdapter', () => {
       });
     });
 
-    it('should short-circuit when before hook provides result', async () => {
-      const tool = makeTool({
-        execute: async () => ({ content: 'should not run' }),
-      });
-
-      const agentTool = toAgentTool(
-        tool,
-        makeShortCircuitHookDispatcher({ content: 'Short-circuited', isError: false }),
-        {},
-      );
-      const result = await agentTool.execute('call-1', { input: 'test' });
-
-      expect(result.content).toEqual([{ type: 'text', text: 'Short-circuited' }]);
-    });
-
-    it('should preserve short-circuit error results as structured failures', async () => {
-      const tool = makeTool({
-        execute: async () => ({ content: 'should not run' }),
-      });
-
-      const agentTool = toAgentTool(
-        tool,
-        makeShortCircuitHookDispatcher({ content: 'Cached failure', isError: true }),
-        {},
-      );
-
-      await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
-        content: [{ type: 'text', text: 'Cached failure' }],
-        details: {},
-        isError: true,
-      });
-    });
-
     it('should allow after hook to override result', async () => {
       const tool = makeTool({
         execute: async () => ({ content: 'original result' }),
@@ -367,19 +314,13 @@ describe('ToolAdapter', () => {
       });
     });
 
-    it('should debug-log before-hook block and short-circuit paths', async () => {
+    it('should debug-log before-hook block paths', async () => {
       const tool = makeTool({
         execute: async () => ({ content: 'should not run' }),
       });
       const blockedTool = toAgentTool(tool, makeBlockingHookDispatcher('Blocked by policy'), {});
-      const shortCircuitTool = toAgentTool(
-        tool,
-        makeShortCircuitHookDispatcher({ content: 'Cached result' }),
-        {},
-      );
 
       await blockedTool.execute('call-blocked', { input: 'test' });
-      await shortCircuitTool.execute('call-short', { input: 'test' });
 
       expectDebugLog('工具调用被 before 钩子阻塞', {
         toolName: 'test-tool',
@@ -390,21 +331,6 @@ describe('ToolAdapter', () => {
         toolName: 'test-tool',
         toolCallId: 'call-blocked',
         outcome: 'blocked',
-      });
-      expectDebugLog('工具调用被 before 钩子短路', {
-        toolName: 'test-tool',
-        toolCallId: 'call-short',
-        result: {
-          contentLength: 'Cached result'.length,
-          hasDetails: false,
-          isError: false,
-          terminate: false,
-        },
-      });
-      expectDebugLog('工具调用完成', {
-        toolName: 'test-tool',
-        toolCallId: 'call-short',
-        outcome: 'short-circuited',
       });
     });
 

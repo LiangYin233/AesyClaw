@@ -179,7 +179,7 @@ export class HookDispatcher {
   /**
    * 派发 beforeToolCall 钩子 — 工具执行前。
    *
-   * 如果某钩子返回 block 或 shortCircuit，则停止调度并返回该结果。
+   * 如果某钩子返回 block，则停止调度并返回该结果。
    * @param ctx - 工具调用前上下文
    * @returns 工具调用前结果，默认返回空对象
    */
@@ -189,7 +189,7 @@ export class HookDispatcher {
         'beforeToolCall',
         (hooks) => hooks.beforeToolCall,
         ctx,
-        (result) => result.block === true || result.shortCircuit !== undefined,
+        (result) => result.block === true,
       )) ?? {}
     );
   }

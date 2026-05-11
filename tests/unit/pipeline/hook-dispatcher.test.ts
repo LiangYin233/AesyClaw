@@ -286,7 +286,6 @@ describe('HookDispatcher', () => {
     it('should return empty result when no hooks are registered', async () => {
       const result = await dispatcher.beforeToolCall(makeBeforeToolCallContext());
       expect(result.block).toBeUndefined();
-      expect(result.shortCircuit).toBeUndefined();
     });
 
     it('should return block when a hook blocks', async () => {
@@ -297,17 +296,6 @@ describe('HookDispatcher', () => {
       const result = await dispatcher.beforeToolCall(makeBeforeToolCallContext());
       expect(result.block).toBe(true);
       expect(result.reason).toBe('not allowed');
-    });
-
-    it('should return shortCircuit when a hook short-circuits', async () => {
-      dispatcher.register('p1', {
-        beforeToolCall: async () => ({
-          shortCircuit: { content: 'cached result' },
-        }),
-      });
-
-      const result = await dispatcher.beforeToolCall(makeBeforeToolCallContext());
-      expect(result.shortCircuit).toEqual({ content: 'cached result' });
     });
 
     it('should stop dispatching after a hook blocks', async () => {

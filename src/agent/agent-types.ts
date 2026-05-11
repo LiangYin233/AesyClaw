@@ -62,12 +62,11 @@ export type AfterToolCallHookContext = {
 };
 
 /**
- * 工具调用前钩子的返回结果，可阻止或短路工具调用。
+ * 工具调用前钩子的返回结果，可阻止工具调用。
  */
 export type BeforeToolCallHookResult = {
   block?: boolean;
   reason?: string;
-  shortCircuit?: ToolExecutionResult;
 };
 
 /**

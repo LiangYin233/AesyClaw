@@ -2,10 +2,12 @@
  * tool-adapter — 将 AesyClawTool 转换为 Pi-mono AgentTool 格式。
  *
  * 包装 tool.execute 以集成插件钩子系统和参数验证:
- * 1. 参数运行时验证（TypeBox schema）
- * 2. 派发 beforeToolCall 钩子 — 可能阻塞或短路
+ * 1. 派发 beforeToolCall 钩子 — 可能阻塞工具调用
+ * 2. 参数运行时验证（TypeBox schema）
  * 3. 调用实际的 tool.execute
  * 4. 派发 afterToolCall 钩子 — 可能覆盖结果
+ *
+ * Runner 级工具结果预算处理属于 PiAgent afterToolCall，不属于这里的兼容层。
  */
 
 import type {
@@ -21,10 +23,10 @@ import { validateParams } from './tool-validator';
 const logger = createScopedLogger('tool');
 
 /**
- * 将 AesyClawTool 转换为 AgentTool,使用 before/after 钩子派发包装 execute。
+ * 将 AesyClawTool 转换为 AgentTool，保留 AesyClaw 插件语义。
  *
- * 适配器使用钩子派发包装工具的 execute 函数,以便插件
- * beforeToolCall/afterToolCall 钩子可以拦截或修改工具调用。
+ * 适配器继续承载参数验证、执行上下文注入、before/after 工具钩子和工具执行日志。
+ * PiAgent runner 级后处理不应放进这里。
  *
  * @param tool - 要适配的 AesyClaw 工具
  * @param toolHookDispatcher - 派发插件钩子
@@ -107,7 +109,7 @@ type ToolCallContext = {
 };
 
 type BeforeToolHookRunResult =
-  | { handled: true; result: ToolExecutionResult; outcome: 'blocked' | 'short-circuited' }
+  | { handled: true; result: ToolExecutionResult; outcome: 'blocked' }
   | { handled: false };
 
 type ToolCallValidationResult =
@@ -121,7 +123,6 @@ type ToolExecutionRunResult =
 type ToolCallLogOutcome =
   | 'executed'
   | 'blocked'
-  | 'short-circuited'
   | 'aborted'
   | 'validation-failed'
   | 'execution-failed';
@@ -174,19 +175,6 @@ async function runBeforeToolHooks(
         isError: true,
       },
       outcome: 'blocked',
-    };
-  }
-
-  if (beforeResult.shortCircuit) {
-    logger.debug('工具调用被 before 钩子短路', {
-      ...logContext,
-      result: summarizeResult(beforeResult.shortCircuit),
-    });
-
-    return {
-      handled: true,
-      result: beforeResult.shortCircuit,
-      outcome: 'short-circuited',
     };
   }
 
