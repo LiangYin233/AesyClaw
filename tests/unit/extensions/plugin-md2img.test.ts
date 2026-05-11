@@ -142,6 +142,45 @@ describe('plugin_md2img', () => {
     expect(logger.debug).not.toHaveBeenCalled();
   });
 
+  it('preserves non-text media components when converting markdown to image', async () => {
+    const logger = createLogger();
+    const pngBuffer = Buffer.from('png-bytes');
+
+    const result = await handleMd2ImgSend(
+      {
+        message: {
+          components: [
+            { type: 'Plain', text: '# Report' },
+            {
+              type: 'File',
+              url: 'https://example.com/report.pdf',
+              mimeType: 'application/pdf',
+            },
+          ],
+        },
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+      },
+      {
+        htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+        logger,
+        pluginConfig: { enabledChannels: ['onebot'] },
+        convert: vi.fn(async () => pngBuffer),
+      },
+    );
+
+    expect(result).toEqual({
+      action: 'respond',
+      components: [
+        { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
+        {
+          type: 'File',
+          url: 'https://example.com/report.pdf',
+          mimeType: 'application/pdf',
+        },
+      ],
+    });
+  });
+
   it('logs conversion failures with summary context and error', async () => {
     const logger = createLogger();
     const error = new Error('render failed');

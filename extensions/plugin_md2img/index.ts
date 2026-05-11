@@ -202,9 +202,14 @@ export async function handleMd2ImgSend(
       ? await convertMd(text, template)
       : await convertHtml(text, template);
 
+    const nonTextComponents = message.components.filter((c) => c.type !== 'Plain');
+
     return {
       action: 'respond',
-      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
+      components: [
+        { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
+        ...nonTextComponents,
+      ],
     };
   } catch (err) {
     logger.error(
