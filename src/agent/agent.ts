@@ -213,7 +213,8 @@ export class Agent {
     this._cachedSystemPrompt ??= builtPrompt;
     const model = this.llmAdapter.resolveModel(role.model);
 
-    const contentWithDate = `Current date: ${new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai', timeZoneName: 'longOffset' })}\n\n${content}`;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const contentWithDate = `Current date: ${new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz, timeZoneName: 'longOffset' })}\n\n${content}`;
 
     return await runAgentTask({
       roleId: role.id,
