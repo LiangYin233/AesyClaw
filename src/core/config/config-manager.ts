@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
-import type { TSchema } from '@sinclair/typebox';
 
 import Conf from 'conf';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -72,7 +71,7 @@ export class ConfigManager {
   async set(path: string, value: unknown): Promise<void> {
     const nextConfig = structuredClone(this.lastKnownConfig) as Record<string, unknown>;
     setPathValue(nextConfig, path, value);
-    const validatedConfig = this.validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
+    const validatedConfig = validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
     await this.persistWithGuard(validatedConfig);
   }
 
@@ -96,7 +95,7 @@ export class ConfigManager {
 
     const merged = mergeDefaults((current ?? {}) as Record<string, unknown>, value);
     setPathValue(nextConfig, path, merged);
-    const validatedConfig = this.validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
+    const validatedConfig = validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
     await this.persistWithGuard(validatedConfig);
   }
 
@@ -123,7 +122,7 @@ export class ConfigManager {
         overwrite: false,
       }) as AppConfig;
     }
-    const validatedConfig = this.validateWithSchema<AppConfig>(
+    const validatedConfig = validateWithSchema<AppConfig>(
       AppConfigSchema,
       mergedConfig,
       '配置',
@@ -212,7 +211,7 @@ export class ConfigManager {
       structuredClone(DEFAULT_CONFIG) as Record<string, unknown>,
       parsed as Record<string, unknown>,
     ) as AppConfig;
-    const validated = this.validateWithSchema<AppConfig>(AppConfigSchema, merged, '配置');
+    const validated = validateWithSchema<AppConfig>(AppConfigSchema, merged, '配置');
 
     const missingFields = this.findMissingFields(
       parsed as Record<string, unknown>,
@@ -266,9 +265,6 @@ export class ConfigManager {
     return missing;
   }
 
-  private validateWithSchema<T>(schema: TSchema, value: unknown, label: string): T {
-    return validateWithSchema<T>(schema, value, label);
-  }
 
 
   private createStore(filePath: string): Conf<Record<string, unknown>> {

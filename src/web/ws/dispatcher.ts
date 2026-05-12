@@ -58,9 +58,7 @@ on('get_cron_runs', async (data, deps) => {
 
 // ── 角色 ──
 on('get_roles', (_, deps) => Promise.resolve(getRoles(deps)));
-on('get_role', (data, deps) =>
-  Promise.resolve(getRole(deps, extractStringData(data, 'id'))),
-);
+on('get_role', (data, deps) => Promise.resolve(getRole(deps, extractStringData(data, 'id'))));
 on('create_role', async (data, deps) => {
   return await createRole(deps, data as Parameters<typeof createRole>[1]);
 });

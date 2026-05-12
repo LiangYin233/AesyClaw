@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
-import type { TSchema } from '@sinclair/typebox';
 
 import Conf from 'conf';
 import type { RoleConfig } from '@aesyclaw/core/types';
@@ -37,7 +36,7 @@ export class RoleStore {
   }
 
   async setRoles(roles: readonly RoleConfig[]): Promise<void> {
-    const validated = this.validate<RoleConfig[]>(RolesConfigSchema, roles, '角色配置');
+    const validated = validateWithSchema<RoleConfig[]>(RolesConfigSchema, roles, '角色配置');
     const normalised = normaliseRoles(validated);
     this.assertUniqueRoleIds(normalised);
     await this.persistRolesWithGuard(normalised);
@@ -76,7 +75,7 @@ export class RoleStore {
 
   private readValidatedRolesFromStore(store: Conf<Record<string, unknown>>): RoleConfig[] {
     const raw = store.store[this.ROLES_STORE_KEY];
-    const validated = this.validate<RoleConfig[]>(RolesConfigSchema, raw, '角色配置');
+    const validated = validateWithSchema<RoleConfig[]>(RolesConfigSchema, raw, '角色配置');
     const roles = normaliseRoles(validated);
     this.assertUniqueRoleIds(roles);
     return roles;
@@ -122,10 +121,6 @@ export class RoleStore {
       }
       seen.add(role.id);
     }
-  }
-
-  private validate<T>(schema: TSchema, value: unknown, label: string): T {
-    return validateWithSchema<T>(schema, value, label);
   }
 
 
