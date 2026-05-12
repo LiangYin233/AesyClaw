@@ -111,10 +111,7 @@ async function handlePlatformPayload(payload: Record<string, unknown>): Promise<
   }
 }
 
-function isChatAllowed(
-  sessionKey: SessionKey,
-  config: OneBotChannelConfig | null,
-): boolean {
+function isChatAllowed(sessionKey: SessionKey, config: OneBotChannelConfig | null): boolean {
   const allowed = config?.allowedChats;
   if (!allowed || allowed.length === 0) return true;
   for (const entry of allowed) {
