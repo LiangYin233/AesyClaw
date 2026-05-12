@@ -251,7 +251,6 @@ export class ConfigManager {
       if (!(key in parsed)) {
         missing.push(path);
       } else if (isNestedRecord(validated[key]) && isNestedRecord(parsed[key])) {
-
         missing.push(
           ...this.findMissingFields(
             parsed[key] as Record<string, unknown>,

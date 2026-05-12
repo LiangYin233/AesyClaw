@@ -16,7 +16,13 @@ import {
 } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry, AgentRunHandle } from '../agent-registry';
-import { extractMessageText, type AgentMessage, type AgentTool, type AgentToolResult, type ResolvedModel } from '../agent-types';
+import {
+  extractMessageText,
+  type AgentMessage,
+  type AgentTool,
+  type AgentToolResult,
+  type ResolvedModel,
+} from '../agent-types';
 import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from '../llm-cache-options';
 
@@ -90,7 +96,10 @@ export function limitToolResultContent<T extends AgentToolResult>(
   result: T,
   budget: { maxToolResultTokens: number; maxToolResultChars: number },
 ): T {
-  const originalContentLength = result.content.reduce((total, block) => total + block.text.length, 0);
+  const originalContentLength = result.content.reduce(
+    (total, block) => total + block.text.length,
+    0,
+  );
   if (originalContentLength <= budget.maxToolResultChars) return result;
 
   let remainingChars = budget.maxToolResultChars;
@@ -129,20 +138,23 @@ type PiAgentToolAdapter = {
 };
 
 export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResult> {
-  const { roleId, model, tools: toolDefs, history, content, sessionKey, compressionThreshold, registry } =
-    params;
+  const {
+    roleId,
+    model,
+    tools: toolDefs,
+    history,
+    content,
+    sessionKey,
+    compressionThreshold,
+    registry,
+  } = params;
   if (!model.apiKey) {
     throw new Error(`未为提供者 "${model.provider}" 配置 API 密钥`);
   }
 
   const runId = randomUUID();
   const abortController = new AbortController();
-  const toolResultBudget = calculateToolResultBudget(
-    model,
-    compressionThreshold,
-    history,
-    content,
-  );
+  const toolResultBudget = calculateToolResultBudget(model, compressionThreshold, history, content);
   const agentTools = toolDefs.map((tool) => adaptToolForPiAgent(tool, abortController.signal));
   const agent = new PiAgent({
     initialState: {
@@ -197,7 +209,11 @@ function adaptToolForPiAgent(tool: AgentTool, signal: AbortSignal): PiAgentToolA
     label: tool.name,
     description: tool.description,
     parameters: tool.parameters,
-    execute: async (toolCallId: string, params: unknown, piSignal?: AbortSignal): Promise<AgentToolResult> => {
+    execute: async (
+      toolCallId: string,
+      params: unknown,
+      piSignal?: AbortSignal,
+    ): Promise<AgentToolResult> => {
       const toolSignal = piSignal ?? signal;
       throwIfCancelled(signal);
       throwIfCancelled(toolSignal);
@@ -217,9 +233,13 @@ function adaptToolForPiAgent(tool: AgentTool, signal: AbortSignal): PiAgentToolA
   };
 }
 
-function createToolResultBudgetHandler(
-  toolResultBudget: { maxToolResultTokens: number; maxToolResultChars: number },
-): (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined> {
+function createToolResultBudgetHandler(toolResultBudget: {
+  maxToolResultTokens: number;
+  maxToolResultChars: number;
+}): (
+  context: AfterToolCallContext,
+  signal?: AbortSignal,
+) => Promise<AfterToolCallResult | undefined> {
   return async (context, signal) => {
     if (signal?.aborted) {
       throw signal.reason instanceof Error ? signal.reason : new AgentRunCancelledError();
@@ -247,10 +267,7 @@ function throwIfCancelled(signal: AbortSignal): void {
   }
 }
 
-function createStreamFn(
-  apiKey: string,
-  extraBody?: Record<string, unknown>,
-): StreamFn {
+function createStreamFn(apiKey: string, extraBody?: Record<string, unknown>): StreamFn {
   const hasExtra = extraBody !== undefined && Object.keys(extraBody).length > 0;
   if (!hasExtra) {
     return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) => {
@@ -274,7 +291,9 @@ function createStreamFn(
         ...opts,
         apiKey,
         onPayload: (p: unknown): unknown =>
-          typeof p === 'object' && p !== null ? { ...(p as Record<string, unknown>), ...extraBody } : p,
+          typeof p === 'object' && p !== null
+            ? { ...(p as Record<string, unknown>), ...extraBody }
+            : p,
       }),
     );
   };

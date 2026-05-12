@@ -379,7 +379,11 @@ export class ChannelManager implements ExtensionLifecycle {
 }
 
 /** 根据错误状态、加载状态和启用状态解析频道状态字符串 */
-function resolveChannelState(error: string | undefined, loaded: boolean, enabled: boolean): ChannelLifecycleState {
+function resolveChannelState(
+  error: string | undefined,
+  loaded: boolean,
+  enabled: boolean,
+): ChannelLifecycleState {
   if (error) return 'failed';
   if (loaded) return 'loaded';
   if (enabled) return 'unloaded';

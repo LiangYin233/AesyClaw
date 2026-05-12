@@ -104,8 +104,6 @@ export function pluginOwner(pluginName: string): ToolOwner {
   return `plugin:${pluginName}`;
 }
 
-
-
 /**
  * 从动态导入的模块中发现并校验插件定义。
  *

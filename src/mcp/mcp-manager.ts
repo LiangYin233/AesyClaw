@@ -32,8 +32,6 @@ export type McpClientFactory = {
   create(config: McpServerConfig): McpClient;
 };
 
-
-
 export type ConnectedMcpServer = {
   name: string;
   config: McpServerConfig;
@@ -301,7 +299,11 @@ async function closeQuietly(client: McpClient, serverName: string): Promise<void
 }
 
 /** 根据错误状态、连接状态和启用状态解析 MCP 服务器状态字符串 */
-function resolveMcpState(error: string | undefined, connected: unknown, enabled: boolean): McpLifecycleState {
+function resolveMcpState(
+  error: string | undefined,
+  connected: unknown,
+  enabled: boolean,
+): McpLifecycleState {
   if (error) return 'failed';
   if (connected !== undefined) return 'connected';
   if (enabled) return 'disconnected';

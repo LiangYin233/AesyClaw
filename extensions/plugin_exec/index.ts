@@ -331,7 +331,10 @@ function toBuffer(chunk: Buffer | string): Buffer {
   return typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
 }
 
-export function smartDecodeOutput(buf: Buffer, platform: NodeJS.Platform = process.platform): string {
+export function smartDecodeOutput(
+  buf: Buffer,
+  platform: NodeJS.Platform = process.platform,
+): string {
   if (buf.length === 0) {
     return '';
   }

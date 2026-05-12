@@ -233,8 +233,6 @@ export class PluginManager implements ExtensionLifecycle {
     return [...statuses.values()].sort((a, b) => a.directoryName.localeCompare(b.directoryName));
   }
 
-
-
   /**
    * 按名称或目录名查找插件模块。
    *
