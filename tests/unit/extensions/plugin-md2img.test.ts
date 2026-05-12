@@ -309,7 +309,7 @@ describe('plugin_md2img', () => {
         htmlTemplate: '<div id="md2img-root">{{content}}</div>',
         logger,
         pluginConfig: { enabledChannels: ['onebot'] },
-        convertHtml: vi.fn(async () => pngBuffer),
+        convert: vi.fn(async () => pngBuffer),
       },
     );
     expect(result).toEqual({
@@ -322,8 +322,7 @@ describe('plugin_md2img', () => {
   it('handles mixed HTML and Markdown by using the Markdown path', async () => {
     const logger = createLogger();
     const pngBuffer = Buffer.from('png-combined-bytes');
-    const convertMd = vi.fn(async () => pngBuffer);
-    const convertHtml = vi.fn(async () => pngBuffer);
+    const convertFn = vi.fn(async () => pngBuffer);
     const result = await handleMd2ImgSend(
       {
         message: {
@@ -340,12 +339,10 @@ describe('plugin_md2img', () => {
         htmlTemplate: '<div id="md2img-root">{{content}}</div>',
         logger,
         pluginConfig: { enabledChannels: ['onebot'] },
-        convert: convertMd,
-        convertHtml,
+        convert: convertFn,
       },
     );
-    expect(convertMd).toHaveBeenCalledOnce();
-    expect(convertHtml).not.toHaveBeenCalled();
+    expect(convertFn).toHaveBeenCalledOnce();
     expect(result).toEqual({
       action: 'respond',
       components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],

@@ -38,7 +38,7 @@ function isHtml(text: string): boolean {
  * @param htmlTemplate - HTML 模板字符串，需包含 {{content}} 占位符
  * @returns 完整的 HTML 文档字符串
  */
-export function buildMarkdownDocument(htmlContent: string, htmlTemplate: string): string {
+export function buildHtmlDocument(htmlContent: string, htmlTemplate: string): string {
   return htmlTemplate.replace('{{content}}', htmlContent);
 }
 
@@ -117,36 +117,32 @@ export class PlaywrightMarkdownRenderer implements Md2ImgHtmlRenderer {
  * @param deps - 可选依赖注入（自定义渲染器）
  * @returns PNG 图片 Buffer
  */
+/** 将文本渲染为 PNG。若 asMarkdown 为 true 则先通过 marked 解析。 */
+async function renderToPng(
+  content: string,
+  htmlTemplate: string,
+  options?: { asMarkdown?: boolean; renderHtmlToPng?: (doc: string) => Promise<Buffer> },
+): Promise<Buffer> {
+  const html = options?.asMarkdown ? (marked.parse(content, { async: false }) as string) : content;
+  const htmlDocument = buildHtmlDocument(html, htmlTemplate);
+  const render = options?.renderHtmlToPng ?? ((doc: string) => getRenderer().renderHtmlToPng(doc));
+  return await render(htmlDocument);
+}
+
 export async function convertMarkdownToImage(
   markdown: string,
   htmlTemplate: string,
   deps?: { renderHtmlToPng?: (htmlDocument: string) => Promise<Buffer> },
 ): Promise<Buffer> {
-  const html = marked.parse(markdown, { async: false }) as string;
-  const htmlDocument = buildMarkdownDocument(html, htmlTemplate);
-  const render = deps?.renderHtmlToPng ?? ((doc: string) => getRenderer().renderHtmlToPng(doc));
-  return await render(htmlDocument);
+  return await renderToPng(markdown, htmlTemplate, { asMarkdown: true, ...deps });
 }
 
-/**
- * 将 HTML 文本转换为 PNG 图片。
- *
- * 与 convertMarkdownToImage 不同，此函数直接使用原始 HTML，
- * 不经过 marked 解析。
- *
- * @param htmlContent - HTML 文本
- * @param htmlTemplate - HTML 模板
- * @param deps - 可选依赖注入（自定义渲染器）
- * @returns PNG 图片 Buffer
- */
 export async function convertHtmlToImage(
   htmlContent: string,
   htmlTemplate: string,
   deps?: { renderHtmlToPng?: (htmlDocument: string) => Promise<Buffer> },
 ): Promise<Buffer> {
-  const htmlDocument = buildMarkdownDocument(htmlContent, htmlTemplate);
-  const render = deps?.renderHtmlToPng ?? ((doc: string) => getRenderer().renderHtmlToPng(doc));
-  return await render(htmlDocument);
+  return await renderToPng(htmlContent, htmlTemplate, deps);
 }
 
 // ─── Hook handler ───────────────────────────────────────────────
@@ -172,9 +168,9 @@ export async function handleMd2ImgSend(
     htmlTemplate: string;
     logger: PluginContext['logger'];
     pluginConfig: Record<string, unknown>;
-    convert?: typeof convertMarkdownToImage;
-    convertHtml?: typeof convertHtmlToImage;
+    convert?: (content: string, template: string) => Promise<Buffer>;
   },
+
 ): Promise<PipelineResult> {
   const { message, sessionKey } = context;
   const { htmlTemplate: template, logger, pluginConfig: config } = deps;
@@ -195,11 +191,8 @@ export async function handleMd2ImgSend(
     return { action: 'continue' };
   }
   try {
-    const convertMd = deps.convert ?? convertMarkdownToImage;
-    const convertHtml = deps.convertHtml ?? convertHtmlToImage;
-    const pngBuffer = isMarkdownContent
-      ? await convertMd(text, template)
-      : await convertHtml(text, template);
+    const convert = deps.convert ?? ((c: string, t: string) => renderToPng(c, t, { asMarkdown: isMarkdownContent }));
+    const pngBuffer = await convert(text, template);
 
     const nonTextComponents = message.components.filter((c) => c.type !== 'Plain');
 

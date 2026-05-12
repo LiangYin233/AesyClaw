@@ -79,29 +79,34 @@ yarn test       # 运行测试
 import { Type } from '@sinclair/typebox';
 import type { PluginDefinition } from '@aesyclaw/sdk';
 
-export default {
+const plugin: PluginDefinition = {
   name: 'foo',
   version: '0.1.0',
-
+  defaultConfig: {
+    greeting: 'Hello from plugin_foo',
+  },
   async init(ctx) {
-    // 注册工具
     ctx.registerTool({
       name: 'foo_greet',
       description: '向用户问好',
-      parameters: Type.Object({ name: Type.String() }),
+      parameters: Type.Object({ name: Type.Optional(Type.String()) }),
       owner: 'plugin:foo',
-      execute: async (params) => ({
-        content: `Hello, ${(params as Record<string, string>).name}!`,
-      }),
+      execute: async (params) => {
+        const name =
+          typeof params === 'object' && params !== null && typeof (params as Record<string, unknown>)['name'] === 'string'
+            ? (params as Record<string, unknown>)['name']
+            : 'there';
+        const greeting =
+          typeof ctx.config['greeting'] === 'string' ? ctx.config['greeting'] : 'Hello';
+        return { content: `${greeting}, ${name}!` };
+      },
     });
-  },
 
-  hooks: {
-    beforeLLM: (ctx) => {
-      console.log(`Agent ${ctx.agent.id} 开始处理`);
-    },
+    ctx.logger.info('Foo plugin initialized');
   },
-} satisfies PluginDefinition;
+};
+
+export default plugin;
 ```
 
 **可用 Hooks：** `onReceive` → `beforeLLM` → `beforeToolCall` / `afterToolCall` → `onSend`

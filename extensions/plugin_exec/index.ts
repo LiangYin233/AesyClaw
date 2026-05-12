@@ -75,6 +75,8 @@ export async function executeCommand(
   const getStdout = (): string => smartDecodeOutput(Buffer.concat(stdoutChunks), platform);
   const getStderr = (): string => smartDecodeOutput(Buffer.concat(stderrChunks), platform);
 
+
+
   if (!params.cwd) {
     try {
       await mkdir(cwd, { recursive: true });
@@ -96,8 +98,28 @@ export async function executeCommand(
       });
     }
   }
-
   return await new Promise<ToolExecutionResult>((resolve) => {
+    const settle = (
+      overrides: Partial<Pick<ExecResultDetails, 'exitCode' | 'signal' | 'error'>> = {},
+    ) => {
+      const details: ExecResultDetails = {
+        command: params.command,
+        cwd,
+        shell: shell.name,
+        shellCommand: shell.command,
+        shellArgs: shell.args,
+        exitCode: null,
+        signal: null,
+        timedOut,
+        timeoutMs,
+        durationMs: Date.now() - startedAt,
+        stdout: getStdout(),
+        stderr: getStderr(),
+        ...overrides,
+      };
+      resolve(makeToolResult(details));
+    };
+
     let settled = false;
     const child = (() => {
       try {
@@ -152,52 +174,17 @@ export async function executeCommand(
     }, timeoutMs);
 
     child.on('error', (err) => {
-      if (settled) {
-        return;
-      }
+      if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      resolve(
-        makeToolResult({
-          command: params.command,
-          cwd,
-          shell: shell.name,
-          shellCommand: shell.command,
-          shellArgs: shell.args,
-          exitCode: null,
-          signal: null,
-          timedOut,
-          timeoutMs,
-          durationMs: Date.now() - startedAt,
-          stdout: getStdout(),
-          stderr: getStderr(),
-          error: err.message,
-        }),
-      );
+      settle({ error: err.message });
     });
 
     child.on('close', (exitCode, signal) => {
-      if (settled) {
-        return;
-      }
+      if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      resolve(
-        makeToolResult({
-          command: params.command,
-          cwd,
-          shell: shell.name,
-          shellCommand: shell.command,
-          shellArgs: shell.args,
-          exitCode,
-          signal,
-          timedOut,
-          timeoutMs,
-          durationMs: Date.now() - startedAt,
-          stdout: getStdout(),
-          stderr: getStderr(),
-        }),
-      );
+      settle({ exitCode, signal });
     });
   });
 }
@@ -318,7 +305,7 @@ function terminateProcessTree(child: ChildProcess, platform: NodeJS.Platform): v
 }
 
 function makeToolResult(details: ExecResultDetails): ToolExecutionResult {
-  const failed = details.timedOut || details.error !== undefined || details.exitCode !== 0;
+  const failed = details.timedOut || details.error != null || details.exitCode !== 0;
 
   return {
     content: formatResultContent(details),
