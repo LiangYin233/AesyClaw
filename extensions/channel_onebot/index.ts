@@ -71,6 +71,9 @@ async function handlePlatformPayload(payload: Record<string, unknown>): Promise<
   }
   const { message, sessionKey, sender } = inbound;
 
+  if (!isChatAllowed(sessionKey, config)) {
+    return;
+  }
   const enrichedWithDownloads = await enrichMessageWithDownloads(
     message,
     payload,
@@ -108,6 +111,19 @@ async function handlePlatformPayload(payload: Record<string, unknown>): Promise<
   }
 }
 
+function isChatAllowed(
+  sessionKey: SessionKey,
+  config: OneBotChannelConfig | null,
+): boolean {
+  const allowed = config?.allowedChats;
+  if (!allowed || allowed.length === 0) return true;
+  for (const entry of allowed) {
+    if (entry === '*:*') return true;
+    if (entry === `${sessionKey.type}:*`) return true;
+    if (entry === `${sessionKey.type}:${sessionKey.chatId}`) return true;
+  }
+  return false;
+}
 export { extractOneBotComponents, mapOneBotEventToMessage, sendOneBotMessage };
 
 export default channel;

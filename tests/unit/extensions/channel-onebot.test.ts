@@ -175,6 +175,7 @@ describe('channel_onebot', () => {
       enabled: false,
       serverUrl: 'ws://127.0.0.1:3001/',
       accessToken: '',
+      allowedChats: ['*:*'],
     });
     expect(onebotChannel.defaultConfig).not.toHaveProperty('reconnectIntervalMs');
     expect(onebotChannel.defaultConfig).not.toHaveProperty('requestTimeoutMs');

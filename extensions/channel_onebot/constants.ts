@@ -5,6 +5,7 @@ export const DEFAULT_CONFIG = {
   enabled: false,
   serverUrl: 'ws://127.0.0.1:3001/',
   accessToken: '',
+  allowedChats: ['*:*'],
 };
 
 /** 流式传输分块大小（64KB） */

@@ -24,6 +24,7 @@ export type MediaComponent = ImageComponent | RecordComponent | VideoComponent |
 export type OneBotChannelConfig = {
   serverUrl: string;
   accessToken?: string;
+  allowedChats?: string[];
 };
 
 /** OneBot 日志记录器类型 */
