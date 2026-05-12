@@ -176,17 +176,30 @@ export async function handleMd2ImgSend(
 
   const text = getMessageText(message);
   if (!template) {
+    logger?.warn('md2img: template not loaded, skipping');
     return { action: 'continue' };
   }
 
   const isHtmlContent = isHtml(text);
   const isMarkdownContent = isMarkdown(text);
   if (!isHtmlContent && !isMarkdownContent) {
+    logger?.debug('md2img: content is not HTML or Markdown', {
+      textPreview: text.slice(0, 100),
+      textLength: text.length,
+    });
     return { action: 'continue' };
   }
 
   const channels = resolveEnabledChannels(config);
-  if (!sessionKey || !channels.includes(sessionKey.channel)) {
+  if (!sessionKey) {
+    logger?.warn('md2img: no sessionKey in onSend context');
+    return { action: 'continue' };
+  }
+  if (!channels.includes(sessionKey.channel)) {
+    logger?.info('md2img: channel not enabled', {
+      channel: sessionKey.channel,
+      enabledChannels: channels,
+    });
     return { action: 'continue' };
   }
   try {
