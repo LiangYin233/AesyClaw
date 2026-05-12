@@ -99,7 +99,7 @@ export async function executeCommand(
   return await new Promise<ToolExecutionResult>((resolve) => {
     const settle = (
       overrides: Partial<Pick<ExecResultDetails, 'exitCode' | 'signal' | 'error'>> = {},
-    ) => {
+    ): void => {
       const details: ExecResultDetails = {
         command: params.command,
         cwd,
@@ -303,7 +303,7 @@ function terminateProcessTree(child: ChildProcess, platform: NodeJS.Platform): v
 }
 
 function makeToolResult(details: ExecResultDetails): ToolExecutionResult {
-  const failed = details.timedOut || details.error != null || details.exitCode !== 0;
+  const failed = details.timedOut || details.error !== undefined || details.exitCode !== 0;
 
   return {
     content: formatResultContent(details),
