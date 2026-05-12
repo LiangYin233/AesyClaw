@@ -354,13 +354,16 @@ export function smartDecodeOutput(buf: Buffer, platform: NodeJS.Platform = proce
 }
 
 function formatResultContent(details: ExecResultDetails): string {
-  const status = details.timedOut
-    ? 'timed out'
-    : details.error
-      ? 'failed to start'
-      : details.exitCode === 0
-        ? 'succeeded'
-        : 'failed';
+  let status: string;
+  if (details.timedOut) {
+    status = 'timed out';
+  } else if (details.error) {
+    status = 'failed to start';
+  } else if (details.exitCode === 0) {
+    status = 'succeeded';
+  } else {
+    status = 'failed';
+  }
 
   const lines = [
     `Command ${status}`,

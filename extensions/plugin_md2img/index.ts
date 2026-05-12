@@ -191,7 +191,8 @@ export async function handleMd2ImgSend(
   }
 
   const channels = resolveEnabledChannels(config);
-  if (!sessionKey || (!channels.includes('*') && !channels.includes(sessionKey.channel))) {
+  const channelAllowed = channels.includes('*') || channels.includes(sessionKey.channel);
+  if (!sessionKey || !channelAllowed) {
     return { action: 'continue' };
   }
 

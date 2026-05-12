@@ -13,6 +13,7 @@ import type {
   ChannelManagerDependencies,
   ChannelPlugin,
   ChannelStatus,
+  ChannelLifecycleState,
   LoadedChannel,
 } from './channel-types';
 import { isChannelEnabled, discoverChannelDefinition } from './channel-types';
@@ -261,13 +262,7 @@ export class ChannelManager implements ExtensionLifecycle {
         version: definition.version,
         description: definition.description,
         enabled,
-        state: error
-          ? 'failed'
-          : this.loadedChannels.has(definition.name)
-            ? 'loaded'
-            : enabled
-              ? 'unloaded'
-              : 'disabled',
+        state: resolveChannelState(error, this.loadedChannels.has(definition.name), enabled),
         error,
       });
     }
@@ -381,4 +376,12 @@ export class ChannelManager implements ExtensionLifecycle {
       loadedAt: new Date(),
     };
   }
+}
+
+/** 根据错误状态、加载状态和启用状态解析频道状态字符串 */
+function resolveChannelState(error: string | undefined, loaded: boolean, enabled: boolean): ChannelLifecycleState {
+  if (error) return 'failed';
+  if (loaded) return 'loaded';
+  if (enabled) return 'unloaded';
+  return 'disabled';
 }

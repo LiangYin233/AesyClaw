@@ -43,7 +43,7 @@ export function createProviderCacheKey(sessionKey: SessionKey): string {
   return `session:${serializeSessionKey(sessionKey)}`;
 }
 
-export function calculateToolResultBudget(
+function calculateToolResultBudget(
   model: ResolvedModel,
   compressionThreshold: number,
   history: readonly AgentMessage[],
@@ -57,28 +57,26 @@ export function calculateToolResultBudget(
   const usedTokens = Math.ceil(historyTextLength / 3.5) + Math.ceil(content.length / 3.5);
   const remainingTokens = Math.max(0, compressionLimitTokens - usedTokens);
   const maxToolResultTokens = Math.floor(remainingTokens * 0.5);
-
   return {
     maxToolResultTokens,
     maxToolResultChars: Math.floor(maxToolResultTokens * 3.5),
   };
 }
 
-export function createAgentRunResult(newMessages: readonly AgentMessage[]): AgentRunResult {
+function createAgentRunResult(newMessages: readonly AgentMessage[]): AgentRunResult {
   return {
     newMessages: [...newMessages],
     lastAssistant: resolveLastAssistant(newMessages),
   };
 }
 
-export function createCancelledRunResult(): AgentRunResult {
+function createCancelledRunResult(): AgentRunResult {
   return { newMessages: [], lastAssistant: null };
 }
 
-export function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string, unknown> {
+function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string, unknown> {
   const finalAssistant = findFinalAssistant(messages);
   if (!finalAssistant) return { lastAssistantRole: null };
-
   const record = finalAssistant as unknown as Record<string, unknown>;
   return {
     lastAssistantRole: finalAssistant.role,
@@ -107,9 +105,7 @@ export function limitToolResultContent<T extends AgentToolResult>(
     ...result,
     content,
     details: {
-      ...(typeof result.details === 'object' && result.details !== null && !Array.isArray(result.details)
-        ? result.details
-        : {}),
+      ...(isPlainRecord(result.details) ? result.details : {}),
       truncated: true,
       originalContentLength,
       truncatedContentLength,
@@ -317,4 +313,9 @@ function extractAssistantText(message: AgentMessage): string {
     .filter((content): content is { type: 'text'; text: string } => content.type === 'text')
     .map((content) => content.text)
     .join('\n');
+}
+
+/** 判断值是否为非 null、非数组的普通对象 */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

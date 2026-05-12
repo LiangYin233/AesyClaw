@@ -295,12 +295,12 @@ export function mapOneBotAttachmentComponent(segment: unknown): MessageComponent
     return null;
   }
 
-  const segmentType =
-    typeof segment['type'] === 'string'
-      ? segment['type']
-      : typeof segment['segmentType'] === 'string'
-        ? segment['segmentType']
-        : null;
+  let segmentType: string | null = null;
+  if (typeof segment['type'] === 'string') {
+    segmentType = segment['type'];
+  } else if (typeof segment['segmentType'] === 'string') {
+    segmentType = segment['segmentType'];
+  }
   if (!segmentType) {
     return null;
   }

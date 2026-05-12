@@ -104,12 +104,7 @@ export function pluginOwner(pluginName: string): ToolOwner {
   return `plugin:${pluginName}`;
 }
 
-/**
- * 校验未知值是否符合 PluginDefinition 结构。
- */
-export function isPluginDefinition(value: unknown): value is PluginDefinition {
-  return validateExtension<PluginDefinition>(value) !== false;
-}
+
 
 /**
  * 从动态导入的模块中发现并校验插件定义。

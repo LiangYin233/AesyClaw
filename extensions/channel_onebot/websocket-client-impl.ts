@@ -457,10 +457,8 @@ function readSocketData(event: unknown): string | null {
 }
 
 function parseApiResponsePayload(payload: Record<string, unknown>): OneBotApiResponse | null {
-  if (
-    typeof payload['echo'] !== 'string' ||
-    (!('status' in payload) && !('retcode' in payload) && !('data' in payload))
-  ) {
+  const hasResponseField = 'status' in payload || 'retcode' in payload || 'data' in payload;
+  if (typeof payload['echo'] !== 'string' || !hasResponseField) {
     return null;
   }
 

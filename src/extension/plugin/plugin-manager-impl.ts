@@ -15,6 +15,7 @@ import type {
   LoadedPlugin,
   PluginConfigLookup,
   PluginContext,
+  PluginLifecycleState,
   PluginManagerDependencies,
   PluginModule,
   PluginStatus,
@@ -223,7 +224,7 @@ export class PluginManager implements ExtensionLifecycle {
         version: module?.definition.version,
         description: module?.definition.description,
         enabled,
-        state: error ? 'failed' : enabled ? 'unloaded' : 'disabled',
+        state: resolvePluginState(error, enabled),
         directory: pluginDir,
         error,
       });
@@ -231,6 +232,8 @@ export class PluginManager implements ExtensionLifecycle {
 
     return [...statuses.values()].sort((a, b) => a.directoryName.localeCompare(b.directoryName));
   }
+
+
 
   /**
    * 按名称或目录名查找插件模块。
@@ -454,4 +457,11 @@ export class PluginManager implements ExtensionLifecycle {
 
 function optionsToRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
+}
+
+/** 根据错误状态和启用状态解析插件状态字符串 */
+function resolvePluginState(error: string | undefined, enabled: boolean): PluginLifecycleState {
+  if (error) return 'failed';
+  if (enabled) return 'unloaded';
+  return 'disabled';
 }

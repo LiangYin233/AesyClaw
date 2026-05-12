@@ -32,11 +32,7 @@ export type McpClientFactory = {
   create(config: McpServerConfig): McpClient;
 };
 
-export type McpManagerDependencies = {
-  configManager: ConfigManager;
-  toolRegistry: ToolRegistry;
-  clientFactory?: McpClientFactory;
-};
+
 
 export type ConnectedMcpServer = {
   name: string;
@@ -174,13 +170,7 @@ export class McpManager {
       statuses.push({
         name: config.name,
         enabled: config.enabled,
-        state: error
-          ? 'failed'
-          : connected
-            ? 'connected'
-            : config.enabled
-              ? 'disconnected'
-              : 'disabled',
+        state: resolveMcpState(error, connected, config.enabled),
         transport: config.transport,
         toolCount: connected?.tools.length ?? 0,
         error,
@@ -240,7 +230,7 @@ export class McpManager {
   }
 }
 
-export function mcpOwner(serverName: string): ToolOwner {
+function mcpOwner(serverName: string): ToolOwner {
   return `mcp:${serverName}`;
 }
 
@@ -308,4 +298,12 @@ async function closeQuietly(client: McpClient, serverName: string): Promise<void
   } catch (err) {
     logger.warn(`连接错误后关闭 MCP 客户端失败: ${serverName}`, err);
   }
+}
+
+/** 根据错误状态、连接状态和启用状态解析 MCP 服务器状态字符串 */
+function resolveMcpState(error: string | undefined, connected: unknown, enabled: boolean): McpLifecycleState {
+  if (error) return 'failed';
+  if (connected !== undefined) return 'connected';
+  if (enabled) return 'disconnected';
+  return 'disabled';
 }

@@ -7,7 +7,7 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 import type { UsageRecord, UsageSummary } from '@aesyclaw/core/types';
-import { localDateToUtc } from './utils';
+import { localDateToUtcStart, localDateToUtcEnd } from './utils';
 
 // ─── 行类型辅助函数 ─────────────────────────────────────────────
 
@@ -72,8 +72,8 @@ export async function getUsageStats(
   options?: { model?: string; from?: string; to?: string },
 ): Promise<UsageSummary[]> {
   const modelFilter = options?.model ?? null;
-  const fromFilter = options?.from ? localDateToUtc(options.from, false) : null;
-  const toFilter = options?.to ? localDateToUtc(options.to, true) : null;
+  const fromFilter = options?.from ? localDateToUtcStart(options.from) : null;
+  const toFilter = options?.to ? localDateToUtcEnd(options.to) : null;
 
   const rows = db
     .prepare(
