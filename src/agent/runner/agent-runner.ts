@@ -46,7 +46,6 @@ export type AgentRunResult = {
   cancelled: boolean;
 };
 
-
 export function createProviderCacheKey(sessionKey: SessionKey): string {
   return `session:${serializeSessionKey(sessionKey)}`;
 }
