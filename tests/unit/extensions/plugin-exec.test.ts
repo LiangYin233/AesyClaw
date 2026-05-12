@@ -272,7 +272,8 @@ function chineseCommand(): string {
 }
 
 function nodeEnvCommand(): string {
-  const script = "console.log(`${process.env.PYTHONIOENCODING ?? ''}|${process.env.PYTHONUTF8 ?? ''}`)";
+  const script =
+    "console.log(`${process.env.PYTHONIOENCODING ?? ''}|${process.env.PYTHONUTF8 ?? ''}`)";
   return nodeCommand(script);
 }
 

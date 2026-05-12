@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { streamSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
-import { createProviderCacheKey, type AgentRunParams } from '../../../src/agent/runner/agent-runner';
+import {
+  createProviderCacheKey,
+  type AgentRunParams,
+} from '../../../src/agent/runner/agent-runner';
 import { runAgentTask } from '../../../src/agent/runner/agent-runner';
 
 const runnerMock = vi.hoisted(() => {
@@ -26,13 +29,16 @@ const runnerMock = vi.hoisted(() => {
     };
     streamFn: (model: unknown, context: unknown, options?: unknown) => unknown;
     sessionId: string;
-    afterToolCall?: (context: {
-      result: unknown;
-      isError: boolean;
-      toolCall: { id: string; name: string };
-      args: unknown;
-      context: unknown;
-    }, signal?: AbortSignal) => Promise<Record<string, unknown> | undefined>;
+    afterToolCall?: (
+      context: {
+        result: unknown;
+        isError: boolean;
+        toolCall: { id: string; name: string };
+        args: unknown;
+        context: unknown;
+      },
+      signal?: AbortSignal,
+    ) => Promise<Record<string, unknown> | undefined>;
   };
 
   class MockPiAgent {
@@ -55,9 +61,13 @@ const runnerMock = vi.hoisted(() => {
     }
 
     async prompt(content: string): Promise<void> {
-      this.options.streamFn(this.options.initialState.model, { messages: [] }, {
-        sessionId: this.options.sessionId,
-      });
+      this.options.streamFn(
+        this.options.initialState.model,
+        { messages: [] },
+        {
+          sessionId: this.options.sessionId,
+        },
+      );
 
       if (content === 'call-tool') {
         const tool = this.options.initialState.tools[0];
@@ -65,13 +75,16 @@ const runnerMock = vi.hoisted(() => {
         const rawResult = await tool.execute('call_1', {}, this.abortController.signal);
         this.rawToolResult = rawResult;
         const resultRecord = rawResult as Record<string, unknown>;
-        const override = await this.options.afterToolCall?.({
-          result: rawResult,
-          isError: resultRecord['isError'] === true,
-          toolCall: { id: 'call_1', name: 'big_tool' },
-          args: {},
-          context: { messages: this.state.messages, tools: this.options.initialState.tools },
-        }, this.abortController.signal);
+        const override = await this.options.afterToolCall?.(
+          {
+            result: rawResult,
+            isError: resultRecord['isError'] === true,
+            toolCall: { id: 'call_1', name: 'big_tool' },
+            args: {},
+            context: { messages: this.state.messages, tools: this.options.initialState.tools },
+          },
+          this.abortController.signal,
+        );
         this.afterToolCallCalls.push({ result: rawResult, override });
         this.toolResult = override ? { ...resultRecord, ...override } : rawResult;
         this.state.messages = [
@@ -84,9 +97,11 @@ const runnerMock = vi.hoisted(() => {
       await this.promptDeferred.promise;
     }
 
-    finish(newMessages: unknown[] = [
-      { role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop' },
-    ]): void {
+    finish(
+      newMessages: unknown[] = [
+        { role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop' },
+      ],
+    ): void {
       this.state.messages = [...this.options.initialState.messages, ...newMessages];
       this.promptDeferred.resolve();
     }

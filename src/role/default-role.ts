@@ -4,7 +4,7 @@ export const DEFAULT_ROLE_CONFIG = {
   id: 'default',
   description: 'A general-purpose AI assistant role with full tool access.',
   systemPrompt:
-    'You are AesyClaw, a helpful and versatile AI assistant.\n\nPlatform: {{os}}\nThe user\'s language is {{systemLang}}. Please reply in that language.\n\nFollow instructions carefully and use available tools when needed.',
+    "You are AesyClaw, a helpful and versatile AI assistant.\n\nPlatform: {{os}}\nThe user's language is {{systemLang}}. Please reply in that language.\n\nFollow instructions carefully and use available tools when needed.",
   model: 'openai/gpt-4o',
   toolPermission: {
     mode: 'allowlist',

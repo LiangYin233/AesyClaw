@@ -122,11 +122,7 @@ export class ConfigManager {
         overwrite: false,
       }) as AppConfig;
     }
-    const validatedConfig = validateWithSchema<AppConfig>(
-      AppConfigSchema,
-      mergedConfig,
-      '配置',
-    );
+    const validatedConfig = validateWithSchema<AppConfig>(AppConfigSchema, mergedConfig, '配置');
 
     await this.persistWithGuard(validatedConfig);
   }
@@ -264,8 +260,6 @@ export class ConfigManager {
 
     return missing;
   }
-
-
 
   private createStore(filePath: string): Conf<Record<string, unknown>> {
     const extension = extname(filePath);

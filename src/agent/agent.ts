@@ -331,7 +331,10 @@ export class Agent {
     const combinedHistory = history.concat(result.newMessages);
     let followUpHistory = combinedHistory;
 
-    if (estimateApproximateTokens(combinedHistory) >= this.compressionThreshold * this._model.contextWindow) {
+    if (
+      estimateApproximateTokens(combinedHistory) >=
+      this.compressionThreshold * this._model.contextWindow
+    ) {
       logger.info('Agent 追加文本前压缩上下文', {
         role: role.id,
         estimatedTokens: estimateApproximateTokens(combinedHistory),

@@ -123,7 +123,6 @@ export class RoleStore {
     }
   }
 
-
   private createStore(filePath: string): Conf<Record<string, unknown>> {
     const extension = extname(filePath);
     const fileExtension = extension.startsWith('.') ? extension.slice(1) : extension;

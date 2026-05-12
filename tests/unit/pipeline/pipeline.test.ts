@@ -10,13 +10,16 @@ const agentProcess = vi.fn(async () => ({
 const resolveActiveRoleId = vi.fn(async () => undefined);
 
 vi.mock('@aesyclaw/agent/agent', () => ({
-  Agent: Object.assign(vi.fn(function () {
-    return {
-      buildPrompt: vi.fn(() => ({ prompt: 'system', tools: [] })),
-      setRole: agentSetRole,
-      process: agentProcess,
-    };
-  }), { resolveActiveRoleId }),
+  Agent: Object.assign(
+    vi.fn(function () {
+      return {
+        buildPrompt: vi.fn(() => ({ prompt: 'system', tools: [] })),
+        setRole: agentSetRole,
+        process: agentProcess,
+      };
+    }),
+    { resolveActiveRoleId },
+  ),
 }));
 
 const sessionKey: SessionKey = { channel: 'test', type: 'private', chatId: '1' };

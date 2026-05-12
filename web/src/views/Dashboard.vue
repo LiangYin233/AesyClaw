@@ -153,7 +153,6 @@
             <td class="px-4 py-3 border-b border-[var(--color-border)] text-danger">
               {{ ch.error ?? '-' }}
             </td>
-
           </tr>
           <tr v-if="channels.length === 0">
             <td colspan="4" class="text-mid-gray text-center py-10 font-body italic text-sm">

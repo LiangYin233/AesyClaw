@@ -115,8 +115,14 @@
               <div v-if="loadingContent" class="flex items-center justify-center h-full">
                 <span class="text-mid-gray font-body text-sm">Loading...</span>
               </div>
-              <div v-else-if="skillContent" class="bg-dark text-light rounded-sm p-5 overflow-auto max-h-full">
-                <pre class="font-mono text-[0.8rem] leading-relaxed whitespace-pre-wrap break-words m-0">{{ skillContent }}</pre>
+              <div
+                v-else-if="skillContent"
+                class="bg-dark text-light rounded-sm p-5 overflow-auto max-h-full"
+              >
+                <pre
+                  class="font-mono text-[0.8rem] leading-relaxed whitespace-pre-wrap break-words m-0"
+                  >{{ skillContent }}</pre
+                >
               </div>
               <div v-else class="flex items-center justify-center h-full">
                 <span class="text-mid-gray font-body text-sm">Failed to load skill content.</span>
