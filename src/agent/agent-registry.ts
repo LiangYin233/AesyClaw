@@ -52,6 +52,21 @@ export class AgentRegistry {
   }
 
   /**
+   * 使指定会话的 Agent 缓存的系统 Prompt 失效。
+   *
+   * 在技能重新加载后调用，确保该会话下次 LLM 调用时
+   * 包含最新的技能列表。
+   *
+   * @param sessionKey - 会话标识
+   */
+  invalidatePromptCache(sessionKey: SessionKey): void {
+    const agent = this.agents.get(serializeSessionKey(sessionKey));
+    if (agent) {
+      agent.invalidatePromptCache();
+    }
+  }
+
+  /**
    * 取消指定会话下的所有 Agent 运行。
    *
    * @param sessionKey - 会话标识

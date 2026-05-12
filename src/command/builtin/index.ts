@@ -92,5 +92,5 @@ export function registerBuiltinCommands(
   registry.register(createPluginListCommand(pluginDeps));
   registry.register(createPluginEnableCommand(pluginDeps));
   registry.register(createPluginDisableCommand(pluginDeps));
-  registry.register(createSkillReloadCommand(deps.skillManager));
+  registry.register(createSkillReloadCommand(deps.skillManager, deps.agentRegistry));
 }

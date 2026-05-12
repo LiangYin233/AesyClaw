@@ -154,6 +154,16 @@ export class Agent {
   }
 
   /**
+   * 使缓存的系统 Prompt 失效，强制下次 LLM 调用时重新构建。
+   *
+   * 在技能重新加载后调用，确保 Prompt 包含最新的技能列表。
+   */
+  invalidatePromptCache(): void {
+    this._cachedSystemPrompt = null;
+    logger.debug('Prompt 缓存已失效');
+  }
+
+  /**
    * 处理用户消息，调用 LLM 并返回回复。
    *
    * @param message - 用户消息
