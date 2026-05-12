@@ -124,6 +124,7 @@ export function createWebSocketServer(
       aliveWs.clientAlive = false;
       if (ws.readyState === WebSocket.OPEN) {
         ws.ping();
+        ws.send(JSON.stringify({ type: 'ping', ok: true }));
       }
     }, HEARTBEAT_INTERVAL_MS);
 
