@@ -74,40 +74,7 @@ yarn test       # 运行测试
 
 ### 功能插件
 
-```ts
-// extensions/plugin_foo/index.ts
-import { Type } from '@sinclair/typebox';
-import type { PluginDefinition } from '@aesyclaw/sdk';
-
-const plugin: PluginDefinition = {
-  name: 'foo',
-  version: '0.1.0',
-  defaultConfig: {
-    greeting: 'Hello from plugin_foo',
-  },
-  async init(ctx) {
-    ctx.registerTool({
-      name: 'foo_greet',
-      description: '向用户问好',
-      parameters: Type.Object({ name: Type.Optional(Type.String()) }),
-      owner: 'plugin:foo',
-      execute: async (params) => {
-        const name =
-          typeof params === 'object' && params !== null && typeof (params as Record<string, unknown>)['name'] === 'string'
-            ? (params as Record<string, unknown>)['name']
-            : 'there';
-        const greeting =
-          typeof ctx.config['greeting'] === 'string' ? ctx.config['greeting'] : 'Hello';
-        return { content: `${greeting}, ${name}!` };
-      },
-    });
-
-    ctx.logger.info('Foo plugin initialized');
-  },
-};
-
-export default plugin;
-```
+可见 extensions/plugin_example/ 下的示例代码。
 
 **可用 Hooks：** `onReceive` → `beforeLLM` → `beforeToolCall` / `afterToolCall` → `onSend`
 

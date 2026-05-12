@@ -170,7 +170,6 @@ export async function handleMd2ImgSend(
     pluginConfig: Record<string, unknown>;
     convert?: (content: string, template: string) => Promise<Buffer>;
   },
-
 ): Promise<PipelineResult> {
   const { message, sessionKey } = context;
   const { htmlTemplate: template, logger, pluginConfig: config } = deps;
@@ -191,7 +190,9 @@ export async function handleMd2ImgSend(
     return { action: 'continue' };
   }
   try {
-    const convert = deps.convert ?? ((c: string, t: string) => renderToPng(c, t, { asMarkdown: isMarkdownContent }));
+    const convert =
+      deps.convert ??
+      ((c: string, t: string) => renderToPng(c, t, { asMarkdown: isMarkdownContent }));
     const pngBuffer = await convert(text, template);
 
     const nonTextComponents = message.components.filter((c) => c.type !== 'Plain');

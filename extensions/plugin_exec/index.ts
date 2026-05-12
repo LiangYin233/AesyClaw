@@ -75,8 +75,6 @@ export async function executeCommand(
   const getStdout = (): string => smartDecodeOutput(Buffer.concat(stdoutChunks), platform);
   const getStderr = (): string => smartDecodeOutput(Buffer.concat(stderrChunks), platform);
 
-
-
   if (!params.cwd) {
     try {
       await mkdir(cwd, { recursive: true });
