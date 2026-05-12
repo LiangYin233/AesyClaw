@@ -352,9 +352,12 @@ export class Agent {
       this.session.key,
       sendMessage,
     );
+    const followUpAssistantMessages = followUpResult.newMessages.filter(
+      (m) => m.role !== 'user',
+    );
 
     return {
-      newMessages: result.newMessages.concat(followUpResult.newMessages),
+      newMessages: result.newMessages.concat(followUpAssistantMessages),
       lastAssistant: followUpResult.lastAssistant,
     };
   }
