@@ -100,10 +100,7 @@ describe('plugin_md2img', () => {
       },
     );
     expect(result).toEqual({ action: 'continue' });
-    expect(logger.debug).toHaveBeenCalledWith(
-      'md2img: content is not HTML or Markdown',
-      expect.objectContaining({ textLength: 36 }),
-    );
+    expect(logger.debug).not.toHaveBeenCalled();
   });
 
   it('skips channel-gated markdown messages without debug diagnostics', async () => {
