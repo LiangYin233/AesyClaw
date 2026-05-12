@@ -206,7 +206,7 @@ describe('agent runner', () => {
       { role: 'assistant', content: [{ type: 'text', text: 'late' }], stopReason: 'stop' },
     ]);
 
-    await expect(turn).resolves.toEqual({ newMessages: [], lastAssistant: null });
+    await expect(turn).resolves.toEqual({ newMessages: [], lastAssistant: null, cancelled: true });
   });
 
   it('passes PiAgent cancellation signals to tools and trims oversized successful tool results after execution', async () => {

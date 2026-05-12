@@ -39,6 +39,7 @@ export type AgentOptions = {
 type CallLLMResult = {
   newMessages: AgentMessage[];
   lastAssistant: string | null;
+  cancelled: boolean;
 };
 
 /**
@@ -211,7 +212,7 @@ export class Agent {
     );
 
     const finalResult =
-      ephemeral || (messageSent && !result.lastAssistant)
+      ephemeral || result.cancelled || (messageSent && !result.lastAssistant)
         ? result
         : await this.ensureAssistantText(effectiveRole, history, result, sendMessage);
 
@@ -357,6 +358,7 @@ export class Agent {
     return {
       newMessages: result.newMessages.concat(followUpAssistantMessages),
       lastAssistant: followUpResult.lastAssistant,
+      cancelled: false,
     };
   }
 

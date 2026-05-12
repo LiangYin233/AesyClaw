@@ -43,7 +43,9 @@ export type AgentRunParams = {
 export type AgentRunResult = {
   newMessages: AgentMessage[];
   lastAssistant: string | null;
+  cancelled: boolean;
 };
+
 
 export function createProviderCacheKey(sessionKey: SessionKey): string {
   return `session:${serializeSessionKey(sessionKey)}`;
@@ -73,11 +75,12 @@ function createAgentRunResult(newMessages: readonly AgentMessage[]): AgentRunRes
   return {
     newMessages: [...newMessages],
     lastAssistant: resolveLastAssistant(newMessages),
+    cancelled: false,
   };
 }
 
 function createCancelledRunResult(): AgentRunResult {
-  return { newMessages: [], lastAssistant: null };
+  return { newMessages: [], lastAssistant: null, cancelled: true };
 }
 
 function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string, unknown> {
