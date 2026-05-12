@@ -193,17 +193,27 @@ export class Agent {
 
     const history = await this.loadHistory(role, ephemeral);
 
+    let messageSent = false;
+    const trackedSendMessage =
+      !ephemeral && sendMessage
+        ? async (msg: Message): Promise<boolean> => {
+            messageSent = true;
+            return await sendMessage(msg);
+          }
+        : undefined;
+
     const result = await this.callLLM(
       effectiveRole,
       content,
       history,
       this.session.key,
-      ephemeral ? undefined : sendMessage,
+      trackedSendMessage,
     );
 
-    const finalResult = ephemeral
-      ? result
-      : await this.ensureAssistantText(effectiveRole, history, result, sendMessage);
+    const finalResult =
+      ephemeral || (messageSent && !result.lastAssistant)
+        ? result
+        : await this.ensureAssistantText(effectiveRole, history, result, sendMessage);
 
     if (!ephemeral) {
       await this.session.syncFromAgent(finalResult.newMessages);
