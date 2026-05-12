@@ -191,11 +191,9 @@ export async function handleMd2ImgSend(
   }
 
   const channels = resolveEnabledChannels(config);
-  const channelAllowed = channels.includes('*') || channels.includes(sessionKey.channel);
-  if (!sessionKey || !channelAllowed) {
+  if (!sessionKey || !channels.includes(sessionKey.channel)) {
     return { action: 'continue' };
   }
-
   try {
     const convertMd = deps.convert ?? convertMarkdownToImage;
     const convertHtml = deps.convertHtml ?? convertHtmlToImage;
