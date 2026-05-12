@@ -26,143 +26,120 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('webui:ws');
 
+type Handler = (data: unknown, deps: WebUiManagerDependencies) => Promise<unknown>;
+
+const handlers = new Map<string, Handler>();
+
+function on(type: string, handler: Handler): void {
+  handlers.set(type, handler);
+}
+
+// ── 会话 ──
+on('get_sessions', (_, deps) => getSessions(deps));
+on('get_messages', async (data, deps) => {
+  return await getSessionMessages(deps, extractStringData(data, 'sessionId'));
+});
+on('clear_session', async (data, deps) => {
+  await clearSessionHistory(deps, extractStringData(data, 'sessionId'));
+});
+
+// ── 配置 ──
+on('get_config', (_, deps) => Promise.resolve(getConfig(deps)));
+on('get_config_schema', () => Promise.resolve(getConfigSchema()));
+on('update_config', async (data, deps) => {
+  await updateConfig(deps, data as Record<string, unknown>);
+});
+
+// ── Cron ──
+on('get_cron', (_, deps) => getCronJobs(deps));
+on('get_cron_runs', async (data, deps) => {
+  return await getCronJobRuns(deps, extractStringData(data, 'jobId'));
+});
+
+// ── 角色 ──
+on('get_roles', (_, deps) => Promise.resolve(getRoles(deps)));
+on('get_role', (data, deps) =>
+  Promise.resolve(getRole(deps, extractStringData(data, 'id'))),
+);
+on('create_role', async (data, deps) => {
+  return await createRole(deps, data as Parameters<typeof createRole>[1]);
+});
+on('update_role', async (data, deps) => {
+  const { id, ...body } = data as { id: string } & Record<string, unknown>;
+  return await updateRole(deps, id, body as Parameters<typeof updateRole>[2]);
+});
+on('delete_role', async (data, deps) => {
+  await deleteRole(deps, extractStringData(data, 'id'));
+});
+
+// ── 渠道 / 插件 ──
+on('get_channels', (_, deps) => Promise.resolve(deps.channelManager.getRegisteredChannels()));
+on('get_plugins', async (_, deps) => {
+  return await deps.pluginManager.getPluginDefinitions();
+});
+
+// ── 状态 / 用量 ──
+on('get_status', (_, deps) => Promise.resolve(getStatus(deps)));
+on('get_usage', (data, deps) => getUsage(deps, data as Parameters<typeof getUsage>[1]));
+on('get_usage_today', (_, deps) => getUsageToday(deps));
+on('get_usage_tools', (data, deps) =>
+  getUsageTools(deps, data as Parameters<typeof getUsageTools>[1]),
+);
+
+// ── 日志 ──
+on('get_logs', (data) => Promise.resolve(getLogs(data as Parameters<typeof getLogs>[0])));
+
+// ── 工具 ──
+on('get_tools', (_, deps) =>
+  Promise.resolve(
+    deps.toolRegistry.getAll().map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      owner: tool.owner,
+      parameters: JSON.parse(JSON.stringify(tool.parameters)),
+    })),
+  ),
+);
+
+// ── 技能 ──
+on('get_skills', (_, deps) =>
+  Promise.resolve(
+    deps.skillManager.getAllSkills().map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      isSystem: skill.isSystem,
+    })),
+  ),
+);
+on('reload_skills', async (_, deps) => {
+  const reloadCount = deps.skillManager.getAllSkills().length;
+  await deps.skillManager.reload();
+  const newCount = deps.skillManager.getAllSkills().length;
+  return { message: `技能已重新加载。${reloadCount} → ${newCount}` };
+});
+on('get_skill_content', (data, deps) => {
+  const { name } = data as { name: string };
+  if (!name) throw new Error('缺少技能名称');
+  const skill = deps.skillManager.getSkill(name);
+  if (!skill) throw new Error(`技能 "${name}" 未找到`);
+  return Promise.resolve({ name: skill.name, content: skill.content });
+});
+
 /**
  * 消息分发器 — 接收 WebSocket 消息，路由到对应的 service handler，返回响应。
- *
- * @param msg - 客户端发来的 WebSocket 消息
- * @param deps - WebUI 管理器依赖项
- * @returns 封装为 WsResponse 的处理结果
  */
 export async function dispatchMessage(
   msg: WsMessage,
   deps: WebUiManagerDependencies,
 ): Promise<WsResponse> {
   try {
-    switch (msg.type) {
-      // 会话
-      case 'get_sessions':
-        return okResponse(msg, await getSessions(deps));
-      case 'get_messages': {
-        const sessionId = extractStringData(msg.data, 'sessionId');
-        return okResponse(msg, await getSessionMessages(deps, sessionId));
-      }
-      case 'clear_session': {
-        const sessionId = extractStringData(msg.data, 'sessionId');
-        await clearSessionHistory(deps, sessionId);
-        return okResponse(msg);
-      }
-
-      // 配置
-      case 'get_config':
-        return okResponse(msg, getConfig(deps));
-      case 'get_config_schema':
-        return okResponse(msg, getConfigSchema());
-      case 'update_config': {
-        await updateConfig(deps, msg.data as Record<string, unknown>);
-        return okResponse(msg);
-      }
-
-      // Cron
-      case 'get_cron':
-        return okResponse(msg, await getCronJobs(deps));
-      case 'get_cron_runs': {
-        const jobId = extractStringData(msg.data, 'jobId');
-        return okResponse(msg, await getCronJobRuns(deps, jobId));
-      }
-
-      // 角色
-      case 'get_roles':
-        return okResponse(msg, getRoles(deps));
-      case 'get_role': {
-        const roleId = extractStringData(msg.data, 'id');
-        return okResponse(msg, getRole(deps, roleId));
-      }
-      case 'create_role': {
-        const data = await createRole(deps, msg.data as Parameters<typeof createRole>[1]);
-        return okResponse(msg, data);
-      }
-      case 'update_role': {
-        const { id: roleUpdateId, ...body } = msg.data as { id: string } & Record<string, unknown>;
-        const data = await updateRole(deps, roleUpdateId, body as Parameters<typeof updateRole>[2]);
-        return okResponse(msg, data);
-      }
-      case 'delete_role': {
-        const deleteId = extractStringData(msg.data, 'id');
-        await deleteRole(deps, deleteId);
-        return okResponse(msg);
-      }
-
-      // 渠道
-      case 'get_channels':
-        return okResponse(msg, deps.channelManager.getRegisteredChannels());
-
-      // 插件
-      case 'get_plugins':
-        return okResponse(msg, await deps.pluginManager.getPluginDefinitions());
-
-      // 状态
-      case 'get_status':
-        return okResponse(msg, getStatus(deps));
-
-      // 用量
-      case 'get_usage':
-        return okResponse(msg, await getUsage(deps, msg.data as Parameters<typeof getUsage>[1]));
-      case 'get_usage_today':
-        return okResponse(msg, await getUsageToday(deps));
-      case 'get_usage_tools':
-        return okResponse(
-          msg,
-          await getUsageTools(deps, msg.data as Parameters<typeof getUsageTools>[1]),
-        );
-
-      // 日志
-      case 'get_logs':
-        return okResponse(msg, getLogs(msg.data as Parameters<typeof getLogs>[0]));
-
-      // 工具
-      case 'get_tools':
-        return okResponse(
-          msg,
-          deps.toolRegistry.getAll().map((tool) => ({
-            name: tool.name,
-            description: tool.description,
-            owner: tool.owner,
-            parameters: JSON.parse(JSON.stringify(tool.parameters)),
-          })),
-        );
-
-      // 技能
-      case 'get_skills':
-        return okResponse(
-          msg,
-          deps.skillManager.getAllSkills().map((skill) => ({
-            name: skill.name,
-            description: skill.description,
-            isSystem: skill.isSystem,
-          })),
-        );
-      case 'reload_skills': {
-        const reloadCount = deps.skillManager.getAllSkills().length;
-        await deps.skillManager.reload();
-        const newCount = deps.skillManager.getAllSkills().length;
-        return okResponse(msg, { message: `技能已重新加载。${reloadCount} → ${newCount}` });
-      }
-      case 'get_skill_content': {
-        const data = msg.data as { name: string };
-        if (!data?.name) {
-          return errorResponse(msg, '缺少技能名称');
-        }
-        const skill = deps.skillManager.getSkill(data.name);
-        if (!skill) {
-          return errorResponse(msg, `技能 "${data.name}" 未找到`);
-        }
-        return okResponse(msg, { name: skill.name, content: skill.content });
-      }
-
-      default:
-        logger.warn('未知消息类型', { type: msg.type });
-        return errorResponse(msg, `未知消息类型: ${msg.type}`);
+    const handler = handlers.get(msg.type);
+    if (!handler) {
+      logger.warn('未知消息类型', { type: msg.type });
+      return errorResponse(msg, `未知消息类型: ${msg.type}`);
     }
+    const data = await handler(msg.data, deps);
+    return okResponse(msg, data);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('处理 WS 消息失败', { type: msg.type, error: message });

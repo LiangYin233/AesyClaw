@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
-import { Value } from '@sinclair/typebox/value';
+import type { TSchema } from '@sinclair/typebox';
+
 import Conf from 'conf';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { resolvePaths, type ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { AsyncMutex } from '@aesyclaw/core/mutex';
+import { validateWithSchema } from './schema-utils';
 import { AppConfigSchema, type AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
 
@@ -264,20 +266,10 @@ export class ConfigManager {
     return missing;
   }
 
-  private validateWithSchema<T>(
-    schema: Parameters<typeof Value.Check>[0],
-    value: unknown,
-    label: string,
-  ): T {
-    const validated = Value.Default(schema, value);
-    if (!Value.Check(schema, validated)) {
-      const errors = [...Value.Errors(schema, validated)]
-        .map((e) => `${e.path}: ${e.message}`)
-        .join('; ');
-      throw new Error(`${label}验证失败: ${errors}`);
-    }
-    return validated as T;
+  private validateWithSchema<T>(schema: TSchema, value: unknown, label: string): T {
+    return validateWithSchema<T>(schema, value, label);
   }
+
 
   private createStore(filePath: string): Conf<Record<string, unknown>> {
     const extension = extname(filePath);

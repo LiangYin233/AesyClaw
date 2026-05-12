@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
-import { Value } from '@sinclair/typebox/value';
+import type { TSchema } from '@sinclair/typebox';
+
 import Conf from 'conf';
 import type { RoleConfig } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AsyncMutex } from '@aesyclaw/core/mutex';
 import { DEFAULT_ROLES_CONFIG } from './default-role';
+import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 import { RolesConfigSchema } from './role-schema';
 
 const logger = createScopedLogger('role-store');
@@ -122,16 +124,10 @@ export class RoleStore {
     }
   }
 
-  private validate<T>(schema: Parameters<typeof Value.Check>[0], value: unknown, label: string): T {
-    const validated = Value.Default(schema, value) as T;
-    if (!Value.Check(schema, validated)) {
-      const errors = [...Value.Errors(schema, validated)]
-        .map((e) => `${e.path}: ${e.message}`)
-        .join('; ');
-      throw new Error(`${label}验证失败: ${errors}`);
-    }
-    return validated;
+  private validate<T>(schema: TSchema, value: unknown, label: string): T {
+    return validateWithSchema<T>(schema, value, label);
   }
+
 
   private createStore(filePath: string): Conf<Record<string, unknown>> {
     const extension = extname(filePath);

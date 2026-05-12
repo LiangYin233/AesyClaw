@@ -3,7 +3,7 @@ import { AgentRegistry } from './agent/agent-registry';
 import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
-import { CoreLifecycle } from './core/core-lifecycle';
+import { CoreLifecycle, type CoreLifecycleDependencies } from './core/core-lifecycle';
 import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger } from './core/logger';
 import { McpManager } from './mcp/mcp-manager';
@@ -16,22 +16,7 @@ import { ToolRegistry } from './tool/tool-registry';
 
 const logger = createScopedLogger('app');
 
-type AppSubsystems = {
-  configManager: ConfigManager;
-  databaseManager: DatabaseManager;
-  roleStore: RoleStore;
-  roleManager: RoleManager;
-  skillManager: SkillManager;
-  toolRegistry: ToolRegistry;
-  commandRegistry: CommandRegistry;
-  llmAdapter: LlmAdapter;
-  sessionManager: SessionManager;
-  pipeline: Pipeline;
-  mcpManager: McpManager;
-  agentRegistry: AgentRegistry;
-};
-
-function createSubsystems(): AppSubsystems {
+function createSubsystems(): CoreLifecycleDependencies {
   const agentRegistry = new AgentRegistry();
   const configManager = new ConfigManager();
   const databaseManager = new DatabaseManager();
