@@ -185,13 +185,15 @@ class WebSocketClient {
       try {
         const response = JSON.parse(event.data as string) as WsResponse;
 
-        // 处理心跳：重置 ping 超时计时器
+        // 收到任何有效消息都证明连接存活，重置心跳监控
+        this.stopPingMonitor();
+        this.startPingMonitor();
+
+        // 处理 JSON 级心跳 ping/pong
         if (response.type === 'ping') {
           if (this.ws !== null) {
             this.ws.send(JSON.stringify({ type: 'pong' }));
           }
-          this.stopPingMonitor();
-          this.startPingMonitor();
           return;
         }
 
@@ -252,7 +254,7 @@ class WebSocketClient {
   private scheduleReconnect(): void {
     if (this.destroyed) return;
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), 30_000);
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, 30_000);
     this.reconnectAttempt++;
 
     this.reconnectTimer = setTimeout(() => {
