@@ -94,8 +94,8 @@ class WebSocketClient {
           setTimeout(trySend, 50);
           return;
         }
-        // OPEN
         this.pending.set(requestId, { resolve, reject, timer });
+
         this.ws.send(JSON.stringify({ type, requestId, data }));
       };
       trySend();
@@ -109,10 +109,8 @@ class WebSocketClient {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Set());
     }
-    const handlers = this.handlers.get(type);
-    if (handlers) {
-      handlers.add(handler);
-    }
+    this.handlers.get(type)!.add(handler);
+
   }
 
   /**
@@ -148,17 +146,20 @@ class WebSocketClient {
       clearTimeout(this.pingTimer);
       this.pingTimer = null;
     }
-    if (this.ws !== null) {
-      this.ws.onopen = null;
-      this.ws.onclose = null;
-      this.ws.onmessage = null;
-      this.ws.onerror = null;
-      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
-        this.ws.close();
-      }
-      this.ws = null;
-    }
+    this.detachSocket();
     this.connected.value = false;
+  }
+
+  private detachSocket(): void {
+    if (this.ws === null) return;
+    this.ws.onopen = null;
+    this.ws.onclose = null;
+    this.ws.onmessage = null;
+    this.ws.onerror = null;
+    if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+      this.ws.close();
+    }
+    this.ws = null;
   }
 
   private doConnect(): void {
@@ -231,7 +232,7 @@ class WebSocketClient {
     };
 
     this.ws.onerror = () => {
-      // onclose 会随后触发，由 onclose 处理重连
+
     };
   }
 
