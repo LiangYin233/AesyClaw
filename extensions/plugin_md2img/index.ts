@@ -195,7 +195,7 @@ export async function handleMd2ImgSend(
     logger?.warn('md2img: no sessionKey in onSend context');
     return { action: 'continue' };
   }
-  if (!channels.includes(sessionKey.channel)) {
+  if (!channels.includes('*') && !channels.includes(sessionKey.channel)) {
     logger?.info('md2img: channel not enabled', {
       channel: sessionKey.channel,
       enabledChannels: channels,
