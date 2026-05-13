@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { toAgentTool } from '../../../src/tool/tool-adapter';
 import type { AesyClawTool, ToolExecutionContext } from '../../../src/tool/tool-registry';
-import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import type { IHooksBus, HookResult } from '../../../src/hook';
 import { setLogLevel } from '../../../src/core/logger';
 import { Type } from '@sinclair/typebox';
 
@@ -24,41 +24,67 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
   };
 }
 
-function makeNoOpHookDispatcher(): HookDispatcher {
+function makeNoOpHooksBus(): IHooksBus {
   return {
-    async beforeToolCall() {
-      return {};
+    register: () => {},
+    unregister: () => {},
+    unregisterByPrefix: () => {},
+    enable: () => {},
+    disable: () => {},
+    isEnabled: () => false,
+    async dispatch(): Promise<HookResult> {
+      return { action: 'next' };
     },
-    async afterToolCall() {
-      return {};
-    },
-  } as unknown as HookDispatcher;
+    clear: () => {},
+  };
 }
 
-function makeBlockingHookDispatcher(reason: string): HookDispatcher {
+function makeBlockingHooksBus(reason: string): IHooksBus {
   return {
-    async beforeToolCall() {
-      return { block: true, reason };
+    register: () => {},
+    unregister: () => {},
+    unregisterByPrefix: () => {},
+    enable: () => {},
+    disable: () => {},
+    isEnabled: () => false,
+    async dispatch(chain: string): Promise<HookResult> {
+      if (chain === 'tool:beforeCall') {
+        return { action: 'block', reason };
+      }
+      return { action: 'next' };
     },
-    async afterToolCall() {
-      return {};
-    },
-  } as unknown as HookDispatcher;
+    clear: () => {},
+  };
 }
 
-function makeOverrideHookDispatcher(override: {
+function makeOverrideHooksBus(override: {
   content?: string;
   isError?: boolean;
   terminate?: boolean;
-}): HookDispatcher {
+}): IHooksBus {
   return {
-    async beforeToolCall() {
-      return {};
+    register: () => {},
+    unregister: () => {},
+    unregisterByPrefix: () => {},
+    enable: () => {},
+    disable: () => {},
+    isEnabled: () => false,
+    async dispatch(chain: string): Promise<HookResult> {
+      if (chain === 'tool:afterCall') {
+        return {
+          action: 'override',
+          result: {
+            content: override.content ?? 'overridden',
+            details: {},
+            isError: override.isError,
+            terminate: override.terminate,
+          },
+        };
+      }
+      return { action: 'next' };
     },
-    async afterToolCall() {
-      return { override };
-    },
-  } as unknown as HookDispatcher;
+    clear: () => {},
+  };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────
@@ -77,7 +103,7 @@ describe('ToolAdapter', () => {
   describe('toAgentTool', () => {
     it('should convert AesyClawTool to AgentTool with correct properties', () => {
       const tool = makeTool();
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
 
       expect(agentTool.name).toBe('test-tool');
       expect(agentTool.label).toBe('test-tool');
@@ -90,7 +116,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'Hello from tool' }),
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       const result = await agentTool.execute('call-1', { input: 'test' });
 
       expect(result.content).toEqual([{ type: 'text', text: 'Hello from tool' }]);
@@ -109,7 +135,7 @@ describe('ToolAdapter', () => {
         sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
       };
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), context);
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), context);
       await agentTool.execute('call-1', { input: 'test' });
 
       expect(receivedContext).toEqual(context);
@@ -121,7 +147,7 @@ describe('ToolAdapter', () => {
         execute,
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       const params = {};
 
       const result = await agentTool.execute('call-1', params);
@@ -150,7 +176,7 @@ describe('ToolAdapter', () => {
         execute,
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       const params = { max_results: 'not-a-number' };
       const result = await agentTool.execute('call-mcp', params);
 
@@ -169,7 +195,7 @@ describe('ToolAdapter', () => {
         execute,
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       const params = {};
 
       const result = await agentTool.execute('call-plugin-invalid', params);
@@ -187,7 +213,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'should not run' }),
       });
 
-      const agentTool = toAgentTool(tool, makeBlockingHookDispatcher('Blocked by policy'), {});
+      const agentTool = toAgentTool(tool, makeBlockingHooksBus('Blocked by policy'), {});
 
       await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Blocked by policy' }],
@@ -203,7 +229,7 @@ describe('ToolAdapter', () => {
 
       const agentTool = toAgentTool(
         tool,
-        makeOverrideHookDispatcher({ content: 'overridden result' }),
+        makeOverrideHooksBus({ content: 'overridden result' }),
         {},
       );
       const result = await agentTool.execute('call-1', { input: 'test' });
@@ -216,7 +242,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'Tool failed', isError: true }),
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
 
       await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Tool failed' }],
@@ -232,7 +258,7 @@ describe('ToolAdapter', () => {
 
       const agentTool = toAgentTool(
         tool,
-        makeOverrideHookDispatcher({ content: 'overridden failure', isError: true }),
+        makeOverrideHooksBus({ content: 'overridden failure', isError: true }),
         {},
       );
 
@@ -250,7 +276,7 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Tool crashed' }],
         details: {},
@@ -266,7 +292,7 @@ describe('ToolAdapter', () => {
       const controller = new AbortController();
       controller.abort();
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       await expect(
         agentTool.execute('call-1', { input: 'test' }, controller.signal),
       ).resolves.toMatchObject({
@@ -281,7 +307,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'ok' }),
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       // Should not throw — just uses empty sessionKey
       const result = await agentTool.execute('call-1', { input: 'test' });
       expect(result.content).toEqual([{ type: 'text', text: 'ok' }]);
@@ -292,7 +318,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'secret tool result', details: { recordCount: 1 } }),
       });
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       await agentTool.execute('call-logging', { input: 'secret user payload' });
 
       expectDebugLog('工具调用已触发', {
@@ -318,14 +344,14 @@ describe('ToolAdapter', () => {
       const tool = makeTool({
         execute: async () => ({ content: 'should not run' }),
       });
-      const blockedTool = toAgentTool(tool, makeBlockingHookDispatcher('Blocked by policy'), {});
+      const blockedTool = toAgentTool(tool, makeBlockingHooksBus('Blocked by policy'), {});
 
       await blockedTool.execute('call-blocked', { input: 'test' });
 
-      expectDebugLog('工具调用被 before 钩子阻塞', {
+      expectDebugLog('工具调用被 tool:beforeCall 链阻塞', {
         toolName: 'test-tool',
         toolCallId: 'call-blocked',
-        hasReason: true,
+        reason: 'Blocked by policy',
       });
       expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
@@ -341,7 +367,7 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const executionTool = toAgentTool(failingTool, makeNoOpHookDispatcher(), {});
+      const executionTool = toAgentTool(failingTool, makeNoOpHooksBus(), {});
 
       await executionTool.execute('call-failed', { input: 'test' });
 
@@ -365,7 +391,7 @@ describe('ToolAdapter', () => {
       const controller = new AbortController();
       controller.abort();
 
-      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHooksBus(), {});
       await agentTool.execute('call-aborted', { input: 'secret abort payload' }, controller.signal);
 
       expectDebugLog('工具调用已触发', {
@@ -391,17 +417,17 @@ describe('ToolAdapter', () => {
 
       const agentTool = toAgentTool(
         tool,
-        makeOverrideHookDispatcher({ content: 'overridden failure', isError: true }),
+        makeOverrideHooksBus({ content: 'overridden failure', isError: true }),
         {},
       );
       await agentTool.execute('call-override', { input: 'test' });
 
-      expectDebugLog('工具调用结果被 after 钩子覆盖', {
+      expectDebugLog('工具调用结果被 tool:afterCall 链覆盖', {
         toolName: 'test-tool',
         toolCallId: 'call-override',
         override: {
           hasContent: true,
-          hasDetails: false,
+          hasDetails: true,
           hasIsError: true,
           hasTerminate: false,
         },
@@ -412,7 +438,7 @@ describe('ToolAdapter', () => {
         outcome: 'executed',
         result: {
           contentLength: 'overridden failure'.length,
-          hasDetails: false,
+          hasDetails: true,
           isError: true,
           terminate: false,
         },

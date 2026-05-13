@@ -9,6 +9,7 @@ import { createScopedLogger } from './core/logger';
 import { McpManager } from './mcp/mcp-manager';
 import { SdkMcpClientFactory } from './mcp/sdk-mcp-client';
 import { Pipeline } from './pipeline/pipeline';
+import { HooksBus } from './hook';
 import { RoleManager } from './role/role-manager';
 import { RoleStore } from './role/role-store';
 import { SkillManager } from './skill/skill-manager';
@@ -29,6 +30,7 @@ function createSubsystems(): CoreLifecycleDependencies {
   const sessionManager = new SessionManager(databaseManager);
 
   const compressionThreshold = configManager.get('agent.memory.compressionThreshold') as number;
+  const hooksBus = new HooksBus();
   const pipeline = new Pipeline({
     sessionManager,
     commandRegistry,
@@ -37,6 +39,7 @@ function createSubsystems(): CoreLifecycleDependencies {
     llmAdapter,
     skillManager,
     toolRegistry,
+    hooksBus,
     compressionThreshold,
     agentRegistry,
   });

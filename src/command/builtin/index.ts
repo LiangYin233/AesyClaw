@@ -6,7 +6,7 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { IHooksBus } from '@aesyclaw/hook';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
@@ -36,7 +36,7 @@ export type BuiltinCommandDependencies = {
   llmAdapter: LlmAdapter;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
-  hookDispatcher: HookDispatcher;
+  hooksBus: IHooksBus;
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
   compressionThreshold: number;
   agentRegistry: AgentRegistry;
@@ -68,7 +68,7 @@ export function registerBuiltinCommands(
       deps.roleManager,
       deps.skillManager,
       deps.toolRegistry,
-      deps.hookDispatcher,
+      deps.hooksBus,
       deps.databaseManager,
       deps.compressionThreshold,
       deps.agentRegistry,

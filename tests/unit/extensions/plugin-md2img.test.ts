@@ -82,7 +82,7 @@ describe('plugin_md2img', () => {
       },
       { htmlTemplate: '', logger, pluginConfig: { enabledChannels: ['*'] } },
     );
-    expect(result).toEqual({ action: 'continue' });
+    expect(result).toEqual({ action: 'next' });
     expect(logger.debug).not.toHaveBeenCalled();
   });
 
@@ -99,7 +99,7 @@ describe('plugin_md2img', () => {
         pluginConfig: { enabledChannels: ['*'] },
       },
     );
-    expect(result).toEqual({ action: 'continue' });
+    expect(result).toEqual({ action: 'next' });
     expect(logger.debug).not.toHaveBeenCalled();
   });
 
@@ -116,7 +116,7 @@ describe('plugin_md2img', () => {
         pluginConfig: { enabledChannels: ['onebot'] },
       },
     );
-    expect(result).toEqual({ action: 'continue' });
+    expect(result).toEqual({ action: 'next' });
     expect(logger.debug).not.toHaveBeenCalled();
   });
 
@@ -137,7 +137,11 @@ describe('plugin_md2img', () => {
     );
     expect(result).toEqual({
       action: 'respond',
-      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
+      message: {
+        components: [
+          { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
+        ],
+      },
     });
     expect(logger.debug).not.toHaveBeenCalled();
   });
@@ -170,14 +174,16 @@ describe('plugin_md2img', () => {
 
     expect(result).toEqual({
       action: 'respond',
-      components: [
-        { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
-        {
-          type: 'File',
-          url: 'https://example.com/report.pdf',
-          mimeType: 'application/pdf',
-        },
-      ],
+      message: {
+        components: [
+          { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
+          {
+            type: 'File',
+            url: 'https://example.com/report.pdf',
+            mimeType: 'application/pdf',
+          },
+        ],
+      },
     });
   });
 
@@ -198,7 +204,7 @@ describe('plugin_md2img', () => {
         }),
       },
     );
-    expect(result).toEqual({ action: 'continue' });
+    expect(result).toEqual({ action: 'next' });
     expect(logger.debug).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledWith(
       'md2img conversion failed',
@@ -314,7 +320,11 @@ describe('plugin_md2img', () => {
     );
     expect(result).toEqual({
       action: 'respond',
-      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
+      message: {
+        components: [
+          { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
+        ],
+      },
     });
     expect(logger.debug).not.toHaveBeenCalled();
   });
@@ -345,7 +355,11 @@ describe('plugin_md2img', () => {
     expect(convertFn).toHaveBeenCalledOnce();
     expect(result).toEqual({
       action: 'respond',
-      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
+      message: {
+        components: [
+          { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
+        ],
+      },
     });
     expect(logger.debug).not.toHaveBeenCalled();
   });

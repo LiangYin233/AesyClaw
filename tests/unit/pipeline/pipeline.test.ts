@@ -54,6 +54,16 @@ function createSession(initialLocked = false) {
 
 function createDeps(session: ReturnType<typeof createSession>): PipelineDependencies {
   return {
+    hooksBus: {
+      register: vi.fn(),
+      unregister: vi.fn(),
+      unregisterByPrefix: vi.fn(),
+      enable: vi.fn(),
+      disable: vi.fn(),
+      isEnabled: vi.fn(() => false),
+      dispatch: vi.fn(async () => ({ action: 'next' as const })),
+      clear: vi.fn(),
+    },
     sessionManager: {
       create: vi.fn(async () => session),
     },
@@ -70,10 +80,12 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
         getActiveRole: vi.fn(async () => null),
       },
     },
-    llmAdapter: {},
-    skillManager: {},
-    toolRegistry: {},
-  } as unknown as PipelineDependencies;
+    llmAdapter: {} as never,
+    skillManager: {} as never,
+    toolRegistry: {} as never,
+    compressionThreshold: 0.8,
+    agentRegistry: {} as never,
+  };
 }
 
 async function createPipeline(deps: PipelineDependencies) {
@@ -86,9 +98,17 @@ async function createPipeline(deps: PipelineDependencies) {
 describe('Pipeline', () => {
   it('returns busy for locked non-command messages before beforeLLM hooks run', async () => {
     const session = createSession(true);
-    const pipeline = await createPipeline(createDeps(session));
-    const beforeLLM = vi.fn(async () => ({ action: 'continue' as const }));
-    pipeline.hooks.register('test', { beforeLLM });
+    const beforeLLM = vi.fn(async () => ({ action: 'next' as const }));
+    const deps = createDeps(session);
+    (deps.hooksBus.dispatch as ReturnType<typeof vi.fn>).mockImplementation(
+      async (chain: string, _ctx: unknown) => {
+        if (chain === 'pipeline:beforeLLM') {
+          return await beforeLLM();
+        }
+        return { action: 'next' as const };
+      },
+    );
+    const pipeline = await createPipeline(deps);
     const send = vi.fn(async (_message: Message) => undefined);
 
     await pipeline.receiveWithSend(
@@ -107,13 +127,20 @@ describe('Pipeline', () => {
 
   it('unlocks when beforeLLM responds after the non-command lock succeeds', async () => {
     const session = createSession(false);
-    const pipeline = await createPipeline(createDeps(session));
-    pipeline.hooks.register('test', {
-      beforeLLM: vi.fn(async () => ({
-        action: 'respond' as const,
-        components: [{ type: 'Plain' as const, text: 'hook response' }],
-      })),
-    });
+    const deps = createDeps(session);
+
+    (deps.hooksBus.dispatch as ReturnType<typeof vi.fn>).mockImplementation(
+      async (chain: string, _ctx: unknown) => {
+        if (chain === 'pipeline:beforeLLM') {
+          return {
+            action: 'respond' as const,
+            message: { components: [{ type: 'Plain' as const, text: 'hook response' }] },
+          };
+        }
+        return { action: 'next' as const };
+      },
+    );
+    const pipeline = await createPipeline(deps);
     const send = vi.fn(async (_message: Message) => undefined);
 
     await pipeline.receiveWithSend(

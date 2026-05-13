@@ -102,7 +102,7 @@ export type SendFn = (message: Message) => Promise<void>;
 
 /** 消息经过管道或钩子处理后的结果 */
 export type PipelineResult =
-  | { action: 'continue'; data?: unknown }
+  | { action: 'continue'; data?: unknown; message?: Message }
   | { action: 'block'; reason?: string }
   | { action: 'respond'; components: MessageComponent[] };
 

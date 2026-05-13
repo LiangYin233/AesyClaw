@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ToolRegistry, filterToolsByRole } from '../../../src/tool/tool-registry';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
-import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import type { IHooksBus } from '../../../src/hook';
 import { makeRole } from '../../helpers/role';
 import { Type } from '@sinclair/typebox';
 
@@ -25,16 +25,20 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
   };
 }
 
-/** Create a mock HookDispatcher that allows all calls */
-function makeNoOpHookDispatcher(): HookDispatcher {
+/** Create a mock IHooksBus that allows all calls */
+function makeNoOpHooksBus(): IHooksBus {
   return {
-    async beforeToolCall() {
-      return {};
+    register: () => undefined,
+    unregister: () => undefined,
+    unregisterByPrefix: () => undefined,
+    enable: () => undefined,
+    disable: () => undefined,
+    isEnabled: () => false,
+    async dispatch() {
+      return { action: 'next' as const };
     },
-    async afterToolCall() {
-      return {};
-    },
-  } as unknown as HookDispatcher;
+    clear: () => undefined,
+  };
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────
@@ -153,7 +157,7 @@ describe('ToolRegistry', () => {
   // ─── resolveForRole ────────────────────────────────────────────────
 
   describe('resolveForRole', () => {
-    const hookDispatcher = makeNoOpHookDispatcher();
+    const hooksBus = makeNoOpHooksBus();
 
     it('should return AgentTools for allowlist mode', async () => {
       registry.register(makeTool({ name: 'send_msg' }));
@@ -164,7 +168,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['send_msg', 'create_cron'] },
       });
 
-      const { agentTools } = registry.resolveForRole(role, hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(role, hooksBus, {});
       expect(agentTools).toHaveLength(2);
       expect(agentTools.map((t) => t.name)).toContain('send_msg');
       expect(agentTools.map((t) => t.name)).toContain('create_cron');
@@ -175,7 +179,7 @@ describe('ToolRegistry', () => {
       registry.register(makeTool({ name: 'run_sub_agent' }));
       registry.register(makeTool({ name: 'create_cron' }));
 
-      const { agentTools } = registry.resolveForRole(makeRole(), hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(makeRole(), hooksBus, {});
 
       expect(agentTools).toHaveLength(3);
       expect(agentTools.map((t) => t.name)).toEqual(['send_msg', 'run_sub_agent', 'create_cron']);
@@ -190,7 +194,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'denylist', list: ['create_cron'] },
       });
 
-      const { agentTools } = registry.resolveForRole(role, hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(role, hooksBus, {});
       expect(agentTools).toHaveLength(2);
       expect(agentTools.map((t) => t.name)).toContain('send_msg');
       expect(agentTools.map((t) => t.name)).toContain('run_sub_agent');
@@ -204,7 +208,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['send_msg'] },
       });
 
-      const [agentTool] = registry.resolveForRole(role, hookDispatcher, {}).agentTools;
+      const [agentTool] = registry.resolveForRole(role, hooksBus, {}).agentTools;
       expect(agentTool.name).toBe('send_msg');
       expect(agentTool.description).toBe('A test tool');
       expect(typeof agentTool.execute).toBe('function');
@@ -217,7 +221,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['nonexistent_tool'] },
       });
 
-      const { agentTools } = registry.resolveForRole(role, hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(role, hooksBus, {});
       expect(agentTools).toHaveLength(0);
     });
   });

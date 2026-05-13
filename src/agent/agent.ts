@@ -11,7 +11,7 @@ import type { LlmAdapter } from './llm-adapter';
 import { estimateApproximateTokens, type Session } from '@aesyclaw/session';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
-import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
 import { runAgentTask } from './runner/agent-runner';
@@ -28,7 +28,7 @@ export type AgentOptions = {
   roleManager: RoleManager;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
-  hookDispatcher: HookDispatcher;
+  hooksBus: IHooksBus;
   compressionThreshold: number;
   registry: AgentRegistry;
 };
@@ -78,7 +78,7 @@ export class Agent {
   private roleManager: RoleManager;
   private skillManager: SkillManager;
   private toolRegistry: ToolRegistry;
-  private hookDispatcher: HookDispatcher;
+  private hooksBus: IHooksBus;
   private registry: AgentRegistry;
 
   private _cachedSystemPrompt: string | null = null;
@@ -108,7 +108,7 @@ export class Agent {
     this.roleManager = options.roleManager;
     this.skillManager = options.skillManager;
     this.toolRegistry = options.toolRegistry;
-    this.hookDispatcher = options.hookDispatcher;
+    this.hooksBus = options.hooksBus;
     this.compressionThreshold = options.compressionThreshold;
     this.registry = options.registry;
 
@@ -251,16 +251,13 @@ export class Agent {
     this._cachedSystemPrompt ??= builtPrompt;
     const model = this.llmAdapter.resolveModel(role.model);
 
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const contentWithDate = `The time is now ${new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz, timeZoneName: 'longOffset' })}.\n\n${content}`;
-
     return await runAgentTask({
       roleId: role.id,
       model,
       prompt,
       tools,
       history,
-      content: contentWithDate,
+      content,
       sessionKey,
       compressionThreshold: this.compressionThreshold,
       registry: this.registry,
@@ -282,7 +279,7 @@ export class Agent {
     const skills = this.skillManager.getSkillsForRole(role);
     const resolvedTools = this.toolRegistry.resolveForRole(
       role,
-      this.hookDispatcher,
+      this.hooksBus,
       executionContext ?? {},
     );
     const prompt = buildAgentPrompt({

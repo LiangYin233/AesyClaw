@@ -6,7 +6,7 @@ import type { ChannelPlugin } from '../../../src/extension/channel/channel-types
 import type { PluginConfigEntry } from '../../../src/core/config/schema';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
-import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import { HooksBus } from '../../../src/hook';
 import * as extensionLoader from '../../../src/extension/extension-loader';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { ChannelManager } from '../../../src/extension/channel/channel-manager';
@@ -101,7 +101,7 @@ function setupLoaderMock(module: PluginModule) {
 async function makeManager(module: PluginModule, config = new FakeConfigManager()) {
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
-  const hookRegistry = new HookDispatcher();
+  const hooksBus = new HooksBus();
   const channelManager = new FakeChannelManager();
 
   setupLoaderMock(module);
@@ -110,11 +110,11 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
     configManager: config,
     toolRegistry,
     commandRegistry,
-    hookRegistry,
+    hooksBus,
     channelManager: channelManager as unknown as ChannelManager,
     paths: fakePaths,
   });
-  return { manager, config, toolRegistry, commandRegistry, hookRegistry, channelManager };
+  return { manager, config, toolRegistry, commandRegistry, hooksBus, channelManager };
 }
 
 describe('PluginManager', () => {
@@ -253,7 +253,7 @@ describe('PluginManager', () => {
       configManager: new FakeConfigManager(),
       toolRegistry: new ToolRegistry(),
       commandRegistry: new CommandRegistry(),
-      hookRegistry: new HookDispatcher(),
+      hooksBus: new HooksBus(),
       paths: fakePaths,
     });
 

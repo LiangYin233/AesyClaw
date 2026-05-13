@@ -128,7 +128,7 @@ export class CoreLifecycle {
       configManager: this.resolvedDeps.configManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
       commandRegistry: this.resolvedDeps.commandRegistry,
-      hookRegistry: this.resolvedDeps.pipeline.hooks,
+      hooksBus: this.resolvedDeps.pipeline.hooksBus,
       pipeline: this.resolvedDeps.pipeline,
       paths: this.paths,
     });
@@ -140,7 +140,7 @@ export class CoreLifecycle {
       llmAdapter: this.resolvedDeps.llmAdapter,
       skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
-      hookDispatcher: this.resolvedDeps.pipeline.hooks,
+      hooksBus: this.resolvedDeps.pipeline.hooksBus,
       databaseManager: this.resolvedDeps.databaseManager,
       compressionThreshold: this.resolvedDeps.configManager.get(
         'agent.memory.compressionThreshold',

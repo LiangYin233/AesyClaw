@@ -74,13 +74,17 @@ export class CronManager {
       logger.warn('CronManager 已初始化 — 跳过');
       return;
     }
-    this.pipeline.hooks.register('internal:cron', {
-      onReceive: async ({ sessionKey }) => {
-        if (sessionKey.channel === 'cron' && sessionKey.type === 'job') {
-          const existing = this.sessionManager.get(sessionKey);
+    this.pipeline.hooksBus.register({
+      id: 'internal:cron',
+      chain: 'pipeline:receive',
+      priority: 200,
+      enabled: true,
+      handler: async (ctx, next) => {
+        if (ctx.sessionKey.channel === 'cron' && ctx.sessionKey.type === 'job') {
+          const existing = this.sessionManager.get(ctx.sessionKey);
           if (existing) await existing.clear();
         }
-        return { action: 'continue' };
+        return next !== undefined ? await next() : { action: 'next' };
       },
     });
 
@@ -93,7 +97,7 @@ export class CronManager {
   }
 
   async destroy(): Promise<void> {
-    this.pipeline.hooks.unregister('internal:cron');
+    this.pipeline.hooksBus.unregister('internal:cron');
     const deps = this.deps;
     deps.scheduler.clearAll();
     if (this.inFlight.size > 0) {

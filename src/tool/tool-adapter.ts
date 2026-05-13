@@ -1,22 +1,18 @@
 /**
  * tool-adapter — 将 AesyClawTool 转换为 Pi-mono AgentTool 格式。
  *
- * 包装 tool.execute 以集成插件钩子系统和参数验证:
- * 1. 派发 beforeToolCall 钩子 — 可能阻塞工具调用
+ * 包装 tool.execute 以集成统一的 Hook 系统和参数验证:
+ * 1. 派发 tool:beforeCall 链 — 可能阻塞工具调用
  * 2. 参数运行时验证（TypeBox schema）
  * 3. 调用实际的 tool.execute
- * 4. 派发 afterToolCall 钩子 — 可能覆盖结果
+ * 4. 派发 tool:afterCall 链 — 可能覆盖结果
  *
  * Runner 级工具结果预算处理属于 PiAgent afterToolCall，不属于这里的兼容层。
  */
 
-import type {
-  AfterToolCallHookResult,
-  AgentTool,
-  AgentToolResult,
-} from '@aesyclaw/agent/agent-types';
+import type { AgentTool, AgentToolResult } from '@aesyclaw/agent/agent-types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { IHooksBus, HookCtx } from '@aesyclaw/hook';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';
 import { validateParams } from './tool-validator';
 
@@ -25,17 +21,17 @@ const logger = createScopedLogger('tool');
 /**
  * 将 AesyClawTool 转换为 AgentTool，保留 AesyClaw 插件语义。
  *
- * 适配器继续承载参数验证、执行上下文注入、before/after 工具钩子和工具执行日志。
+ * 适配器继续承载参数验证、执行上下文注入、tool:beforeCall / tool:afterCall 链和工具执行日志。
  * PiAgent runner 级后处理不应放进这里。
  *
  * @param tool - 要适配的 AesyClaw 工具
- * @param toolHookDispatcher - 派发插件钩子
+ * @param hooksBus - Hook 总线
  * @param executionContext - 注入到工具执行中的部分上下文
  * @returns 兼容 Pi-mono 代理运行时的 AgentTool
  */
 export function toAgentTool(
   tool: AesyClawTool,
-  toolHookDispatcher: HookDispatcher,
+  hooksBus: IHooksBus,
   executionContext: Partial<ToolExecutionContext>,
 ): AgentTool {
   return {
@@ -55,13 +51,7 @@ export function toAgentTool(
         params: summarizeParams(params),
       });
 
-      const beforeResult = await runBeforeToolHooks(
-        tool,
-        toolHookDispatcher,
-        params,
-        sessionKey,
-        logContext,
-      );
+      const beforeResult = await runBeforeToolHooks(tool, hooksBus, params, sessionKey, logContext);
       if (beforeResult.handled) {
         return completeToolCall(logContext, beforeResult.result, beforeResult.outcome);
       }
@@ -84,7 +74,7 @@ export function toAgentTool(
 
       const result = await runAfterToolHooks(
         tool,
-        toolHookDispatcher,
+        hooksBus,
         params,
         executionResult.result,
         sessionKey,
@@ -151,27 +141,30 @@ function createToolCallContext(
 
 async function runBeforeToolHooks(
   tool: AesyClawTool,
-  toolHookDispatcher: HookDispatcher,
+  hooksBus: IHooksBus,
   params: unknown,
   sessionKey: ToolExecutionContext['sessionKey'],
   logContext: ToolCallLogContext,
 ): Promise<BeforeToolHookRunResult> {
-  const beforeResult = await toolHookDispatcher.beforeToolCall({
-    toolName: tool.name,
-    params,
+  const ctx: HookCtx = {
+    message: { components: [] },
     sessionKey,
-  });
+    toolName: tool.name,
+    toolParams: params,
+  };
 
-  if (beforeResult.block) {
-    logger.debug('工具调用被 before 钩子阻塞', {
+  const result = await hooksBus.dispatch('tool:beforeCall', ctx);
+
+  if (result.action === 'block') {
+    logger.debug('工具调用被 tool:beforeCall 链阻塞', {
       ...logContext,
-      hasReason: beforeResult.reason !== undefined,
+      reason: result.reason,
     });
 
     return {
       handled: true,
       result: {
-        content: beforeResult.reason ?? `工具调用 "${tool.name}" 被钩子阻塞`,
+        content: result.reason ?? `工具调用 "${tool.name}" 被阻塞`,
         isError: true,
       },
       outcome: 'blocked',
@@ -248,35 +241,43 @@ async function executeToolSafely(
 
 async function runAfterToolHooks(
   tool: AesyClawTool,
-  toolHookDispatcher: HookDispatcher,
+  hooksBus: IHooksBus,
   params: unknown,
   result: ToolExecutionResult,
   sessionKey: ToolExecutionContext['sessionKey'],
   logContext: ToolCallLogContext,
 ): Promise<ToolExecutionResult> {
-  const afterResult = await toolHookDispatcher.afterToolCall({
-    toolName: tool.name,
-    params,
-    result,
+  const ctx: HookCtx = {
+    message: { components: [] },
     sessionKey,
-  });
+    toolName: tool.name,
+    toolParams: params,
+    toolResult: result,
+  };
 
-  if (!afterResult.override) {
+  const afterResult = await hooksBus.dispatch('tool:afterCall', ctx);
+
+  if (afterResult.action !== 'override') {
     return result;
   }
 
-  const override = afterResult.override;
-  logger.debug('工具调用结果被 after 钩子覆盖', {
+  const override = afterResult.result;
+  logger.debug('工具调用结果被 tool:afterCall 链覆盖', {
     ...logContext,
     override: {
-      hasContent: override.content !== undefined,
-      hasDetails: override.details !== undefined,
-      hasIsError: override.isError !== undefined,
-      hasTerminate: override.terminate !== undefined,
+      hasContent: override.content !== result.content,
+      hasDetails: override.details !== result.details,
+      hasIsError: override.isError !== result.isError,
+      hasTerminate: override.terminate !== result.terminate,
     },
   });
 
-  return applyToolResultOverride(result, override);
+  return {
+    content: override.content ?? result.content,
+    details: override.details ?? result.details,
+    isError: override.isError ?? result.isError,
+    terminate: override.terminate ?? result.terminate,
+  };
 }
 
 function completeToolCall(
@@ -299,18 +300,6 @@ function toAgentToolResult(result: ToolExecutionResult): AgentToolResult {
     details: result.details ?? {},
     isError: result.isError,
     terminate: result.terminate,
-  };
-}
-
-function applyToolResultOverride(
-  result: ToolExecutionResult,
-  override: NonNullable<AfterToolCallHookResult['override']>,
-): ToolExecutionResult {
-  return {
-    content: override.content ?? result.content,
-    details: override.details ?? result.details,
-    isError: override.isError ?? result.isError,
-    terminate: override.terminate ?? result.terminate,
   };
 }
 

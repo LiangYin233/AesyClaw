@@ -50,32 +50,35 @@ const plugin: PluginDefinition = {
     ctx.logger.info('Example plugin initialized');
   },
 
-  // ── 管道钩子 ──
-  hooks: {
-    /** beforeLLM: Agent 处理前触发，可用于记录或拦截 */
-    async beforeLLM(ctx) {
-      const text = ctx.message.components
-        .filter((c) => c.type === 'Plain')
-        .map((c) => (c as { text: string }).text)
-        .join('');
-      ctx.logger?.info('beforeLLM triggered', {
-        role: ctx.role?.id,
-        textLength: text.length,
-      });
-      return { action: 'continue' };
+  // ── 中间件 ──
+  middlewares: [
+    {
+      id: 'beforeLLM-logger',
+      chain: 'pipeline:beforeLLM',
+      priority: 200,
+      enabled: false,
+      handler: async (ctx, next) => {
+        return next !== undefined ? await next() : { action: 'next' };
+      },
     },
-
-    /** onSend: 出站消息发送前触发，演示在回复末尾追加文本 */
-    async onSend(ctx) {
-      return {
-        action: 'respond',
-        components: [
-          ...ctx.message.components,
-          { type: 'Plain', text: '\n\n-- Sent via example plugin' },
-        ],
-      };
+    {
+      id: 'onSend-footer',
+      chain: 'pipeline:send',
+      priority: 100,
+      enabled: false,
+      handler: async (ctx) => {
+        return {
+          action: 'respond',
+          message: {
+            components: [
+              ...ctx.message.components,
+              { type: 'Plain', text: '\n\n-- Sent via example plugin' },
+            ],
+          },
+        };
+      },
     },
-  },
+  ],
 };
 
 export default plugin;

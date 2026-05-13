@@ -7,11 +7,11 @@
 
 import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { IHooksBus, HookRegistration } from '@aesyclaw/hook';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
-import type { PluginHooks } from '@aesyclaw/pipeline/types';
+
 import type { Logger } from '@aesyclaw/core/logger';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
@@ -39,7 +39,7 @@ export type PluginDefinition = {
   defaultConfig?: Record<string, unknown>;
   init(ctx: PluginContext): Promise<void>;
   destroy?(): Promise<void>;
-  hooks?: PluginHooks;
+  middlewares?: HookRegistration[];
 };
 
 /** 内存中已加载插件的运行时表示。 */
@@ -80,7 +80,7 @@ export type PluginManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
-  hookRegistry: HookDispatcher;
+  hooksBus: IHooksBus;
   channelManager?: ChannelManager;
   paths: Readonly<ResolvedPaths>;
 };
@@ -92,7 +92,7 @@ export type PluginConfigLookup = {
   options: Record<string, unknown>;
 };
 
-export { type PluginHooks };
+export type { HookRegistration };
 
 /**
  * 生成插件的所有权标识符。

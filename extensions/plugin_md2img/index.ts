@@ -5,8 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
-import type { OnSendContext } from '@aesyclaw/sdk';
-import type { PipelineResult } from '@aesyclaw/sdk';
+import type { HookCtx, HookResult } from '@aesyclaw/sdk';
 import { getMessageText } from '@aesyclaw/sdk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -163,31 +162,31 @@ function resolveEnabledChannels(config: Record<string, unknown>): string[] {
  * @returns 管线结果
  */
 export async function handleMd2ImgSend(
-  context: OnSendContext,
+  ctx: HookCtx,
   deps: {
     htmlTemplate: string;
     logger: PluginContext['logger'];
     pluginConfig: Record<string, unknown>;
     convert?: (content: string, template: string) => Promise<Buffer>;
   },
-): Promise<PipelineResult> {
-  const { message, sessionKey } = context;
+): Promise<HookResult> {
+  const { message, sessionKey } = ctx;
   const { htmlTemplate: template, logger, pluginConfig: config } = deps;
 
   const text = getMessageText(message);
   if (!template) {
-    return { action: 'continue' };
+    return { action: 'next' };
   }
 
   const isHtmlContent = isHtml(text);
   const isMarkdownContent = isMarkdown(text);
   if (!isHtmlContent && !isMarkdownContent) {
-    return { action: 'continue' };
+    return { action: 'next' };
   }
 
   const channels = resolveEnabledChannels(config);
   if (!sessionKey || (!channels.includes('*') && !channels.includes(sessionKey.channel))) {
-    return { action: 'continue' };
+    return { action: 'next' };
   }
   try {
     const convert =
@@ -199,10 +198,12 @@ export async function handleMd2ImgSend(
 
     return {
       action: 'respond',
-      components: [
-        { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
-        ...nonTextComponents,
-      ],
+      message: {
+        components: [
+          { type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' },
+          ...nonTextComponents,
+        ],
+      },
     };
   } catch (err) {
     logger.error(
@@ -210,7 +211,7 @@ export async function handleMd2ImgSend(
       { sessionChannel: sessionKey?.channel ?? null, contentLength: text.length },
       err,
     );
-    return { action: 'continue' };
+    return { action: 'next' };
   }
 }
 
@@ -222,18 +223,23 @@ const plugin: PluginDefinition = {
   description:
     'Detects Markdown / HTML in LLM output and sends it as a rendered image instead of raw text.',
   defaultConfig: { enabledChannels: ['*'] },
-  hooks: {
-    async onSend({ message, sessionKey }) {
-      if (!logger) {
-        return { action: 'continue' };
-      }
-
-      return await handleMd2ImgSend(
-        { message, sessionKey },
-        { htmlTemplate, logger, pluginConfig },
-      );
+  middlewares: [
+    {
+      id: 'md2img-send',
+      chain: 'pipeline:send',
+      priority: 100,
+      enabled: true,
+      handler: async (ctx, next) => {
+        const result = await handleMd2ImgSend(ctx, {
+          htmlTemplate,
+          logger: logger!,
+          pluginConfig,
+        });
+        if (result.action !== 'next') return result;
+        return next?.() ?? { action: 'next' };
+      },
     },
-  },
+  ],
   async init(ctx) {
     logger = ctx.logger;
     pluginConfig = ctx.config as Record<string, unknown>;

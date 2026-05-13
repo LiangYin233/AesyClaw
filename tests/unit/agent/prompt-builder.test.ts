@@ -69,17 +69,17 @@ describe('PromptBuilder', () => {
       resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
       ...(overrides.toolRegistry ?? {}),
     };
-    const toolHookDispatcher = {
+    const hooksBus = {
       dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
       dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
-      ...(overrides.toolHookDispatcher ?? {}),
+      ...(overrides.hooksBus ?? {}),
     };
 
     return {
       roleManager,
       skillManager,
       toolRegistry,
-      toolHookDispatcher,
+      hooksBus,
     };
   }
 
@@ -92,7 +92,7 @@ describe('PromptBuilder', () => {
       roleManager: deps.roleManager as never,
       skillManager: deps.skillManager as never,
       toolRegistry: deps.toolRegistry as never,
-      hookDispatcher: deps.toolHookDispatcher as never,
+      hooksBus: deps.hooksBus as never,
       compressionThreshold: 0.8,
       registry,
     });
@@ -278,7 +278,7 @@ describe('PromptBuilder', () => {
 
       expect(deps.toolRegistry.resolveForRole).toHaveBeenCalledWith(
         expect.any(Object),
-        deps.toolHookDispatcher,
+        deps.hooksBus,
         { sessionKey: expect.any(Object) },
       );
     });
@@ -337,7 +337,7 @@ Blocked content.`,
         toolRegistry: {
           resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
         } as never,
-        hookDispatcher: {
+        hooksBus: {
           dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
           dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
         } as never,

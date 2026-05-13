@@ -4,7 +4,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { IHooksBus } from '@aesyclaw/hook';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { PluginManager } from './plugin/plugin-manager';
@@ -18,7 +18,7 @@ export type ExtensionManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
-  hookRegistry: HookDispatcher;
+  hooksBus: IHooksBus;
   pipeline: Pipeline;
   paths: Readonly<ResolvedPaths>;
 };
@@ -46,7 +46,7 @@ export class ExtensionManager {
       configManager: deps.configManager,
       toolRegistry: deps.toolRegistry,
       commandRegistry: deps.commandRegistry,
-      hookRegistry: deps.hookRegistry,
+      hooksBus: deps.hooksBus,
       channelManager: this.channelManager,
       paths: deps.paths,
     });

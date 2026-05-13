@@ -33,7 +33,7 @@ export { isRecord, errorMessage } from '@aesyclaw/core/utils';
 
 export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
-export type { SendCtx as OnSendContext } from '@aesyclaw/pipeline/types';
+export type { HookCtx, HookResult, Middleware, HookRegistration } from '@aesyclaw/hook';
 
 export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';

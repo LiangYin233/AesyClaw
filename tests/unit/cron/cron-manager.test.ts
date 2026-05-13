@@ -5,7 +5,7 @@ import type {
   CronRunsRepository,
 } from '../../../src/core/database/database-manager';
 import type { SessionManager } from '../../../src/session';
-import type { PluginHooks } from '../../../src/pipeline/types';
+import type { HookRegistration } from '../../../src/hook/types';
 import { CoreLifecycle, type CoreLifecycleDependencies } from '../../../src/core/core-lifecycle';
 import { CronManager } from '../../../src/cron/cron-manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
@@ -98,16 +98,22 @@ class FakeCronRunRepo implements CronRunsRepository {
   }
 }
 
-function makeHooks() {
+function makeHooksBus() {
   return {
-    register: vi.fn((_pluginName: string, _hooks: PluginHooks) => undefined),
-    unregister: vi.fn((_pluginName: string) => undefined),
+    register: vi.fn((_reg: unknown) => undefined),
+    unregister: vi.fn((_id: string) => undefined),
+    unregisterByPrefix: vi.fn(() => undefined),
+    enable: vi.fn(() => undefined),
+    disable: vi.fn(() => undefined),
+    isEnabled: vi.fn(() => false),
+    dispatch: vi.fn(async () => ({ action: 'next' as const })),
+    clear: vi.fn(() => undefined),
   };
 }
 
-function makePipeline(response = 'done', hooks = makeHooks()) {
+function makePipeline(response = 'done', hooksBus = makeHooksBus()) {
   return {
-    hooks,
+    hooksBus,
     receiveWithSend: vi.fn(async (_message, _sessionKey, _sender, send) => {
       await send({ components: [{ type: 'Plain', text: response }] });
     }),
@@ -253,7 +259,7 @@ describe('Cron', () => {
   it('registers an internal hook that clears existing cron job sessions on receive', async () => {
     const jobs = new FakeCronJobRepo();
     const runs = new FakeCronRunRepo();
-    const hooks = makeHooks();
+    const hooks = makeHooksBus();
     const clear = vi.fn(async () => undefined);
     const sessionManager = makeSessionManager({ clear });
     const manager = new CronManager(
@@ -268,18 +274,19 @@ describe('Cron', () => {
     await manager.initialize();
 
     expect(hooks.register).toHaveBeenCalledWith(
-      'internal:cron',
-      expect.objectContaining({ onReceive: expect.any(Function) }),
+      expect.objectContaining({ id: 'internal:cron', chain: 'pipeline:receive' }),
     );
-    const registeredHooks = hooks.register.mock.calls[0]?.[1];
+    const reg = hooks.register.mock.calls[0]?.[0];
 
     await expect(
-      registeredHooks?.onReceive?.({
-        message: { components: [{ type: 'Plain', text: 'run' }] },
-        sessionKey: { channel: 'cron', type: 'job', chatId: 'job-1' },
-        sender: undefined,
-      }),
-    ).resolves.toEqual({ action: 'continue' });
+      reg?.handler?.(
+        {
+          message: { components: [{ type: 'Plain', text: 'run' }] },
+          sessionKey: { channel: 'cron', type: 'job', chatId: 'job-1' },
+        },
+        async () => ({ action: 'next' as const }),
+      ),
+    ).resolves.toEqual({ action: 'next' });
     expect(sessionManager.get).toHaveBeenCalledWith({
       channel: 'cron',
       type: 'job',
@@ -293,7 +300,7 @@ describe('Cron', () => {
   it('unregisters the internal cron hook on destroy', async () => {
     const jobs = new FakeCronJobRepo();
     const runs = new FakeCronRunRepo();
-    const hooks = makeHooks();
+    const hooks = makeHooksBus();
     const manager = new CronManager(
       makeInitializeDeps({
         jobs,
@@ -311,7 +318,7 @@ describe('Cron', () => {
     const jobs = new FakeCronJobRepo();
     const runs = new FakeCronRunRepo();
     runs.abandonError = new Error('abandon failed');
-    const hooks = makeHooks();
+    const hooks = makeHooksBus();
     const manager = new CronManager(
       makeInitializeDeps({
         jobs,
@@ -334,7 +341,7 @@ describe('Cron', () => {
         jobs,
         runs,
         pipeline: {
-          hooks: makeHooks(),
+          hooksBus: makeHooksBus(),
           receiveWithSend: vi.fn(async () => {
             throw new Error('pipeline boom');
           }),
@@ -629,7 +636,7 @@ describe('Cron', () => {
         jobs,
         runs,
         pipeline: {
-          hooks: makeHooks(),
+          hooksBus: makeHooksBus(),
           receiveWithSend: vi.fn(async () => {
             throw new Error('pipeline boom');
           }),
@@ -663,7 +670,7 @@ describe('Cron', () => {
     const runs = new FakeCronRunRepo();
     let unblockPipeline: (() => void) | undefined;
     const pipeline = {
-      hooks: makeHooks(),
+      hooksBus: makeHooksBus(),
       receiveWithSend: vi.fn(async (_message, _sessionKey, _sender, send) => {
         await new Promise<void>((resolve) => {
           unblockPipeline = resolve;

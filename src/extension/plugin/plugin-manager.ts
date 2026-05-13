@@ -94,8 +94,13 @@ export class PluginManager implements ExtensionLifecycle {
 
     try {
       await module.definition.init(context);
-      if (module.definition.hooks) {
-        this.deps.hookRegistry.register(pluginName, module.definition.hooks);
+      if (module.definition.middlewares) {
+        for (const reg of module.definition.middlewares) {
+          this.deps.hooksBus.register({
+            ...reg,
+            id: `plugin:${pluginName}:${reg.id}`,
+          });
+        }
       }
     } catch (err) {
       await this.cleanupOwner(pluginName);
@@ -390,7 +395,7 @@ export class PluginManager implements ExtensionLifecycle {
 
   private async cleanupOwner(pluginName: string): Promise<void> {
     const owner = pluginOwner(pluginName);
-    this.deps.hookRegistry.unregister(pluginName);
+    this.deps.hooksBus.unregisterByPrefix(`plugin:${pluginName}:`);
     this.deps.toolRegistry.unregisterByOwner(owner);
     this.deps.commandRegistry.unregisterByScope(owner);
     await this.deps.channelManager?.unregisterByOwner(owner);
