@@ -31,7 +31,6 @@ export type {
   UnknownComponent,
   SenderInfo,
   SendFn,
-
   PersistableMessage,
 } from './message-types';
 

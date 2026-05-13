@@ -1,8 +1,6 @@
 import type { AgentMessage as PiAgentMessage, StreamFn } from '@mariozechner/pi-agent-core';
 import type { Api, Model, TextContent, ToolCall, Usage } from '@mariozechner/pi-ai';
 
-
-
 /**
  * PiAgent 的消息类型别名。
  */
@@ -41,7 +39,6 @@ export type AgentToolResult = {
   isError?: boolean;
   terminate?: boolean;
 };
-
 
 /**
  * 支持的 LLM API 类型常量映射。

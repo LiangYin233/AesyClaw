@@ -100,8 +100,6 @@ export function getMessageText(message: Pick<Message, 'components'>): string {
 /** 通过频道发送传出消息的函数 */
 export type SendFn = (message: Message) => Promise<void>;
 
-
-
 // ─── 持久化 ────────────────────────────────────────────────────────
 
 /** 持久化到数据库的消息记录 */
