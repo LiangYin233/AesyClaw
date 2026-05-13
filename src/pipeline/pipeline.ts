@@ -21,6 +21,7 @@ import { Agent } from '@aesyclaw/agent/agent';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import { createTimeInjectHook } from './hooks/time-inject';
+import { createAutoCompactHook } from './hooks/auto-compact';
 
 const logger = createScopedLogger('pipeline');
 
@@ -45,6 +46,9 @@ export class Pipeline {
    * 初始化管道，注册内置 Hook。
    */
   async initialize(): Promise<void> {
+    this.hooksBus.register(
+      createAutoCompactHook(this.deps.llmAdapter, this.deps.compressionThreshold),
+    );
     this.hooksBus.register(createTimeInjectHook());
     logger.info('Pipeline 已初始化');
   }

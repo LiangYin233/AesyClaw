@@ -309,13 +309,8 @@ export class Agent {
     };
   }
 
-  private async loadHistory(role: RoleConfig, ephemeral: boolean): Promise<AgentMessage[]> {
-    let history = this.session.get();
-    if (!ephemeral && this.shouldCompact(history)) {
-      await this.session.compact(this.llmAdapter, role.model);
-      history = this.session.get();
-    }
-    return history as AgentMessage[];
+  private async loadHistory(_role: RoleConfig, _ephemeral: boolean): Promise<AgentMessage[]> {
+    return this.session.get() as AgentMessage[];
   }
 
   private async ensureAssistantText(
@@ -372,17 +367,5 @@ export class Agent {
     }
     logger.warn('Agent 未生成助手文本回复', { role: roleId });
     return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
-  }
-
-  /**
-   * 判断消息历史是否超过压缩阈值，需要触发历史压缩。
-   *
-   * @param messages - 消息历史
-   * @returns 如果超过阈值返回 true
-   */
-  private shouldCompact(messages: readonly AgentMessage[]): boolean {
-    return (
-      estimateApproximateTokens(messages) >= this._model.contextWindow * this.compressionThreshold
-    );
   }
 }
