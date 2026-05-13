@@ -101,6 +101,7 @@ describe('Pipeline', () => {
     const beforeLLM = vi.fn(async () => ({ action: 'next' as const }));
     const deps = createDeps(session);
     (deps.hooksBus.dispatch as ReturnType<typeof vi.fn>).mockImplementation(
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       async (chain: string, _ctx: unknown) => {
         if (chain === 'pipeline:beforeLLM') {
           return await beforeLLM();
@@ -130,6 +131,7 @@ describe('Pipeline', () => {
     const deps = createDeps(session);
 
     (deps.hooksBus.dispatch as ReturnType<typeof vi.fn>).mockImplementation(
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       async (chain: string, _ctx: unknown) => {
         if (chain === 'pipeline:beforeLLM') {
           return {

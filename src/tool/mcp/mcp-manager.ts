@@ -225,7 +225,7 @@ export class McpManager {
   }
 }
 export function mcpToolName(serverName: string, toolName: string): string {
-  const safe = (v: string) => v.replace(/[^a-zA-Z0-9_-]/g, '_') || 'unnamed';
+  const safe = (v: string): string => v.replace(/[^a-zA-Z0-9_-]/g, '_') || 'unnamed';
   return `${safe(serverName)}_${safe(toolName)}`;
 }
 

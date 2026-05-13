@@ -5,7 +5,7 @@ import type {
   CronRunsRepository,
 } from '../../../src/core/database/database-manager';
 import type { SessionManager } from '../../../src/session';
-import type { HookRegistration } from '../../../src/hook/types';
+
 import { CoreLifecycle, type CoreLifecycleDependencies } from '../../../src/core/core-lifecycle';
 import { CronManager } from '../../../src/cron/cron-manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';

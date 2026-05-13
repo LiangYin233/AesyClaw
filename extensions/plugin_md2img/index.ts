@@ -185,7 +185,7 @@ export async function handleMd2ImgSend(
   }
 
   const channels = resolveEnabledChannels(config);
-  if (!sessionKey || (!channels.includes('*') && !channels.includes(sessionKey.channel))) {
+  if (!sessionKey?.channel || (!channels.includes('*') && !channels.includes(sessionKey.channel))) {
     return { action: 'next' };
   }
   try {
@@ -232,11 +232,13 @@ const plugin: PluginDefinition = {
       handler: async (ctx, next) => {
         const result = await handleMd2ImgSend(ctx, {
           htmlTemplate,
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- initialized in init() before handler runs
           logger: logger!,
           pluginConfig,
         });
+
         if (result.action !== 'next') return result;
-        return next?.() ?? { action: 'next' };
+        return await (next?.() ?? { action: 'next' });
       },
     },
   ],
