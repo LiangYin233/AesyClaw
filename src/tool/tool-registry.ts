@@ -152,6 +152,23 @@ export class ToolRegistry {
   has(name: string): boolean {
     return this.tools.has(name);
   }
+  /**
+   * 注册工具，如果名称冲突则自动追加数字后缀直到唯一。
+   * 返回最终使用的名称。
+   *
+   * @param baseName - 首选工具名称
+   * @param toolFactory - 接受最终名称的工具工厂
+   */
+  registerUnique(baseName: string, toolFactory: (name: string) => AesyClawTool): string {
+    let name = baseName;
+    let suffix = 1;
+    while (this.tools.has(name)) {
+      name = `${baseName}_${suffix++}`;
+    }
+    this.register(toolFactory(name));
+    return name;
+  }
+
 
   /**
    * 返回在运行时适配前角色可用的内部工具。

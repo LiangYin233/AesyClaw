@@ -105,23 +105,23 @@ export class McpManager {
     }
 
     const client = this.clientFactory.create(config);
-    const owner: ToolOwner = mcpOwner(serverName);
+    const owner: ToolOwner = `mcp:${serverName}`;
     const toolRegistry = this.toolRegistry;
     try {
       await client.connect();
       const tools = await client.listTools();
       const registeredToolNames: string[] = [];
-      const reservedNames = this.getReservedToolNames(serverName);
       for (const tool of tools) {
-        const registeredName = uniqueMcpToolName(serverName, tool.name, reservedNames);
-        reservedNames.add(registeredName);
-        toolRegistry.register(this.createTool(owner, registeredName, tool, client));
+        const baseName = mcpToolName(serverName, tool.name);
+        const registeredName = toolRegistry.registerUnique(baseName, (name) =>
+          this.createTool(owner, name, tool, client),
+        );
         registeredToolNames.push(registeredName);
       }
 
       const connected: ConnectedMcpServer = {
         name: serverName,
-        config: cloneConfig(config),
+        config: structuredClone(config),
         client,
         tools: registeredToolNames,
         connectedAt: new Date(),
@@ -135,14 +135,18 @@ export class McpManager {
       return connected;
     } catch (err) {
       toolRegistry.unregisterByOwner(owner);
-      await closeQuietly(client, serverName);
+      try {
+        await client.close();
+      } catch (err) {
+        logger.warn(`连接错误后关闭 MCP 客户端失败: ${serverName}`, err);
+      }
       throw err;
     }
   }
 
   async disconnect(serverName: string): Promise<void> {
     const connected = this.connectedServers.get(serverName);
-    const owner = mcpOwner(serverName);
+    const owner: ToolOwner = `mcp:${serverName}`;
     try {
       if (connected) {
         await connected.client.close();
@@ -168,7 +172,13 @@ export class McpManager {
       statuses.push({
         name: config.name,
         enabled: config.enabled,
-        state: resolveMcpState(error, connected, config.enabled),
+        state: error
+          ? 'failed'
+          : connected !== undefined
+            ? 'connected'
+            : config.enabled
+              ? 'disconnected'
+              : 'disabled',
         transport: config.transport,
         toolCount: connected?.tools.length ?? 0,
         error,
@@ -208,70 +218,18 @@ export class McpManager {
 
   private getConfigs(): McpServerConfig[] {
     try {
-      return (this.configManager.get('mcp') as McpServerConfig[]).map(cloneConfig);
+      return (this.configManager.get('mcp') as McpServerConfig[]).map((c) => structuredClone(c));
     } catch {
       return [];
     }
   }
 
-  private getReservedToolNames(excludingServerName: string): Set<string> {
-    const reservedNames = new Set<string>();
-    for (const [serverName, connected] of this.connectedServers) {
-      if (serverName === excludingServerName) {
-        continue;
-      }
-      for (const toolName of connected.tools) {
-        reservedNames.add(toolName);
-      }
-    }
-    return reservedNames;
-  }
 }
-
-function mcpOwner(serverName: string): ToolOwner {
-  return `mcp:${serverName}`;
-}
-
 export function mcpToolName(serverName: string, toolName: string): string {
-  return `${sanitizeToolPart(serverName)}_${sanitizeToolPart(toolName)}`;
+  const safe = (v: string) => v.replace(/[^a-zA-Z0-9_-]/g, '_') || 'unnamed';
+  return `${safe(serverName)}_${safe(toolName)}`;
 }
 
-function uniqueMcpToolName(
-  serverName: string,
-  toolName: string,
-  reservedNames: Set<string>,
-): string {
-  const baseName = mcpToolName(serverName, toolName);
-  if (!reservedNames.has(baseName)) {
-    return baseName;
-  }
-
-  let suffixIndex = 1;
-  let candidate = `${baseName}_${shortHash(`${serverName}:${toolName}`)}`;
-  while (reservedNames.has(candidate)) {
-    suffixIndex += 1;
-    candidate = `${baseName}_${shortHash(`${serverName}:${toolName}:${suffixIndex}`)}`;
-  }
-  return candidate;
-}
-
-function sanitizeToolPart(value: string): string {
-  const sanitized = value.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return sanitized.length > 0 ? sanitized : 'unnamed';
-}
-
-function shortHash(value: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(36).slice(0, 6);
-}
-
-function cloneConfig(config: Readonly<McpServerConfig>): McpServerConfig {
-  return structuredClone(config);
-}
 
 function formatMcpResult(result: unknown): string {
   if (typeof result === 'string') {
@@ -290,22 +248,3 @@ function toToolSchema(inputSchema: unknown): TSchema {
   return Type.Record(Type.String(), Type.Unknown());
 }
 
-async function closeQuietly(client: McpClient, serverName: string): Promise<void> {
-  try {
-    await client.close();
-  } catch (err) {
-    logger.warn(`连接错误后关闭 MCP 客户端失败: ${serverName}`, err);
-  }
-}
-
-/** 根据错误状态、连接状态和启用状态解析 MCP 服务器状态字符串 */
-function resolveMcpState(
-  error: string | undefined,
-  connected: unknown,
-  enabled: boolean,
-): McpLifecycleState {
-  if (error) return 'failed';
-  if (connected !== undefined) return 'connected';
-  if (enabled) return 'disconnected';
-  return 'disabled';
-}
