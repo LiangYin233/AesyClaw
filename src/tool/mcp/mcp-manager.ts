@@ -223,13 +223,11 @@ export class McpManager {
       return [];
     }
   }
-
 }
 export function mcpToolName(serverName: string, toolName: string): string {
   const safe = (v: string) => v.replace(/[^a-zA-Z0-9_-]/g, '_') || 'unnamed';
   return `${safe(serverName)}_${safe(toolName)}`;
 }
-
 
 function formatMcpResult(result: unknown): string {
   if (typeof result === 'string') {
@@ -247,4 +245,3 @@ function toToolSchema(inputSchema: unknown): TSchema {
   }
   return Type.Record(Type.String(), Type.Unknown());
 }
-

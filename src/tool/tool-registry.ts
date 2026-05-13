@@ -169,7 +169,6 @@ export class ToolRegistry {
     return name;
   }
 
-
   /**
    * 返回在运行时适配前角色可用的内部工具。
    */
