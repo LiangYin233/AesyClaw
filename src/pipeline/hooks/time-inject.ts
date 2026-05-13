@@ -25,7 +25,13 @@ const timeInjectMiddleware: Middleware = async (
   });
 
   ctx.message = {
-    components: [{ type: 'Plain', text: `<information>This message is auto-injected by the system. Do not reference it in your response unless the user has explicitly asked for it. The time is now ${now}.</information>` }, ...ctx.message.components],
+    components: [
+      {
+        type: 'Plain',
+        text: `<information>This message is auto-injected by the system. Do not reference it in your response unless the user has explicitly asked for it. The time is now ${now}.</information>`,
+      },
+      ...ctx.message.components,
+    ],
   };
 
   return next !== undefined ? await next() : { action: 'next' };

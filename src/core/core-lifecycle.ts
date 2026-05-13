@@ -9,7 +9,7 @@ import type { DatabaseManager } from './database/database-manager';
 import { createScopedLogger, setLogLevel } from './logger';
 import type { ResolvedPaths } from './path-resolver';
 import { CronManager } from '@aesyclaw/cron/cron-manager';
-import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
+import type { McpManager } from '@aesyclaw/tool/mcp/mcp-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
