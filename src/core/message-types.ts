@@ -100,11 +100,7 @@ export function getMessageText(message: Pick<Message, 'components'>): string {
 /** 通过频道发送传出消息的函数 */
 export type SendFn = (message: Message) => Promise<void>;
 
-/** 消息经过管道或钩子处理后的结果 */
-export type PipelineResult =
-  | { action: 'continue'; data?: unknown; message?: Message }
-  | { action: 'block'; reason?: string }
-  | { action: 'respond'; components: MessageComponent[] };
+
 
 // ─── 持久化 ────────────────────────────────────────────────────────
 

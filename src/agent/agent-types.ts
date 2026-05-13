@@ -1,7 +1,7 @@
 import type { AgentMessage as PiAgentMessage, StreamFn } from '@mariozechner/pi-agent-core';
 import type { Api, Model, TextContent, ToolCall, Usage } from '@mariozechner/pi-ai';
-import type { SessionKey } from '@aesyclaw/core/types';
-import type { ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+
+
 
 /**
  * PiAgent 的消息类型别名。
@@ -42,39 +42,6 @@ export type AgentToolResult = {
   terminate?: boolean;
 };
 
-/**
- * 工具调用前钩子的上下文信息。
- */
-export type BeforeToolCallHookContext = {
-  toolName: string;
-  params: unknown;
-  sessionKey: SessionKey;
-};
-
-/**
- * 工具调用后钩子的上下文信息。
- */
-export type AfterToolCallHookContext = {
-  toolName: string;
-  params: unknown;
-  result: ToolExecutionResult;
-  sessionKey: SessionKey;
-};
-
-/**
- * 工具调用前钩子的返回结果，可阻止工具调用。
- */
-export type BeforeToolCallHookResult = {
-  block?: boolean;
-  reason?: string;
-};
-
-/**
- * 工具调用后钩子的返回结果，可覆盖执行结果。
- */
-export type AfterToolCallHookResult = {
-  override?: Partial<ToolExecutionResult>;
-};
 
 /**
  * 支持的 LLM API 类型常量映射。

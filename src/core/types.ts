@@ -31,7 +31,7 @@ export type {
   UnknownComponent,
   SenderInfo,
   SendFn,
-  PipelineResult,
+
   PersistableMessage,
 } from './message-types';
 
