@@ -41,7 +41,7 @@ function sanitizeNode(root: ParentNode): void {
         continue;
       }
 
-      if (name === 'style' || name === 'srcdoc') {
+      if (name === 'srcdoc') {
         element.removeAttribute(attr.name);
         continue;
       }
