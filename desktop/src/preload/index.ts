@@ -64,9 +64,9 @@ const api = {
 
   // ── 窗口控制 ──────────────────────────────────────────────
 
-  minimizeWindow: () => ipcRenderer.send('window:minimize'),
-  maximizeWindow: () => ipcRenderer.send('window:maximize'),
-  closeWindow: () => ipcRenderer.send('window:close'),
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized') as Promise<boolean>,
   onMaximizeChange: (callback: (maximized: boolean) => void): (() => void) => {
     const handler = (_event: unknown, maximized: boolean): void => { callback(maximized); };
