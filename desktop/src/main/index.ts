@@ -53,15 +53,25 @@ function createWindow(): void {
 
 function setupIpc(): void {
   // 窗口控制
-  ipcMain.handle('window:minimize', () => { mainWindow?.minimize(); });
-  ipcMain.handle('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow?.maximize();
-    }
+  ipcMain.handle('window:minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.minimize();
+    return true;
   });
-  ipcMain.handle('window:close', () => { mainWindow?.close(); });
+  ipcMain.handle('window:maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win?.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win?.maximize();
+    }
+    return true;
+  });
+  ipcMain.handle('window:close', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.close();
+    return true;
+  });
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
 
   // 聊天消息
