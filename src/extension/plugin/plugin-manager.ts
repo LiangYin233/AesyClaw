@@ -83,7 +83,7 @@ export class PluginManager implements ExtensionLifecycle {
     }
 
     const configLookup = this.getPluginConfig(module);
-    const mergedConfig = mergeDefaults(module.definition.defaultConfig ?? {}, configLookup.options);
+    const mergedConfig = getManagedPluginOptions(module.definition.defaultConfig, configLookup.options);
     if (!configLookup.enabled) {
       logger.info('跳过已禁用的插件', { pluginName });
       return null;
@@ -130,7 +130,7 @@ export class PluginManager implements ExtensionLifecycle {
       plugins.push({
         name: pluginName,
         enabled: true,
-        ...(module.definition.defaultConfig ? { options: module.definition.defaultConfig } : {}),
+        ...createPluginOptionsProperty(module.definition.defaultConfig),
       });
       await this.deps.configManager.set('plugins', plugins).catch((err: unknown) => {
         logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
@@ -456,6 +456,25 @@ export class PluginManager implements ExtensionLifecycle {
 
     await this.deps.configManager.set('plugins', plugins);
   }
+}
+
+function getManagedPluginOptions(
+  defaults: Record<string, unknown> | undefined,
+  overrides: Record<string, unknown>,
+): Record<string, unknown> {
+  return omitManagedPluginKeys(mergeDefaults(omitManagedPluginKeys(defaults ?? {}), overrides));
+}
+
+function createPluginOptionsProperty(
+  defaults: Record<string, unknown> | undefined,
+): { options?: Record<string, unknown> } {
+  const options = omitManagedPluginKeys(defaults ?? {});
+  return Object.keys(options).length === 0 ? {} : { options };
+}
+
+function omitManagedPluginKeys(value: Record<string, unknown>): Record<string, unknown> {
+  const { enabled: _enabled, ...rest } = value;
+  return rest;
 }
 
 function optionsToRecord(value: unknown): Record<string, unknown> {

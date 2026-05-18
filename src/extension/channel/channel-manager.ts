@@ -335,15 +335,15 @@ export class ChannelManager implements ExtensionLifecycle {
   }
 
   private registerDefaults(channel: ChannelPlugin): void {
-    if (!channel.defaultConfig) {
-      return;
-    }
-    this.deps.configManager.registerDefaults(`channels.${channel.name}`, channel.defaultConfig);
+    this.deps.configManager.registerDefaults(
+      `channels.${channel.name}`,
+      getManagedChannelDefaults(channel),
+    );
   }
 
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
     const channelConfig = this.getConfigRecord(definition.name);
-    return mergeDefaults(definition.defaultConfig ?? {}, channelConfig);
+    return mergeDefaults(getManagedChannelDefaults(definition), channelConfig);
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
@@ -356,7 +356,9 @@ export class ChannelManager implements ExtensionLifecycle {
   }
 
   private isEnabled(channelName: string): boolean {
-    return isChannelEnabled(this.getConfigRecord(channelName));
+    const definition = this.definitions.get(channelName);
+    const config = definition ? this.getMergedConfig(definition) : this.getConfigRecord(channelName);
+    return isChannelEnabled(config);
   }
 
   private requireLoaded(channelName: string): LoadedChannel {
@@ -380,6 +382,10 @@ export class ChannelManager implements ExtensionLifecycle {
 }
 
 /** 根据错误状态、加载状态和启用状态解析频道状态字符串 */
+function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
+  return { enabled: false, ...(channel.defaultConfig ?? {}) };
+}
+
 function resolveChannelState(
   error: string | undefined,
   loaded: boolean,

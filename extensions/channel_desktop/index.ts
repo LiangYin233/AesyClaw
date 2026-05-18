@@ -10,14 +10,12 @@ import { DesktopServer } from './desktop-server';
 // ─── 配置类型 ──────────────────────────────────────────────────────
 
 type DesktopChannelConfig = {
-  enabled: boolean;
   port: number;
   host: string;
   authToken: string;
 };
 
 const DEFAULT_CONFIG: DesktopChannelConfig = {
-  enabled: false,
   port: 9730,
   host: '127.0.0.1',
   authToken: 'desktop-local',
