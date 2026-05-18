@@ -185,14 +185,17 @@ export class DesktopServer {
     }, HEARTBEAT_INTERVAL_MS);
 
     // 文本消息
-    ws.on('message', (raw) => {
-      if (raw instanceof Buffer) {
+    ws.on('message', (raw, isBinary) => {
+      if (isBinary) {
         // 二进制帧 = 文件数据块
-        this.handleBinaryFrame(connectionId, raw);
-      } else {
-        // 文本帧 = JSON 消息
-        this.handleJsonMessage(connectionId, raw.toString());
+        const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
+        this.handleBinaryFrame(connectionId, buffer);
+        return;
       }
+
+      // 文本帧 = JSON 消息。ws 在 Node 端通常也会以 Buffer 承载文本帧，
+      // 必须依赖 isBinary 判断，不能用 Buffer instanceof 区分。
+      this.handleJsonMessage(connectionId, raw.toString());
     });
 
     // 关闭

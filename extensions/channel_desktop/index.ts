@@ -80,22 +80,25 @@ async function send(sessionKey: { channel: string; type: string; chatId: string 
   const streamEvent = message as unknown as StreamMessage;
 
   if (streamEvent.event) {
-    // 流式事件：转发到桌面客户端
+    // 流式事件：转发到桌面客户端。
+    // done 事件会在渲染端固化已收到的 chunk；最终 Message 只是持久化结果，
+    // 不能再次发送，否则 desktop 会显示重复回复。
     server.forwardStreamEvent(sessionId, streamEvent);
-  } else {
-    // 最终回复（可能 bypass onStream 的情况）
-    const text = (message.components[0] as { text?: string })?.text ?? '';
-    server.sendToSession(sessionId, {
-      type: 'chunk',
-      sessionId,
-      text,
-      index: 0,
-    });
-    server.sendToSession(sessionId, {
-      type: 'done',
-      sessionId,
-    });
+    return;
   }
+
+  // 非流式路径（例如命令或 hook 直接响应）才发送最终文本。
+  const text = (message.components[0] as { text?: string })?.text ?? '';
+  server.sendToSession(sessionId, {
+    type: 'chunk',
+    sessionId,
+    text,
+    index: 0,
+  });
+  server.sendToSession(sessionId, {
+    type: 'done',
+    sessionId,
+  });
 }
 
 export default channel;

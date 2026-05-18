@@ -153,8 +153,10 @@ export class Pipeline {
 
         const transformedMessage = beforeCtx.message;
 
+        let streamed = false;
         // 流式事件回调：直接推送给 channel，不经过 pipeline:send 钩子链
         const onStream = (streamEvent: StreamMessage): void => {
+          streamed = true;
           void send(streamEvent).catch((err) => {
             logger.error('流式事件投递失败', err);
           });
@@ -169,8 +171,10 @@ export class Pipeline {
           onStream,
         );
 
-        // session 未被外部取消时才投递结果
-        if (session.isLocked) {
+        // session 未被外部取消时才投递结果。
+        // 如果已走流式事件，最终 outbound 只用于持久化，不能再次投递给 channel，
+        // 否则客户端会同时收到 chunk 流和最终完整文本，显示重复回复。
+        if (session.isLocked && !streamed) {
           await this.deliver(send, outbound, session.key);
         }
       } finally {
