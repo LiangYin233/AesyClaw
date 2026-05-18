@@ -10,25 +10,18 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { WebSocketManager } from './ws-manager';
+import {
+  buildAdminWsUrl,
+  buildDesktopWsUrl,
+  DEFAULT_CONNECTION_CONFIG,
+  normalizeConnectionConfig,
+  type DesktopConnectionConfig,
+} from '../shared/connection';
 
 let mainWindow: BrowserWindow | null = null;
 let wsManager: WebSocketManager | null = null;
 
 // ─── 配置 ──────────────────────────────────────────────────────────
-
-const DEFAULT_CONNECTION_CONFIG: DesktopConnectionConfig = {
-  host: '127.0.0.1',
-  desktopPort: 9730,
-  adminPort: 3000,
-  token: 'desktop-local',
-};
-
-type DesktopConnectionConfig = {
-  host: string;
-  desktopPort: number;
-  adminPort: number;
-  token: string;
-};
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -108,7 +101,7 @@ function setupIpc(): void {
   });
 
   ipcMain.handle('connection:updateConfig', async (_event, config: DesktopConnectionConfig) => {
-    const normalized = normalizeConnectionConfig(config, true);
+    const normalized = normalizeConnectionConfig(config, { strict: true });
     saveConnectionConfig(normalized);
     wsManager?.disconnect();
     wsManager?.updateUrls(buildDesktopWsUrl(normalized), buildAdminWsUrl(normalized));
@@ -141,57 +134,6 @@ function saveConnectionConfig(config: DesktopConnectionConfig): void {
   writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 }
 
-function normalizeConnectionConfig(
-  config: Partial<DesktopConnectionConfig>,
-  strict = false,
-  fallback = DEFAULT_CONNECTION_CONFIG,
-): DesktopConnectionConfig {
-  return {
-    host: normalizeHost(config.host, fallback.host, strict),
-    desktopPort: normalizePort(config.desktopPort, fallback.desktopPort),
-    adminPort: normalizePort(config.adminPort, fallback.adminPort),
-    token: typeof config.token === 'string' && config.token.trim() ? config.token.trim() : fallback.token,
-  };
-}
-
-function normalizeHost(value: unknown, fallback: string, strict: boolean): string {
-  if (typeof value !== 'string') return fallback;
-  const host = value.trim();
-  if (isValidHost(host)) return host;
-  if (strict) {
-    throw new Error('Host must be a hostname or IP address without scheme, path, or port');
-  }
-  return fallback;
-}
-
-function isValidHost(host: string): boolean {
-  if (!host || /\s/.test(host) || /[/?#]/.test(host) || host.includes('://')) return false;
-  if (host.startsWith('[') || host.endsWith(']')) {
-    return /^\[[0-9a-f:.]+\]$/i.test(host);
-  }
-  if (host.includes(':')) return false;
-  return /^[a-z0-9.-]+$/i.test(host);
-}
-
-function normalizePort(value: unknown, fallback: number): number {
-  const port = typeof value === 'number' ? value : Number(value);
-  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : fallback;
-}
-
-function buildDesktopWsUrl(config: DesktopConnectionConfig): string {
-  const url = new URL('ws://127.0.0.1/ws');
-  url.hostname = config.host;
-  url.port = String(config.desktopPort);
-  url.searchParams.set('token', config.token);
-  return url.toString();
-}
-
-function buildAdminWsUrl(config: DesktopConnectionConfig): string {
-  const url = new URL('ws://127.0.0.1/api/ws');
-  url.hostname = config.host;
-  url.port = String(config.adminPort);
-  return url.toString();
-}
 
 // ─── 生命周期 ──────────────────────────────────────────────────────
 

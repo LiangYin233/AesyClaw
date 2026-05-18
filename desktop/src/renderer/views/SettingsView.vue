@@ -118,22 +118,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import type { ConnectionStatus, DesktopConnectionConfig } from '../../preload/index';
+import { ref, onMounted, onUnmounted } from 'vue';
+import {
+  DEFAULT_CONNECTION_CONFIG,
+  isValidConnectionHost,
+  type DesktopConnectionConfig,
+} from '../../shared/connection';
+import type { ConnectionStatus } from '../../preload/index';
 
 const status = ref<ConnectionStatus>({ chat: 'disconnected', admin: 'disconnected' });
-const connection = ref<DesktopConnectionConfig>({ host: '127.0.0.1', desktopPort: 9730, adminPort: 3000, token: 'desktop-local' });
+const connection = ref<DesktopConnectionConfig>({ ...DEFAULT_CONNECTION_CONFIG });
 const connectionForm = ref<DesktopConnectionConfig>({ ...connection.value });
 const connectionError = ref('');
 const savingConnection = ref(false);
 const serverInfo = ref<Record<string, string> | null>(null);
 const loading = ref(true);
+let unsubscribeStatus: (() => void) | null = null;
 
 onMounted(async () => {
   status.value = await window.aesyclaw.getStatus();
   connection.value = await window.aesyclaw.getConnectionConfig();
   resetConnectionForm();
-  window.aesyclaw.onStatusChange((s) => { status.value = s; });
+  unsubscribeStatus = window.aesyclaw.onStatusChange((s) => {
+    status.value = s;
+  });
 
   try {
     const res = await window.aesyclaw.adminRequest('status');
@@ -142,6 +150,10 @@ onMounted(async () => {
     }
   } catch { /* server unavailable */ }
   loading.value = false;
+});
+
+onUnmounted(() => {
+  unsubscribeStatus?.();
 });
 
 function resetConnectionForm(): void {
@@ -170,7 +182,7 @@ function normalizeConnectionForm(config: DesktopConnectionConfig): DesktopConnec
   const token = config.token.trim();
   const desktopPort = Number(config.desktopPort);
   const adminPort = Number(config.adminPort);
-  if (!isValidHost(host)) {
+  if (!isValidConnectionHost(host)) {
     connectionError.value = 'Host must be a hostname or IP address without scheme, path, or port';
     return null;
   }
@@ -185,14 +197,6 @@ function normalizeConnectionForm(config: DesktopConnectionConfig): DesktopConnec
   return { host, desktopPort, adminPort, token };
 }
 
-function isValidHost(host: string): boolean {
-  if (!host || /\s/.test(host) || /[/?#]/.test(host) || host.includes('://')) return false;
-  if (host.startsWith('[') || host.endsWith(']')) {
-    return /^\[[0-9a-f:.]+\]$/i.test(host);
-  }
-  if (host.includes(':')) return false;
-  return /^[a-z0-9.-]+$/i.test(host);
-}
 
 function isValidPort(port: number): boolean {
   return Number.isInteger(port) && port > 0 && port <= 65535;

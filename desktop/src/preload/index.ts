@@ -1,6 +1,7 @@
 /** Preload 脚本 — 通过 contextBridge 暴露安全 API 给渲染进程。 */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { DesktopConnectionConfig } from '../shared/connection';
 
 export type ChatMessageEvent =
   | { type: 'chunk'; sessionId: string; text: string; index: number }
@@ -38,12 +39,7 @@ export type ConnectionStatus = {
   admin: 'connected' | 'connecting' | 'disconnected';
 };
 
-export type DesktopConnectionConfig = {
-  host: string;
-  desktopPort: number;
-  adminPort: number;
-  token: string;
-};
+export type { DesktopConnectionConfig };
 
 const api = {
   /** 发送聊天消息 */
