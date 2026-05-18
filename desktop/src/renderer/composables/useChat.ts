@@ -4,7 +4,8 @@
  */
 
 import { ref } from 'vue';
-import type { ChatMessageEvent } from '../../preload/index';
+import { makeSessionTitle } from '../utils/title';
+import type { ChatMessageEvent, DesktopHistoryMessage, DesktopSessionSummary } from '../../preload/index';
 
 export type ToolCallState = {
   toolCallId: string;
@@ -27,10 +28,15 @@ export type ChatSession = {
 };
 
 export type ChatMessage =
-  | { role: 'user'; text: string }
+  | UserMessage
   | AssistantMessage
   | ToolMessage
   | { role: 'system'; text: string };
+
+export type UserMessage = {
+  role: 'user';
+  text: string;
+};
 
 export type AssistantMessage = {
   role: 'assistant';
@@ -51,22 +57,66 @@ export function useChat(): ReturnType<typeof useChatImpl> {
 function useChatImpl() {
   const sessions = ref<ChatSession[]>([]);
   const activeSessionId = ref<string | null>(null);
+  const lastBackendSummaries = new Map<string, DesktopSessionSummary>();
 
   const activeSession = (): ChatSession | null =>
     sessions.value.find((s) => s.id === activeSessionId.value) ?? null;
 
   function createSession(): string {
-    const id = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    sessions.value.push({
-      id,
-      title: '新对话',
-      messages: [],
-      streaming: false,
-      pendingToolCalls: new Map(),
-      activeAssistantMessage: null,
-    });
-    activeSessionId.value ??= id;
+    const id = `desktop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    sessions.value.push(createEmptySession(id, '新对话'));
+    activeSessionId.value = id;
     return id;
+  }
+
+  async function syncSessionsFromBackend(): Promise<void> {
+    const response = await window.aesyclaw.adminRequest('get_sessions');
+    if (!response.ok || !Array.isArray(response.data)) return;
+
+    const summaries = (response.data as DesktopSessionSummary[]).filter((session) => session.channel === 'desktop');
+    lastBackendSummaries.clear();
+    for (const summary of summaries) {
+      lastBackendSummaries.set(summary.chatId, summary);
+    }
+    const existing = new Map(sessions.value.map((session) => [session.id, session]));
+    const synced: ChatSession[] = [];
+
+    for (const summary of summaries) {
+      const local = existing.get(summary.chatId) ?? createEmptySession(summary.chatId, getSessionTitle(summary));
+      local.title = getSessionTitle(summary);
+      synced.push(local);
+      existing.delete(summary.chatId);
+    }
+
+    for (const local of existing.values()) {
+      if (shouldKeepLocalSession(local)) {
+        synced.push(local);
+      }
+    }
+
+    sessions.value = synced;
+    if (activeSessionId.value && !sessions.value.some((session) => session.id === activeSessionId.value)) {
+      activeSessionId.value = sessions.value[0]?.id ?? null;
+    } else {
+      activeSessionId.value ??= sessions.value[0]?.id ?? null;
+    }
+  }
+
+  async function loadSessionMessages(sessionId: string): Promise<void> {
+    const session = sessions.value.find((item) => item.id === sessionId);
+    if (!session || session.streaming || session.messages.length > 0) return;
+    const summary = findBackendSummary(sessionId);
+    if (!summary) return;
+
+    const response = await window.aesyclaw.adminRequest('get_messages', { sessionId: summary.id });
+    if (!response.ok || !Array.isArray(response.data)) return;
+
+    session.messages = (response.data as DesktopHistoryMessage[]).map((message): UserMessage | AssistantMessage => (
+      message.role === 'assistant'
+        ? { role: 'assistant', text: message.content, streaming: false }
+        : { role: 'user', text: message.content }
+    ));
+    session.activeAssistantMessage = null;
   }
 
   function sendMessage(text: string): void {
@@ -75,20 +125,21 @@ function useChatImpl() {
 
     const session = sessions.value.find((s) => s.id === sessionId);
     if (!session) return;
+    const outboundSessionId = session.id;
 
     // 添加用户消息
     session.messages.push({ role: 'user', text });
-    session.title = text.slice(0, 30) + (text.length > 30 ? '…' : '');
+    session.title = makeSessionTitle(text, '新对话');
     session.streaming = true;
     session.pendingToolCalls = new Map();
     session.activeAssistantMessage = null;
 
     // 发送
-    void window.aesyclaw.sendChat(sessionId, text);
+    void window.aesyclaw.sendChat(outboundSessionId, text);
   }
 
   function handleStreamEvent(event: ChatMessageEvent): void {
-    const session = sessions.value.find((s) => s.id === event.sessionId);
+    const session = findSessionForEvent(event);
     if (!session) return;
 
     switch (event.type) {
@@ -137,6 +188,35 @@ function useChatImpl() {
     }
   }
 
+  function createEmptySession(id: string, title: string): ChatSession {
+    return {
+      id,
+      title,
+      messages: [],
+      streaming: false,
+      pendingToolCalls: new Map(),
+      activeAssistantMessage: null,
+    };
+  }
+
+  function getSessionTitle(summary: DesktopSessionSummary): string {
+    return makeSessionTitle(summary.title ?? summary.chatId ?? summary.id, summary.chatId ?? summary.id);
+  }
+
+  function findBackendSummary(chatId: string): DesktopSessionSummary | null {
+    return lastBackendSummaries.get(chatId) ?? null;
+  }
+
+  function shouldKeepLocalSession(session: ChatSession): boolean {
+    return session.streaming || session.messages.length > 0 || session.id === activeSessionId.value;
+  }
+
+  function findSessionForEvent(event: ChatMessageEvent): ChatSession | null {
+    const session = sessions.value.find((s) => s.id === event.sessionId);
+    if (session) return session;
+    return null;
+  }
+
   function appendAssistantChunk(session: ChatSession, text: string): void {
     if (!session.activeAssistantMessage) {
       session.activeAssistantMessage = {
@@ -154,6 +234,8 @@ function useChatImpl() {
     activeSessionId,
     activeSession,
     createSession,
+    syncSessionsFromBackend,
+    loadSessionMessages,
     sendMessage,
     handleStreamEvent,
   };

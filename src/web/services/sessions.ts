@@ -2,6 +2,14 @@
 
 import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
 
+const INFORMATION_TAG_RE = /<information\b[^>]*>[\s\S]*?<\/information>/gi;
+
+function makeSessionTitle(text: string, fallback: string): string {
+  const cleaned = text.replace(INFORMATION_TAG_RE, '').replace(/\s+/g, ' ').trim();
+  const source = cleaned.length > 0 ? cleaned : fallback;
+  return source.slice(0, 30);
+}
+
 /**
  * 获取所有会话列表。
  *
@@ -10,7 +18,17 @@ import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
  */
 export async function getSessions(deps: WebUiManagerDependencies): Promise<unknown> {
   const sessions = await deps.databaseManager.sessions.findAll();
-  return sessions;
+  return await Promise.all(
+    sessions.map(async (session) => {
+      const messages = await deps.databaseManager.messages.loadHistory(session.id);
+      const firstUserMessage = messages.find((message) => message.role === 'user');
+      return {
+        ...session,
+        title: makeSessionTitle(firstUserMessage?.content ?? '', session.chatId),
+        messageCount: messages.length,
+      };
+    }),
+  );
 }
 
 /**

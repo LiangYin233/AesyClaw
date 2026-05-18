@@ -10,7 +10,7 @@
         :key="session.id"
         class="session-item"
         :class="{ active: session.id === activeSessionId }"
-        @click="activeSessionId = session.id"
+        @click="selectSession(session.id)"
       >
         <span class="session-title">{{ session.title }}</span>
         <span v-if="session.streaming" class="session-badge">…</span>
@@ -128,21 +128,44 @@ import type { ChatMessageEvent } from '../../preload/index';
 
 const {
   sessions, activeSessionId, activeSession,
-  createSession, sendMessage, handleStreamEvent,
+  createSession, syncSessionsFromBackend, loadSessionMessages, sendMessage, handleStreamEvent,
 } = useChat();
 
 const inputText = ref('');
 const messageListRef = ref<HTMLElement | null>(null);
 let unsubscribeChat: (() => void) | null = null;
+let unsubscribeStatus: (() => void) | null = null;
 
 onMounted(() => {
+  unsubscribeStatus = window.aesyclaw.onStatusChange((status) => {
+    if (status.admin === 'connected') {
+      void syncAndLoadActiveSession();
+    }
+  });
+
+  void syncAndLoadActiveSession();
+
   unsubscribeChat = window.aesyclaw.onChatMessage((event: ChatMessageEvent) => {
     handleStreamEvent(event);
+    if (event.type === 'done') void syncSessionsFromBackend();
     scrollToBottom();
   });
 });
 
-onUnmounted(() => { unsubscribeChat?.(); });
+onUnmounted(() => {
+  unsubscribeChat?.();
+  unsubscribeStatus?.();
+});
+
+async function syncAndLoadActiveSession() {
+  await syncSessionsFromBackend();
+  if (activeSessionId.value) await loadSessionMessages(activeSessionId.value);
+}
+
+function selectSession(sessionId: string) {
+  activeSessionId.value = sessionId;
+  void loadSessionMessages(sessionId).then(scrollToBottom);
+}
 
 function handleSend() {
   const text = inputText.value.trim();

@@ -114,7 +114,7 @@ export class WebSocketManager extends EventEmitter {
       this.adminWs.send(JSON.stringify({
         type: request.type,
         requestId: request.requestId,
-        payload: request.payload,
+        data: request.payload,
       }));
     });
   }

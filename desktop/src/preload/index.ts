@@ -9,6 +9,22 @@ export type ChatMessageEvent =
   | { type: 'done'; sessionId: string }
   | { type: 'error'; sessionId: string; message: string };
 
+export type DesktopSessionSummary = {
+  id: string;
+  channel: string;
+  type: string;
+  chatId: string;
+  title?: string;
+  messageCount?: number;
+  lastActivity?: string;
+};
+
+export type DesktopHistoryMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+};
+
 export type AdminMessageEvent = {
   type: string;
   requestId?: string;
