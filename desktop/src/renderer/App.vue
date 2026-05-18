@@ -2,10 +2,11 @@
   <div class="app-layout">
     <!-- Topbar -->
     <header class="topbar">
-      <div class="topbar-brand drag-region">
+      <div class="topbar-brand">
         <span class="brand-text">AesyClaw</span>
         <span class="brand-badge">Desktop</span>
       </div>
+      <div class="drag-spacer"></div>
       <div class="topbar-right">
         <span class="connection-status" :class="statusClass">
           <span class="status-dot"></span>
@@ -103,27 +104,23 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 24px;
   flex-shrink: 0;
   z-index: 10;
   user-select: none;
-  -webkit-app-region: drag;
-}
-
-.topbar button,
-.topbar a {
-  -webkit-app-region: no-drag;
 }
 
 .topbar-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
-.drag-region {
+.drag-spacer {
   flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
 }
 
 .brand-text {
