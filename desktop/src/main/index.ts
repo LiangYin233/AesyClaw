@@ -31,8 +31,11 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      devTools: true,
     },
   });
+
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   // 开发模式加载 dev server，生产模式加载文件
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -50,15 +53,15 @@ function createWindow(): void {
 
 function setupIpc(): void {
   // 窗口控制
-  ipcMain.handle('window:minimize', () => mainWindow?.minimize());
-  ipcMain.handle('window:maximize', () => {
+  ipcMain.on('window:minimize', () => mainWindow?.minimize());
+  ipcMain.on('window:maximize', () => {
     if (mainWindow?.isMaximized()) {
       mainWindow.unmaximize();
     } else {
       mainWindow?.maximize();
     }
   });
-  ipcMain.handle('window:close', () => mainWindow?.close());
+  ipcMain.on('window:close', () => mainWindow?.close());
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
 
   // 聊天消息

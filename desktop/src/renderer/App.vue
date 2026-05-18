@@ -6,21 +6,20 @@
         <span class="brand-text">AesyClaw</span>
         <span class="brand-badge">Desktop</span>
       </div>
-      <div class="drag-spacer"></div>
       <div class="topbar-right">
         <span class="connection-status" :class="statusClass">
           <span class="status-dot"></span>
           {{ statusLabel }}
         </span>
         <div class="window-controls">
-          <button class="win-btn" @click="window.aesyclaw.minimizeWindow()" title="Minimize">
+          <button class="win-btn" @mousedown="handleMinimize" title="Minimize">
             <svg width="12" height="12" viewBox="0 0 12 12"><rect y="5" width="12" height="1.5" rx="0.75" fill="currentColor"/></svg>
           </button>
-          <button class="win-btn" @click="window.aesyclaw.maximizeWindow()" :title="isMaximized ? 'Restore' : 'Maximize'">
+          <button class="win-btn" @mousedown="handleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">
             <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
             <svg v-else width="12" height="12" viewBox="0 0 12 12"><rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="#fdfbf8" stroke="currentColor" stroke-width="1.2"/></svg>
           </button>
-          <button class="win-btn win-close" @click="window.aesyclaw.closeWindow()" title="Close">
+          <button class="win-btn win-close" @mousedown="handleClose" title="Close">
             <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           </button>
         </div>
@@ -87,6 +86,10 @@ onUnmounted(() => {
   unsubStatus?.();
   unsubMaximize?.();
 });
+
+function handleMinimize() { console.log('[win] minimize'); window.aesyclaw.minimizeWindow(); }
+function handleMaximize() { console.log('[win] maximize'); window.aesyclaw.maximizeWindow(); }
+function handleClose() { console.log('[win] close'); window.aesyclaw.closeWindow(); }
 </script>
 
 <style scoped>
@@ -104,6 +107,7 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 24px;
   flex-shrink: 0;
   z-index: 10;
@@ -115,12 +119,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  -webkit-app-region: no-drag;
-}
-
-.drag-spacer {
-  flex: 1;
-  height: 100%;
   -webkit-app-region: drag;
 }
 
@@ -186,11 +184,6 @@ onUnmounted(() => {
   display: flex;
   gap: 2px;
   margin-left: 12px;
-  -webkit-app-region: no-drag;
-}
-
-.window-controls * {
-  -webkit-app-region: no-drag;
 }
 
 .win-btn {
