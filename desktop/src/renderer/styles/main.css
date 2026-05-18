@@ -1,0 +1,96 @@
+/* AesyClaw Desktop — shared design tokens matching Web UI */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --color-dark: #141413;
+  --color-light: #faf9f5;
+  --color-mid-gray: #b0aea5;
+  --color-light-gray: #f8f7f4;
+  --color-primary: #d97757;
+  --color-primary-hover: #c96a4b;
+  --color-accent-green: #788c5d;
+  --color-danger: #c45b5b;
+  --color-warning: #c9a35a;
+  --color-surface: #fdfbf9;
+
+  --font-heading: 'Poppins', Arial, sans-serif;
+  --font-body: 'Lora', Georgia, serif;
+
+  --color-text: var(--color-dark);
+  --color-text-muted: var(--color-mid-gray);
+  --color-bg: var(--color-light);
+  --color-surface: var(--color-light-gray);
+  --color-surface-hover: #ddd9cc;
+  --color-border: rgba(176, 174, 165, 0.45);
+  --color-border-strong: var(--color-mid-gray);
+
+  --sidebar-width: 220px;
+  --topbar-height: 56px;
+
+  --radius: 8px;
+  --radius-sm: 6px;
+
+  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.06), 0 1px 3px rgba(20, 20, 19, 0.04);
+  --shadow: 0 4px 6px -1px rgba(20, 20, 19, 0.07), 0 2px 4px -2px rgba(20, 20, 19, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(20, 20, 19, 0.08), 0 4px 6px -4px rgba(20, 20, 19, 0.04);
+
+  --transition-fast: 0.15s ease;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  margin: 0;
+}
+
+.page-title {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-dark);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.page-subtitle {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0.25rem 0 1.5rem;
+}
+
+/* scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-mid-gray);
+}
