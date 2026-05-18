@@ -26,6 +26,7 @@ export type SessionsRepository = {
     key: Parameters<typeof sessions.findSessionByKey>[1],
   ) => ReturnType<typeof sessions.findSessionByKey>;
   findAll: () => ReturnType<typeof sessions.findAllSessions>;
+  findAllSummaries: () => ReturnType<typeof sessions.findAllSessionSummaries>;
   findById: (id: string) => ReturnType<typeof sessions.findSessionById>;
 };
 
@@ -182,6 +183,7 @@ export class DatabaseManager {
       findOrCreate: (key) => sessions.findOrCreateSession(db, key),
       findByKey: (key) => sessions.findSessionByKey(db, key),
       findAll: () => sessions.findAllSessions(db),
+      findAllSummaries: () => sessions.findAllSessionSummaries(db),
       findById: (id) => sessions.findSessionById(db, id),
     };
 

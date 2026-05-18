@@ -51,7 +51,9 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (!app.isPackaged || process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
@@ -72,8 +74,10 @@ function setupIpc(): void {
     const win = BrowserWindow.fromWebContents(_event.sender) ?? mainWindow;
     if (!win) return;
     if (action === 'minimize') win.minimize();
-    else if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize();
-    else if (action === 'close') win.close();
+    else if (action === 'maximize') {
+      if (win.isMaximized()) win.unmaximize();
+      else win.maximize();
+    } else if (action === 'close') win.close();
   });
 
   ipcMain.handle('window:isMaximized', (_event) => {
@@ -104,7 +108,7 @@ function setupIpc(): void {
   });
 
   ipcMain.handle('connection:updateConfig', async (_event, config: DesktopConnectionConfig) => {
-    const normalized = normalizeConnectionConfig(config);
+    const normalized = normalizeConnectionConfig(config, true);
     saveConnectionConfig(normalized);
     wsManager?.disconnect();
     wsManager?.updateUrls(buildDesktopWsUrl(normalized), buildAdminWsUrl(normalized));
@@ -137,13 +141,36 @@ function saveConnectionConfig(config: DesktopConnectionConfig): void {
   writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 }
 
-function normalizeConnectionConfig(config: Partial<DesktopConnectionConfig>): DesktopConnectionConfig {
+function normalizeConnectionConfig(
+  config: Partial<DesktopConnectionConfig>,
+  strict = false,
+  fallback = DEFAULT_CONNECTION_CONFIG,
+): DesktopConnectionConfig {
   return {
-    host: typeof config.host === 'string' && config.host.trim() ? config.host.trim() : DEFAULT_CONNECTION_CONFIG.host,
-    desktopPort: normalizePort(config.desktopPort, DEFAULT_CONNECTION_CONFIG.desktopPort),
-    adminPort: normalizePort(config.adminPort, DEFAULT_CONNECTION_CONFIG.adminPort),
-    token: typeof config.token === 'string' && config.token.trim() ? config.token.trim() : DEFAULT_CONNECTION_CONFIG.token,
+    host: normalizeHost(config.host, fallback.host, strict),
+    desktopPort: normalizePort(config.desktopPort, fallback.desktopPort),
+    adminPort: normalizePort(config.adminPort, fallback.adminPort),
+    token: typeof config.token === 'string' && config.token.trim() ? config.token.trim() : fallback.token,
   };
+}
+
+function normalizeHost(value: unknown, fallback: string, strict: boolean): string {
+  if (typeof value !== 'string') return fallback;
+  const host = value.trim();
+  if (isValidHost(host)) return host;
+  if (strict) {
+    throw new Error('Host must be a hostname or IP address without scheme, path, or port');
+  }
+  return fallback;
+}
+
+function isValidHost(host: string): boolean {
+  if (!host || /\s/.test(host) || /[/?#]/.test(host) || host.includes('://')) return false;
+  if (host.startsWith('[') || host.endsWith(']')) {
+    return /^\[[0-9a-f:.]+\]$/i.test(host);
+  }
+  if (host.includes(':')) return false;
+  return /^[a-z0-9.-]+$/i.test(host);
 }
 
 function normalizePort(value: unknown, fallback: number): number {

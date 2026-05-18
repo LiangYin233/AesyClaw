@@ -172,7 +172,6 @@ describe('channel_onebot', () => {
 
   it('keeps reconnect timing internal and exposes only remote websocket config', () => {
     expect(onebotChannel.defaultConfig).toEqual({
-      enabled: false,
       serverUrl: 'ws://127.0.0.1:3001/',
       accessToken: '',
       allowedChats: ['*:*'],

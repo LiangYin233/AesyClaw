@@ -170,8 +170,8 @@ function normalizeConnectionForm(config: DesktopConnectionConfig): DesktopConnec
   const token = config.token.trim();
   const desktopPort = Number(config.desktopPort);
   const adminPort = Number(config.adminPort);
-  if (!host) {
-    connectionError.value = 'Host is required';
+  if (!isValidHost(host)) {
+    connectionError.value = 'Host must be a hostname or IP address without scheme, path, or port';
     return null;
   }
   if (!isValidPort(desktopPort) || !isValidPort(adminPort)) {
@@ -183,6 +183,15 @@ function normalizeConnectionForm(config: DesktopConnectionConfig): DesktopConnec
     return null;
   }
   return { host, desktopPort, adminPort, token };
+}
+
+function isValidHost(host: string): boolean {
+  if (!host || /\s/.test(host) || /[/?#]/.test(host) || host.includes('://')) return false;
+  if (host.startsWith('[') || host.endsWith(']')) {
+    return /^\[[0-9a-f:.]+\]$/i.test(host);
+  }
+  if (host.includes(':')) return false;
+  return /^[a-z0-9.-]+$/i.test(host);
 }
 
 function isValidPort(port: number): boolean {

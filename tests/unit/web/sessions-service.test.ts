@@ -2,22 +2,24 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { getSessions } from '../../../src/web/services/sessions';
 
-function createDeps(messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp?: string }>) {
+function createDeps(
+  messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp?: string }>,
+) {
+  const firstUserMessage = messages.find((message) => message.role === 'user')?.content;
   return {
     databaseManager: {
       sessions: {
-        findAll: vi.fn(async () => [
+        findAllSummaries: vi.fn(async () => [
           {
             id: 'session-db-id',
             channel: 'desktop',
             type: 'private',
             chatId: 'desktop-chat-id',
             lastActivity: '2026-05-18T00:00:00.000Z',
+            messageCount: messages.length,
+            ...(firstUserMessage ? { firstUserMessage } : {}),
           },
         ]),
-      },
-      messages: {
-        loadHistory: vi.fn(async () => messages),
       },
     },
   } as unknown as Parameters<typeof getSessions>[0];
@@ -25,13 +27,15 @@ function createDeps(messages: Array<{ role: 'user' | 'assistant'; content: strin
 
 describe('web session service', () => {
   it('returns desktop session summaries with information tags stripped from titles', async () => {
-    const sessions = await getSessions(createDeps([
-      {
-        role: 'user',
-        content: '<information>system metadata</information>Show me the logs',
-      },
-      { role: 'assistant', content: 'Here are the logs.' },
-    ]));
+    const sessions = await getSessions(
+      createDeps([
+        {
+          role: 'user',
+          content: '<information>system metadata</information>Show me the logs',
+        },
+        { role: 'assistant', content: 'Here are the logs.' },
+      ]),
+    );
 
     expect(sessions).toEqual([
       expect.objectContaining({
@@ -45,12 +49,14 @@ describe('web session service', () => {
   });
 
   it('falls back to chatId when the first user message only contains information tags', async () => {
-    const sessions = await getSessions(createDeps([
-      {
-        role: 'user',
-        content: '<information>system metadata</information>',
-      },
-    ]));
+    const sessions = await getSessions(
+      createDeps([
+        {
+          role: 'user',
+          content: '<information>system metadata</information>',
+        },
+      ]),
+    );
 
     expect(sessions).toEqual([
       expect.objectContaining({

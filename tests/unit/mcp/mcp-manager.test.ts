@@ -4,7 +4,7 @@ import {
   mcpToolName,
   type McpClient,
   type McpClientFactory,
-} from '../../../src/mcp/mcp-manager';
+} from '../../../src/tool/mcp/mcp-manager';
 import type { McpServerConfig } from '../../../src/core/config/schema';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 
@@ -97,9 +97,6 @@ describe('McpManager', () => {
       { text: 'hi' },
       {
         sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-        agentEngine: null,
-        cronManager: null,
-        pipeline: null,
       },
     );
 
@@ -183,7 +180,7 @@ describe('McpManager', () => {
 
   it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
     const manager = new McpManager(null as never, null as never, null as never);
-    let releaseFirstDisconnect: (() => void) | null = null;
+    let releaseFirstDisconnect: () => void = () => undefined;
     const disconnectAll = vi
       .spyOn(manager, 'disconnectAll')
       .mockImplementationOnce(
@@ -198,7 +195,7 @@ describe('McpManager', () => {
     const firstReload = manager.handleConfigReload();
     await Promise.resolve();
     const secondReload = manager.handleConfigReload();
-    releaseFirstDisconnect?.();
+    releaseFirstDisconnect();
 
     await Promise.all([firstReload, secondReload]);
 

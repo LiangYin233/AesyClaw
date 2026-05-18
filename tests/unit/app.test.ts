@@ -5,8 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
 import { ChannelManager } from '../../src/extension/channel/channel-manager';
 import { CronManager } from '../../src/cron/cron-manager';
-import { McpManager } from '../../src/mcp/mcp-manager';
+import { McpManager } from '../../src/tool/mcp/mcp-manager';
 import { WebUiManager } from '../../src/web/webui-manager';
+import { DEFAULT_CONFIG } from '../../src/core/config/defaults';
 
 const TEST_ROOTS: string[] = [];
 
@@ -62,12 +63,12 @@ describe('Application', () => {
     const originalStartAll = ChannelManager.prototype.startAll;
     const originalCronInitialize = CronManager.prototype.initialize;
 
-    vi.spyOn(ChannelManager.prototype, 'startAll').mockImplementation(async function () {
+    vi.spyOn(ChannelManager.prototype, 'startAll').mockImplementation(async function (this: ChannelManager) {
       order.push('channels');
       await originalStartAll.call(this);
     });
 
-    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function () {
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (this: CronManager) {
       order.push('cron');
       expect(order).toContain('channels');
       await originalCronInitialize.call(this);
@@ -93,12 +94,12 @@ describe('Application', () => {
     const originalCronInitialize = CronManager.prototype.initialize;
     const originalWebUiInitialize = WebUiManager.prototype.initialize;
 
-    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function () {
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (this: CronManager) {
       order.push('cron');
       await originalCronInitialize.call(this);
     });
 
-    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(async function () {
+    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(async function (this: WebUiManager) {
       order.push('webui');
       expect(order).toContain('cron');
       await originalWebUiInitialize.call(this);
@@ -126,11 +127,22 @@ describe('Application', () => {
       `export default {
         name: 'fixture',
         version: '1.0.0',
-        defaultConfig: { enabled: true },
+        defaultConfig: {},
         async init() { globalThis.__aesyclawChannelStarts = (globalThis.__aesyclawChannelStarts ?? 0) + 1; },
         async receive() {},
         async send() {}
       };\n`,
+      'utf-8',
+    );
+    const runtimeRoot = path.join(testRoot, '.aesyclaw');
+    mkdirSync(runtimeRoot, { recursive: true });
+    writeFileSync(
+      path.join(runtimeRoot, 'config.json'),
+      JSON.stringify({
+        ...DEFAULT_CONFIG,
+        channels: { fixture: { enabled: true } },
+        mcp: [],
+      }),
       'utf-8',
     );
 

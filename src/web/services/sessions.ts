@@ -17,18 +17,11 @@ function makeSessionTitle(text: string, fallback: string): string {
  * @returns 会话列表
  */
 export async function getSessions(deps: WebUiManagerDependencies): Promise<unknown> {
-  const sessions = await deps.databaseManager.sessions.findAll();
-  return await Promise.all(
-    sessions.map(async (session) => {
-      const messages = await deps.databaseManager.messages.loadHistory(session.id);
-      const firstUserMessage = messages.find((message) => message.role === 'user');
-      return {
-        ...session,
-        title: makeSessionTitle(firstUserMessage?.content ?? '', session.chatId),
-        messageCount: messages.length,
-      };
-    }),
-  );
+  const sessions = await deps.databaseManager.sessions.findAllSummaries();
+  return sessions.map((session) => ({
+    ...session,
+    title: makeSessionTitle(session.firstUserMessage ?? '', session.chatId),
+  }));
 }
 
 /**
