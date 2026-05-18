@@ -63,12 +63,16 @@ describe('Application', () => {
     const originalStartAll = ChannelManager.prototype.startAll;
     const originalCronInitialize = CronManager.prototype.initialize;
 
-    vi.spyOn(ChannelManager.prototype, 'startAll').mockImplementation(async function (this: ChannelManager) {
+    vi.spyOn(ChannelManager.prototype, 'startAll').mockImplementation(async function (
+      this: ChannelManager,
+    ) {
       order.push('channels');
       await originalStartAll.call(this);
     });
 
-    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (this: CronManager) {
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (
+      this: CronManager,
+    ) {
       order.push('cron');
       expect(order).toContain('channels');
       await originalCronInitialize.call(this);
@@ -94,12 +98,16 @@ describe('Application', () => {
     const originalCronInitialize = CronManager.prototype.initialize;
     const originalWebUiInitialize = WebUiManager.prototype.initialize;
 
-    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (this: CronManager) {
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (
+      this: CronManager,
+    ) {
       order.push('cron');
       await originalCronInitialize.call(this);
     });
 
-    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(async function (this: WebUiManager) {
+    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(async function (
+      this: WebUiManager,
+    ) {
       order.push('webui');
       expect(order).toContain('cron');
       await originalWebUiInitialize.call(this);
