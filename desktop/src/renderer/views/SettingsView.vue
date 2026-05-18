@@ -10,13 +10,17 @@
         <div class="info-row">
           <span class="info-label">Chat Server</span>
           <span class="info-value">
-            <span class="badge" :class="statusBadge(status.chat)">{{ statusLabel(status.chat) }}</span>
+            <span class="badge" :class="statusBadge(status.chat)">{{
+              statusLabel(status.chat)
+            }}</span>
           </span>
         </div>
         <div class="info-row">
           <span class="info-label">Admin Server</span>
           <span class="info-value">
-            <span class="badge" :class="statusBadge(status.admin)">{{ statusLabel(status.admin) }}</span>
+            <span class="badge" :class="statusBadge(status.admin)">{{
+              statusLabel(status.admin)
+            }}</span>
           </span>
         </div>
         <div class="info-row">
@@ -45,11 +49,23 @@
         <div class="field-grid">
           <label class="field-label">
             Desktop Channel Port
-            <input v-model.number="connectionForm.desktopPort" class="field-input" type="number" min="1" max="65535" />
+            <input
+              v-model.number="connectionForm.desktopPort"
+              class="field-input"
+              type="number"
+              min="1"
+              max="65535"
+            />
           </label>
           <label class="field-label">
             Admin Port
-            <input v-model.number="connectionForm.adminPort" class="field-input" type="number" min="1" max="65535" />
+            <input
+              v-model.number="connectionForm.adminPort"
+              class="field-input"
+              type="number"
+              min="1"
+              max="65535"
+            />
           </label>
         </div>
         <label class="field-label">
@@ -96,10 +112,9 @@
     <section class="card">
       <h2 class="section-title">Desktop Channel Configuration</h2>
       <div class="card-body">
-        <p class="hint">
-          Configure the desktop channel in <code>.aesyclaw/config.json</code>:
-        </p>
-        <pre class="config-block">{
+        <p class="hint">Configure the desktop channel in <code>.aesyclaw/config.json</code>:</p>
+        <pre class="config-block">
+{
   "channels": {
     "desktop": {
       "enabled": true,
@@ -107,7 +122,8 @@
       "host": "127.0.0.1"
     }
   }
-}</pre>
+}</pre
+        >
         <p class="hint">
           Advanced configuration — including roles, tools, skills, and providers — is managed
           through the AesyClaw web dashboard at the admin server.
@@ -148,7 +164,9 @@ onMounted(async () => {
     if (res.ok && res.data) {
       serverInfo.value = res.data as Record<string, string>;
     }
-  } catch { /* server unavailable */ }
+  } catch {
+    /* server unavailable */
+  }
   loading.value = false;
 });
 
@@ -171,7 +189,8 @@ async function saveConnection(): Promise<void> {
     connection.value = await window.aesyclaw.updateConnectionConfig(normalized);
     resetConnectionForm();
   } catch (err) {
-    connectionError.value = err instanceof Error ? err.message : 'Failed to save connection settings';
+    connectionError.value =
+      err instanceof Error ? err.message : 'Failed to save connection settings';
   } finally {
     savingConnection.value = false;
   }
@@ -196,7 +215,6 @@ function normalizeConnectionForm(config: DesktopConnectionConfig): DesktopConnec
   }
   return { host, desktopPort, adminPort, token };
 }
-
 
 function isValidPort(port: number): boolean {
   return Number.isInteger(port) && port > 0 && port <= 65535;
@@ -246,7 +264,9 @@ function statusLabel(s: string): string {
   gap: 4px;
 }
 
-.form-body { gap: 14px; }
+.form-body {
+  gap: 14px;
+}
 
 .field-grid {
   display: grid;
@@ -276,7 +296,9 @@ function statusLabel(s: string): string {
   outline: none;
   transition: border var(--transition-fast);
 }
-.field-input:focus { border-color: var(--color-primary); }
+.field-input:focus {
+  border-color: var(--color-primary);
+}
 
 .form-actions {
   display: flex;
@@ -300,16 +322,24 @@ function statusLabel(s: string): string {
   background: var(--color-primary);
   color: #fff;
 }
-.save-btn:hover:not(:disabled) { background: var(--color-primary-hover); }
+.save-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
 
 .secondary-btn {
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-mid-gray);
 }
-.secondary-btn:hover:not(:disabled) { color: var(--color-dark); border-color: var(--color-mid-gray); }
+.secondary-btn:hover:not(:disabled) {
+  color: var(--color-dark);
+  border-color: var(--color-mid-gray);
+}
 .save-btn:disabled,
-.secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.secondary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .error-text {
   margin: 0;
@@ -326,7 +356,9 @@ function statusLabel(s: string): string {
   padding: 10px 0;
   border-bottom: 1px solid var(--color-border);
 }
-.info-row:last-child { border-bottom: none; }
+.info-row:last-child {
+  border-bottom: none;
+}
 
 .info-label {
   font-family: var(--font-body);
@@ -379,7 +411,9 @@ function statusLabel(s: string): string {
   margin: 0 0 10px;
   line-height: 1.6;
 }
-.hint:last-child { margin-bottom: 0; }
+.hint:last-child {
+  margin-bottom: 0;
+}
 .hint code {
   font-family: 'SF Mono', 'Menlo', monospace;
   background: #f5f3ef;

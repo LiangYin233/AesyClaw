@@ -56,7 +56,9 @@ function createWindow(): void {
 
   mainWindow.on('maximize', () => mainWindow?.webContents.send('window:maximizeChange', true));
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximizeChange', false));
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 }
 
 // ─── IPC 处理器 ────────────────────────────────────────────────────
@@ -88,9 +90,13 @@ function setupIpc(): void {
   });
 
   // 管理 API
-  ipcMain.handle('admin:request', async (_event, request: { type: string; requestId: string; payload?: unknown }) => {
-    return await (wsManager?.sendAdminRequest(request) ?? Promise.resolve({ ok: false, error: 'Admin WS 未连接' }));
-  });
+  ipcMain.handle(
+    'admin:request',
+    async (_event, request: { type: string; requestId: string; payload?: unknown }) => {
+      return await (wsManager?.sendAdminRequest(request) ??
+        Promise.resolve({ ok: false, error: 'Admin WS 未连接' }));
+    },
+  );
 
   ipcMain.handle('status:get', async () => {
     return wsManager?.getStatus() ?? { chat: 'disconnected', admin: 'disconnected' };
@@ -119,7 +125,9 @@ function loadConnectionConfig(): DesktopConnectionConfig {
   if (!existsSync(configPath)) return DEFAULT_CONNECTION_CONFIG;
 
   try {
-    return normalizeConnectionConfig(JSON.parse(readFileSync(configPath, 'utf8')) as Partial<DesktopConnectionConfig>);
+    return normalizeConnectionConfig(
+      JSON.parse(readFileSync(configPath, 'utf8')) as Partial<DesktopConnectionConfig>,
+    );
   } catch {
     return DEFAULT_CONNECTION_CONFIG;
   }
@@ -133,7 +141,6 @@ function saveConnectionConfig(config: DesktopConnectionConfig): void {
   }
   writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 }
-
 
 // ─── 生命周期 ──────────────────────────────────────────────────────
 
