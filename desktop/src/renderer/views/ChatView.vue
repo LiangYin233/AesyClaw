@@ -41,31 +41,34 @@
 
           <!-- Assistant -->
           <div v-else-if="msg.role === 'assistant'" class="assistant-block">
-            <!-- Tool calls -->
+            <div v-if="msg.text" class="assistant-bubble" :class="{ streaming: msg.streaming }">
+              <div class="rendered-content" v-html="renderMarkdownSafe(msg.text)"></div>
+              <span v-if="msg.streaming" class="cursor">|</span>
+            </div>
+          </div>
+
+          <!-- Tool -->
+          <div v-else-if="msg.role === 'tool'" class="tool-block">
             <div
-              v-for="tc in msg.toolCalls"
-              :key="tc.toolCallId"
               class="tool-card"
-              :class="{ expanded: tc.expanded, error: tc.status === 'error' }"
+              :class="{ expanded: msg.toolCall.expanded, error: msg.toolCall.status === 'error' }"
             >
-              <div class="tool-card-header" @click="tc.expanded = !tc.expanded">
-                <span class="tool-arrow">{{ tc.expanded ? '▾' : '▸' }}</span>
-                <span class="tool-status-dot" :class="tc.status"></span>
-                <span class="tool-name">{{ tc.toolName }}</span>
+              <div class="tool-card-header" @click="msg.toolCall.expanded = !msg.toolCall.expanded">
+                <span class="tool-arrow">{{ msg.toolCall.expanded ? '▾' : '▸' }}</span>
+                <span class="tool-status-dot" :class="msg.toolCall.status"></span>
+                <span class="tool-name">{{ msg.toolCall.toolName }}</span>
               </div>
-              <div v-if="tc.expanded" class="tool-card-body">
+              <div v-if="msg.toolCall.expanded" class="tool-card-body">
                 <div class="tool-section">
                   <span class="tool-label">Args</span>
-                  <pre>{{ JSON.stringify(tc.args, null, 2) }}</pre>
+                  <pre>{{ JSON.stringify(msg.toolCall.args, null, 2) }}</pre>
                 </div>
-                <div v-if="tc.result !== undefined" class="tool-section">
+                <div v-if="msg.toolCall.result !== undefined" class="tool-section">
                   <span class="tool-label">Result</span>
-                  <pre>{{ JSON.stringify(tc.result, null, 2) }}</pre>
+                  <pre>{{ JSON.stringify(msg.toolCall.result, null, 2) }}</pre>
                 </div>
               </div>
             </div>
-            <!-- Text -->
-            <div v-if="msg.text" class="assistant-bubble">{{ msg.text }}</div>
           </div>
 
           <!-- System -->
@@ -74,36 +77,8 @@
           </div>
         </div>
 
-        <!-- Streaming -->
-        <div v-if="activeSession()?.streaming" class="message assistant">
-          <!-- Live tool calls -->
-          <div
-            v-for="tc in [...activeSession()!.pendingToolCalls.values()]"
-            :key="tc.toolCallId"
-            class="tool-card"
-            :class="{ expanded: tc.expanded, error: tc.status === 'error' }"
-          >
-            <div class="tool-card-header" @click="tc.expanded = !tc.expanded">
-              <span class="tool-arrow">{{ tc.expanded ? '▾' : '▸' }}</span>
-              <span class="tool-status-dot" :class="tc.status"></span>
-              <span class="tool-name">{{ tc.toolName }}</span>
-            </div>
-            <div v-if="tc.expanded" class="tool-card-body">
-              <div class="tool-section">
-                <span class="tool-label">Args</span>
-                <pre>{{ JSON.stringify(tc.args, null, 2) }}</pre>
-              </div>
-              <div v-if="tc.result !== undefined" class="tool-section">
-                <span class="tool-label">Result</span>
-                <pre>{{ JSON.stringify(tc.result, null, 2) }}</pre>
-              </div>
-            </div>
-          </div>
-          <!-- Streaming text -->
-          <div v-if="activeSession()!.streamBuffer" class="assistant-bubble streaming">
-            {{ activeSession()!.streamBuffer }}<span class="cursor">|</span>
-          </div>
-          <div v-else class="assistant-bubble streaming dim">
+        <div v-if="activeSession()?.streaming && !activeSession()?.activeAssistantMessage" class="message assistant">
+          <div class="assistant-bubble streaming dim">
             Thinking…
           </div>
         </div>
@@ -111,19 +86,28 @@
 
       <!-- Input -->
       <div class="input-area">
-        <input
+        <textarea
           v-model="inputText"
           class="chat-input"
-          placeholder="Type a message… (Enter to send)"
+          placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
+          rows="1"
           :disabled="activeSession()?.streaming"
-          @keydown.enter="handleSend"
-        />
+          @keydown.enter="handleInputEnter"
+        ></textarea>
         <button
           v-if="activeSession()?.streaming"
           class="stop-btn"
           @click="handleCancel"
         >
           Stop
+        </button>
+        <button
+          v-else
+          class="send-btn"
+          :disabled="inputText.trim().length === 0"
+          @click="handleSend"
+        >
+          Send
         </button>
       </div>
     </div>
@@ -139,6 +123,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useChat } from '../composables/useChat';
+import { renderMarkdownSafe } from '../utils/renderContent';
 import type { ChatMessageEvent } from '../../preload/index';
 
 const {
@@ -161,9 +146,15 @@ onUnmounted(() => { unsubscribeChat?.(); });
 
 function handleSend() {
   const text = inputText.value.trim();
-  if (!text) return;
+  if (!text || activeSession()?.streaming) return;
   sendMessage(text);
   inputText.value = '';
+}
+
+function handleInputEnter(event: KeyboardEvent) {
+  if (event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  handleSend();
 }
 
 function handleCancel() {
@@ -308,6 +299,56 @@ function scrollToBottom() {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
 }
+
+.rendered-content { overflow-wrap: anywhere; }
+.rendered-content :deep(*) { max-width: 100%; }
+.rendered-content :deep(p) { margin: 0 0 0.75em; }
+.rendered-content :deep(p:last-child) { margin-bottom: 0; }
+.rendered-content :deep(ul),
+.rendered-content :deep(ol) { margin: 0.4em 0 0.75em; padding-left: 1.35em; }
+.rendered-content :deep(blockquote) {
+  margin: 0.75em 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-mid-gray);
+}
+.rendered-content :deep(a) { color: var(--color-primary); }
+.rendered-content :deep(code) {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 0.92em;
+  background: rgba(20, 20, 19, 0.06);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.rendered-content :deep(pre) {
+  margin: 0.75em 0;
+  padding: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #f8f5f0;
+}
+.rendered-content :deep(pre code) {
+  display: block;
+  padding: 0;
+  background: transparent;
+  white-space: pre;
+}
+.rendered-content :deep(table) {
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 13px;
+}
+.rendered-content :deep(th),
+.rendered-content :deep(td) {
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+}
+.rendered-content :deep(img) {
+  display: block;
+  max-height: 320px;
+  border-radius: var(--radius-sm);
+}
 .assistant-bubble.streaming {
   border-left: 3px solid var(--color-primary);
 }
@@ -336,8 +377,10 @@ function scrollToBottom() {
 }
 
 /* ── Tool cards ──────────────────────── */
+.tool-block { display: flex; }
+
 .tool-card {
-  margin: 6px 0;
+  margin: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -403,6 +446,7 @@ function scrollToBottom() {
 /* ── Input ───────────────────────────── */
 .input-area {
   display: flex;
+  align-items: flex-end;
   padding: 16px 24px;
   border-top: 1px solid var(--color-border);
   gap: 10px;
@@ -411,6 +455,8 @@ function scrollToBottom() {
 
 .chat-input {
   flex: 1;
+  min-height: 42px;
+  max-height: 160px;
   padding: 10px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -418,23 +464,39 @@ function scrollToBottom() {
   color: var(--color-dark);
   font-family: var(--font-body);
   font-size: 14px;
+  line-height: 1.5;
   outline: none;
+  resize: vertical;
   transition: border var(--transition-fast);
 }
 .chat-input:focus { border-color: var(--color-primary); }
 .chat-input:disabled { background: #f5f3ef; }
 
+.send-btn,
 .stop-btn {
+  min-width: 76px;
+  height: 42px;
   padding: 10px 18px;
-  background: transparent;
-  color: var(--color-danger);
-  border: 1px solid rgba(196, 91, 91, 0.4);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-heading);
   font-size: 13px;
   font-weight: 500;
   transition: all var(--transition-fast);
+}
+
+.send-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: 1px solid var(--color-primary);
+}
+.send-btn:hover:not(:disabled) { background: var(--color-primary-hover); }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.stop-btn {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid rgba(196, 91, 91, 0.4);
 }
 .stop-btn:hover {
   background: var(--color-danger);

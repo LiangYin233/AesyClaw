@@ -22,16 +22,26 @@ export type ChatSession = {
   messages: ChatMessage[];
   streaming: boolean;
   pendingToolCalls: Map<string, ToolCallState>;
-  /** 当前流式文本缓冲区 */
-  streamBuffer: string;
-  /** 拼好的最终回复（done 后固化） */
-  lastReply: string;
+  /** 当前正在累积的 assistant 文本消息 */
+  activeAssistantMessage: AssistantMessage | null;
 };
 
 export type ChatMessage =
   | { role: 'user'; text: string }
-  | { role: 'assistant'; text: string; toolCalls: ToolCallState[] }
+  | AssistantMessage
+  | ToolMessage
   | { role: 'system'; text: string };
+
+export type AssistantMessage = {
+  role: 'assistant';
+  text: string;
+  streaming: boolean;
+};
+
+export type ToolMessage = {
+  role: 'tool';
+  toolCall: ToolCallState;
+};
 
 export function useChat(): ReturnType<typeof useChatImpl> {
   return useChatImpl();
@@ -53,8 +63,7 @@ function useChatImpl() {
       messages: [],
       streaming: false,
       pendingToolCalls: new Map(),
-      streamBuffer: '',
-      lastReply: '',
+      activeAssistantMessage: null,
     });
     activeSessionId.value ??= id;
     return id;
@@ -71,8 +80,8 @@ function useChatImpl() {
     session.messages.push({ role: 'user', text });
     session.title = text.slice(0, 30) + (text.length > 30 ? '…' : '');
     session.streaming = true;
-    session.streamBuffer = '';
     session.pendingToolCalls = new Map();
+    session.activeAssistantMessage = null;
 
     // 发送
     void window.aesyclaw.sendChat(sessionId, text);
@@ -84,17 +93,20 @@ function useChatImpl() {
 
     switch (event.type) {
       case 'chunk': {
-        session.streamBuffer += event.text;
+        appendAssistantChunk(session, event.text);
         break;
       }
       case 'tool_call': {
-        session.pendingToolCalls.set(event.toolCallId, {
+        const toolCall: ToolCallState = {
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           args: event.args,
           status: 'running',
           expanded: false,
-        });
+        };
+        session.pendingToolCalls.set(event.toolCallId, toolCall);
+        session.messages.push({ role: 'tool', toolCall });
+        session.activeAssistantMessage = null;
         break;
       }
       case 'tool_result': {
@@ -104,28 +116,37 @@ function useChatImpl() {
           tc.isError = event.isError;
           tc.status = event.isError ? 'error' : 'done';
         }
+        session.activeAssistantMessage = null;
         break;
       }
       case 'done': {
-        // 固化回复
-        const toolCalls = [...session.pendingToolCalls.values()];
-        session.messages.push({
-          role: 'assistant',
-          text: session.streamBuffer,
-          toolCalls,
-        });
+        if (session.activeAssistantMessage) {
+          session.activeAssistantMessage.streaming = false;
+        }
         session.streaming = false;
-        session.lastReply = session.streamBuffer;
-        session.streamBuffer = '';
+        session.activeAssistantMessage = null;
         session.pendingToolCalls = new Map();
         break;
       }
       case 'error': {
         session.messages.push({ role: 'system', text: `错误: ${event.message}` });
         session.streaming = false;
+        session.activeAssistantMessage = null;
         break;
       }
     }
+  }
+
+  function appendAssistantChunk(session: ChatSession, text: string): void {
+    if (!session.activeAssistantMessage) {
+      session.activeAssistantMessage = {
+        role: 'assistant',
+        text: '',
+        streaming: true,
+      };
+      session.messages.push(session.activeAssistantMessage);
+    }
+    session.activeAssistantMessage.text += text;
   }
 
   return {

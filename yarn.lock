@@ -3703,6 +3703,7 @@ __metadata:
     electron: "npm:^42.1.0"
     electron-builder: "npm:26.8.1"
     electron-vite: "npm:^2.3.0"
+    marked: "npm:^18.0.3"
     typescript: "npm:^6.0.3"
     vite: "npm:^6.0.0"
     vue: "npm:^3.5.0"
