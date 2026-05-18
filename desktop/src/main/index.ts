@@ -25,7 +25,6 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     frame: false,
-    titleBarStyle: 'hidden',
     title: 'AesyClaw Desktop',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -36,6 +35,10 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.openDevTools({ mode: 'detach' });
+
+  // 确保窗口可最小化/最大化
+  mainWindow.setMinimizable(true);
+  mainWindow.setMaximizable(true);
 
   // 开发模式加载 dev server，生产模式加载文件
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -54,11 +57,11 @@ function createWindow(): void {
 function setupIpc(): void {
   // 窗口控制
   ipcMain.handle('win-action', (_event, action: string) => {
-    const win = BrowserWindow.fromWebContents(_event.sender);
+    const win = mainWindow ?? BrowserWindow.fromWebContents(_event.sender);
     if (!win) return;
-    if (action === 'minimize') win.minimize();
-    else if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize();
-    else if (action === 'close') win.close();
+    if (action === 'minimize') { win.minimize(); return; }
+    if (action === 'maximize') { win.isMaximized() ? win.unmaximize() : win.maximize(); return; }
+    if (action === 'close') { win.close(); return; }
   });
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
 
