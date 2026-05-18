@@ -28,7 +28,7 @@ function createWindow(): void {
     titleBarStyle: 'hidden',
     title: 'AesyClaw Desktop',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       devTools: true,
