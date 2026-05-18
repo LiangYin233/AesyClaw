@@ -53,24 +53,12 @@ function createWindow(): void {
 
 function setupIpc(): void {
   // 窗口控制
-  ipcMain.handle('window:minimize', (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    win?.minimize();
-    return true;
-  });
-  ipcMain.handle('window:maximize', (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (win?.isMaximized()) {
-      win.unmaximize();
-    } else {
-      win?.maximize();
-    }
-    return true;
-  });
-  ipcMain.handle('window:close', (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    win?.close();
-    return true;
+  ipcMain.handle('win-action', (_event, action: string) => {
+    const win = BrowserWindow.fromWebContents(_event.sender);
+    if (!win) return;
+    if (action === 'minimize') win.minimize();
+    else if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize();
+    else if (action === 'close') win.close();
   });
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
 
