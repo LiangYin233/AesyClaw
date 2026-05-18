@@ -115,6 +115,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .drag-spacer {
@@ -146,6 +147,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .connection-status {
@@ -183,20 +186,28 @@ onUnmounted(() => {
   display: flex;
   gap: 2px;
   margin-left: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls * {
+  -webkit-app-region: no-drag;
 }
 
 .win-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 28px;
+  width: 40px;
+  height: 32px;
   border: none;
   background: transparent;
   color: var(--color-mid-gray);
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
+}
+.win-btn svg {
+  pointer-events: none;
 }
 .win-btn:hover {
   background: rgba(20,20,19,0.08);
