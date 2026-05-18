@@ -106,6 +106,16 @@ export class ExtensionManager {
     await this.pluginManager.disable(name);
   }
 
+  /** 启用指定频道。 */
+  async enableChannel(name: string): Promise<void> {
+    await this.channelManager.enable(name);
+  }
+
+  /** 禁用指定频道。 */
+  async disableChannel(name: string): Promise<void> {
+    await this.channelManager.disable(name);
+  }
+
   // ─── 配置热重载 ──────────────────────────────────────────────────
 
   /** 热重载所有插件配置。 */

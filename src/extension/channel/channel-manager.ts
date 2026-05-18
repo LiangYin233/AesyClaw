@@ -135,6 +135,25 @@ export class ChannelManager implements ExtensionLifecycle {
     }
   }
 
+  /** 启用指定频道（写入配置并启动）。 */
+  async enable(channelName: string): Promise<void> {
+    await this.setChannelEnabled(channelName, true);
+    if (this.definitions.has(channelName) && !this.loadedChannels.has(channelName)) {
+      try {
+        await this.start(channelName);
+      } catch (err) {
+        this.failedChannels.set(channelName, errorMessage(err));
+        logger.error(`启用后频道 "${channelName}" 启动失败`, err);
+      }
+    }
+  }
+
+  /** 禁用指定频道（停止并写入配置）。 */
+  async disable(channelName: string): Promise<void> {
+    await this.stop(channelName);
+    await this.setChannelEnabled(channelName, false);
+  }
+
   /** 按逆序停止所有已加载的频道。 */
   async stopAll(): Promise<void> {
     const names = [...this.loadedChannels.keys()].reverse();
@@ -361,6 +380,30 @@ export class ChannelManager implements ExtensionLifecycle {
     return isChannelEnabled(config);
   }
 
+  private async setChannelEnabled(channelName: string, enabled: boolean): Promise<void> {
+    const definition = this.definitions.get(channelName);
+    const current = this.getConfigRecord(channelName);
+    const channels = this.getAllConfigRecords();
+    const { enabled: _enabled, ...defaults } = definition
+      ? getManagedChannelDefaults(definition)
+      : {};
+    channels[channelName] = {
+      ...defaults,
+      ...current,
+      enabled,
+    };
+    await this.deps.configManager.set('channels', channels);
+  }
+
+  private getAllConfigRecords(): Record<string, unknown> {
+    try {
+      const config = this.deps.configManager.get('channels');
+      return isRecord(config) ? { ...config } : {};
+    } catch {
+      return {};
+    }
+  }
+
   private requireLoaded(channelName: string): LoadedChannel {
     const loaded = this.loadedChannels.get(channelName);
     if (!loaded) {
@@ -383,7 +426,12 @@ export class ChannelManager implements ExtensionLifecycle {
 
 /** 根据错误状态、加载状态和启用状态解析频道状态字符串 */
 function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
-  return { enabled: false, ...(channel.defaultConfig ?? {}) };
+  return { enabled: false, ...omitManagedChannelKeys(channel.defaultConfig ?? {}) };
+}
+
+function omitManagedChannelKeys(value: Record<string, unknown>): Record<string, unknown> {
+  const { enabled: _enabled, ...rest } = value;
+  return rest;
 }
 
 function resolveChannelState(

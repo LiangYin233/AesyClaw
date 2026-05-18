@@ -30,6 +30,14 @@ class FakeConfigManager {
     throw new Error('Unsupported key');
   }
 
+  async set(path: string, value: unknown): Promise<void> {
+    if (path === 'channels' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      this.channels = value as Record<string, unknown>;
+      return;
+    }
+    throw new Error('Unsupported key');
+  }
+
   registerDefaults(key: string, defaults: Record<string, unknown>): void {
     this.defaults.push({ key, defaults });
   }
@@ -54,7 +62,7 @@ function makeChannel(overrides: Partial<ChannelPlugin> = {}): ChannelPlugin {
   return {
     name: 'test',
     version: '1.0.0',
-    defaultConfig: { enabled: true, token: 'default' },
+    defaultConfig: { token: 'default' },
     init: vi.fn(async () => undefined),
     destroy: vi.fn(async () => undefined),
     receive: vi.fn(async () => undefined),
@@ -66,7 +74,7 @@ function makeChannel(overrides: Partial<ChannelPlugin> = {}): ChannelPlugin {
 describe('ChannelManager', () => {
   it('starts enabled channels with merged config and receives messages through the manager', async () => {
     const config = new FakeConfigManager();
-    config.channels = { test: { token: 'configured' } };
+    config.channels = { test: { enabled: true, token: 'configured' } };
     const pipeline = makePipeline();
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
@@ -98,6 +106,8 @@ describe('ChannelManager', () => {
   });
 
   it('exposes context receive as a bridge back into ChannelManager.receive', async () => {
+    const config = new FakeConfigManager();
+    config.channels = { test: { enabled: true } };
     const pipeline = makePipeline();
     let receiveFromContext:
       | ((message: Message, sessionKey: SessionKey, sender?: SenderInfo) => Promise<void>)
@@ -108,7 +118,7 @@ describe('ChannelManager', () => {
       }),
     });
     const manager = new ChannelManager({
-      configManager: new FakeConfigManager(),
+      configManager: config,
       pipeline,
       channels: [channel],
       paths: fakePaths,
@@ -147,6 +157,7 @@ describe('ChannelManager', () => {
     const config = new FakeConfigManager();
     config.channels = {
       test: {
+        enabled: true,
         token: 'configured',
         nested: { retries: 5 },
       },
@@ -154,7 +165,6 @@ describe('ChannelManager', () => {
 
     const channel = makeChannel({
       defaultConfig: {
-        enabled: true,
         token: 'default',
         nested: { retries: 3, timeoutMs: 1000 },
       },
@@ -181,7 +191,7 @@ describe('ChannelManager', () => {
 
   it('skips disabled channels and isolates startup failures', async () => {
     const config = new FakeConfigManager();
-    config.channels = { disabled: { enabled: false } };
+    config.channels = { disabled: { enabled: false }, good: { enabled: true }, bad: { enabled: true } };
     const good = makeChannel({ name: 'good' });
     const disabled = makeChannel({ name: 'disabled' });
     const bad = makeChannel({
@@ -211,9 +221,11 @@ describe('ChannelManager', () => {
   });
 
   it('sends through the loaded channel and stops with cleanup', async () => {
+    const config = new FakeConfigManager();
+    config.channels = { test: { enabled: true } };
     const channel = makeChannel();
     const manager = new ChannelManager({
-      configManager: new FakeConfigManager(),
+      configManager: config,
       pipeline: makePipeline(),
       channels: [channel],
       paths: fakePaths,
@@ -265,13 +277,15 @@ describe('ChannelManager', () => {
   });
 
   it('provides host paths to channel init contexts', async () => {
+    const config = new FakeConfigManager();
+    config.channels = { test: { enabled: true } };
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
         expect(ctx.paths).toBe(fakePaths);
       }),
     });
     const manager = new ChannelManager({
-      configManager: new FakeConfigManager(),
+      configManager: config,
       pipeline: makePipeline(),
       channels: [channel],
       paths: fakePaths,
@@ -280,6 +294,28 @@ describe('ChannelManager', () => {
     await manager.start('test');
 
     expect(channel.init).toHaveBeenCalledOnce();
+  });
+
+  it('enables and disables channels through manager APIs', async () => {
+    const config = new FakeConfigManager();
+    const channel = makeChannel();
+    const manager = new ChannelManager({
+      configManager: config,
+      pipeline: makePipeline(),
+      channels: [channel],
+      paths: fakePaths,
+    });
+
+    await manager.startAll();
+    expect(manager.getLoaded('test')).toBeUndefined();
+
+    await manager.enable('test');
+    expect(manager.getLoaded('test')).toBeDefined();
+    expect(config.channels['test']).toMatchObject({ enabled: true, token: 'default' });
+
+    await manager.disable('test');
+    expect(manager.getLoaded('test')).toBeUndefined();
+    expect(config.channels['test']).toMatchObject({ enabled: false, token: 'default' });
   });
 
   it('rejects duplicate channel registrations to avoid unsafe ownership cleanup', () => {

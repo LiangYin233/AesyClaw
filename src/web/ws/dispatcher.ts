@@ -75,6 +75,16 @@ on('get_channels', (_, deps) => Promise.resolve(deps.channelManager.getRegistere
 on('get_plugins', async (_, deps) => {
   return await deps.pluginManager.getPluginDefinitions();
 });
+on('set_channel_enabled', async (data, deps) => {
+  const { name, enabled } = extractToggleData(data);
+  if (enabled) await deps.channelManager.enable(name);
+  else await deps.channelManager.disable(name);
+});
+on('set_plugin_enabled', async (data, deps) => {
+  const { name, enabled } = extractToggleData(data);
+  if (enabled) await deps.pluginManager.enablePlugin(name);
+  else await deps.pluginManager.disablePlugin(name);
+});
 
 // ── 状态 / 用量 ──
 on('get_status', (_, deps) => Promise.resolve(getStatus(deps)));
@@ -155,6 +165,17 @@ function okResponse(msg: WsMessage, data?: unknown): WsResponse {
 
 function errorResponse(msg: WsMessage, error: string): WsResponse {
   return { type: msg.type, ok: false, error };
+}
+
+function extractToggleData(data: unknown): { name: string; enabled: boolean } {
+  const payload = data as { name?: unknown; enabled?: unknown };
+  if (typeof payload.name !== 'string' || payload.name.trim() === '') {
+    throw new Error('缺少名称');
+  }
+  if (typeof payload.enabled !== 'boolean') {
+    throw new Error('缺少启用状态');
+  }
+  return { name: payload.name, enabled: payload.enabled };
 }
 
 function extractStringData(data: unknown, key: string): string {

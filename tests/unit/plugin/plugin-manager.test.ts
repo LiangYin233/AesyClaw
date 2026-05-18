@@ -210,14 +210,27 @@ describe('PluginManager', () => {
   });
 
   it('handles enable/disable toggling', async () => {
-    const module = makeModule();
-    const { manager } = await makeManager(module);
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        defaultConfig: { enabled: false, greeting: 'hello' },
+        init: vi.fn(async (ctx) => {
+          expect(ctx.config).toEqual({ greeting: 'hello' });
+        }),
+      },
+    });
+    const { manager, config } = await makeManager(module);
 
     await manager.disable('alpha');
     expect(manager.getLoaded('alpha')).toBeUndefined();
+    expect(config.plugins[0]).toMatchObject({ name: 'alpha', enabled: false });
 
     await manager.enable('alpha');
     expect(manager.getLoaded('alpha')).toBeDefined();
+    expect(config.plugins[0]).toEqual({
+      name: 'alpha',
+      enabled: true,
+    });
   });
 
   it('unloads and reloads on config reload', async () => {

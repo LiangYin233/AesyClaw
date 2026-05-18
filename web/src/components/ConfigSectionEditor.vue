@@ -340,11 +340,19 @@ function getChannelEnabled(entry: ChannelEntry): boolean {
     : true;
 }
 
-function toggleChannelEnabled(key: string) {
+async function toggleChannelEnabled(key: string) {
   const current = isRecord(sectionValue.value) ? sectionValue.value : {};
   const channelValue = isRecord(current[key]) ? current[key] : {};
   const enabled = channelValue['enabled'] === false;
   sectionValue.value = { ...current, [key]: { ...channelValue, enabled } };
+
+  try {
+    await ws.send('set_channel_enabled', { name: key, enabled });
+    showToast('toast-success', `${key} ${enabled ? 'enabled' : 'disabled'}`);
+  } catch (err) {
+    sectionValue.value = current;
+    showToast('toast-error', err instanceof Error ? err.message : 'Failed to update channel');
+  }
 }
 
 interface ConfigField {
@@ -439,12 +447,25 @@ function removePlugin(index: number) {
   sectionValue.value = next;
 }
 
-function updatePluginField(index: number, key: 'name' | 'enabled', value: string | boolean) {
-  const next = [...getRawPlugins()];
+async function updatePluginField(index: number, key: 'name' | 'enabled', value: string | boolean) {
+  const previous = [...getRawPlugins()];
+  const next = [...previous];
   const current = next[index];
   if (!current) return;
   next[index] = { ...current, [key]: value };
   sectionValue.value = next;
+
+  if (key !== 'enabled') return;
+
+  const name = typeof current['name'] === 'string' ? current['name'] : '';
+  if (!name) return;
+  try {
+    await ws.send('set_plugin_enabled', { name, enabled: value });
+    showToast('toast-success', `${name} ${value ? 'enabled' : 'disabled'}`);
+  } catch (err) {
+    sectionValue.value = previous;
+    showToast('toast-error', err instanceof Error ? err.message : 'Failed to update plugin');
+  }
 }
 
 function getPluginFields(plugin: PluginEntry): ConfigField[] {
