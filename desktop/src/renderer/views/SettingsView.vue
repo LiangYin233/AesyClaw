@@ -20,9 +20,54 @@
           </span>
         </div>
         <div class="info-row">
-          <span class="info-label">Desktop Channel Port</span>
-          <span class="info-value">9730</span>
+          <span class="info-label">Host</span>
+          <span class="info-value">{{ connection.host }}</span>
         </div>
+        <div class="info-row">
+          <span class="info-label">Desktop Channel Port</span>
+          <span class="info-value">{{ connection.desktopPort }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Admin Port</span>
+          <span class="info-value">{{ connection.adminPort }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Connection Settings -->
+    <section class="card">
+      <h2 class="section-title">Connection Settings</h2>
+      <div class="card-body form-body">
+        <label class="field-label">
+          Host
+          <input v-model="connectionForm.host" class="field-input" placeholder="127.0.0.1" />
+        </label>
+        <div class="field-grid">
+          <label class="field-label">
+            Desktop Channel Port
+            <input v-model.number="connectionForm.desktopPort" class="field-input" type="number" min="1" max="65535" />
+          </label>
+          <label class="field-label">
+            Admin Port
+            <input v-model.number="connectionForm.adminPort" class="field-input" type="number" min="1" max="65535" />
+          </label>
+        </div>
+        <label class="field-label">
+          Desktop Token
+          <input v-model="connectionForm.token" class="field-input" placeholder="desktop-local" />
+        </label>
+        <div class="form-actions">
+          <button class="save-btn" :disabled="savingConnection" @click="saveConnection">
+            {{ savingConnection ? 'Saving…' : 'Save & Reconnect' }}
+          </button>
+          <button class="secondary-btn" :disabled="savingConnection" @click="resetConnectionForm">
+            Reset
+          </button>
+        </div>
+        <p v-if="connectionError" class="error-text">{{ connectionError }}</p>
+        <p class="hint">
+          These values are stored locally in the desktop app and do not read AesyClaw config files.
+        </p>
       </div>
     </section>
 
@@ -74,14 +119,20 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import type { ConnectionStatus } from '../../preload/index';
+import type { ConnectionStatus, DesktopConnectionConfig } from '../../preload/index';
 
 const status = ref<ConnectionStatus>({ chat: 'disconnected', admin: 'disconnected' });
+const connection = ref<DesktopConnectionConfig>({ host: '127.0.0.1', desktopPort: 9730, adminPort: 3000, token: 'desktop-local' });
+const connectionForm = ref<DesktopConnectionConfig>({ ...connection.value });
+const connectionError = ref('');
+const savingConnection = ref(false);
 const serverInfo = ref<Record<string, string> | null>(null);
 const loading = ref(true);
 
 onMounted(async () => {
   status.value = await window.aesyclaw.getStatus();
+  connection.value = await window.aesyclaw.getConnectionConfig();
+  resetConnectionForm();
   window.aesyclaw.onStatusChange((s) => { status.value = s; });
 
   try {
@@ -92,6 +143,51 @@ onMounted(async () => {
   } catch { /* server unavailable */ }
   loading.value = false;
 });
+
+function resetConnectionForm(): void {
+  connectionForm.value = { ...connection.value };
+  connectionError.value = '';
+}
+
+async function saveConnection(): Promise<void> {
+  connectionError.value = '';
+  const normalized = normalizeConnectionForm(connectionForm.value);
+  if (!normalized) return;
+
+  savingConnection.value = true;
+  try {
+    connection.value = await window.aesyclaw.updateConnectionConfig(normalized);
+    resetConnectionForm();
+  } catch (err) {
+    connectionError.value = err instanceof Error ? err.message : 'Failed to save connection settings';
+  } finally {
+    savingConnection.value = false;
+  }
+}
+
+function normalizeConnectionForm(config: DesktopConnectionConfig): DesktopConnectionConfig | null {
+  const host = config.host.trim();
+  const token = config.token.trim();
+  const desktopPort = Number(config.desktopPort);
+  const adminPort = Number(config.adminPort);
+  if (!host) {
+    connectionError.value = 'Host is required';
+    return null;
+  }
+  if (!isValidPort(desktopPort) || !isValidPort(adminPort)) {
+    connectionError.value = 'Ports must be between 1 and 65535';
+    return null;
+  }
+  if (!token) {
+    connectionError.value = 'Desktop token is required';
+    return null;
+  }
+  return { host, desktopPort, adminPort, token };
+}
+
+function isValidPort(port: number): boolean {
+  return Number.isInteger(port) && port > 0 && port <= 65535;
+}
 
 function statusBadge(s: string): string {
   if (s === 'connected') return 'ok';
@@ -135,6 +231,78 @@ function statusLabel(s: string): string {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.form-body { gap: 14px; }
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-dark);
+}
+
+.field-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--color-dark);
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+  transition: border var(--transition-fast);
+}
+.field-input:focus { border-color: var(--color-primary); }
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.save-btn,
+.secondary-btn {
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.save-btn {
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+.save-btn:hover:not(:disabled) { background: var(--color-primary-hover); }
+
+.secondary-btn {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-mid-gray);
+}
+.secondary-btn:hover:not(:disabled) { color: var(--color-dark); border-color: var(--color-mid-gray); }
+.save-btn:disabled,
+.secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.error-text {
+  margin: 0;
+  color: var(--color-danger);
+  font-family: var(--font-body);
+  font-size: 13px;
 }
 
 /* ── Info rows ───────────────────────── */

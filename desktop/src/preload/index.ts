@@ -22,6 +22,13 @@ export type ConnectionStatus = {
   admin: 'connected' | 'connecting' | 'disconnected';
 };
 
+export type DesktopConnectionConfig = {
+  host: string;
+  desktopPort: number;
+  adminPort: number;
+  token: string;
+};
+
 const api = {
   /** 发送聊天消息 */
   sendChat: (sessionId: string, text: string) =>
@@ -40,6 +47,14 @@ const api = {
   /** 获取连接状态 */
   getStatus: () =>
     ipcRenderer.invoke('status:get') as Promise<ConnectionStatus>,
+
+  /** 获取 Desktop 连接配置 */
+  getConnectionConfig: () =>
+    ipcRenderer.invoke('connection:getConfig') as Promise<DesktopConnectionConfig>,
+
+  /** 更新 Desktop 连接配置并重连 */
+  updateConnectionConfig: (config: DesktopConnectionConfig) =>
+    ipcRenderer.invoke('connection:updateConfig', config) as Promise<DesktopConnectionConfig>,
 
   /** 监听聊天消息 */
   onChatMessage: (callback: (msg: ChatMessageEvent) => void): (() => void) => {

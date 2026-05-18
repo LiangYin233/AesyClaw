@@ -51,6 +51,11 @@ export class WebSocketManager extends EventEmitter {
     this.adminUrl = adminUrl;
   }
 
+  updateUrls(chatUrl: string, adminUrl: string): void {
+    this.chatUrl = chatUrl;
+    this.adminUrl = adminUrl;
+  }
+
   // ─── 连接管理 ──────────────────────────────────────────────────
 
   connect(): void {
@@ -60,6 +65,10 @@ export class WebSocketManager extends EventEmitter {
   disconnect(): void {
     this.chatWs?.close();
     this.adminWs?.close();
+    this.chatWs = null;
+    this.adminWs = null;
+    this.status = { chat: 'disconnected', admin: 'disconnected' };
+    this.emit('status-change', this.getStatus());
   }
 
   getStatus(): ConnectionStatus {

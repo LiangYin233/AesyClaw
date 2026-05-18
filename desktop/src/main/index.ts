@@ -7,7 +7,8 @@
  */
 
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { WebSocketManager } from './ws-manager';
 
 let mainWindow: BrowserWindow | null = null;
@@ -15,8 +16,19 @@ let wsManager: WebSocketManager | null = null;
 
 // ─── 配置 ──────────────────────────────────────────────────────────
 
-const DESKTOP_WS_URL = 'ws://127.0.0.1:9730/ws?token=desktop-local';
-const ADMIN_WS_URL = 'ws://127.0.0.1:3000/api/ws';
+const DEFAULT_CONNECTION_CONFIG: DesktopConnectionConfig = {
+  host: '127.0.0.1',
+  desktopPort: 9730,
+  adminPort: 3000,
+  token: 'desktop-local',
+};
+
+type DesktopConnectionConfig = {
+  host: string;
+  desktopPort: number;
+  adminPort: number;
+  token: string;
+};
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -86,6 +98,72 @@ function setupIpc(): void {
   ipcMain.handle('status:get', async () => {
     return wsManager?.getStatus() ?? { chat: 'disconnected', admin: 'disconnected' };
   });
+
+  ipcMain.handle('connection:getConfig', async () => {
+    return loadConnectionConfig();
+  });
+
+  ipcMain.handle('connection:updateConfig', async (_event, config: DesktopConnectionConfig) => {
+    const normalized = normalizeConnectionConfig(config);
+    saveConnectionConfig(normalized);
+    wsManager?.disconnect();
+    wsManager?.updateUrls(buildDesktopWsUrl(normalized), buildAdminWsUrl(normalized));
+    wsManager?.connect();
+    return normalized;
+  });
+}
+
+function getConnectionConfigPath(): string {
+  return join(app.getPath('userData'), 'connection.json');
+}
+
+function loadConnectionConfig(): DesktopConnectionConfig {
+  const configPath = getConnectionConfigPath();
+  if (!existsSync(configPath)) return DEFAULT_CONNECTION_CONFIG;
+
+  try {
+    return normalizeConnectionConfig(JSON.parse(readFileSync(configPath, 'utf8')) as Partial<DesktopConnectionConfig>);
+  } catch {
+    return DEFAULT_CONNECTION_CONFIG;
+  }
+}
+
+function saveConnectionConfig(config: DesktopConnectionConfig): void {
+  const configPath = getConnectionConfigPath();
+  const dir = dirname(configPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+}
+
+function normalizeConnectionConfig(config: Partial<DesktopConnectionConfig>): DesktopConnectionConfig {
+  return {
+    host: typeof config.host === 'string' && config.host.trim() ? config.host.trim() : DEFAULT_CONNECTION_CONFIG.host,
+    desktopPort: normalizePort(config.desktopPort, DEFAULT_CONNECTION_CONFIG.desktopPort),
+    adminPort: normalizePort(config.adminPort, DEFAULT_CONNECTION_CONFIG.adminPort),
+    token: typeof config.token === 'string' && config.token.trim() ? config.token.trim() : DEFAULT_CONNECTION_CONFIG.token,
+  };
+}
+
+function normalizePort(value: unknown, fallback: number): number {
+  const port = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : fallback;
+}
+
+function buildDesktopWsUrl(config: DesktopConnectionConfig): string {
+  const url = new URL('ws://127.0.0.1/ws');
+  url.hostname = config.host;
+  url.port = String(config.desktopPort);
+  url.searchParams.set('token', config.token);
+  return url.toString();
+}
+
+function buildAdminWsUrl(config: DesktopConnectionConfig): string {
+  const url = new URL('ws://127.0.0.1/api/ws');
+  url.hostname = config.host;
+  url.port = String(config.adminPort);
+  return url.toString();
 }
 
 // ─── 生命周期 ──────────────────────────────────────────────────────
@@ -95,7 +173,11 @@ void app.whenReady().then(() => {
 
   createWindow();
 
-  wsManager = new WebSocketManager(DESKTOP_WS_URL, ADMIN_WS_URL);
+  const connectionConfig = loadConnectionConfig();
+  wsManager = new WebSocketManager(
+    buildDesktopWsUrl(connectionConfig),
+    buildAdminWsUrl(connectionConfig),
+  );
   wsManager.on('chat-message', (msg) => mainWindow?.webContents.send('chat:message', msg));
   wsManager.on('admin-message', (msg) => mainWindow?.webContents.send('admin:message', msg));
   wsManager.on('status-change', (status) => mainWindow?.webContents.send('status:change', status));
