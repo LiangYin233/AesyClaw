@@ -60,6 +60,7 @@ export type DesktopOutboundMessage =
   | DesktopToolResultMessage
   | DesktopDoneMessage
   | DesktopErrorMessage
+  | DesktopAuthMessage
   | DesktopFileStartMessage
   | DesktopFileEndMessage
   | DesktopPingMessage;
@@ -102,6 +103,12 @@ export type DesktopErrorMessage = {
   type: 'error';
   sessionId: string;
   message: string;
+};
+
+/** Desktop 连接成功后的运行时认证信息 */
+export type DesktopAuthMessage = {
+  type: 'auth';
+  adminToken: string;
 };
 
 /** 心跳请求 */

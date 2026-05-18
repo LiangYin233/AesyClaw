@@ -17,6 +17,10 @@ export type ChatMessage =
   | { type: 'done'; sessionId: string }
   | { type: 'error'; sessionId: string; message: string };
 
+type ChatControlMessage = { type: 'auth'; adminToken: string };
+
+type ChatWsMessage = ChatMessage | ChatControlMessage;
+
 export type AdminMessage = {
   type: string;
   requestId?: string;
@@ -37,9 +41,9 @@ export class WebSocketManager extends EventEmitter {
   private adminWs: WebSocket | null = null;
   private chatUrl: string;
   private adminUrl: string;
+  private adminToken: string | null = null;
   private status: ConnectionStatus = { chat: 'disconnected', admin: 'disconnected' };
   private adminRequests = new Map<string, (msg: AdminMessage) => void>();
-  private requestIdCounter = 0;
 
   constructor(chatUrl: string, adminUrl: string) {
     super();
@@ -51,7 +55,6 @@ export class WebSocketManager extends EventEmitter {
 
   connect(): void {
     this.connectChat();
-    this.connectAdmin();
   }
 
   disconnect(): void {
@@ -122,7 +125,12 @@ export class WebSocketManager extends EventEmitter {
 
     this.chatWs.on('message', (data) => {
       try {
-        const msg = JSON.parse(data.toString()) as ChatMessage;
+        const msg = JSON.parse(data.toString()) as ChatWsMessage;
+        if (msg.type === 'auth') {
+          this.adminToken = msg.adminToken;
+          this.connectAdmin();
+          return;
+        }
         this.emit('chat-message', msg);
       } catch {
         // 忽略无效消息
@@ -141,10 +149,13 @@ export class WebSocketManager extends EventEmitter {
   }
 
   private connectAdmin(): void {
+    const adminUrl = this.resolveAdminUrl();
+    if (!adminUrl) return;
+
     this.status.admin = 'connecting';
     this.emit('status-change', this.getStatus());
 
-    this.adminWs = new WebSocket(this.adminUrl);
+    this.adminWs = new WebSocket(adminUrl);
 
     this.adminWs.on('open', () => {
       this.status.admin = 'connected';
@@ -181,6 +192,14 @@ export class WebSocketManager extends EventEmitter {
     this.adminWs.on('error', () => {
       // 由 close 事件处理重连
     });
+  }
+
+  private resolveAdminUrl(): string | null {
+    if (!this.adminToken) return null;
+
+    const url = new URL(this.adminUrl);
+    url.searchParams.set('token', this.adminToken);
+    return url.toString();
   }
 
   private scheduleReconnect(target: 'chat' | 'admin'): void {

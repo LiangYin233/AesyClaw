@@ -10,13 +10,17 @@ import { DesktopServer } from './desktop-server';
 // ─── 配置类型 ──────────────────────────────────────────────────────
 
 type DesktopChannelConfig = {
+  enabled: boolean;
   port: number;
   host: string;
+  authToken: string;
 };
 
 const DEFAULT_CONFIG: DesktopChannelConfig = {
+  enabled: false,
   port: 9730,
   host: '127.0.0.1',
+  authToken: 'desktop-local',
 };
 
 // ─── 插件实例 ──────────────────────────────────────────────────────
@@ -31,13 +35,14 @@ export const channel: ChannelPlugin = {
 
   async init(ctx: ChannelContext): Promise<void> {
     const config = ctx.config as unknown as DesktopChannelConfig;
-    const authToken =
-      (ctx.config as Record<string, unknown>)['authToken'] as string | undefined ?? '';
+    const authToken = config.authToken;
+    const adminToken = ctx.configManager.get('server.authToken') as string | undefined ?? '';
 
     server = new DesktopServer({
       port: config.port ?? 9730,
       host: config.host ?? '127.0.0.1',
       authToken,
+      adminToken,
       context: ctx,
     });
 

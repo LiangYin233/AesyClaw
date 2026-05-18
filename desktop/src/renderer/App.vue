@@ -1,33 +1,32 @@
 <template>
   <div class="app-layout">
-    <!-- Topbar -->
     <header class="topbar">
       <div class="topbar-brand">
         <span class="brand-text">AesyClaw</span>
         <span class="brand-badge">Desktop</span>
       </div>
+      <div class="topbar-drag-region" aria-hidden="true"></div>
       <div class="topbar-right">
         <span class="connection-status" :class="statusClass">
           <span class="status-dot"></span>
           {{ statusLabel }}
         </span>
         <div class="window-controls">
-          <button class="win-btn" @mousedown="handleMinimize" title="Minimize">
-            <svg width="12" height="12" viewBox="0 0 12 12"><rect y="5" width="12" height="1.5" rx="0.75" fill="currentColor"/></svg>
+          <button class="win-btn" title="Minimize" aria-label="Minimize window" @click="handleMinimize">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect y="5" width="12" height="1.5" rx="0.75" fill="currentColor"/></svg>
           </button>
-          <button class="win-btn" @mousedown="handleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">
-            <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
-            <svg v-else width="12" height="12" viewBox="0 0 12 12"><rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="#fdfbf8" stroke="currentColor" stroke-width="1.2"/></svg>
+          <button class="win-btn" :title="isMaximized ? 'Restore' : 'Maximize'" :aria-label="isMaximized ? 'Restore window' : 'Maximize window'" @click="handleMaximize">
+            <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+            <svg v-else width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="0.5" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="0.5" y="2.5" width="8" height="8" rx="1" fill="#fdfbf8" stroke="currentColor" stroke-width="1.2"/></svg>
           </button>
-          <button class="win-btn win-close" @mousedown="handleClose" title="Close">
-            <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <button class="win-btn win-close" title="Close" aria-label="Close window" @click="handleClose">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           </button>
         </div>
       </div>
     </header>
 
     <div class="app-body">
-      <!-- Sidebar -->
       <aside class="sidebar">
         <nav class="sidebar-nav">
           <router-link to="/" class="nav-item">
@@ -46,10 +45,19 @@
         </nav>
       </aside>
 
-      <!-- Main -->
       <main class="main-content">
         <router-view />
       </main>
+
+      <div v-if="isDisconnected" class="disconnect-overlay" role="alert" aria-live="assertive">
+        <div class="disconnect-card">
+          <span class="disconnect-icon" aria-hidden="true">!</span>
+          <div>
+            <h2>Disconnected</h2>
+            <p>Connection lost.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -75,6 +83,8 @@ const statusLabel = computed(() => {
   return 'Disconnected';
 });
 
+const isDisconnected = computed(() => status.value.chat === 'disconnected');
+
 onMounted(async () => {
   status.value = await window.aesyclaw.getStatus();
   isMaximized.value = await window.aesyclaw.isMaximized();
@@ -87,18 +97,13 @@ onUnmounted(() => {
   unsubMaximize?.();
 });
 
-function handleMinimize() { console.log('[win] minimize'); window.aesyclaw.minimizeWindow(); }
-function handleMaximize() { console.log('[win] maximize'); window.aesyclaw.maximizeWindow(); }
-function handleClose() { console.log('[win] close'); window.aesyclaw.closeWindow(); }
+function handleMinimize(): void { void window.aesyclaw.minimizeWindow(); }
+function handleMaximize(): void { void window.aesyclaw.maximizeWindow(); }
+function handleClose(): void { void window.aesyclaw.closeWindow(); }
 </script>
 
 <style scoped>
-.app-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-}
+.app-layout { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 /* ── Topbar ─────────────────────────── */
 .topbar {
@@ -107,83 +112,45 @@ function handleClose() { console.log('[win] close'); window.aesyclaw.closeWindow
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 12px 0 24px;
   flex-shrink: 0;
   z-index: 10;
   user-select: none;
 }
 
 .topbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.topbar-drag-region {
+  align-self: stretch; flex: 1; min-width: 24px;
   -webkit-app-region: drag;
 }
 
 .brand-text {
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-dark);
-  letter-spacing: -0.02em;
+  font-family: var(--font-heading); font-size: 16px; font-weight: 600;
+  color: var(--color-dark); letter-spacing: -0.02em;
 }
 
 .brand-badge {
-  font-family: var(--font-heading);
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--color-mid-gray);
-  background: #f8f7f4;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm);
+  font-family: var(--font-heading); font-size: 0.7rem; font-weight: 500;
+  color: var(--color-mid-gray); background: #f8f7f4;
+  padding: 0.15rem 0.5rem; border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
 }
 
 .topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
 
-.connection-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-heading);
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  background: #fdfbf9;
-  user-select: none;
-}
-
-.connection-status.ok {
-  color: var(--color-accent-green);
-}
-.connection-status.warn {
-  color: var(--color-warning);
-}
-.connection-status.err {
-  color: var(--color-mid-gray);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* ── Window controls ──────────────────── */
 .window-controls {
   display: flex;
+  align-items: center;
   gap: 2px;
   margin-left: 12px;
+  -webkit-app-region: no-drag;
 }
 
 .win-btn {
@@ -193,96 +160,115 @@ function handleClose() { console.log('[win] close'); window.aesyclaw.closeWindow
   width: 40px;
   height: 32px;
   border: none;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-mid-gray);
   cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  -webkit-app-region: no-drag;
 }
-.win-btn svg {
-  pointer-events: none;
+.win-btn svg { pointer-events: none; }
+.win-btn:hover { background: rgba(20, 20, 19, 0.08); color: var(--color-dark); }
+.win-btn:active { background: rgba(20, 20, 19, 0.12); }
+.win-btn.win-close:hover { background: var(--color-danger); color: #fff; }
+
+.connection-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-heading); font-size: 12px;
+  padding: 4px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border); background: #fdfbf9;
+  user-select: none;
 }
-.win-btn:hover {
-  background: rgba(20,20,19,0.08);
-  color: var(--color-dark);
-}
-.win-btn.win-close:hover {
-  background: var(--color-danger);
-  color: #fff;
-}
+.connection-status.ok  { color: var(--color-accent-green); }
+.connection-status.warn { color: var(--color-warning); }
+.connection-status.err  { color: var(--color-mid-gray); }
+
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 /* ── Body ───────────────────────────── */
-.app-body {
+.app-body { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+.disconnect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
   display: flex;
-  flex: 1;
-  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  background: rgba(250, 247, 244, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: not-allowed;
+}
+
+.disconnect-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 360px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: rgba(253, 251, 249, 0.94);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+}
+
+.disconnect-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(196, 91, 91, 0.12);
+  color: var(--color-danger);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.disconnect-card h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  color: var(--color-dark);
+}
+
+.disconnect-card p {
+  margin: 2px 0 0;
+  color: var(--color-mid-gray);
+  font-size: 13px;
 }
 
 /* ── Sidebar ────────────────────────── */
 .sidebar {
-  width: var(--sidebar-width);
-  background: #faf7f4;
+  width: var(--sidebar-width); background: #faf7f4;
   border-right: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
+  display: flex; flex-direction: column; flex-shrink: 0;
 }
 
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  gap: 4px;
-  flex: 1;
-}
+.sidebar-nav { display: flex; flex-direction: column; padding: 12px; gap: 4px; flex: 1; }
 
 .nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0.7rem 16px;
-  border-radius: var(--radius-sm);
-  color: var(--color-mid-gray);
-  text-decoration: none;
-  font-family: var(--font-heading);
-  font-size: 14px;
-  font-weight: 500;
-  transition: all var(--transition-fast);
-  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0.7rem 16px; border-radius: var(--radius-sm);
+  color: var(--color-mid-gray); text-decoration: none;
+  font-family: var(--font-heading); font-size: 14px; font-weight: 500;
+  transition: all var(--transition-fast); position: relative;
 }
-
-.nav-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-.nav-item:hover {
-  color: var(--color-dark);
-  background: rgba(20, 20, 19, 0.04);
-}
-
+.nav-item:hover { color: var(--color-dark); background: rgba(20, 20, 19, 0.04); }
 .nav-item.router-link-active {
-  color: var(--color-dark);
-  background: #f7f0ea;
+  color: var(--color-dark); background: #f7f0ea;
+}
+.nav-item.router-link-active::before {
+  content: ''; position: absolute; left: 0; top: 50%;
+  transform: translateY(-50%); width: 3px; height: 20px;
+  background: var(--color-primary); border-radius: 0 3px 3px 0;
 }
 
-.nav-item.router-link-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 20px;
-  background: var(--color-primary);
-  border-radius: 0 3px 3px 0;
-}
+.nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
 
 /* ── Main ───────────────────────────── */
-.main-content {
-  flex: 1;
-  overflow: hidden;
-  background: #faf7f4;
-}
+.main-content { flex: 1; overflow: hidden; background: #faf7f4; }
 </style>

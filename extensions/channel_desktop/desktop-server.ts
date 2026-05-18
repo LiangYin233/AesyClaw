@@ -35,6 +35,7 @@ export type DesktopServerOptions = {
   port: number;
   host?: string;
   authToken: string;
+  adminToken: string;
   context: ChannelContext;
 };
 
@@ -153,6 +154,7 @@ export class DesktopServer {
     this.sessions.register(connection);
 
     this.logger.info('Desktop 客户端已连接', { connectionId });
+    connection.sendJson({ type: 'auth', adminToken: this.options.adminToken } satisfies DesktopOutboundMessage);
 
     // 心跳管理
     let clientAlive = true;
@@ -282,12 +284,18 @@ export class DesktopServer {
     };
 
     try {
+      this.logger.info('收到 Desktop 聊天消息', { connectionId, sessionId });
       await this.options.context.receive(message, sessionKey, {
         id: connectionId,
         name: `Desktop-${connectionId.slice(0, 8)}`,
       });
     } catch (err) {
       this.logger.error('处理聊天消息失败', { connectionId, sessionId }, err);
+      connection.sendJson({
+        type: 'error',
+        sessionId,
+        message: err instanceof Error ? err.message : '处理聊天消息失败',
+      } satisfies DesktopOutboundMessage);
     }
   }
 

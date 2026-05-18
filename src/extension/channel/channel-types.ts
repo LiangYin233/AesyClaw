@@ -12,6 +12,7 @@ import { validateExtension } from '@aesyclaw/extension/extension-utils';
 export type ChannelContext = {
   name: string;
   config: Record<string, unknown>;
+  configManager: ConfigManager;
   paths: Readonly<ResolvedPaths>;
   receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
   logger: Logger;

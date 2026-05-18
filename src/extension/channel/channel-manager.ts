@@ -321,6 +321,7 @@ export class ChannelManager implements ExtensionLifecycle {
     return {
       name: channelName,
       config,
+      configManager: this.deps.configManager,
       paths: this.deps.paths,
       receive: async (
         message: Message,
