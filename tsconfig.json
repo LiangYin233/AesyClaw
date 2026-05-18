@@ -22,6 +22,6 @@
       "@aesyclaw/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "extensions/**/*"],
+  "include": ["src/**/*", "extensions/**/*", "desktop/**/*"],
   "exclude": ["node_modules", "dist", "tests"]
 }

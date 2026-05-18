@@ -102,3 +102,12 @@ export type CommandExecuteFn = (args: string[], context: CommandContext) => Prom
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
+
+// ─── 流式事件 ───────────────────────────────────────────────────────
+
+export type {
+  StreamEventType,
+  StreamMessage,
+  OnStreamEvent,
+  StreamEventMeta,
+} from './stream-types';

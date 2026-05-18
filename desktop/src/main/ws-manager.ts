@@ -66,21 +66,21 @@ export class WebSocketManager extends EventEmitter {
   // ─── 聊天消息 ──────────────────────────────────────────────────
 
   sendChatMessage(sessionId: string, text: string): boolean {
-    if (!this.chatWs || this.chatWs.readyState !== WebSocket.OPEN) return false;
+    if (this.chatWs?.readyState !== WebSocket.OPEN) return false;
     this.chatWs.send(JSON.stringify({ type: 'chat', sessionId, text }));
     return true;
   }
 
   sendCancelMessage(sessionId: string): void {
-    if (!this.chatWs || this.chatWs.readyState !== WebSocket.OPEN) return;
+    if (this.chatWs?.readyState !== WebSocket.OPEN) return;
     this.chatWs.send(JSON.stringify({ type: 'cancel', sessionId }));
   }
 
   // ─── 管理请求 ──────────────────────────────────────────────────
 
   async sendAdminRequest(request: { type: string; requestId: string; payload?: unknown }): Promise<AdminMessage> {
-    return new Promise((resolve) => {
-      if (!this.adminWs || this.adminWs.readyState !== WebSocket.OPEN) {
+    return await new Promise((resolve) => {
+      if (this.adminWs?.readyState !== WebSocket.OPEN) {
         resolve({ type: request.type, ok: false, error: 'Admin WS 未连接' });
         return;
       }

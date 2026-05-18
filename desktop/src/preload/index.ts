@@ -42,24 +42,24 @@ const api = {
     ipcRenderer.invoke('status:get') as Promise<ConnectionStatus>,
 
   /** 监听聊天消息 */
-  onChatMessage: (callback: (msg: ChatMessageEvent) => void) => {
-    const handler = (_event: unknown, msg: ChatMessageEvent) => callback(msg);
+  onChatMessage: (callback: (msg: ChatMessageEvent) => void): (() => void) => {
+    const handler = (_event: unknown, msg: ChatMessageEvent): void => { callback(msg); };
     ipcRenderer.on('chat:message', handler);
-    return () => ipcRenderer.removeListener('chat:message', handler);
+    return () => { ipcRenderer.removeListener('chat:message', handler); };
   },
 
   /** 监听管理消息 */
-  onAdminMessage: (callback: (msg: AdminMessageEvent) => void) => {
-    const handler = (_event: unknown, msg: AdminMessageEvent) => callback(msg);
+  onAdminMessage: (callback: (msg: AdminMessageEvent) => void): (() => void) => {
+    const handler = (_event: unknown, msg: AdminMessageEvent): void => { callback(msg); };
     ipcRenderer.on('admin:message', handler);
-    return () => ipcRenderer.removeListener('admin:message', handler);
+    return () => { ipcRenderer.removeListener('admin:message', handler); };
   },
 
   /** 监听连接状态变化 */
-  onStatusChange: (callback: (status: ConnectionStatus) => void) => {
-    const handler = (_event: unknown, status: ConnectionStatus) => callback(status);
+  onStatusChange: (callback: (status: ConnectionStatus) => void): (() => void) => {
+    const handler = (_event: unknown, status: ConnectionStatus): void => { callback(status); };
     ipcRenderer.on('status:change', handler);
-    return () => ipcRenderer.removeListener('status:change', handler);
+    return () => { ipcRenderer.removeListener('status:change', handler); };
   },
 
   // ── 窗口控制 ──────────────────────────────────────────────
@@ -68,8 +68,8 @@ const api = {
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
   closeWindow: () => ipcRenderer.invoke('window:close'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized') as Promise<boolean>,
-  onMaximizeChange: (callback: (maximized: boolean) => void) => {
-    const handler = (_event: unknown, maximized: boolean) => callback(maximized);
+  onMaximizeChange: (callback: (maximized: boolean) => void): (() => void) => {
+    const handler = (_event: unknown, maximized: boolean): void => { callback(maximized); };
     ipcRenderer.on('window:maximizeChange', handler);
     return () => ipcRenderer.removeListener('window:maximizeChange', handler);
   },

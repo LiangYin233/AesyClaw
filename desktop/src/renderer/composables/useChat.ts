@@ -3,7 +3,7 @@
  * 管理会话、消息流、流式文本拼接、工具调用历史。
  */
 
-import { ref, reactive } from 'vue';
+import { ref } from 'vue';
 import type { ChatMessageEvent } from '../../preload/index';
 
 export type ToolCallState = {
@@ -33,11 +33,16 @@ export type ChatMessage =
   | { role: 'assistant'; text: string; toolCalls: ToolCallState[] }
   | { role: 'system'; text: string };
 
-export function useChat() {
+export function useChat(): ReturnType<typeof useChatImpl> {
+  return useChatImpl();
+}
+
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function useChatImpl() {
   const sessions = ref<ChatSession[]>([]);
   const activeSessionId = ref<string | null>(null);
 
-  const activeSession = () =>
+  const activeSession = (): ChatSession | null =>
     sessions.value.find((s) => s.id === activeSessionId.value) ?? null;
 
   function createSession(): string {
@@ -51,17 +56,13 @@ export function useChat() {
       streamBuffer: '',
       lastReply: '',
     });
-    if (!activeSessionId.value) {
-      activeSessionId.value = id;
-    }
+    activeSessionId.value ??= id;
     return id;
   }
 
   function sendMessage(text: string): void {
     let sessionId = activeSessionId.value;
-    if (!sessionId) {
-      sessionId = createSession();
-    }
+    sessionId ??= createSession();
 
     const session = sessions.value.find((s) => s.id === sessionId);
     if (!session) return;
@@ -74,7 +75,7 @@ export function useChat() {
     session.pendingToolCalls = new Map();
 
     // 发送
-    window.aesyclaw.sendChat(sessionId, text);
+    void window.aesyclaw.sendChat(sessionId, text);
   }
 
   function handleStreamEvent(event: ChatMessageEvent): void {

@@ -36,9 +36,9 @@ function createWindow(): void {
 
   // 开发模式加载 dev server，生产模式加载文件
   if (process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
   mainWindow.on('closed', () => {
@@ -73,7 +73,7 @@ function setupIpc(): void {
 
   // 管理 API（代理到 admin WS）
   ipcMain.handle('admin:request', async (_event, request: { type: string; requestId: string; payload?: unknown }) => {
-    return wsManager?.sendAdminRequest(request) ?? { ok: false, error: 'Admin WS 未连接' };
+    return await (wsManager?.sendAdminRequest(request) ?? Promise.resolve({ ok: false, error: 'Admin WS 未连接' }));
   });
 
   // 获取连接状态
@@ -84,7 +84,7 @@ function setupIpc(): void {
 
 // ─── 生命周期 ──────────────────────────────────────────────────────
 
-app.whenReady().then(() => {
+void app.whenReady().then(() => {
   setupIpc();
 
   // 启动 WebSocket 连接

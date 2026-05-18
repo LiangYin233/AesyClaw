@@ -1,4 +1,4 @@
-import type { CommandContext, RoleConfig, Message, SessionKey } from '@aesyclaw/core/types';
+import type { CommandContext, RoleConfig, Message, SessionKey, StreamEventMeta } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
@@ -16,6 +16,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
 import { runAgentTask } from './runner/agent-runner';
 import { buildAgentPrompt } from './agent-prompt';
+import type { StreamMessage } from '@aesyclaw/core/stream-types';
 
 const logger = createScopedLogger('agent');
 
@@ -170,12 +171,14 @@ export class Agent {
    * @param message - 用户消息
    * @param sendMessage - 可选的发消息回调
    * @param options - 可选配置（ephemeral 标记、临时角色）
+   * @param onStream - 流式事件回调，每收到一个中间事件则调用一次
    * @returns Agent 回复消息
    */
   async process(
     message: Message,
     sendMessage?: (message: Message) => Promise<boolean>,
     options?: ProcessOptions,
+    onStream?: (event: StreamMessage) => void,
   ): Promise<Message> {
     const context = this.createProcessContext(options);
     if (!context) {
@@ -209,6 +212,7 @@ export class Agent {
       history,
       this.session.key,
       trackedSendMessage,
+      onStream,
     );
 
     const finalResult =
@@ -239,6 +243,7 @@ export class Agent {
     history: AgentMessage[],
     sessionKey: SessionKey,
     sendMessage?: (message: Message) => Promise<boolean>,
+    onStream?: (event: StreamMessage) => void,
   ): Promise<CallLLMResult> {
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
@@ -261,6 +266,11 @@ export class Agent {
       sessionKey,
       compressionThreshold: this.compressionThreshold,
       registry: this.registry,
+      onEvent: onStream
+        ? (meta: StreamEventMeta) => {
+            onStream(streamEventMetaToMessage(meta));
+          }
+        : undefined,
     });
   }
 
@@ -367,5 +377,40 @@ export class Agent {
     }
     logger.warn('Agent 未生成助手文本回复', { role: roleId });
     return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
+  }
+}
+
+// ─── StreamEventMeta → StreamMessage 转换 ────────────────────────
+
+function streamEventMetaToMessage(meta: StreamEventMeta): StreamMessage {
+  switch (meta.type) {
+    case 'chunk':
+      return {
+        components: [{ type: 'Plain', text: meta.text ?? '' }],
+        event: 'chunk',
+        chunkIndex: meta.chunkIndex,
+      };
+    case 'toolCall':
+      return {
+        components: [],
+        event: 'toolCall',
+        toolCallId: meta.toolCallId,
+        toolName: meta.toolName,
+        args: meta.args,
+      };
+    case 'toolResult':
+      return {
+        components: [],
+        event: 'toolResult',
+        toolCallId: meta.toolCallId,
+        toolName: meta.toolName,
+        result: meta.result,
+        isError: meta.isError,
+      };
+    case 'done':
+      return {
+        components: [],
+        event: 'done',
+      };
   }
 }

@@ -22,6 +22,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import { createTimeInjectHook } from './hooks/time-inject';
 import { createAutoCompactHook } from './hooks/auto-compact';
+import type { StreamMessage } from '@aesyclaw/core/stream-types';
 
 const logger = createScopedLogger('pipeline');
 
@@ -152,9 +153,21 @@ export class Pipeline {
 
         const transformedMessage = beforeCtx.message;
 
-        const outbound = await agent.process(transformedMessage, async (msg) => {
-          return await this.deliver(send, msg, session.key);
-        });
+        // 流式事件回调：直接推送给 channel，不经过 pipeline:send 钩子链
+        const onStream = (streamEvent: StreamMessage): void => {
+          void send(streamEvent).catch((err) => {
+            logger.error('流式事件投递失败', err);
+          });
+        };
+
+        const outbound = await agent.process(
+          transformedMessage,
+          async (msg) => {
+            return await this.deliver(send, msg, session.key);
+          },
+          undefined,
+          onStream,
+        );
 
         // session 未被外部取消时才投递结果
         if (session.isLocked) {

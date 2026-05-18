@@ -30,9 +30,14 @@ export { getMessageText } from '@aesyclaw/core/types';
 
 export { isRecord, errorMessage } from '@aesyclaw/core/utils';
 
+export { createScopedLogger } from '@aesyclaw/core/logger';
+export type { Logger, LogLevel } from '@aesyclaw/core/logger';
+
 export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
 export type { HookCtx, HookResult, Middleware, HookRegistration } from '@aesyclaw/hook';
+
+export type { StreamEventType, StreamMessage, OnStreamEvent, StreamEventMeta } from '@aesyclaw/core/stream-types';
 
 export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';

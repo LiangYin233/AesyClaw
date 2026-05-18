@@ -3,6 +3,7 @@
 import type { AesyClawApi } from '../preload/index';
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
   interface Window {
     aesyclaw: AesyClawApi;
   }

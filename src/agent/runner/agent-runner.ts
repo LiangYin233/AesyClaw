@@ -3,6 +3,7 @@ import {
   Agent as PiAgent,
   type AfterToolCallContext,
   type AfterToolCallResult,
+  type AgentEvent,
   type AgentTool as PiAgentTool,
   type StreamFn,
 } from '@mariozechner/pi-agent-core';
@@ -23,7 +24,7 @@ import {
   type AgentToolResult,
   type ResolvedModel,
 } from '../agent-types';
-import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
+import { serializeSessionKey, type SessionKey, type StreamEventMeta } from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from '../llm-cache-options';
 
 const logger = createScopedLogger('agent-runner');
@@ -38,6 +39,8 @@ export type AgentRunParams = {
   sessionKey: SessionKey;
   compressionThreshold: number;
   registry: AgentRegistry;
+  /** 流式事件回调。pi-agent-core 每产出一个中间事件则调用一次 */
+  onEvent?: (event: StreamEventMeta) => void;
 };
 
 export type AgentRunResult = {
@@ -179,6 +182,21 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     },
   };
   registry.registerRun(runId, runHandle, sessionKey);
+
+  // ── 订阅 pi-agent-core 事件 → StreamEventMeta ────────────
+  let chunkIndex = 0;
+  if (params.onEvent) {
+    const onEvent = params.onEvent;
+    agent.subscribe((event: AgentEvent) => {
+      const meta = convertAgentEvent(event, chunkIndex);
+      if (meta) {
+        if (meta.type === 'chunk') {
+          chunkIndex++;
+        }
+        onEvent(meta);
+      }
+    });
+  }
 
   try {
     throwIfCancelled(abortController.signal);
@@ -339,4 +357,43 @@ function extractAssistantText(message: AgentMessage): string {
 /** 判断值是否为非 null、非数组的普通对象 */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// ─── pi-agent-core 事件转换 ───────────────────────────────────────
+
+/**
+ * 将 pi-agent-core AgentEvent 转换为 SteamEventMeta。
+ * 不需要关注的事件返回 null。
+ */
+function convertAgentEvent(event: AgentEvent, chunkIndex: number): StreamEventMeta | null {
+  switch (event.type) {
+    case 'message_update': {
+      // assistantMessageEvent 是 AssistantMessageEvent 联合类型
+      // 'text_delta' 变体有 delta: string
+      const ae = event.assistantMessageEvent;
+      if (ae.type !== 'text_delta') return null;
+      const text = ae.delta;
+      if (text.length === 0) return null;
+      return { type: 'chunk', text, chunkIndex };
+    }
+    case 'tool_execution_start':
+      return {
+        type: 'toolCall',
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: event.args,
+      };
+    case 'tool_execution_end':
+      return {
+        type: 'toolResult',
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        result: event.result,
+        isError: event.isError,
+      };
+    case 'agent_end':
+      return { type: 'done' };
+    default:
+      return null;
+  }
 }

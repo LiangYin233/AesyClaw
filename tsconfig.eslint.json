@@ -6,7 +6,8 @@
     "*.config.ts",
     "extensions/**/*",
     "web/src/**/*",
-    "web/*.config.ts"
+    "web/*.config.ts",
+    "desktop/**/*"
   ],
   "exclude": ["node_modules", "dist"]
 }
