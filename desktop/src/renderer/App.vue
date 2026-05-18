@@ -30,12 +30,17 @@
       <!-- Sidebar -->
       <aside class="sidebar">
         <nav class="sidebar-nav">
-          <router-link to="/" class="nav-item" active-class="active">
-            <span>💬</span>
+          <router-link to="/" class="nav-item">
+            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
             <span>Conversations</span>
           </router-link>
-          <router-link to="/settings" class="nav-item" active-class="active">
-            <span>⚙</span>
+          <router-link to="/settings" class="nav-item">
+            <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
             <span>Settings</span>
           </router-link>
         </nav>
@@ -103,6 +108,12 @@ onUnmounted(() => {
   flex-shrink: 0;
   z-index: 10;
   user-select: none;
+  -webkit-app-region: drag;
+}
+
+.topbar button,
+.topbar a {
+  -webkit-app-region: no-drag;
 }
 
 .topbar-brand {
@@ -112,7 +123,6 @@ onUnmounted(() => {
 }
 
 .drag-region {
-  -webkit-app-region: drag;
   flex: 1;
 }
 
@@ -152,7 +162,6 @@ onUnmounted(() => {
   border: 1px solid var(--color-border);
   background: #fdfbf9;
   user-select: none;
-  -webkit-app-region: no-drag;
 }
 
 .connection-status.ok {
@@ -176,7 +185,6 @@ onUnmounted(() => {
 .window-controls {
   display: flex;
   gap: 2px;
-  -webkit-app-region: no-drag;
   margin-left: 12px;
 }
 
@@ -242,17 +250,23 @@ onUnmounted(() => {
   position: relative;
 }
 
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
 .nav-item:hover {
   color: var(--color-dark);
   background: rgba(20, 20, 19, 0.04);
 }
 
-.nav-item.active {
+.nav-item.router-link-active {
   color: var(--color-dark);
   background: #f7f0ea;
 }
 
-.nav-item.active::before {
+.nav-item.router-link-active::before {
   content: '';
   position: absolute;
   left: 0;
