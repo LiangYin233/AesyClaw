@@ -27,20 +27,27 @@
     </header>
 
     <div class="app-body">
-      <aside class="sidebar">
+      <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+        <div class="sidebar-header">
+          <button class="sidebar-toggle" type="button" :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-expanded="!sidebarCollapsed" @click="toggleSidebar">
+            <svg class="sidebar-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        </div>
         <nav class="sidebar-nav">
-          <router-link to="/" class="nav-item">
+          <router-link to="/" class="nav-item" title="Conversations">
             <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            <span>Conversations</span>
+            <span class="nav-label">Conversations</span>
           </router-link>
-          <router-link to="/settings" class="nav-item">
+          <router-link to="/settings" class="nav-item" title="Settings">
             <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"/>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            <span>Settings</span>
+            <span class="nav-label">Settings</span>
           </router-link>
         </nav>
       </aside>
@@ -68,6 +75,7 @@ import type { ConnectionStatus } from '../../preload/index';
 
 const status = ref<ConnectionStatus>({ chat: 'disconnected', admin: 'disconnected' });
 const isMaximized = ref(false);
+const sidebarCollapsed = ref(localStorage.getItem('desktop-sidebar-collapsed') === 'true');
 let unsubStatus: (() => void) | null = null;
 let unsubMaximize: (() => void) | null = null;
 
@@ -100,6 +108,10 @@ onUnmounted(() => {
 function handleMinimize(): void { void window.aesyclaw.minimizeWindow(); }
 function handleMaximize(): void { void window.aesyclaw.maximizeWindow(); }
 function handleClose(): void { void window.aesyclaw.closeWindow(); }
+function toggleSidebar(): void {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem('desktop-sidebar-collapsed', String(sidebarCollapsed.value));
+}
 </script>
 
 <style scoped>
@@ -246,21 +258,45 @@ function handleClose(): void { void window.aesyclaw.closeWindow(); }
   width: var(--sidebar-width); background: #faf7f4;
   border-right: 1px solid var(--color-border);
   display: flex; flex-direction: column; flex-shrink: 0;
+  transition: width var(--transition);
 }
 
-.sidebar-nav { display: flex; flex-direction: column; padding: 12px; gap: 4px; flex: 1; }
+.sidebar.collapsed { width: var(--sidebar-collapsed-width); }
+
+.sidebar-header { display: flex; justify-content: flex-end; padding: 12px 12px 4px; }
+
+.sidebar-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border: 1px solid transparent;
+  border-radius: var(--radius-sm); background: transparent; color: var(--color-mid-gray);
+  cursor: pointer; transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.sidebar-toggle:hover { color: var(--color-dark); background: rgba(20, 20, 19, 0.04); border-color: var(--color-border); }
+
+.sidebar-toggle-icon { transition: transform var(--transition-fast); }
+
+.sidebar.collapsed .sidebar-header { justify-content: center; }
+
+.sidebar.collapsed .sidebar-toggle-icon { transform: rotate(180deg); }
+
+.sidebar-nav { display: flex; flex-direction: column; padding: 8px 12px 12px; gap: 4px; flex: 1; }
 
 .nav-item {
   display: flex; align-items: center; gap: 12px;
   padding: 0.7rem 16px; border-radius: var(--radius-sm);
   color: var(--color-mid-gray); text-decoration: none;
   font-family: var(--font-heading); font-size: 14px; font-weight: 500;
-  transition: all var(--transition-fast); position: relative;
+  transition: color var(--transition-fast), background var(--transition-fast), padding var(--transition-fast), gap var(--transition-fast);
+  position: relative; overflow: hidden;
 }
+
 .nav-item:hover { color: var(--color-dark); background: rgba(20, 20, 19, 0.04); }
+
 .nav-item.router-link-active {
   color: var(--color-dark); background: #f7f0ea;
 }
+
 .nav-item.router-link-active::before {
   content: ''; position: absolute; left: 0; top: 50%;
   transform: translateY(-50%); width: 3px; height: 20px;
@@ -268,6 +304,18 @@ function handleClose(): void { void window.aesyclaw.closeWindow(); }
 }
 
 .nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
+
+.nav-label {
+  max-width: 140px; min-width: 0;
+  overflow: hidden; white-space: nowrap; opacity: 1;
+  transition: opacity var(--transition-fast), max-width var(--transition-fast);
+}
+
+.sidebar.collapsed .sidebar-nav { padding-inline: 10px; }
+
+.sidebar.collapsed .nav-item { justify-content: center; gap: 0; padding: 0.7rem 0; }
+
+.sidebar.collapsed .nav-label { max-width: 0; opacity: 0; }
 
 /* ── Main ───────────────────────────── */
 .main-content { flex: 1; min-height: 0; overflow: auto; background: #faf7f4; }

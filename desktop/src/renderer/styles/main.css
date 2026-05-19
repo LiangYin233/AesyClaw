@@ -25,6 +25,7 @@
   --color-border-strong: var(--color-mid-gray);
 
   --sidebar-width: 220px;
+  --sidebar-collapsed-width: 68px;
   --topbar-height: 56px;
 
   --radius: 8px;
