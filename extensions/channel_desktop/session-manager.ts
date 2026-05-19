@@ -5,7 +5,7 @@
  */
 
 import type { SessionKey } from '@aesyclaw/sdk';
-import type { DesktopFileBuffer } from './types';
+import type { DesktopFileBuffer, DesktopReceivedFile } from './types';
 
 export type DesktopConnection = {
   /** 连接 ID（uuid） */
@@ -20,6 +20,8 @@ export type DesktopConnection = {
   sessions: Set<string>;
   /** 当前正在进行的文件传输缓冲区 */
   fileBuffers: Map<string, DesktopFileBuffer>;
+  /** 已完成并等待随聊天消息消费的文件 */
+  completedFiles: Map<string, DesktopReceivedFile>;
 };
 
 export class DesktopSessionManager {
@@ -56,6 +58,11 @@ export class DesktopSessionManager {
   getConnection(sessionId: string): DesktopConnection | undefined {
     const connectionId = this.sessionToConnection.get(sessionId);
     if (!connectionId) return undefined;
+    return this.connections.get(connectionId);
+  }
+
+  /** 根据连接 ID 查找连接 */
+  getConnectionById(connectionId: string): DesktopConnection | undefined {
     return this.connections.get(connectionId);
   }
 

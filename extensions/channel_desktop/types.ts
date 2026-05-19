@@ -119,6 +119,7 @@ export type DesktopPingMessage = {
 // ─── 文件元数据 ────────────────────────────────────────────────────
 
 export type DesktopFileMeta = {
+  fileId?: string;
   name: string;
   mime: string;
   size: number;
@@ -135,6 +136,16 @@ export type DesktopFileBuffer = {
   totalChunks: number;
   chunks: Buffer[];
   received: number;
+};
+
+/** 已接收并落盘的文件 */
+export type DesktopReceivedFile = {
+  fileId: string;
+  sessionId: string;
+  name: string;
+  mime: string;
+  size: number;
+  filePath: string;
 };
 
 /** 解析后的入站消息（带 sessionKey） */

@@ -9,6 +9,7 @@ import type {
   ChatMessageEvent,
   DesktopHistoryMessage,
   DesktopSessionSummary,
+  DesktopUploadFile,
 } from '../../preload/index';
 
 export type ToolCallState = {
@@ -40,8 +41,14 @@ export type ChatMessage =
 export type UserMessage = {
   role: 'user';
   text: string;
+  attachments?: ChatAttachment[];
 };
 
+export type ChatAttachment = {
+  name: string;
+  mime: string;
+  size: number;
+};
 export type AssistantMessage = {
   role: 'assistant';
   text: string;
@@ -133,23 +140,30 @@ function useChatImpl() {
     session.activeAssistantMessage = null;
   }
 
-  function sendMessage(text: string): void {
+  function sendMessage(
+    text: string,
+    files: DesktopUploadFile[] = [],
+    attachments: ChatAttachment[] = files.map(({ name, mime, size }) => ({ name, mime, size })),
+  ): void {
+    if (text.trim().length === 0 && files.length === 0) return;
+
     let sessionId = activeSessionId.value;
     sessionId ??= createSession();
 
     const session = sessions.value.find((s) => s.id === sessionId);
     if (!session) return;
     const outboundSessionId = session.id;
+    const titleText = text.trim() || attachments[0]?.name || '新对话';
 
     // 添加用户消息
-    session.messages.push({ role: 'user', text });
-    session.title = makeSessionTitle(text, '新对话');
+    session.messages.push({ role: 'user', text, attachments });
+    session.title = makeSessionTitle(titleText, '新对话');
     session.streaming = true;
     session.pendingToolCalls = new Map();
     session.activeAssistantMessage = null;
 
     // 发送
-    void window.aesyclaw.sendChat(outboundSessionId, text);
+    void window.aesyclaw.sendChat(outboundSessionId, text, files);
   }
 
   function handleStreamEvent(event: ChatMessageEvent): void {

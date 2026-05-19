@@ -9,6 +9,7 @@
 
 import { WebSocket } from 'ws';
 import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
 
 export type ChatMessage =
   | { type: 'chunk'; sessionId: string; text: string; index: number }
@@ -39,6 +40,13 @@ export type AdminMessage = {
 export type ConnectionStatus = {
   chat: 'connected' | 'connecting' | 'disconnected';
   admin: 'connected' | 'connecting' | 'disconnected';
+};
+
+export type DesktopUploadFile = {
+  name: string;
+  mime: string;
+  size: number;
+  data: ArrayBuffer | Uint8Array | Buffer;
 };
 
 const RECONNECT_DELAY_MS = 3000;
@@ -92,10 +100,61 @@ export class WebSocketManager extends EventEmitter {
 
   // ─── 聊天消息 ──────────────────────────────────────────────────
 
-  sendChatMessage(sessionId: string, text: string): boolean {
+  async sendChatMessage(
+    sessionId: string,
+    text: string,
+    files: DesktopUploadFile[] = [],
+  ): Promise<boolean> {
     if (this.chatWs?.readyState !== WebSocket.OPEN) return false;
-    this.chatWs.send(JSON.stringify({ type: 'chat', sessionId, text }));
+
+    const fileMetas = files.map((file) => ({
+      fileId: randomUUID(),
+      name: file.name,
+      mime: file.mime || 'application/octet-stream',
+      size: file.size,
+    }));
+
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
+      const meta = fileMetas[index];
+      if (!file || !meta) continue;
+      this.sendFile(sessionId, meta.fileId, file);
+    }
+
+    this.chatWs.send(JSON.stringify({ type: 'chat', sessionId, text, files: fileMetas }));
     return true;
+  }
+
+  private sendFile(sessionId: string, fileId: string, file: DesktopUploadFile): void {
+    if (this.chatWs?.readyState !== WebSocket.OPEN) return;
+
+    const data = Buffer.isBuffer(file.data)
+      ? file.data
+      : Buffer.from(file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data));
+    const chunkSize = 256 * 1024;
+    const totalChunks = Math.max(1, Math.ceil(data.length / chunkSize));
+
+    this.chatWs.send(
+      JSON.stringify({
+        type: 'file_start',
+        sessionId,
+        fileId,
+        name: file.name,
+        mime: file.mime || 'application/octet-stream',
+        totalSize: data.length,
+        totalChunks,
+      }),
+    );
+
+    for (let offset = 0; offset < data.length; offset += chunkSize) {
+      this.chatWs.send(data.subarray(offset, offset + chunkSize));
+    }
+
+    if (data.length === 0) {
+      this.chatWs.send(Buffer.alloc(0));
+    }
+
+    this.chatWs.send(JSON.stringify({ type: 'file_end', sessionId, fileId }));
   }
 
   sendCancelMessage(sessionId: string): void {

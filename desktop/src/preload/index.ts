@@ -34,6 +34,13 @@ export type DesktopHistoryMessage = {
   timestamp?: string;
 };
 
+export type DesktopUploadFile = {
+  name: string;
+  mime: string;
+  size: number;
+  data: ArrayBuffer;
+};
+
 export type AdminMessageEvent = {
   type: string;
   requestId?: string;
@@ -51,8 +58,8 @@ export type { DesktopConnectionConfig };
 
 const api = {
   /** 发送聊天消息 */
-  sendChat: (sessionId: string, text: string) =>
-    ipcRenderer.invoke('chat:send', { sessionId, text }) as Promise<boolean>,
+  sendChat: (sessionId: string, text: string, files: DesktopUploadFile[] = []) =>
+    ipcRenderer.invoke('chat:send', { sessionId, text, files }) as Promise<boolean>,
 
   /** 取消当前对话 */
   cancelChat: (sessionId: string) => ipcRenderer.invoke('chat:cancel', sessionId),

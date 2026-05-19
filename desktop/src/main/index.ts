@@ -9,7 +9,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { WebSocketManager } from './ws-manager';
+import { WebSocketManager, type DesktopUploadFile } from './ws-manager';
 import {
   buildAdminWsUrl,
   buildDesktopWsUrl,
@@ -81,9 +81,15 @@ function setupIpc(): void {
   });
 
   // 聊天消息
-  ipcMain.handle('chat:send', async (_event, payload: { sessionId: string; text: string }) => {
-    return wsManager?.sendChatMessage(payload.sessionId, payload.text) ?? false;
-  });
+  ipcMain.handle(
+    'chat:send',
+    async (_event, payload: { sessionId: string; text: string; files?: DesktopUploadFile[] }) => {
+      return (
+        (await wsManager?.sendChatMessage(payload.sessionId, payload.text, payload.files ?? [])) ??
+        false
+      );
+    },
+  );
 
   ipcMain.handle('chat:cancel', async (_event, sessionId: string) => {
     wsManager?.sendCancelMessage(sessionId);

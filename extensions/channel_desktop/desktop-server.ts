@@ -11,15 +11,17 @@
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { timingSafeEqual } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { createScopedLogger } from '@aesyclaw/sdk';
 import { DesktopSessionManager, type DesktopConnection } from './session-manager';
 import type {
   DesktopInboundMessage,
   DesktopOutboundMessage,
   DesktopFileBuffer,
+  DesktopReceivedFile,
 } from './types';
-import type { ChannelContext } from '@aesyclaw/sdk';
-import type { StreamMessage } from '@aesyclaw/sdk';
+import type { ChannelContext, MessageComponent, StreamMessage } from '@aesyclaw/sdk';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const CLIENT_ALIVE_TIMEOUT_MS = HEARTBEAT_INTERVAL_MS * 2 + 5_000;
@@ -29,6 +31,54 @@ function safeTokenEqual(provided: string, expected: string): boolean {
   const expectedBuf = Buffer.from(expected);
   if (providedBuf.length !== expectedBuf.length) return false;
   return timingSafeEqual(providedBuf, expectedBuf);
+}
+
+function sanitizeFileName(name: string): string {
+  const sanitized = name
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\p{C}/gu, '_')
+    .trim();
+  return sanitized.length > 0 ? sanitized : 'upload.bin';
+}
+
+function sanitizePathSegment(segment: string): string {
+  const sanitized = segment.replace(/[^a-z0-9._-]/gi, '_').trim();
+  return sanitized.length > 0 ? sanitized : 'session';
+}
+
+function fileComponentType(mime: string): 'Image' | 'Record' | 'Video' | 'File' {
+  if (mime.startsWith('image/')) return 'Image';
+  if (mime.startsWith('audio/')) return 'Record';
+  if (mime.startsWith('video/')) return 'Video';
+  return 'File';
+}
+
+function attachmentKind(mime: string): string {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('video/')) return 'video';
+  return 'file';
+}
+
+function fileToMessageComponent(file: DesktopReceivedFile): MessageComponent {
+  const type = fileComponentType(file.mime);
+  return {
+    type,
+    ['path']: file.filePath,
+    file: file.name,
+    name: file.name,
+    mimeType: file.mime,
+  } as MessageComponent;
+}
+
+function formatAttachmentText(attachments: DesktopReceivedFile[]): string {
+  if (attachments.length === 0) return '';
+  return [
+    '[Attachments]',
+    ...attachments.map(
+      (file) => `- ${attachmentKind(file.mime)}: ${file.filePath} (${file.name}, ${file.mime})`,
+    ),
+  ].join('\n');
 }
 
 export type DesktopServerOptions = {
@@ -154,7 +204,10 @@ export class DesktopServer {
     this.sessions.register(connection);
 
     this.logger.info('Desktop 客户端已连接', { connectionId });
-    connection.sendJson({ type: 'auth', adminToken: this.options.adminToken } satisfies DesktopOutboundMessage);
+    connection.sendJson({
+      type: 'auth',
+      adminToken: this.options.adminToken,
+    } satisfies DesktopOutboundMessage);
 
     // 心跳管理
     let clientAlive = true;
@@ -216,6 +269,7 @@ export class DesktopServer {
       id,
       sessions: new Set(),
       fileBuffers: new Map(),
+      completedFiles: new Map(),
       sendJson(data: unknown): void {
         if (ws.readyState === ws.OPEN) {
           ws.send(JSON.stringify(data));
@@ -270,20 +324,31 @@ export class DesktopServer {
         // 由 pong 事件处理
         break;
       default:
-        this.logger.warn('未知消息类型', { connectionId, type: (msg as Record<string, unknown>)['type'] });
+        this.logger.warn('未知消息类型', {
+          connectionId,
+          type: (msg as Record<string, unknown>)['type'],
+        });
     }
   }
 
   private async handleChatMessage(
     connectionId: string,
-    msg: { type: 'chat'; sessionId: string; text: string; files?: Array<{ name: string; mime: string }> },
+    msg: {
+      type: 'chat';
+      sessionId: string;
+      text: string;
+      files?: Array<{ fileId?: string; name: string; mime: string; size?: number }>;
+    },
   ): Promise<void> {
     const { sessionId } = msg;
     this.sessions.bindSession(sessionId, connectionId);
 
     const sessionKey = this.sessions.makeSessionKey(sessionId);
+    const conn = this.sessions.getConnection(sessionId);
+    if (!conn) return;
+    const attachments = this.consumeChatAttachments(conn, sessionId, msg.files ?? []);
     const message = {
-      components: [{ type: 'Plain' as const, text: msg.text }],
+      components: this.buildMessageComponents(msg.text, attachments),
     };
 
     try {
@@ -294,7 +359,7 @@ export class DesktopServer {
       });
     } catch (err) {
       this.logger.error('处理聊天消息失败', { connectionId, sessionId }, err);
-      connection.sendJson({
+      conn.sendJson({
         type: 'error',
         sessionId,
         message: err instanceof Error ? err.message : '处理聊天消息失败',
@@ -312,13 +377,19 @@ export class DesktopServer {
 
   private handleFileStart(
     connectionId: string,
-    msg: { type: 'file_start'; sessionId: string; fileId: string; name: string; mime: string; totalSize: number; totalChunks: number },
+    msg: {
+      type: 'file_start';
+      sessionId: string;
+      fileId: string;
+      name: string;
+      mime: string;
+      totalSize: number;
+      totalChunks: number;
+    },
   ): void {
+    this.sessions.bindSession(msg.sessionId, connectionId);
     const conn = this.sessions.getConnection(msg.sessionId);
-    if (!conn) {
-      this.logger.warn('文件传输: 会话未找到', { connectionId, sessionId: msg.sessionId });
-      return;
-    }
+    if (!conn) return;
 
     const buffer: DesktopFileBuffer = {
       fileId: msg.fileId,
@@ -330,7 +401,11 @@ export class DesktopServer {
       received: 0,
     };
     conn.fileBuffers.set(msg.fileId, buffer);
-    this.logger.debug('文件传输开始', { fileId: msg.fileId, name: msg.name, totalChunks: msg.totalChunks });
+    this.logger.debug('文件传输开始', {
+      fileId: msg.fileId,
+      name: msg.name,
+      totalChunks: msg.totalChunks,
+    });
   }
 
   private handleFileEnd(
@@ -343,17 +418,69 @@ export class DesktopServer {
     const buffer = conn.fileBuffers.get(msg.fileId);
     if (!buffer) return;
 
-    // 合并所有分片
+    // 合并所有分片并保存到媒体目录
     const fileData = Buffer.concat(buffer.chunks);
+    const mediaDir = path.join(
+      this.options.context.paths.mediaDir,
+      'desktop',
+      sanitizePathSegment(buffer.sessionId),
+    );
+    mkdirSync(mediaDir, { recursive: true });
+
+    const filePath = path.join(mediaDir, `${randomUUID()}-${sanitizeFileName(buffer.name)}`);
+    writeFileSync(filePath, fileData);
+
+    conn.completedFiles.set(msg.fileId, {
+      fileId: msg.fileId,
+      sessionId: buffer.sessionId,
+      name: buffer.name,
+      mime: buffer.mime,
+      size: fileData.length,
+      filePath,
+    });
+
     this.logger.info('文件接收完成', {
       fileId: msg.fileId,
       name: buffer.name,
+      path: filePath,
       size: fileData.length,
     });
 
-    // TODO: 将文件存入工作区并通过 message 传递给 Agent
-
     conn.fileBuffers.delete(msg.fileId);
+  }
+
+  private consumeChatAttachments(
+    conn: DesktopConnection,
+    sessionId: string,
+    files: Array<{ fileId?: string; name: string; mime: string; size?: number }>,
+  ): DesktopReceivedFile[] {
+    const attachments: DesktopReceivedFile[] = [];
+    for (const file of files) {
+      if (!file.fileId) continue;
+      const received = conn.completedFiles.get(file.fileId);
+      if (received?.sessionId !== sessionId) continue;
+      attachments.push(received);
+      conn.completedFiles.delete(file.fileId);
+    }
+    return attachments;
+  }
+
+  private buildMessageComponents(
+    text: string,
+    attachments: DesktopReceivedFile[],
+  ): MessageComponent[] {
+    const components: MessageComponent[] = [];
+    const trimmedText = text.trim();
+    const attachmentText = formatAttachmentText(attachments);
+    const plainText = [trimmedText, attachmentText].filter(Boolean).join('\n\n');
+    if (plainText.length > 0) components.push({ type: 'Plain', text: plainText });
+
+    for (const attachment of attachments) {
+      components.push(fileToMessageComponent(attachment));
+    }
+
+    if (components.length === 0) components.push({ type: 'Plain', text: '' });
+    return components;
   }
 
   private handleBinaryFrame(connectionId: string, data: Buffer): void {

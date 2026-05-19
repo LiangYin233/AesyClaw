@@ -35,7 +35,18 @@
         >
           <!-- User -->
           <div v-if="msg.role === 'user'" class="user-msg">
-            <div class="user-bubble">{{ msg.text }}</div>
+            <div class="user-bubble">
+              <div v-if="msg.text">{{ msg.text }}</div>
+              <div v-if="msg.attachments?.length" class="message-attachments">
+                <span
+                  v-for="file in msg.attachments"
+                  :key="`${file.name}-${file.size}`"
+                  class="attachment-chip"
+                >
+                  {{ attachmentIcon(file.mime) }} {{ file.name }}
+                </span>
+              </div>
+            </div>
           </div>
 
           <!-- Assistant -->
@@ -86,25 +97,50 @@
 
       <!-- Input -->
       <div class="input-area">
-        <textarea
-          v-model="inputText"
-          class="chat-input"
-          placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
-          rows="1"
-          :disabled="activeSession()?.streaming"
-          @keydown.enter="handleInputEnter"
-        ></textarea>
-        <button v-if="activeSession()?.streaming" class="stop-btn" @click="handleCancel">
-          Stop
-        </button>
-        <button
-          v-else
-          class="send-btn"
-          :disabled="inputText.trim().length === 0"
-          @click="handleSend"
-        >
-          Send
-        </button>
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          class="file-input"
+          @change="handleFileSelect"
+        />
+        <div class="input-stack">
+          <div v-if="selectedFiles.length" class="selected-files">
+            <span
+              v-for="(file, index) in selectedFiles"
+              :key="`${file.name}-${index}`"
+              class="attachment-chip pending"
+            >
+              {{ attachmentIcon(file.type) }} {{ file.name }}
+              <button type="button" class="remove-file-btn" @click="removeSelectedFile(index)">
+                ×
+              </button>
+            </span>
+          </div>
+          <div class="input-row">
+            <button
+              type="button"
+              class="attach-btn"
+              :disabled="activeSession()?.streaming"
+              title="Attach image, audio, video, or file"
+              @click="openFilePicker"
+            >
+              +
+            </button>
+            <textarea
+              v-model="inputText"
+              class="chat-input"
+              placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
+              rows="1"
+              :disabled="activeSession()?.streaming"
+              @keydown.enter="handleInputEnter"
+            ></textarea>
+            <button v-if="activeSession()?.streaming" class="stop-btn" @click="handleCancel">
+              Stop
+            </button>
+            <button v-else class="send-btn" :disabled="!canSend" @click="handleSend">Send</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -117,10 +153,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useChat } from '../composables/useChat';
 import { renderMarkdownSafe } from '../utils/renderContent';
-import type { ChatMessageEvent } from '../../preload/index';
+import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
 
 const {
   sessions,
@@ -135,6 +171,9 @@ const {
 
 const inputText = ref('');
 const messageListRef = ref<HTMLElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const selectedFiles = ref<File[]>([]);
+const canSend = computed(() => inputText.value.trim().length > 0 || selectedFiles.value.length > 0);
 let unsubscribeChat: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
 
@@ -169,11 +208,20 @@ function selectSession(sessionId: string) {
   void loadSessionMessages(sessionId).then(scrollToBottom);
 }
 
-function handleSend() {
+async function handleSend() {
   const text = inputText.value.trim();
-  if (!text || activeSession()?.streaming) return;
-  sendMessage(text);
+  if (!canSend.value || activeSession()?.streaming) return;
+
+  const files = await Promise.all(selectedFiles.value.map(fileToUpload));
+  const attachments = selectedFiles.value.map((file) => ({
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    size: file.size,
+  }));
+  sendMessage(text, files, attachments);
   inputText.value = '';
+  selectedFiles.value = [];
+  if (fileInputRef.value) fileInputRef.value.value = '';
 }
 
 function handleInputEnter(event: KeyboardEvent) {
@@ -185,6 +233,37 @@ function handleInputEnter(event: KeyboardEvent) {
 function handleCancel() {
   const session = activeSession();
   if (session) window.aesyclaw.cancelChat(session.id);
+}
+
+function openFilePicker() {
+  fileInputRef.value?.click();
+}
+
+function handleFileSelect(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  selectedFiles.value = [...selectedFiles.value, ...files];
+  input.value = '';
+}
+
+function removeSelectedFile(index: number) {
+  selectedFiles.value.splice(index, 1);
+}
+
+async function fileToUpload(file: File): Promise<DesktopUploadFile> {
+  return {
+    name: file.name,
+    mime: file.type || 'application/octet-stream',
+    size: file.size,
+    data: await file.arrayBuffer(),
+  };
+}
+
+function attachmentIcon(mime: string): string {
+  if (mime.startsWith('image/')) return '🖼️';
+  if (mime.startsWith('audio/')) return '🎵';
+  if (mime.startsWith('video/')) return '🎞️';
+  return '📎';
 }
 
 function scrollToBottom() {
@@ -255,6 +334,29 @@ function scrollToBottom() {
 }
 
 .session-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 260px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -660,12 +762,25 @@ function scrollToBottom() {
 
 /* ── Input ───────────────────────────── */
 .input-area {
-  display: flex;
-  align-items: flex-end;
   padding: 16px 24px;
   border-top: 1px solid var(--color-border);
-  gap: 10px;
   background: #fdfbf9;
+}
+
+.file-input {
+  display: none;
+}
+
+.input-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
 }
 
 .chat-input {
@@ -689,6 +804,60 @@ function scrollToBottom() {
 }
 .chat-input:disabled {
   background: #f5f3ef;
+}
+
+.selected-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attachment-chip.pending {
+  background: #f7f0ea;
+  color: var(--color-dark);
+  border: 1px solid var(--color-border);
+}
+
+.remove-file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(20, 20, 19, 0.08);
+  color: var(--color-mid-gray);
+  cursor: pointer;
+}
+
+.remove-file-btn:hover {
+  color: var(--color-danger);
+}
+
+.attach-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-mid-gray);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.attach-btn:hover:not(:disabled) {
+  color: var(--color-dark);
+  border-color: var(--color-mid-gray);
+}
+
+.attach-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .send-btn,
