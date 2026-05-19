@@ -24,6 +24,7 @@ export type {
   FileComponent,
   ReplyComponent,
   UnknownComponent,
+  MessageUsage,
 } from '@aesyclaw/core/types';
 
 export { getMessageText } from '@aesyclaw/core/types';

@@ -4,26 +4,13 @@
  * 转换为统一的 StreamEvent，经 Pipeline → Channel.send() 推给客户端。
  */
 
-import type { Message } from './message-types';
+import type { Message, MessageUsage } from './message-types';
 
 // ─── 流式事件判别 ──────────────────────────────────────────────────
 
 export type StreamEventType = 'chunk' | 'toolCall' | 'toolResult' | 'done' | 'error';
 
-export type StreamUsage = {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  totalTokens: number;
-  cost?: {
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheWrite: number;
-    total: number;
-  };
-};
+export type StreamUsage = MessageUsage;
 
 // ─── 流式消息（扩展 Message） ──────────────────────────────────────
 

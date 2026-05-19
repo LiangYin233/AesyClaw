@@ -47,6 +47,7 @@ export type DesktopHistoryMessage = {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
+  usage?: DesktopUsage;
 };
 
 export type DesktopUploadFile = {

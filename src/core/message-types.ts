@@ -102,9 +102,25 @@ export type SendFn = (message: Message) => Promise<void>;
 
 // ─── 持久化 ────────────────────────────────────────────────────────
 
+export type MessageUsage = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  cost?: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+};
+
 /** 持久化到数据库的消息记录 */
 export type PersistableMessage = {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
+  usage?: MessageUsage;
 };

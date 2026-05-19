@@ -109,6 +109,7 @@ export function createUserMessage(content: string, timestamp: number = Date.now(
 export function createPersistedAssistantMessage(
   content: string,
   timestamp: number = Date.now(),
+  usage: Usage = ZERO_USAGE,
 ): AgentMessage {
   return {
     role: 'assistant',
@@ -116,7 +117,7 @@ export function createPersistedAssistantMessage(
     api: ApiType.OPENAI_RESPONSES,
     provider: 'persisted-history',
     model: 'persisted-history',
-    usage: ZERO_USAGE,
+    usage,
     stopReason: 'stop',
     timestamp,
   };

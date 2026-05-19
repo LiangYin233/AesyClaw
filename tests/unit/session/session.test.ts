@@ -75,6 +75,92 @@ describe('Session.syncFromAgent', () => {
     expect(compactLog?.details).toContain("totalTokens: '5/128000'");
   });
 
+  it('restores persisted assistant usage when binding history', async () => {
+    const usage = {
+      input: 80,
+      output: 40,
+      cacheRead: 8,
+      cacheWrite: 4,
+      totalTokens: 132,
+      cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+    };
+    const messagesRepo = {
+      save: vi.fn().mockResolvedValue(undefined),
+      loadHistory: vi
+        .fn()
+        .mockResolvedValue([
+          {
+            role: 'assistant',
+            content: 'persisted reply',
+            timestamp: '2026-05-19T00:00:00.000Z',
+            usage,
+          },
+        ]),
+      clearHistory: vi.fn().mockResolvedValue(undefined),
+      replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const sessionKey: SessionKey = {
+      channel: 'channel-1',
+      type: 'private',
+      chatId: 'chat-1',
+    };
+    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+
+    await session.bind();
+
+    expect(session.get()).toHaveLength(1);
+    expect(session.get()[0]).toMatchObject({
+      role: 'assistant',
+      usage,
+    });
+  });
+
+  it('persists assistant usage when syncing agent messages', async () => {
+    const usage = {
+      input: 90,
+      output: 30,
+      cacheRead: 9,
+      cacheWrite: 3,
+      totalTokens: 132,
+      cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+    };
+    const messagesRepo = {
+      save: vi.fn().mockResolvedValue(undefined),
+      loadHistory: vi.fn().mockResolvedValue([]),
+      clearHistory: vi.fn().mockResolvedValue(undefined),
+      replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const sessionKey: SessionKey = {
+      channel: 'channel-1',
+      type: 'private',
+      chatId: 'chat-1',
+    };
+    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+
+    await session.syncFromAgent([
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'reply with usage' }],
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage,
+        stopReason: 'stop',
+      } as AgentMessage,
+    ]);
+
+    expect(messagesRepo.save).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'reply with usage',
+        usage,
+      }),
+    );
+  });
+
   it('removes ghost tool calls before storing assistant text', async () => {
     const messagesRepo = {
       save: vi.fn().mockResolvedValue(undefined),

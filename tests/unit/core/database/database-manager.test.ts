@@ -6,6 +6,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   findOrCreateSession,
@@ -38,6 +41,7 @@ import {
   markCronRunsAbandoned,
   findRunningCronRuns,
 } from '../../../../src/core/database/repositories/cron-repository';
+import { DatabaseManager } from '../../../../src/core/database/database-manager';
 import type { SessionKey, PersistableMessage } from '../../../../src/core/types';
 
 // Helper to create an in-memory test database with schema
@@ -59,7 +63,8 @@ function createTestDb() {
       session_id TEXT NOT NULL REFERENCES sessions(id),
       role TEXT NOT NULL,
       content TEXT NOT NULL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      usage_json TEXT
     );
     CREATE TABLE role_bindings (
       session_id TEXT PRIMARY KEY REFERENCES sessions(id),
@@ -108,6 +113,53 @@ function createTestDb() {
 }
 
 describe('Database Layer', () => {
+  describe('DatabaseManager migrations', () => {
+    let tempDir: string | undefined;
+
+    afterEach(() => {
+      if (tempDir) {
+        rmSync(tempDir, { recursive: true, force: true });
+        tempDir = undefined;
+      }
+    });
+
+    it('adds usage_json to existing messages tables', async () => {
+      tempDir = mkdtempSync(join(tmpdir(), 'aesyclaw-db-'));
+      const dbPath = join(tempDir, 'old.sqlite');
+      const oldDb = new DatabaseSync(dbPath);
+      oldDb.exec(`
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          channel TEXT NOT NULL,
+          type TEXT NOT NULL,
+          chat_id TEXT NOT NULL,
+          UNIQUE(channel, type, chat_id)
+        );
+        CREATE TABLE messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id TEXT NOT NULL REFERENCES sessions(id),
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      oldDb.close();
+
+      const manager = new DatabaseManager();
+      await manager.initialize(dbPath);
+
+      try {
+        const columns = manager.getDb().prepare('PRAGMA table_info(messages)').all() as Array<{
+          name: string;
+        }>;
+
+        expect(columns.map((column) => column.name)).toContain('usage_json');
+      } finally {
+        await manager.destroy();
+      }
+    });
+  });
+
   // ─── Session Repository Functions ────────────────────────────────
 
   describe('SessionRepository', () => {
@@ -190,6 +242,32 @@ describe('Database Layer', () => {
       expect(history[0].content).toBe('Hello');
       expect(history[1].role).toBe('assistant');
       expect(history[1].content).toBe('Hi there');
+    });
+
+    it('should save and load assistant message usage', async () => {
+      const usage = {
+        input: 100,
+        output: 50,
+        cacheRead: 10,
+        cacheWrite: 5,
+        totalTokens: 165,
+        cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+      };
+
+      await saveMessage(db, sessionId, {
+        role: 'assistant',
+        content: 'Usage-bearing response',
+        usage,
+      });
+
+      const history = await loadMessageHistory(db, sessionId);
+      expect(history).toEqual([
+        expect.objectContaining({
+          role: 'assistant',
+          content: 'Usage-bearing response',
+          usage,
+        }),
+      ]);
     });
 
     it('should clear history', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { getSessions } from '../../../src/web/services/sessions';
+import { getSessionMessages, getSessions } from '../../../src/web/services/sessions';
 
 function createDeps(
   messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp?: string }>,
@@ -55,6 +55,42 @@ describe('web session service', () => {
       expect.objectContaining({
         title: 'desktop-chat-id',
         messageCount: 1,
+      }),
+    ]);
+  });
+
+  it('returns persisted assistant usage with session messages', async () => {
+    const usage = {
+      input: 100,
+      output: 50,
+      cacheRead: 10,
+      cacheWrite: 5,
+      totalTokens: 165,
+      cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+    };
+    const deps = {
+      databaseManager: {
+        sessions: {
+          findById: vi.fn(async () => ({
+            id: 'session-db-id',
+            channel: 'desktop',
+            type: 'private',
+            chatId: 'desktop-chat-id',
+          })),
+        },
+        messages: {
+          loadHistory: vi.fn(async () => [
+            { role: 'assistant', content: 'Historical reply', usage },
+          ]),
+        },
+      },
+    } as unknown as Parameters<typeof getSessionMessages>[0];
+
+    await expect(getSessionMessages(deps, 'session-db-id')).resolves.toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Historical reply',
+        usage,
       }),
     ]);
   });

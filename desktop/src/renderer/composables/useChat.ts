@@ -135,7 +135,7 @@ function useChatImpl() {
       (message): UserMessage | AssistantMessage => {
         const text = stripInformationTags(message.content);
         return message.role === 'assistant'
-          ? { role: 'assistant', text, streaming: false }
+          ? { role: 'assistant', text, streaming: false, usage: message.usage }
           : { role: 'user', text };
       },
     );

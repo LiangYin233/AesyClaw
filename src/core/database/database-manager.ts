@@ -249,7 +249,8 @@ export class DatabaseManager {
         session_id TEXT NOT NULL REFERENCES sessions(id),
         role       TEXT NOT NULL,
         content    TEXT NOT NULL,
-        timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
+        timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        usage_json TEXT
       );
 
       CREATE TABLE IF NOT EXISTS role_bindings (
@@ -299,5 +300,15 @@ export class DatabaseManager {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    this.ensureMessageUsageColumn();
+  }
+
+  private ensureMessageUsageColumn(): void {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    const rows = this.db.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>;
+    if (!rows.some((row) => row.name === 'usage_json')) {
+      this.db.exec('ALTER TABLE messages ADD COLUMN usage_json TEXT');
+    }
   }
 }

@@ -32,6 +32,7 @@ export type {
   SenderInfo,
   SendFn,
   PersistableMessage,
+  MessageUsage,
 } from './message-types';
 
 export { getMessageText } from './message-types';
