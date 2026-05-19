@@ -23,6 +23,7 @@ export type DesktopSessionSummary = {
   type: string;
   chatId: string;
   title?: string;
+  firstUserMessage?: string;
   messageCount?: number;
   lastActivity?: string;
 };

@@ -2,11 +2,8 @@
 
 import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
 
-const INFORMATION_TAG_RE = /<information\b[^>]*>[\s\S]*?<\/information>/gi;
-
 function makeSessionTitle(text: string, fallback: string): string {
-  const cleaned = text.replace(INFORMATION_TAG_RE, '').replace(/\s+/g, ' ').trim();
-  const source = cleaned.length > 0 ? cleaned : fallback;
+  const source = text.length > 0 ? text : fallback;
   return source.slice(0, 30);
 }
 

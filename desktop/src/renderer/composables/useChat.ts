@@ -4,8 +4,12 @@
  */
 
 import { ref } from 'vue';
-import { makeSessionTitle } from '../utils/title';
-import type { ChatMessageEvent, DesktopHistoryMessage, DesktopSessionSummary } from '../../preload/index';
+import { makeSessionTitle, stripInformationTags } from '../utils/title';
+import type {
+  ChatMessageEvent,
+  DesktopHistoryMessage,
+  DesktopSessionSummary,
+} from '../../preload/index';
 
 export type ToolCallState = {
   toolCallId: string;
@@ -73,7 +77,9 @@ function useChatImpl() {
     const response = await window.aesyclaw.adminRequest('get_sessions');
     if (!response.ok || !Array.isArray(response.data)) return;
 
-    const summaries = (response.data as DesktopSessionSummary[]).filter((session) => session.channel === 'desktop');
+    const summaries = (response.data as DesktopSessionSummary[]).filter(
+      (session) => session.channel === 'desktop',
+    );
     lastBackendSummaries.clear();
     for (const summary of summaries) {
       lastBackendSummaries.set(summary.chatId, summary);
@@ -82,7 +88,9 @@ function useChatImpl() {
     const synced: ChatSession[] = [];
 
     for (const summary of summaries) {
-      const local = existing.get(summary.chatId) ?? createEmptySession(summary.chatId, getSessionTitle(summary));
+      const local =
+        existing.get(summary.chatId) ??
+        createEmptySession(summary.chatId, getSessionTitle(summary));
       local.title = getSessionTitle(summary);
       synced.push(local);
       existing.delete(summary.chatId);
@@ -95,7 +103,10 @@ function useChatImpl() {
     }
 
     sessions.value = synced;
-    if (activeSessionId.value && !sessions.value.some((session) => session.id === activeSessionId.value)) {
+    if (
+      activeSessionId.value &&
+      !sessions.value.some((session) => session.id === activeSessionId.value)
+    ) {
       activeSessionId.value = sessions.value[0]?.id ?? null;
     } else {
       activeSessionId.value ??= sessions.value[0]?.id ?? null;
@@ -111,11 +122,14 @@ function useChatImpl() {
     const response = await window.aesyclaw.adminRequest('get_messages', { sessionId: summary.id });
     if (!response.ok || !Array.isArray(response.data)) return;
 
-    session.messages = (response.data as DesktopHistoryMessage[]).map((message): UserMessage | AssistantMessage => (
-      message.role === 'assistant'
-        ? { role: 'assistant', text: message.content, streaming: false }
-        : { role: 'user', text: message.content }
-    ));
+    session.messages = (response.data as DesktopHistoryMessage[]).map(
+      (message): UserMessage | AssistantMessage => {
+        const text = stripInformationTags(message.content);
+        return message.role === 'assistant'
+          ? { role: 'assistant', text, streaming: false }
+          : { role: 'user', text };
+      },
+    );
     session.activeAssistantMessage = null;
   }
 
@@ -200,7 +214,10 @@ function useChatImpl() {
   }
 
   function getSessionTitle(summary: DesktopSessionSummary): string {
-    return makeSessionTitle(summary.title ?? summary.chatId ?? summary.id, summary.chatId ?? summary.id);
+    return makeSessionTitle(
+      summary.firstUserMessage ?? summary.title ?? summary.chatId ?? summary.id,
+      summary.chatId ?? summary.id,
+    );
   }
 
   function findBackendSummary(chatId: string): DesktopSessionSummary | null {
