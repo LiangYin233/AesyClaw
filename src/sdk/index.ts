@@ -37,7 +37,13 @@ export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-regi
 
 export type { HookCtx, HookResult, Middleware, HookRegistration } from '@aesyclaw/hook';
 
-export type { StreamEventType, StreamMessage, OnStreamEvent, StreamEventMeta } from '@aesyclaw/core/stream-types';
+export type {
+  StreamEventType,
+  StreamMessage,
+  OnStreamEvent,
+  StreamEventMeta,
+  StreamUsage,
+} from '@aesyclaw/core/stream-types';
 
 export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';

@@ -48,6 +48,7 @@ const runnerMock = vi.hoisted(() => {
     rawToolResult?: unknown;
     toolResult?: unknown;
     afterToolCallCalls: Array<{ result: unknown; override: unknown }> = [];
+    listeners: Array<(event: { type: string; messages?: unknown[] }) => void> = [];
     abort = vi.fn(() => {
       this.abortController.abort();
     });
@@ -58,6 +59,13 @@ const runnerMock = vi.hoisted(() => {
       this.options = options;
       this.state = { messages: [...options.initialState.messages] };
       instances.push(this);
+    }
+
+    subscribe(listener: (event: { type: string; messages?: unknown[] }) => void): () => void {
+      this.listeners.push(listener);
+      return () => {
+        this.listeners = this.listeners.filter((item) => item !== listener);
+      };
     }
 
     async prompt(content: string): Promise<void> {
@@ -103,6 +111,9 @@ const runnerMock = vi.hoisted(() => {
       ],
     ): void {
       this.state.messages = [...this.options.initialState.messages, ...newMessages];
+      for (const listener of this.listeners) {
+        listener({ type: 'agent_end', messages: this.state.messages });
+      }
       this.promptDeferred.resolve();
     }
   }
@@ -303,6 +314,32 @@ describe('agent runner', () => {
 
     await expect(turn).resolves.toMatchObject({ lastAssistant: 'ok' });
     expect(runnerMock.instances[0]?.waitForIdle).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits final assistant usage on done stream events', async () => {
+    const onEvent = vi.fn();
+    const usage = {
+      input: 120,
+      output: 45,
+      cacheRead: 10,
+      cacheWrite: 5,
+      totalTokens: 180,
+      cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+    };
+    const turn = runAgentTask(makeRunParams({ onEvent }));
+    await Promise.resolve();
+
+    runnerMock.instances[0]?.finish([
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'usage done' }],
+        stopReason: 'stop',
+        usage,
+      },
+    ]);
+
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'usage done' });
+    expect(onEvent).toHaveBeenCalledWith({ type: 'done', usage });
   });
 
   it('keeps OpenAI-compatible prompt cache defaults', async () => {

@@ -1,4 +1,10 @@
-import type { CommandContext, RoleConfig, Message, SessionKey, StreamEventMeta } from '@aesyclaw/core/types';
+import type {
+  CommandContext,
+  RoleConfig,
+  Message,
+  SessionKey,
+  StreamEventMeta,
+} from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
@@ -411,6 +417,7 @@ function streamEventMetaToMessage(meta: StreamEventMeta): StreamMessage {
       return {
         components: [],
         event: 'done',
+        usage: meta.usage,
       };
   }
 }

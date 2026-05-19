@@ -24,7 +24,12 @@ import {
   type AgentToolResult,
   type ResolvedModel,
 } from '../agent-types';
-import { serializeSessionKey, type SessionKey, type StreamEventMeta } from '@aesyclaw/core/types';
+import {
+  serializeSessionKey,
+  type SessionKey,
+  type StreamEventMeta,
+  type StreamUsage,
+} from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from '../llm-cache-options';
 
 const logger = createScopedLogger('agent-runner');
@@ -95,6 +100,59 @@ function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string
     lastAssistantErrorMessage: record['errorMessage'],
     lastAssistantTextLength: extractAssistantText(finalAssistant).length,
   };
+}
+
+function getFinalAssistantUsage(messages: readonly AgentMessage[]): StreamUsage | undefined {
+  const finalAssistant = findFinalAssistant(messages);
+  if (!finalAssistant) return undefined;
+  const usage = (finalAssistant as unknown as { usage?: unknown }).usage;
+  if (!isPlainRecord(usage)) return undefined;
+
+  const input = numberField(usage, 'input');
+  const output = numberField(usage, 'output');
+  const cacheRead = numberField(usage, 'cacheRead');
+  const cacheWrite = numberField(usage, 'cacheWrite');
+  const totalTokens = numberField(usage, 'totalTokens');
+  if (
+    input === undefined ||
+    output === undefined ||
+    cacheRead === undefined ||
+    cacheWrite === undefined ||
+    totalTokens === undefined
+  ) {
+    return undefined;
+  }
+
+  const result: StreamUsage = { input, output, cacheRead, cacheWrite, totalTokens };
+  const cost = usage['cost'];
+  if (isPlainRecord(cost)) {
+    const inputCost = numberField(cost, 'input');
+    const outputCost = numberField(cost, 'output');
+    const cacheReadCost = numberField(cost, 'cacheRead');
+    const cacheWriteCost = numberField(cost, 'cacheWrite');
+    const totalCost = numberField(cost, 'total');
+    if (
+      inputCost !== undefined &&
+      outputCost !== undefined &&
+      cacheReadCost !== undefined &&
+      cacheWriteCost !== undefined &&
+      totalCost !== undefined
+    ) {
+      result.cost = {
+        input: inputCost,
+        output: outputCost,
+        cacheRead: cacheReadCost,
+        cacheWrite: cacheWriteCost,
+        total: totalCost,
+      };
+    }
+  }
+  return result;
+}
+
+function numberField(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 export function limitToolResultContent<T extends AgentToolResult>(
@@ -392,7 +450,7 @@ function convertAgentEvent(event: AgentEvent, chunkIndex: number): StreamEventMe
         isError: event.isError,
       };
     case 'agent_end':
-      return { type: 'done' };
+      return { type: 'done', usage: getFinalAssistantUsage(event.messages) };
     default:
       return null;
   }

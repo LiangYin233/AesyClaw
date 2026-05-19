@@ -46,6 +46,38 @@
                   {{ attachmentIcon(file.mime) }} {{ file.name }}
                 </span>
               </div>
+              <div class="message-footer">
+                <span class="message-usage">Usage: —</span>
+                <div class="message-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="copy-btn"
+                    aria-haspopup="menu"
+                    :aria-expanded="activeCopyMenuIndex === i"
+                    @click="toggleCopyMenu(i)"
+                  >
+                    {{ copyButtonLabel(i) }}
+                  </button>
+                  <div v-if="activeCopyMenuIndex === i" class="copy-menu" role="menu">
+                    <button
+                      type="button"
+                      class="copy-menu-item"
+                      role="menuitem"
+                      @click="copyMessage(msg, i, 'rich')"
+                    >
+                      复制富文本
+                    </button>
+                    <button
+                      type="button"
+                      class="copy-menu-item"
+                      role="menuitem"
+                      @click="copyMessage(msg, i, 'raw')"
+                    >
+                      复制原文
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -54,6 +86,38 @@
             <div v-if="msg.text" class="assistant-bubble" :class="{ streaming: msg.streaming }">
               <div class="rendered-content" v-html="renderMarkdownSafe(msg.text)"></div>
               <span v-if="msg.streaming" class="cursor">|</span>
+              <div class="message-footer">
+                <span class="message-usage">{{ formatUsage(msg.usage) }}</span>
+                <div class="message-actions" @click.stop>
+                  <button
+                    type="button"
+                    class="copy-btn"
+                    aria-haspopup="menu"
+                    :aria-expanded="activeCopyMenuIndex === i"
+                    @click="toggleCopyMenu(i)"
+                  >
+                    {{ copyButtonLabel(i) }}
+                  </button>
+                  <div v-if="activeCopyMenuIndex === i" class="copy-menu" role="menu">
+                    <button
+                      type="button"
+                      class="copy-menu-item"
+                      role="menuitem"
+                      @click="copyMessage(msg, i, 'rich')"
+                    >
+                      复制富文本
+                    </button>
+                    <button
+                      type="button"
+                      class="copy-menu-item"
+                      role="menuitem"
+                      @click="copyMessage(msg, i, 'raw')"
+                    >
+                      复制原文
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -154,9 +218,9 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
-import { useChat } from '../composables/useChat';
+import { useChat, type AssistantMessage, type UserMessage } from '../composables/useChat';
 import { renderMarkdownSafe } from '../utils/renderContent';
-import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
+import type { ChatMessageEvent, DesktopUploadFile, DesktopUsage } from '../../preload/index';
 
 const {
   sessions,
@@ -176,6 +240,12 @@ const selectedFiles = ref<File[]>([]);
 const canSend = computed(() => inputText.value.trim().length > 0 || selectedFiles.value.length > 0);
 let unsubscribeChat: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
+type CopyMode = 'rich' | 'raw';
+type CopyableMessage = AssistantMessage | UserMessage;
+
+const copiedState = ref<{ messageIndex: number; mode: CopyMode } | null>(null);
+const activeCopyMenuIndex = ref<number | null>(null);
+let copiedStateTimer: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(() => {
   unsubscribeStatus = window.aesyclaw.onStatusChange((status) => {
@@ -191,11 +261,15 @@ onMounted(() => {
     if (event.type === 'done') void syncSessionsFromBackend();
     scrollToBottom();
   });
+
+  document.addEventListener('click', closeCopyMenu);
 });
 
 onUnmounted(() => {
   unsubscribeChat?.();
   unsubscribeStatus?.();
+  if (copiedStateTimer) clearTimeout(copiedStateTimer);
+  document.removeEventListener('click', closeCopyMenu);
 });
 
 async function syncAndLoadActiveSession() {
@@ -264,6 +338,141 @@ function attachmentIcon(mime: string): string {
   if (mime.startsWith('audio/')) return '🎵';
   if (mime.startsWith('video/')) return '🎞️';
   return '📎';
+}
+
+function formatUsage(usage?: DesktopUsage): string {
+  if (!usage) return 'Usage: —';
+  return `Usage: ${formatNumber(usage.totalTokens)} tokens`;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat().format(value);
+}
+
+function copyButtonLabel(messageIndex: number): string {
+  return copiedState.value?.messageIndex === messageIndex ? '已复制' : '复制';
+}
+
+function toggleCopyMenu(messageIndex: number): void {
+  activeCopyMenuIndex.value = activeCopyMenuIndex.value === messageIndex ? null : messageIndex;
+}
+
+function closeCopyMenu(): void {
+  activeCopyMenuIndex.value = null;
+}
+
+async function copyMessage(
+  message: CopyableMessage,
+  messageIndex: number,
+  mode: CopyMode,
+): Promise<void> {
+  const plainText = formatMessagePlainText(message);
+  if (mode === 'rich') {
+    await writeRichClipboard(buildMessageHtml(message), plainText);
+  } else {
+    await writeTextClipboard(plainText);
+  }
+
+  activeCopyMenuIndex.value = null;
+  copiedState.value = { messageIndex, mode };
+  if (copiedStateTimer) clearTimeout(copiedStateTimer);
+  copiedStateTimer = setTimeout(() => {
+    copiedState.value = null;
+  }, 1600);
+}
+
+async function writeRichClipboard(html: string, plainText: string): Promise<void> {
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        }),
+      ]);
+      return;
+    } catch {
+      // Fall back to plain text below when rich clipboard is unavailable.
+    }
+  }
+
+  await writeTextClipboard(plainText);
+}
+
+async function writeTextClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back to execCommand below.
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  textarea.remove();
+}
+
+function formatMessagePlainText(message: CopyableMessage): string {
+  if (message.role === 'assistant') return message.text;
+
+  const parts = [message.text.trim()];
+  if (message.attachments?.length) {
+    parts.push(
+      [
+        '[Attachments]',
+        ...message.attachments.map(
+          (file) =>
+            `- ${file.name} (${file.mime || 'application/octet-stream'}, ${formatFileSize(file.size)})`,
+        ),
+      ].join('\n'),
+    );
+  }
+  return parts.filter(Boolean).join('\n\n');
+}
+
+function buildMessageHtml(message: CopyableMessage): string {
+  if (message.role === 'assistant') return renderMarkdownSafe(message.text);
+
+  const parts: string[] = [];
+  if (message.text.trim()) {
+    parts.push(`<p>${escapeHtml(message.text).replace(/\n/g, '<br>')}</p>`);
+  }
+
+  if (message.attachments?.length) {
+    parts.push(
+      `<ul>${message.attachments
+        .map(
+          (file) =>
+            `<li>${escapeHtml(file.name)} (${escapeHtml(file.mime || 'application/octet-stream')}, ${formatFileSize(file.size)})</li>`,
+        )
+        .join('')}</ul>`,
+    );
+  }
+
+  return parts.join('');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function scrollToBottom() {
@@ -430,6 +639,101 @@ function scrollToBottom() {
   line-height: 1.6;
   background: var(--color-primary);
   color: #fff;
+}
+
+.message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.assistant-bubble .message-footer {
+  justify-content: space-between;
+}
+
+.message-usage {
+  color: #8a8171;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.user-bubble .message-usage {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  position: relative;
+}
+
+.copy-btn {
+  min-width: 44px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  line-height: 1.5;
+  transition: all var(--transition-fast);
+}
+
+.user-bubble .copy-btn {
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.user-bubble .copy-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.assistant-bubble .copy-btn {
+  color: #7a705e;
+  background: #f8f4ea;
+  border: 1px solid #e6dece;
+}
+
+.assistant-bubble .copy-btn:hover {
+  color: #4a4235;
+  background: #f1eadc;
+}
+
+.copy-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  min-width: 112px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 6px 18px rgba(20, 20, 19, 0.12);
+}
+
+.copy-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-dark);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.copy-menu-item:hover {
+  background: #f7f0ea;
 }
 
 .assistant-bubble {

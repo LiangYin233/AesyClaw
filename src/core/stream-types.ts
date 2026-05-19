@@ -10,6 +10,21 @@ import type { Message } from './message-types';
 
 export type StreamEventType = 'chunk' | 'toolCall' | 'toolResult' | 'done' | 'error';
 
+export type StreamUsage = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  cost?: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+};
+
 // ─── 流式消息（扩展 Message） ──────────────────────────────────────
 
 /**
@@ -32,6 +47,8 @@ export type StreamMessage = Message & {
   errorMessage?: string;
   /** 文本块的序号，从 0 递增，供前端按序拼接 */
   chunkIndex?: number;
+  /** 本轮最终 assistant 消息的 token/cost 用量，仅 done 事件携带 */
+  usage?: StreamUsage;
 };
 
 // ─── 流式事件回调 ──────────────────────────────────────────────────
@@ -58,4 +75,6 @@ export type StreamEventMeta = {
   result?: unknown;
   /** toolResult: 是否出错 */
   isError?: boolean;
+  /** done 类型时: 最终 assistant 消息的 token/cost 用量 */
+  usage?: StreamUsage;
 };

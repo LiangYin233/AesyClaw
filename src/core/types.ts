@@ -110,4 +110,5 @@ export type {
   StreamMessage,
   OnStreamEvent,
   StreamEventMeta,
+  StreamUsage,
 } from './stream-types';

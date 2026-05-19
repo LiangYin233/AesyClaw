@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { timingSafeEqual } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import nodePath from 'node:path';
 import { createScopedLogger } from '@aesyclaw/sdk';
 import { DesktopSessionManager, type DesktopConnection } from './session-manager';
 import type {
@@ -177,6 +177,7 @@ export class DesktopServer {
         conn.sendJson({
           type: 'done',
           sessionId,
+          usage: streamMsg.usage,
         } satisfies DesktopOutboundMessage);
         break;
       case 'error':
@@ -420,15 +421,12 @@ export class DesktopServer {
 
     // 合并所有分片并保存到媒体目录
     const fileData = Buffer.concat(buffer.chunks);
-    const mediaDir = path.join(
-      this.options.context.paths.mediaDir,
-      'desktop',
-      sanitizePathSegment(buffer.sessionId),
-    );
+    const baseMediaDir = this.options.context.paths.mediaDir;
+    const mediaDir = nodePath.join(baseMediaDir, 'desktop', sanitizePathSegment(buffer.sessionId));
     mkdirSync(mediaDir, { recursive: true });
 
-    const filePath = path.join(mediaDir, `${randomUUID()}-${sanitizeFileName(buffer.name)}`);
-    writeFileSync(filePath, fileData);
+    const targetFile = nodePath.join(mediaDir, `${randomUUID()}-${sanitizeFileName(buffer.name)}`);
+    writeFileSync(targetFile, fileData);
 
     conn.completedFiles.set(msg.fileId, {
       fileId: msg.fileId,
@@ -436,13 +434,13 @@ export class DesktopServer {
       name: buffer.name,
       mime: buffer.mime,
       size: fileData.length,
-      filePath,
+      filePath: targetFile,
     });
 
     this.logger.info('文件接收完成', {
       fileId: msg.fileId,
       name: buffer.name,
-      path: filePath,
+      path: targetFile,
       size: fileData.length,
     });
 

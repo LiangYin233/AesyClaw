@@ -10,6 +10,7 @@ import type {
   DesktopHistoryMessage,
   DesktopSessionSummary,
   DesktopUploadFile,
+  DesktopUsage,
 } from '../../preload/index';
 
 export type ToolCallState = {
@@ -53,6 +54,7 @@ export type AssistantMessage = {
   role: 'assistant';
   text: string;
   streaming: boolean;
+  usage?: DesktopUsage;
 };
 
 export type ToolMessage = {
@@ -201,6 +203,7 @@ function useChatImpl() {
       case 'done': {
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
+          session.activeAssistantMessage.usage = event.usage;
         }
         session.streaming = false;
         session.activeAssistantMessage = null;

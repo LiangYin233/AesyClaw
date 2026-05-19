@@ -11,6 +11,21 @@ import { WebSocket } from 'ws';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 
+export type DesktopUsage = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  cost?: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+};
+
 export type ChatMessage =
   | { type: 'chunk'; sessionId: string; text: string; index: number }
   | { type: 'tool_call'; sessionId: string; toolCallId: string; toolName: string; args: unknown }
@@ -22,7 +37,7 @@ export type ChatMessage =
       result: unknown;
       isError: boolean;
     }
-  | { type: 'done'; sessionId: string }
+  | { type: 'done'; sessionId: string; usage?: DesktopUsage }
   | { type: 'error'; sessionId: string; message: string };
 
 type ChatControlMessage = { type: 'auth'; adminToken: string };

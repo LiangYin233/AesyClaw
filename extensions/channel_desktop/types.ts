@@ -3,7 +3,7 @@
  * 定义 Electron 客户端与 channel_desktop 插件之间的 WebSocket 消息格式。
  */
 
-import type { Message, SessionKey } from '@aesyclaw/sdk';
+import type { Message, SessionKey, StreamUsage } from '@aesyclaw/sdk';
 
 // ─── 上行消息（Electron → AesyClaw）───────────────────────────────
 
@@ -96,6 +96,7 @@ export type DesktopToolResultMessage = {
 export type DesktopDoneMessage = {
   type: 'done';
   sessionId: string;
+  usage?: StreamUsage;
 };
 
 /** 错误 */

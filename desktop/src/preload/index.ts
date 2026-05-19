@@ -3,6 +3,21 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopConnectionConfig } from '../shared/connection';
 
+export type DesktopUsage = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  cost?: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+};
+
 export type ChatMessageEvent =
   | { type: 'chunk'; sessionId: string; text: string; index: number }
   | { type: 'tool_call'; sessionId: string; toolCallId: string; toolName: string; args: unknown }
@@ -14,7 +29,7 @@ export type ChatMessageEvent =
       result: unknown;
       isError: boolean;
     }
-  | { type: 'done'; sessionId: string }
+  | { type: 'done'; sessionId: string; usage?: DesktopUsage }
   | { type: 'error'; sessionId: string; message: string };
 
 export type DesktopSessionSummary = {
