@@ -87,39 +87,31 @@
       </div>
     </section>
 
-    <!-- Config -->
-    <section class="card">
-      <h2 class="section-title">Desktop Channel Configuration</h2>
-      <div class="card-body">
-        <p class="hint">Configure the desktop channel in <code>.aesyclaw/config.json</code>:</p>
-        <pre class="config-block">
-{
-  "channels": {
-    "desktop": {
-      "enabled": true,
-      "port": 9730,
-      "host": "127.0.0.1"
-    }
-  }
-}</pre
-        >
-        <p class="hint">
-          Advanced configuration — including roles, tools, skills, and providers — is managed
-          through the AesyClaw web dashboard at the admin server.
-        </p>
-      </div>
-    </section>
+    <!-- Server Configuration -->
+    <ConfigSectionEditor
+      section-key="channels"
+      title="Channels"
+      subtitle="Configure channel adapters and runtime options through the Desktop admin connection."
+      :admin-ready="adminReady"
+    />
+    <ConfigSectionEditor
+      section-key="plugins"
+      title="Plugins"
+      subtitle="Manage configured plugins and their option payloads through the Desktop admin connection."
+      :admin-ready="adminReady"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import {
   DEFAULT_CONNECTION_CONFIG,
   isValidConnectionHost,
   type DesktopConnectionConfig,
 } from '../../shared/connection';
 import type { ConnectionStatus } from '../../preload/index';
+import ConfigSectionEditor from '../components/ConfigSectionEditor.vue';
 
 const status = ref<ConnectionStatus>({ chat: 'disconnected', admin: 'disconnected' });
 const connection = ref<DesktopConnectionConfig>({ ...DEFAULT_CONNECTION_CONFIG });
@@ -127,6 +119,7 @@ const connectionForm = ref<DesktopConnectionConfig>({ ...connection.value });
 const connectionError = ref('');
 const savingConnection = ref(false);
 let unsubscribeStatus: (() => void) | null = null;
+const adminReady = computed(() => status.value.admin === 'connected');
 
 onMounted(async () => {
   status.value = await window.aesyclaw.getStatus();
@@ -135,7 +128,6 @@ onMounted(async () => {
   unsubscribeStatus = window.aesyclaw.onStatusChange((s) => {
     status.value = s;
   });
-
 });
 
 onUnmounted(() => {
@@ -374,26 +366,5 @@ function statusLabel(s: string): string {
 }
 .hint:last-child {
   margin-bottom: 0;
-}
-.hint code {
-  font-family: 'SF Mono', 'Menlo', monospace;
-  background: #f5f3ef;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--color-dark);
-}
-
-.config-block {
-  font-family: 'SF Mono', 'Menlo', monospace;
-  font-size: 12px;
-  background: #fdfbf8;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  margin: 8px 0 16px;
-  color: var(--color-dark);
-  line-height: 1.6;
-  overflow-x: auto;
 }
 </style>
