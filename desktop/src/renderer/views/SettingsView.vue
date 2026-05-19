@@ -87,27 +87,6 @@
       </div>
     </section>
 
-    <!-- Server Info -->
-    <section class="card">
-      <h2 class="section-title">Server Information</h2>
-      <div v-if="loading" class="card-body">
-        <span class="dim-text">Loading…</span>
-      </div>
-      <div v-else-if="serverInfo" class="card-body">
-        <div class="info-row">
-          <span class="info-label">Application</span>
-          <span class="info-value">{{ serverInfo.appName ?? '-' }}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Version</span>
-          <span class="info-value">{{ serverInfo.version ?? '-' }}</span>
-        </div>
-      </div>
-      <div v-else class="card-body">
-        <span class="dim-text">Unable to reach AesyClaw server</span>
-      </div>
-    </section>
-
     <!-- Config -->
     <section class="card">
       <h2 class="section-title">Desktop Channel Configuration</h2>
@@ -147,8 +126,6 @@ const connection = ref<DesktopConnectionConfig>({ ...DEFAULT_CONNECTION_CONFIG }
 const connectionForm = ref<DesktopConnectionConfig>({ ...connection.value });
 const connectionError = ref('');
 const savingConnection = ref(false);
-const serverInfo = ref<Record<string, string> | null>(null);
-const loading = ref(true);
 let unsubscribeStatus: (() => void) | null = null;
 
 onMounted(async () => {
@@ -159,15 +136,6 @@ onMounted(async () => {
     status.value = s;
   });
 
-  try {
-    const res = await window.aesyclaw.adminRequest('status');
-    if (res.ok && res.data) {
-      serverInfo.value = res.data as Record<string, string>;
-    }
-  } catch {
-    /* server unavailable */
-  }
-  loading.value = false;
 });
 
 onUnmounted(() => {
@@ -397,13 +365,6 @@ function statusLabel(s: string): string {
 }
 
 /* ── Misc ────────────────────────────── */
-.dim-text {
-  font-family: var(--font-body);
-  font-style: italic;
-  color: var(--color-mid-gray);
-  font-size: 14px;
-}
-
 .hint {
   font-family: var(--font-body);
   font-size: 13px;
