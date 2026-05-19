@@ -342,6 +342,35 @@ describe('agent runner', () => {
     expect(onEvent).toHaveBeenCalledWith({ type: 'done', usage });
   });
 
+  it('omits usage for intermediate assistant tool-call messages', async () => {
+    const onEvent = vi.fn();
+    const usage = {
+      input: 120,
+      output: 45,
+      cacheRead: 10,
+      cacheWrite: 5,
+      totalTokens: 180,
+      cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+    };
+    const turn = runAgentTask(makeRunParams({ onEvent }));
+    await Promise.resolve();
+
+    runnerMock.instances[0]?.finish([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'checking' },
+          { type: 'toolCall', id: 'call-1', name: 'lookup', arguments: {} },
+        ],
+        stopReason: 'tool_calls',
+        usage,
+      },
+    ]);
+
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'checking' });
+    expect(onEvent).toHaveBeenCalledWith({ type: 'done', usage: undefined });
+  });
+
   it('keeps OpenAI-compatible prompt cache defaults', async () => {
     const turn = runAgentTask(makeRunParams());
     await Promise.resolve();

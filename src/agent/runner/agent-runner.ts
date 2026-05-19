@@ -18,6 +18,7 @@ import {
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry, AgentRunHandle } from '../agent-registry';
 import {
+  assistantHasToolCalls,
   extractMessageText,
   type AgentMessage,
   type AgentTool,
@@ -104,7 +105,7 @@ function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string
 
 function getFinalAssistantUsage(messages: readonly AgentMessage[]): StreamUsage | undefined {
   const finalAssistant = findFinalAssistant(messages);
-  if (!finalAssistant) return undefined;
+  if (!finalAssistant || assistantHasToolCalls(finalAssistant)) return undefined;
   const usage = (finalAssistant as unknown as { usage?: unknown }).usage;
   if (!isPlainRecord(usage)) return undefined;
 

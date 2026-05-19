@@ -523,6 +523,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import ToggleSwitch from './ToggleSwitch.vue';
+import { toIpcCloneable } from '../../shared/ipc-clone';
 
 interface PluginEntry extends Record<string, unknown> {
   name: string;
@@ -687,8 +688,9 @@ async function saveSection(): Promise<void> {
   error.value = '';
   feedback.value = '';
   try {
-    await requestAdmin('update_config', { [props.sectionKey]: sectionValue.value });
-    updateCachedConfigSection(props.sectionKey, sectionValue.value);
+    const plainSectionValue = toIpcCloneable(sectionValue.value);
+    await requestAdmin('update_config', { [props.sectionKey]: plainSectionValue });
+    updateCachedConfigSection(props.sectionKey, plainSectionValue);
     feedbackType.value = 'success';
     feedback.value = `${props.title} configuration saved`;
   } catch (err) {

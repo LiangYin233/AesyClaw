@@ -47,7 +47,6 @@
                 </span>
               </div>
               <div class="message-footer">
-                <span class="message-usage">Usage: —</span>
                 <div class="message-actions" @click.stop>
                   <button
                     type="button"
@@ -87,7 +86,9 @@
               <div class="rendered-content" v-html="renderMarkdownSafe(msg.text)"></div>
               <span v-if="msg.streaming" class="cursor">|</span>
               <div class="message-footer">
-                <span class="message-usage">{{ formatUsage(msg.usage) }}</span>
+                <span v-if="shouldShowUsage(msg)" class="message-usage">{{
+                  formatUsage(msg.usage)
+                }}</span>
                 <div class="message-actions" @click.stop>
                   <button
                     type="button"
@@ -340,8 +341,11 @@ function attachmentIcon(mime: string): string {
   return '📎';
 }
 
-function formatUsage(usage?: DesktopUsage): string {
-  if (!usage) return 'Usage: —';
+function shouldShowUsage(message: AssistantMessage): boolean {
+  return !message.streaming && message.usage !== undefined && message.usage.totalTokens > 0;
+}
+
+function formatUsage(usage: DesktopUsage): string {
   return `Usage: ${formatNumber(usage.totalTokens)} tokens`;
 }
 

@@ -173,6 +173,56 @@ describe('Session.syncFromAgent', () => {
     );
   });
 
+  it('does not persist usage for intermediate assistant tool-call messages', async () => {
+    const usage = {
+      input: 90,
+      output: 30,
+      cacheRead: 9,
+      cacheWrite: 3,
+      totalTokens: 132,
+      cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+    };
+    const messagesRepo = {
+      save: vi.fn().mockResolvedValue(undefined),
+      loadHistory: vi.fn().mockResolvedValue([]),
+      clearHistory: vi.fn().mockResolvedValue(undefined),
+      replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+    };
+    const usageRepo = {
+      create: vi.fn().mockResolvedValue(1),
+      getStats: vi.fn(),
+      getTodaySummary: vi.fn(),
+    };
+
+    const sessionKey: SessionKey = {
+      channel: 'channel-1',
+      type: 'private',
+      chatId: 'chat-1',
+    };
+    const session = new Session('session-1', sessionKey, {
+      messages: messagesRepo,
+      usage: usageRepo,
+    } as never);
+
+    await session.syncFromAgent([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'checking' },
+          { type: 'toolCall', id: 'call-1', name: 'lookup', arguments: {} },
+        ],
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage,
+        stopReason: 'tool_calls',
+      } as unknown as AgentMessage,
+    ]);
+
+    expect(messagesRepo.save).not.toHaveBeenCalled();
+    expect(usageRepo.create).not.toHaveBeenCalled();
+  });
+
   it('removes ghost tool calls before storing assistant text', async () => {
     const messagesRepo = {
       save: vi.fn().mockResolvedValue(undefined),

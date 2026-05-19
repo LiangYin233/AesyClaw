@@ -203,6 +203,7 @@ export class Session {
   private async recordUsageIfApplicable(message: AgentMessage, messageId?: number): Promise<void> {
     if (
       this.db.usage === undefined ||
+      messageId === undefined ||
       message.role !== 'assistant' ||
       message.usage === undefined ||
       message.usage.totalTokens <= 0

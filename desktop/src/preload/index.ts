@@ -2,6 +2,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopConnectionConfig } from '../shared/connection';
+import { toIpcCloneable } from '../shared/ipc-clone';
 
 export type DesktopUsage = {
   input: number;
@@ -86,7 +87,7 @@ const api = {
     return ipcRenderer.invoke('admin:request', {
       type,
       requestId,
-      payload,
+      payload: toIpcCloneable(payload),
     }) as Promise<AdminMessageEvent>;
   },
 
@@ -99,7 +100,10 @@ const api = {
 
   /** 更新 Desktop 连接配置并重连 */
   updateConnectionConfig: (config: DesktopConnectionConfig) =>
-    ipcRenderer.invoke('connection:updateConfig', config) as Promise<DesktopConnectionConfig>,
+    ipcRenderer.invoke(
+      'connection:updateConfig',
+      toIpcCloneable(config),
+    ) as Promise<DesktopConnectionConfig>,
 
   /** 监听聊天消息 */
   onChatMessage: (callback: (msg: ChatMessageEvent) => void): (() => void) => {
