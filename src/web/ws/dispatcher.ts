@@ -178,7 +178,6 @@ function extractToggleData(data: unknown): { name: string; enabled: boolean } {
   return { name: payload.name, enabled: payload.enabled };
 }
 
-
 function extractStringData(data: unknown, key: string): string {
   if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
     const value = (data as Record<string, unknown>)[key];

@@ -97,19 +97,19 @@
     <ConfigSectionEditor
       section-key="providers"
       title="Providers"
-      subtitle="Edit provider credentials, base URLs, API types, and model presets as JSON."
+      subtitle="Edit provider credentials, base URLs, API types, and model presets visually."
       :admin-ready="adminReady"
     />
     <ConfigSectionEditor
       section-key="agent"
       title="Agent"
-      subtitle="Edit agent memory and multimodal defaults as JSON."
+      subtitle="Edit agent memory and multimodal defaults visually."
       :admin-ready="adminReady"
     />
     <ConfigSectionEditor
       section-key="mcp"
       title="MCP"
-      subtitle="Edit MCP server definitions as JSON."
+      subtitle="Edit MCP server definitions visually."
       :admin-ready="adminReady"
     />
     <ConfigSectionEditor
