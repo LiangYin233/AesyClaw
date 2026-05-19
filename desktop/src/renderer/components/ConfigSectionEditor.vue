@@ -6,7 +6,11 @@
         <p class="editor-subtitle">{{ subtitle }}</p>
       </div>
       <div class="editor-actions">
-        <button class="save-btn" :disabled="!adminReady || saving" @click="saveSection">
+        <button
+          class="save-btn"
+          :disabled="!adminReady || saving || Boolean(sectionJsonError)"
+          @click="saveSection"
+        >
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
         <button class="secondary-btn" :disabled="!adminReady || loading" @click="loadConfig">
@@ -40,7 +44,12 @@
                 :disabled="saving"
                 @update:model-value="toggleChannelEnabled(entry.key)"
               />
-              <button class="danger-btn" type="button" title="Remove channel" @click="removeChannel(entry.key)">
+              <button
+                class="danger-btn"
+                type="button"
+                title="Remove channel"
+                @click="removeChannel(entry.key)"
+              >
                 ×
               </button>
             </div>
@@ -51,7 +60,11 @@
             No editable fields.
           </div>
           <div v-else class="field-grid">
-            <div v-for="field in getChannelFields(entry)" :key="`${entry.key}-${field.key}`" class="field-block">
+            <div
+              v-for="field in getChannelFields(entry)"
+              :key="`${entry.key}-${field.key}`"
+              class="field-block"
+            >
               <label class="field-label">{{ field.displayLabel }}</label>
               <ToggleSwitch
                 v-if="field.type === 'boolean'"
@@ -63,28 +76,46 @@
                 :value="field.value"
                 type="number"
                 class="field-input"
-                @input="setChannelField(entry.key, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                @input="
+                  setChannelField(
+                    entry.key,
+                    field.path,
+                    parseFloat(($event.target as HTMLInputElement).value) || 0,
+                  )
+                "
               />
               <textarea
                 v-else-if="field.type === 'object'"
                 :value="toJson(field.value)"
                 class="field-input json-input"
                 rows="3"
-                @input="handleChannelComplexField(entry.key, field.path, ($event.target as HTMLTextAreaElement).value)"
+                @input="
+                  handleChannelComplexField(
+                    entry.key,
+                    field.path,
+                    ($event.target as HTMLTextAreaElement).value,
+                  )
+                "
               />
               <input
                 v-else
                 :value="field.value"
                 class="field-input"
-                @input="setChannelField(entry.key, field.path, ($event.target as HTMLInputElement).value)"
+                @input="
+                  setChannelField(entry.key, field.path, ($event.target as HTMLInputElement).value)
+                "
               />
             </div>
           </div>
         </article>
       </template>
 
-      <template v-else>
-        <article v-for="(plugin, index) in pluginEntries" :key="`${plugin.name}-${index}`" class="config-entry">
+      <template v-else-if="sectionKey === 'plugins'">
+        <article
+          v-for="(plugin, index) in pluginEntries"
+          :key="`${plugin.name}-${index}`"
+          class="config-entry"
+        >
           <div class="entry-header">
             <div class="entry-title">{{ plugin.name || `Plugin ${index + 1}` }}</div>
             <div class="entry-controls">
@@ -94,7 +125,12 @@
                 :disabled="saving"
                 @update:model-value="updatePluginField(index, 'enabled', $event)"
               />
-              <button class="danger-btn" type="button" title="Remove plugin" @click="removePlugin(index)">
+              <button
+                class="danger-btn"
+                type="button"
+                title="Remove plugin"
+                @click="removePlugin(index)"
+              >
                 ×
               </button>
             </div>
@@ -103,7 +139,11 @@
           <div class="fields-title">Options</div>
           <div v-if="getPluginFields(plugin).length === 0" class="empty-inline">No options.</div>
           <div v-else class="field-grid">
-            <div v-for="field in getPluginFields(plugin)" :key="`plugin-${index}-${field.key}`" class="field-block">
+            <div
+              v-for="field in getPluginFields(plugin)"
+              :key="`plugin-${index}-${field.key}`"
+              class="field-block"
+            >
               <label class="field-label">{{ field.displayLabel }}</label>
               <ToggleSwitch
                 v-if="field.type === 'boolean'"
@@ -115,23 +155,55 @@
                 :value="field.value"
                 type="number"
                 class="field-input"
-                @input="setPluginOptionField(index, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                @input="
+                  setPluginOptionField(
+                    index,
+                    field.path,
+                    parseFloat(($event.target as HTMLInputElement).value) || 0,
+                  )
+                "
               />
               <textarea
                 v-else-if="field.type === 'object'"
                 :value="toJson(field.value)"
                 class="field-input json-input"
                 rows="3"
-                @input="handlePluginComplexField(index, field.path, ($event.target as HTMLTextAreaElement).value)"
+                @input="
+                  handlePluginComplexField(
+                    index,
+                    field.path,
+                    ($event.target as HTMLTextAreaElement).value,
+                  )
+                "
               />
               <input
                 v-else
                 :value="field.value"
                 class="field-input"
-                @input="setPluginOptionField(index, field.path, ($event.target as HTMLInputElement).value)"
+                @input="
+                  setPluginOptionField(index, field.path, ($event.target as HTMLInputElement).value)
+                "
               />
             </div>
           </div>
+        </article>
+      </template>
+
+      <template v-else>
+        <article class="config-entry">
+          <div class="fields-title generic-title">JSON</div>
+          <textarea
+            v-model="sectionJsonDraft"
+            class="field-input json-input section-json-input"
+            rows="10"
+            @input="handleGenericSection(sectionJsonDraft)"
+          />
+          <p v-if="sectionJsonError" class="status-text error section-json-error">
+            {{ sectionJsonError }}
+          </p>
+          <p v-else class="empty-inline">
+            Edit this section as JSON. It will be saved through the same update_config protocol used by WebUI.
+          </p>
         </article>
       </template>
     </div>
@@ -161,24 +233,33 @@ interface ConfigField {
   type: 'string' | 'number' | 'boolean' | 'object';
 }
 
+type ConfigSectionKey = 'channels' | 'plugins' | 'server' | 'providers' | 'agent' | 'mcp';
+
 const props = defineProps<{
-  sectionKey: 'channels' | 'plugins';
+  sectionKey: ConfigSectionKey;
   title: string;
   subtitle: string;
   adminReady: boolean;
 }>();
 
-const sectionValue = ref<unknown>(props.sectionKey === 'plugins' ? [] : {});
+const sectionValue = ref<unknown>(getDefaultSectionValue(props.sectionKey));
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
 const feedback = ref('');
 const feedbackType = ref<'success' | 'error'>('success');
+const sectionJsonError = ref('');
+const sectionJsonDraft = ref(toJson(sectionValue.value));
 
 const sectionKey = computed(() => props.sectionKey);
-const entryNoun = computed(() => (props.sectionKey === 'plugins' ? 'plugin' : 'channel'));
+const entryNoun = computed(() => {
+  if (props.sectionKey === 'plugins') return 'plugin';
+  if (props.sectionKey === 'channels') return 'channel';
+  return 'section';
+});
 
 const itemCount = computed(() => {
+  if (props.sectionKey !== 'channels' && props.sectionKey !== 'plugins') return 1;
   if (Array.isArray(sectionValue.value)) return sectionValue.value.length;
   if (isRecord(sectionValue.value)) return Object.keys(sectionValue.value).length;
   return 0;
@@ -199,10 +280,11 @@ async function loadConfig(): Promise<void> {
   loading.value = true;
   error.value = '';
   feedback.value = '';
+  sectionJsonError.value = '';
   try {
-    sectionValue.value = await requestAdmin('get_config_section', {
-      sectionKey: props.sectionKey,
-    });
+    const config = await requestAdmin<Record<string, unknown>>('get_config');
+    sectionValue.value = getSectionValue(config, props.sectionKey);
+    sectionJsonDraft.value = toJson(sectionValue.value);
   } catch (err) {
     error.value = err instanceof Error ? err.message : `Failed to load ${props.sectionKey} config`;
   } finally {
@@ -212,14 +294,12 @@ async function loadConfig(): Promise<void> {
 
 async function saveSection(): Promise<void> {
   if (!props.adminReady) return;
+  if (sectionJsonError.value) return;
   saving.value = true;
   error.value = '';
   feedback.value = '';
   try {
-    await requestAdmin('update_config_section', {
-      sectionKey: props.sectionKey,
-      value: sectionValue.value,
-    });
+    await requestAdmin('update_config', { [props.sectionKey]: sectionValue.value });
     feedbackType.value = 'success';
     feedback.value = `${props.title} configuration saved`;
   } catch (err) {
@@ -386,6 +466,29 @@ function handleComplexField(raw: string, setParsed: (value: unknown) => void): v
   }
 }
 
+function handleGenericSection(raw: string): void {
+  try {
+    sectionValue.value = JSON.parse(raw) as unknown;
+    sectionJsonError.value = '';
+  } catch (err) {
+    sectionJsonError.value = err instanceof Error ? err.message : 'Invalid JSON';
+  }
+}
+
+function getSectionValue(source: unknown, key: ConfigSectionKey): unknown {
+  if (!isRecord(source)) return getDefaultSectionValue(key);
+  const value = source[key];
+  if (value === undefined) return getDefaultSectionValue(key);
+  if (key === 'plugins') return Array.isArray(value) ? value : [];
+  if (key === 'mcp') return Array.isArray(value) ? value : [];
+  if (key === 'channels') return isRecord(value) ? value : {};
+  return value;
+}
+
+function getDefaultSectionValue(key: ConfigSectionKey): unknown {
+  if (key === 'plugins' || key === 'mcp') return [];
+  return {};
+}
 
 function normalizePluginEntry(value: unknown): PluginEntry {
   const source = isRecord(value) ? value : {};

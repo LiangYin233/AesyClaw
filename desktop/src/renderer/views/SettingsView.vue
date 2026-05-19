@@ -87,17 +87,41 @@
       </div>
     </section>
 
-    <!-- Server Configuration -->
+    <!-- AesyClaw Configuration -->
+    <ConfigSectionEditor
+      section-key="server"
+      title="Server"
+      subtitle="Edit server runtime configuration using the same get_config/update_config protocol as WebUI."
+      :admin-ready="adminReady"
+    />
+    <ConfigSectionEditor
+      section-key="providers"
+      title="Providers"
+      subtitle="Edit provider credentials, base URLs, API types, and model presets as JSON."
+      :admin-ready="adminReady"
+    />
+    <ConfigSectionEditor
+      section-key="agent"
+      title="Agent"
+      subtitle="Edit agent memory and multimodal defaults as JSON."
+      :admin-ready="adminReady"
+    />
+    <ConfigSectionEditor
+      section-key="mcp"
+      title="MCP"
+      subtitle="Edit MCP server definitions as JSON."
+      :admin-ready="adminReady"
+    />
     <ConfigSectionEditor
       section-key="channels"
       title="Channels"
-      subtitle="Configure channel adapters and runtime options through the Desktop admin connection."
+      subtitle="Configure channel adapters and runtime options using the same get_config/update_config protocol as WebUI."
       :admin-ready="adminReady"
     />
     <ConfigSectionEditor
       section-key="plugins"
       title="Plugins"
-      subtitle="Manage configured plugins and their option payloads through the Desktop admin connection."
+      subtitle="Manage configured plugins and their option payloads using the same get_config/update_config protocol as WebUI."
       :admin-ready="adminReady"
     />
   </div>

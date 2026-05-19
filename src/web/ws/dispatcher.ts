@@ -49,14 +49,6 @@ on('get_config_schema', () => Promise.resolve(getConfigSchema()));
 on('update_config', async (data, deps) => {
   await updateConfig(deps, data as Record<string, unknown>);
 });
-on('get_config_section', (data, deps) => {
-  const config = getConfig(deps) as Record<string, unknown>;
-  return Promise.resolve(config[extractConfigSectionKey(data)]);
-});
-on('update_config_section', async (data, deps) => {
-  const { sectionKey, value } = extractConfigSectionUpdateData(data);
-  await updateConfig(deps, { [sectionKey]: value } as Record<string, unknown>);
-});
 
 // ── Cron ──
 on('get_cron', (_, deps) => getCronJobs(deps));
@@ -186,27 +178,6 @@ function extractToggleData(data: unknown): { name: string; enabled: boolean } {
   return { name: payload.name, enabled: payload.enabled };
 }
 
-type ConfigSectionKey = 'channels' | 'plugins';
-
-function extractConfigSectionKey(data: unknown): ConfigSectionKey {
-  if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
-    const value = (data as Record<string, unknown>)['sectionKey'];
-    if (value === 'channels' || value === 'plugins') return value;
-  }
-  throw new Error('缺少配置分区');
-}
-
-function extractConfigSectionUpdateData(data: unknown): {
-  sectionKey: ConfigSectionKey;
-  value: unknown;
-} {
-  if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
-    const payload = data as Record<string, unknown>;
-    const sectionKey = extractConfigSectionKey(data);
-    if ('value' in payload) return { sectionKey, value: payload['value'] };
-  }
-  throw new Error('缺少配置值');
-}
 
 function extractStringData(data: unknown, key: string): string {
   if (data !== null && typeof data === 'object' && !Array.isArray(data)) {

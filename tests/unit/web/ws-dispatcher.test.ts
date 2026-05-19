@@ -3,63 +3,50 @@ import { describe, expect, it, vi } from 'vitest';
 import { dispatchMessage } from '../../../src/web/ws/dispatcher';
 
 function createDeps() {
-  const channels = { desktop: { port: 9730, authToken: 'desktop-local' } };
-  const plugins = [{ name: 'example', enabled: true, options: { foo: 'bar' } }];
+  const config = {
+    server: { port: 3000, host: '127.0.0.1', authToken: 'server-secret' },
+    providers: { openai: { apiKey: 'provider-secret' } },
+    channels: { desktop: { port: 9730, authToken: 'desktop-local' } },
+    agent: { memory: { compressionThreshold: 4000 } },
+    mcp: [],
+    plugins: [{ name: 'example', enabled: true, options: { foo: 'bar' } }],
+  };
   const configManager = {
-    get: vi.fn((key: string) => {
-      switch (key) {
-        case 'server':
-          return { port: 3000, host: '127.0.0.1', authToken: 'server-secret' };
-        case 'providers':
-          return { openai: { apiKey: 'provider-secret' } };
-        case 'channels':
-          return channels;
-        case 'agent':
-          return { memory: { compressionThreshold: 4000 } };
-        case 'mcp':
-          return [];
-        case 'plugins':
-          return plugins;
-        default:
-          return undefined;
-      }
-    }),
+    get: vi.fn((key: keyof typeof config) => config[key]),
     set: vi.fn(async () => undefined),
+    patch: vi.fn(async () => undefined),
   };
 
-  return { deps: { configManager } as never, configManager, channels, plugins };
+  return { deps: { configManager } as never, configManager, config };
 }
 
-describe('web ws dispatcher config sections', () => {
-  it('returns only the requested config section', async () => {
-    const { deps, channels } = createDeps();
+describe('web ws dispatcher config protocol', () => {
+  it('uses the shared WebUI get_config protocol', async () => {
+    const { deps, config } = createDeps();
 
-    const response = await dispatchMessage(
-      { type: 'get_config_section', requestId: 'req-1', data: { sectionKey: 'channels' } },
-      deps,
-    );
+    const response = await dispatchMessage({ type: 'get_config', requestId: 'req-1' }, deps);
 
     expect(response).toEqual({
-      type: 'get_config_section',
+      type: 'get_config',
       ok: true,
-      data: channels,
+      data: config,
     });
   });
 
-  it('updates only the requested config section', async () => {
+  it('uses the shared WebUI update_config protocol for partial updates', async () => {
     const { deps, configManager } = createDeps();
     const nextPlugins = [{ name: 'example', enabled: false, options: { foo: 'baz' } }];
 
     const response = await dispatchMessage(
       {
-        type: 'update_config_section',
+        type: 'update_config',
         requestId: 'req-2',
-        data: { sectionKey: 'plugins', value: nextPlugins },
+        data: { plugins: nextPlugins },
       },
       deps,
     );
 
-    expect(response).toEqual({ type: 'update_config_section', ok: true });
+    expect(response).toEqual({ type: 'update_config', ok: true });
     expect(configManager.set).toHaveBeenCalledTimes(1);
     expect(configManager.set).toHaveBeenCalledWith('plugins', nextPlugins);
   });
