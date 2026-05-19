@@ -1,129 +1,141 @@
 <template>
   <div class="settings-view">
-    <h1 class="page-title">Settings</h1>
-    <p class="page-subtitle">Connection status and configuration overview.</p>
+    <header class="settings-header">
+      <div>
+        <h1 class="page-title">Settings</h1>
+        <p class="page-subtitle">Manage Desktop connection and app settings.</p>
+      </div>
+    </header>
 
-    <!-- Connection -->
-    <section class="card">
-      <h2 class="section-title">Connection</h2>
-      <div class="card-body">
-        <div class="info-row">
-          <span class="info-label">Chat Server</span>
-          <span class="info-value">
-            <span class="badge" :class="statusBadge(status.chat)">{{
-              statusLabel(status.chat)
-            }}</span>
-          </span>
+    <div class="overview-grid">
+      <!-- Connection -->
+      <section class="card">
+        <h2 class="section-title">Connection</h2>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="info-label">Chat Server</span>
+            <span class="info-value">
+              <span class="badge" :class="statusBadge(status.chat)">{{
+                statusLabel(status.chat)
+              }}</span>
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Admin Server</span>
+            <span class="info-value">
+              <span class="badge" :class="statusBadge(status.admin)">{{
+                statusLabel(status.admin)
+              }}</span>
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Host</span>
+            <span class="info-value">{{ connection.host }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Desktop Channel Port</span>
+            <span class="info-value">{{ connection.desktopPort }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Admin Port</span>
+            <span class="info-value">{{ connection.adminPort }}</span>
+          </div>
         </div>
-        <div class="info-row">
-          <span class="info-label">Admin Server</span>
-          <span class="info-value">
-            <span class="badge" :class="statusBadge(status.admin)">{{
-              statusLabel(status.admin)
-            }}</span>
-          </span>
+      </section>
+
+      <!-- Connection Settings -->
+      <section class="card">
+        <h2 class="section-title">Connection Settings</h2>
+        <div class="card-body form-body">
+          <label class="field-label">
+            Host
+            <input v-model="connectionForm.host" class="field-input" placeholder="127.0.0.1" />
+          </label>
+          <div class="field-grid">
+            <label class="field-label">
+              Desktop Channel Port
+              <input
+                v-model.number="connectionForm.desktopPort"
+                class="field-input"
+                type="number"
+                min="1"
+                max="65535"
+              />
+            </label>
+            <label class="field-label">
+              Admin Port
+              <input
+                v-model.number="connectionForm.adminPort"
+                class="field-input"
+                type="number"
+                min="1"
+                max="65535"
+              />
+            </label>
+          </div>
+          <label class="field-label">
+            Desktop Token
+            <input v-model="connectionForm.token" class="field-input" placeholder="desktop-local" />
+          </label>
+          <div class="form-actions">
+            <button class="save-btn" :disabled="savingConnection" @click="saveConnection">
+              {{ savingConnection ? 'Saving…' : 'Save & Reconnect' }}
+            </button>
+            <button class="secondary-btn" :disabled="savingConnection" @click="resetConnectionForm">
+              Reset
+            </button>
+          </div>
+          <p v-if="connectionError" class="error-text">{{ connectionError }}</p>
+          <p class="hint">Saved only on this device. Changes take effect after reconnecting.</p>
         </div>
-        <div class="info-row">
-          <span class="info-label">Host</span>
-          <span class="info-value">{{ connection.host }}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Desktop Channel Port</span>
-          <span class="info-value">{{ connection.desktopPort }}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Admin Port</span>
-          <span class="info-value">{{ connection.adminPort }}</span>
-        </div>
+      </section>
+    </div>
+
+    <section class="config-section">
+      <div class="section-heading">
+        <h2>Configuration</h2>
+        <p>Adjust runtime options and extension behavior.</p>
+      </div>
+
+      <div class="config-grid">
+        <ConfigSectionEditor
+          section-key="server"
+          title="Server"
+          subtitle="Manage server behavior and access settings."
+          :admin-ready="adminReady"
+        />
+        <ConfigSectionEditor
+          section-key="providers"
+          title="Providers"
+          subtitle="Manage model providers, credentials, and presets."
+          :admin-ready="adminReady"
+        />
+        <ConfigSectionEditor
+          section-key="agent"
+          title="Agent"
+          subtitle="Tune agent behavior and default models."
+          :admin-ready="adminReady"
+        />
+        <ConfigSectionEditor
+          section-key="mcp"
+          title="MCP"
+          subtitle="Manage external tool server connections."
+          :admin-ready="adminReady"
+        />
+        <ConfigSectionEditor
+          section-key="channels"
+          title="Channels"
+          subtitle="Manage channel adapters and runtime options."
+          :admin-ready="adminReady"
+        />
+        <ConfigSectionEditor
+          section-key="plugins"
+          title="Plugins"
+          subtitle="Manage plugins and their options."
+          :admin-ready="adminReady"
+        />
       </div>
     </section>
-
-    <!-- Connection Settings -->
-    <section class="card">
-      <h2 class="section-title">Connection Settings</h2>
-      <div class="card-body form-body">
-        <label class="field-label">
-          Host
-          <input v-model="connectionForm.host" class="field-input" placeholder="127.0.0.1" />
-        </label>
-        <div class="field-grid">
-          <label class="field-label">
-            Desktop Channel Port
-            <input
-              v-model.number="connectionForm.desktopPort"
-              class="field-input"
-              type="number"
-              min="1"
-              max="65535"
-            />
-          </label>
-          <label class="field-label">
-            Admin Port
-            <input
-              v-model.number="connectionForm.adminPort"
-              class="field-input"
-              type="number"
-              min="1"
-              max="65535"
-            />
-          </label>
-        </div>
-        <label class="field-label">
-          Desktop Token
-          <input v-model="connectionForm.token" class="field-input" placeholder="desktop-local" />
-        </label>
-        <div class="form-actions">
-          <button class="save-btn" :disabled="savingConnection" @click="saveConnection">
-            {{ savingConnection ? 'Saving…' : 'Save & Reconnect' }}
-          </button>
-          <button class="secondary-btn" :disabled="savingConnection" @click="resetConnectionForm">
-            Reset
-          </button>
-        </div>
-        <p v-if="connectionError" class="error-text">{{ connectionError }}</p>
-        <p class="hint">
-          These values are stored locally in the desktop app and do not read AesyClaw config files.
-        </p>
-      </div>
-    </section>
-
-    <!-- AesyClaw Configuration -->
-    <ConfigSectionEditor
-      section-key="server"
-      title="Server"
-      subtitle="Edit server runtime configuration using the same get_config/update_config protocol as WebUI."
-      :admin-ready="adminReady"
-    />
-    <ConfigSectionEditor
-      section-key="providers"
-      title="Providers"
-      subtitle="Edit provider credentials, base URLs, API types, and model presets visually."
-      :admin-ready="adminReady"
-    />
-    <ConfigSectionEditor
-      section-key="agent"
-      title="Agent"
-      subtitle="Edit agent memory and multimodal defaults visually."
-      :admin-ready="adminReady"
-    />
-    <ConfigSectionEditor
-      section-key="mcp"
-      title="MCP"
-      subtitle="Edit MCP server definitions visually."
-      :admin-ready="adminReady"
-    />
-    <ConfigSectionEditor
-      section-key="channels"
-      title="Channels"
-      subtitle="Configure channel adapters and runtime options using the same get_config/update_config protocol as WebUI."
-      :admin-ready="adminReady"
-    />
-    <ConfigSectionEditor
-      section-key="plugins"
-      title="Plugins"
-      subtitle="Manage configured plugins and their option payloads using the same get_config/update_config protocol as WebUI."
-      :admin-ready="adminReady"
-    />
   </div>
 </template>
 
@@ -218,17 +230,60 @@ function statusLabel(s: string): string {
 
 <style scoped>
 .settings-view {
-  max-width: 680px;
-  padding: 32px 40px;
+  width: min(1120px, 100%);
+  padding: 32px 40px 48px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-/* ── Cards ───────────────────────────── */
+.settings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-dark);
+}
+
+.section-heading p {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--color-mid-gray);
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 24px;
-  margin-bottom: 24px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -390,5 +445,25 @@ function statusLabel(s: string): string {
 }
 .hint:last-child {
   margin-bottom: 0;
+}
+
+@media (max-width: 960px) {
+  .settings-view {
+    padding: 24px;
+  }
+
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-view {
+    padding: 20px 16px 32px;
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -162,11 +162,7 @@
                 type="number"
                 class="field-input"
                 @input="
-                  setPluginNumberField(
-                    index,
-                    field.path,
-                    ($event.target as HTMLInputElement).value,
-                  )
+                  setPluginNumberField(index, field.path, ($event.target as HTMLInputElement).value)
                 "
               />
               <textarea
@@ -485,7 +481,9 @@
                 :value="field.value"
                 type="number"
                 class="field-input"
-                @input="setGenericNumberField(field.path, ($event.target as HTMLInputElement).value)"
+                @input="
+                  setGenericNumberField(field.path, ($event.target as HTMLInputElement).value)
+                "
               />
               <textarea
                 v-else-if="field.type === 'object'"
