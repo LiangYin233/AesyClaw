@@ -43,12 +43,21 @@ export type UsageRecord = {
   provider: string;
   api: string;
   responseId?: string;
+  sessionId?: string;
+  messageId?: number;
   usage: {
     input: number;
     output: number;
     cacheRead: number;
     cacheWrite: number;
     totalTokens: number;
+    cost?: {
+      input: number;
+      output: number;
+      cacheRead: number;
+      cacheWrite: number;
+      total: number;
+    };
   };
 };
 

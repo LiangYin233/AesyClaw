@@ -8,49 +8,51 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { MessageUsage, PersistableMessage } from '@aesyclaw/core/types';
 
-/** 将可持久化消息保存到会话历史 */
+/** 将可持久化消息保存到会话历史，返回生成的消息 ID。 */
 export async function saveMessage(
   db: DatabaseSync,
   sessionId: string,
   message: PersistableMessage,
-): Promise<void> {
+): Promise<number> {
   const timestamp = message.timestamp ?? new Date().toISOString();
-  const usageJson = message.usage ? JSON.stringify(message.usage) : null;
+  const result = db
+    .prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
+    .run(sessionId, message.role, message.content, timestamp);
 
-  if (hasMessageUsageColumn(db)) {
-    db.prepare(
-      'INSERT INTO messages (session_id, role, content, timestamp, usage_json) VALUES (?, ?, ?, ?, ?)',
-    ).run(sessionId, message.role, message.content, timestamp, usageJson);
-    return;
-  }
-
-  db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)').run(
-    sessionId,
-    message.role,
-    message.content,
-    timestamp,
-  );
+  return Number(result.lastInsertRowid);
 }
 
-/** 按时间顺序加载会话的所有消息 */
+/** 按时间顺序加载会话的所有消息。消息级用量从 usage 表关联读取。 */
 export async function loadMessageHistory(
   db: DatabaseSync,
   sessionId: string,
 ): Promise<PersistableMessage[]> {
-  const hasUsageJson = hasMessageUsageColumn(db);
   const rows = db
     .prepare(
-      `SELECT role, content, timestamp${hasUsageJson ? ', usage_json' : ''} FROM messages WHERE session_id = ? ORDER BY timestamp ASC, id ASC`,
+      `SELECT
+        m.role,
+        m.content,
+        m.timestamp,
+        u.id AS usage_id,
+        u.input_tokens,
+        u.output_tokens,
+        u.total_tokens,
+        u.cache_read_tokens,
+        u.cache_write_tokens,
+        u.cost_input,
+        u.cost_output,
+        u.cost_cache_read,
+        u.cost_cache_write,
+        u.cost_total
+      FROM messages m
+      LEFT JOIN usage u ON u.message_id = m.id
+      WHERE m.session_id = ?
+      ORDER BY m.timestamp ASC, m.id ASC`,
     )
-    .all(sessionId) as Array<{
-    role: string;
-    content: string;
-    timestamp: string;
-    usage_json?: string | null;
-  }>;
+    .all(sessionId) as MessageHistoryRow[];
 
   return rows.map((row) => {
-    const usage = row.usage_json ? parseUsageJson(row.usage_json) : undefined;
+    const usage = row.role === 'assistant' && row.usage_id !== null ? usageFromRow(row) : undefined;
     return {
       role: row.role as 'user' | 'assistant',
       content: row.content,
@@ -62,6 +64,7 @@ export async function loadMessageHistory(
 
 /** 清空会话的所有消息 */
 export async function clearMessageHistory(db: DatabaseSync, sessionId: string): Promise<void> {
+  db.prepare('UPDATE usage SET message_id = NULL WHERE session_id = ?').run(sessionId);
   db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
 }
 
@@ -74,23 +77,18 @@ export async function replaceMessageWithSummary(
   sessionId: string,
   summary: string,
 ): Promise<void> {
+  const unlinkUsageStmt = db.prepare('UPDATE usage SET message_id = NULL WHERE session_id = ?');
   const deleteStmt = db.prepare('DELETE FROM messages WHERE session_id = ?');
-  const hasUsageJson = hasMessageUsageColumn(db);
   const insertStmt = db.prepare(
-    hasUsageJson
-      ? 'INSERT INTO messages (session_id, role, content, timestamp, usage_json) VALUES (?, ?, ?, ?, ?)'
-      : 'INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)',
+    'INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)',
   );
 
   db.exec('BEGIN');
 
   try {
+    unlinkUsageStmt.run(sessionId);
     deleteStmt.run(sessionId);
-    if (hasUsageJson) {
-      insertStmt.run(sessionId, 'assistant', summary, new Date().toISOString(), null);
-    } else {
-      insertStmt.run(sessionId, 'assistant', summary, new Date().toISOString());
-    }
+    insertStmt.run(sessionId, 'assistant', summary, new Date().toISOString());
 
     db.exec('COMMIT');
   } catch (error) {
@@ -99,48 +97,46 @@ export async function replaceMessageWithSummary(
   }
 }
 
-function hasMessageUsageColumn(db: DatabaseSync): boolean {
-  const rows = db.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>;
-  return rows.some((row) => row.name === 'usage_json');
-}
+type MessageHistoryRow = {
+  role: string;
+  content: string;
+  timestamp: string;
+  usage_id: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+  cost_input: number | null;
+  cost_output: number | null;
+  cost_cache_read: number | null;
+  cost_cache_write: number | null;
+  cost_total: number | null;
+};
 
-function parseUsageJson(value: string): MessageUsage | undefined {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!isUsage(parsed)) return undefined;
-    return parsed;
-  } catch {
+function usageFromRow(row: MessageHistoryRow): MessageUsage | undefined {
+  if (
+    row.input_tokens === null ||
+    row.output_tokens === null ||
+    row.total_tokens === null ||
+    row.cache_read_tokens === null ||
+    row.cache_write_tokens === null
+  ) {
     return undefined;
   }
-}
 
-function isUsage(value: unknown): value is MessageUsage {
-  if (!isRecord(value)) return false;
-  return (
-    isFiniteNumber(value['input']) &&
-    isFiniteNumber(value['output']) &&
-    isFiniteNumber(value['cacheRead']) &&
-    isFiniteNumber(value['cacheWrite']) &&
-    isFiniteNumber(value['totalTokens']) &&
-    (value['cost'] === undefined || isUsageCost(value['cost']))
-  );
-}
-
-function isUsageCost(value: unknown): value is NonNullable<MessageUsage['cost']> {
-  if (!isRecord(value)) return false;
-  return (
-    isFiniteNumber(value['input']) &&
-    isFiniteNumber(value['output']) &&
-    isFiniteNumber(value['cacheRead']) &&
-    isFiniteNumber(value['cacheWrite']) &&
-    isFiniteNumber(value['total'])
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
+  return {
+    input: row.input_tokens,
+    output: row.output_tokens,
+    cacheRead: row.cache_read_tokens,
+    cacheWrite: row.cache_write_tokens,
+    totalTokens: row.total_tokens,
+    cost: {
+      input: row.cost_input ?? 0,
+      output: row.cost_output ?? 0,
+      cacheRead: row.cost_cache_read ?? 0,
+      cacheWrite: row.cost_cache_write ?? 0,
+      total: row.cost_total ?? 0,
+    },
+  };
 }

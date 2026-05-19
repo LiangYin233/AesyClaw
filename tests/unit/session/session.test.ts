@@ -86,16 +86,14 @@ describe('Session.syncFromAgent', () => {
     };
     const messagesRepo = {
       save: vi.fn().mockResolvedValue(undefined),
-      loadHistory: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            role: 'assistant',
-            content: 'persisted reply',
-            timestamp: '2026-05-19T00:00:00.000Z',
-            usage,
-          },
-        ]),
+      loadHistory: vi.fn().mockResolvedValue([
+        {
+          role: 'assistant',
+          content: 'persisted reply',
+          timestamp: '2026-05-19T00:00:00.000Z',
+          usage,
+        },
+      ]),
       clearHistory: vi.fn().mockResolvedValue(undefined),
       replaceWithSummary: vi.fn().mockResolvedValue(undefined),
     };
@@ -126,10 +124,15 @@ describe('Session.syncFromAgent', () => {
       cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
     };
     const messagesRepo = {
-      save: vi.fn().mockResolvedValue(undefined),
+      save: vi.fn().mockResolvedValue(42),
       loadHistory: vi.fn().mockResolvedValue([]),
       clearHistory: vi.fn().mockResolvedValue(undefined),
       replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+    };
+    const usageRepo = {
+      create: vi.fn().mockResolvedValue(1),
+      getStats: vi.fn(),
+      getTodaySummary: vi.fn(),
     };
 
     const sessionKey: SessionKey = {
@@ -137,7 +140,10 @@ describe('Session.syncFromAgent', () => {
       type: 'private',
       chatId: 'chat-1',
     };
-    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    const session = new Session('session-1', sessionKey, {
+      messages: messagesRepo,
+      usage: usageRepo,
+    } as never);
 
     await session.syncFromAgent([
       {
@@ -156,6 +162,12 @@ describe('Session.syncFromAgent', () => {
       expect.objectContaining({
         role: 'assistant',
         content: 'reply with usage',
+      }),
+    );
+    expect(usageRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        messageId: 42,
         usage,
       }),
     );

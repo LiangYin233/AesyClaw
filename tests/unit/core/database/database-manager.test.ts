@@ -63,8 +63,7 @@ function createTestDb() {
       session_id TEXT NOT NULL REFERENCES sessions(id),
       role TEXT NOT NULL,
       content TEXT NOT NULL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      usage_json TEXT
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE role_bindings (
       session_id TEXT PRIMARY KEY REFERENCES sessions(id),
@@ -95,6 +94,8 @@ function createTestDb() {
       provider TEXT NOT NULL,
       api TEXT NOT NULL,
       response_id TEXT,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+      message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       input_tokens INTEGER NOT NULL,
       output_tokens INTEGER NOT NULL,
@@ -123,7 +124,15 @@ describe('Database Layer', () => {
       }
     });
 
-    it('adds usage_json to existing messages tables', async () => {
+    it('normalizes legacy message usage into linked usage rows', async () => {
+      const legacyUsage = {
+        input: 100,
+        output: 50,
+        cacheRead: 10,
+        cacheWrite: 5,
+        totalTokens: 165,
+        cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
+      };
       tempDir = mkdtempSync(join(tmpdir(), 'aesyclaw-db-'));
       const dbPath = join(tempDir, 'old.sqlite');
       const oldDb = new DatabaseSync(dbPath);
@@ -140,20 +149,124 @@ describe('Database Layer', () => {
           session_id TEXT NOT NULL REFERENCES sessions(id),
           role TEXT NOT NULL,
           content TEXT NOT NULL,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          usage_json TEXT
+        );
+        CREATE TABLE usage (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          api TEXT NOT NULL,
+          response_id TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          input_tokens INTEGER NOT NULL,
+          output_tokens INTEGER NOT NULL,
+          total_tokens INTEGER NOT NULL,
+          cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+          cache_write_tokens INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE role_bindings (
+          session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+          role_id TEXT NOT NULL,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE cron_jobs (
+          id TEXT PRIMARY KEY,
+          schedule_type TEXT NOT NULL,
+          schedule_value TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          session_key TEXT NOT NULL,
+          next_run DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE cron_runs (
+          id TEXT PRIMARY KEY,
+          job_id TEXT NOT NULL REFERENCES cron_jobs(id),
+          status TEXT NOT NULL,
+          result TEXT,
+          error TEXT,
+          started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          ended_at DATETIME
+        );
+        CREATE TABLE tool_usage (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('tool', 'skill')),
           timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         );
       `);
+      oldDb
+        .prepare('INSERT INTO sessions (id, channel, type, chat_id) VALUES (?, ?, ?, ?)')
+        .run('session-1', 'desktop', 'private', 'desktop-chat-id');
+      oldDb
+        .prepare(
+          'INSERT INTO messages (session_id, role, content, timestamp, usage_json) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(
+          'session-1',
+          'assistant',
+          'Legacy response',
+          '2026-05-19T00:00:00.000Z',
+          JSON.stringify(legacyUsage),
+        );
+      oldDb
+        .prepare(
+          `INSERT INTO usage (
+            model, provider, api, response_id, timestamp,
+            input_tokens, output_tokens, total_tokens, cache_read_tokens, cache_write_tokens
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          'gpt-4o',
+          'openai',
+          'openai-responses',
+          null,
+          '2026-05-19T00:00:01.000Z',
+          legacyUsage.input,
+          legacyUsage.output,
+          legacyUsage.totalTokens,
+          legacyUsage.cacheRead,
+          legacyUsage.cacheWrite,
+        );
       oldDb.close();
 
       const manager = new DatabaseManager();
       await manager.initialize(dbPath);
 
       try {
-        const columns = manager.getDb().prepare('PRAGMA table_info(messages)').all() as Array<{
+        const messageColumns = manager
+          .getDb()
+          .prepare('PRAGMA table_info(messages)')
+          .all() as Array<{
           name: string;
         }>;
+        const usageColumns = manager.getDb().prepare('PRAGMA table_info(usage)').all() as Array<{
+          name: string;
+        }>;
+        const history = await manager.messages.loadHistory('session-1');
+        const linkedUsage = manager
+          .getDb()
+          .prepare(
+            'SELECT session_id, message_id, cost_total FROM usage WHERE message_id IS NOT NULL',
+          )
+          .get() as { session_id: string; message_id: number; cost_total: number } | undefined;
 
-        expect(columns.map((column) => column.name)).toContain('usage_json');
+        expect(messageColumns.map((column) => column.name)).not.toContain('usage_json');
+        expect(usageColumns.map((column) => column.name)).toEqual(
+          expect.arrayContaining(['session_id', 'message_id', 'cost_total']),
+        );
+        expect(history).toEqual([
+          expect.objectContaining({
+            role: 'assistant',
+            content: 'Legacy response',
+            usage: legacyUsage,
+          }),
+        ]);
+        expect(linkedUsage).toMatchObject({
+          session_id: 'session-1',
+          message_id: 1,
+          cost_total: legacyUsage.cost.total,
+        });
       } finally {
         await manager.destroy();
       }
@@ -254,9 +367,16 @@ describe('Database Layer', () => {
         cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
       };
 
-      await saveMessage(db, sessionId, {
+      const messageId = await saveMessage(db, sessionId, {
         role: 'assistant',
         content: 'Usage-bearing response',
+      });
+      await createUsageRecord(db, {
+        model: 'gpt-4o',
+        provider: 'openai',
+        api: 'openai-responses',
+        sessionId,
+        messageId,
         usage,
       });
 

@@ -44,22 +44,30 @@ export async function createUsageRecord(db: DatabaseSync, record: UsageRecord): 
   const result = db
     .prepare(
       `INSERT INTO usage (
-        model, provider, api, response_id, timestamp,
+        model, provider, api, response_id, session_id, message_id, timestamp,
         input_tokens, output_tokens, total_tokens,
-        cache_read_tokens, cache_write_tokens
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        cache_read_tokens, cache_write_tokens,
+        cost_input, cost_output, cost_cache_read, cost_cache_write, cost_total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       record.model,
       record.provider,
       record.api,
       record.responseId ?? null,
+      record.sessionId ?? null,
+      record.messageId ?? null,
       timestamp,
       record.usage.input,
       record.usage.output,
       record.usage.totalTokens,
       record.usage.cacheRead,
       record.usage.cacheWrite,
+      record.usage.cost?.input ?? 0,
+      record.usage.cost?.output ?? 0,
+      record.usage.cost?.cacheRead ?? 0,
+      record.usage.cost?.cacheWrite ?? 0,
+      record.usage.cost?.total ?? 0,
     );
 
   return Number(result.lastInsertRowid);

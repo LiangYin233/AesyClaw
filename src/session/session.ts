@@ -104,13 +104,14 @@ export class Session {
    * @param message - 要添加的消息
    */
   async add(message: AgentMessage): Promise<void> {
-    await this.recordUsageIfApplicable(message);
     this._messages.push(message);
 
     const persistable = toPersistable(message);
-    if (!persistable) return;
+    const messageId = persistable
+      ? await this.db.messages.save(this.sessionId, persistable)
+      : undefined;
 
-    await this.db.messages.save(this.sessionId, persistable);
+    await this.recordUsageIfApplicable(message, messageId);
   }
 
   /**
@@ -168,6 +169,7 @@ export class Session {
           api: message.api,
           responseId: message.responseId,
           usage: message.usage,
+          sessionId: this.sessionId,
         });
       } catch (err) {
         logger.error('记录压缩用量失败', err);
@@ -194,7 +196,7 @@ export class Session {
     return this._messages.filter(pred);
   }
 
-  private async recordUsageIfApplicable(message: AgentMessage): Promise<void> {
+  private async recordUsageIfApplicable(message: AgentMessage, messageId?: number): Promise<void> {
     if (
       this.db.usage === undefined ||
       message.role !== 'assistant' ||
@@ -209,6 +211,8 @@ export class Session {
         provider: message.provider,
         api: message.api,
         responseId: message.responseId,
+        sessionId: this.sessionId,
+        messageId,
         usage: message.usage,
       });
     } catch (err) {
@@ -314,15 +318,11 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
   const text = extractMessageText(message).trim();
   if (text.length === 0) return null;
 
-  const persistable: PersistableMessage = {
+  return {
     role: message.role,
     content: text,
     timestamp: new Date().toISOString(),
   };
-  if (message.role === 'assistant' && message.usage?.totalTokens > 0) {
-    persistable.usage = message.usage;
-  }
-  return persistable;
 }
 
 function getPersistedAssistantTextFromToolResult(message: AgentMessage): string | null {

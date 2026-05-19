@@ -8,6 +8,7 @@ import * as roleBindings from './repositories/role-binding-repository';
 import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
+import type { MessageUsage } from '@aesyclaw/core/types';
 
 const logger = createScopedLogger('database-manager');
 
@@ -249,8 +250,7 @@ export class DatabaseManager {
         session_id TEXT NOT NULL REFERENCES sessions(id),
         role       TEXT NOT NULL,
         content    TEXT NOT NULL,
-        timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP,
-        usage_json TEXT
+        timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS role_bindings (
@@ -285,12 +285,19 @@ export class DatabaseManager {
         provider     TEXT NOT NULL,
         api          TEXT NOT NULL,
         response_id  TEXT,
+        session_id   TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+        message_id   INTEGER REFERENCES messages(id) ON DELETE SET NULL,
         timestamp    DATETIME DEFAULT CURRENT_TIMESTAMP,
         input_tokens        INTEGER NOT NULL,
         output_tokens       INTEGER NOT NULL,
         total_tokens        INTEGER NOT NULL,
         cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
-        cache_write_tokens  INTEGER NOT NULL DEFAULT 0
+        cache_write_tokens  INTEGER NOT NULL DEFAULT 0,
+        cost_input          REAL NOT NULL DEFAULT 0,
+        cost_output         REAL NOT NULL DEFAULT 0,
+        cost_cache_read     REAL NOT NULL DEFAULT 0,
+        cost_cache_write    REAL NOT NULL DEFAULT 0,
+        cost_total          REAL NOT NULL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS tool_usage (
@@ -301,14 +308,198 @@ export class DatabaseManager {
       );
     `);
 
-    this.ensureMessageUsageColumn();
+    this.ensureUsageDetailColumns();
+    this.migrateLegacyMessageUsageJson();
+    this.dropLegacyMessageUsageColumn();
   }
 
-  private ensureMessageUsageColumn(): void {
+  private ensureUsageDetailColumns(): void {
     if (!this.db) throw new Error('数据库尚未初始化');
-    const rows = this.db.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>;
-    if (!rows.some((row) => row.name === 'usage_json')) {
-      this.db.exec('ALTER TABLE messages ADD COLUMN usage_json TEXT');
+    const columns = this.getTableColumns('usage');
+
+    if (!columns.has('session_id')) {
+      this.db.exec(
+        'ALTER TABLE usage ADD COLUMN session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL',
+      );
+    }
+    if (!columns.has('message_id')) {
+      this.db.exec(
+        'ALTER TABLE usage ADD COLUMN message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL',
+      );
+    }
+    if (!columns.has('cost_input')) {
+      this.db.exec('ALTER TABLE usage ADD COLUMN cost_input REAL NOT NULL DEFAULT 0');
+    }
+    if (!columns.has('cost_output')) {
+      this.db.exec('ALTER TABLE usage ADD COLUMN cost_output REAL NOT NULL DEFAULT 0');
+    }
+    if (!columns.has('cost_cache_read')) {
+      this.db.exec('ALTER TABLE usage ADD COLUMN cost_cache_read REAL NOT NULL DEFAULT 0');
+    }
+    if (!columns.has('cost_cache_write')) {
+      this.db.exec('ALTER TABLE usage ADD COLUMN cost_cache_write REAL NOT NULL DEFAULT 0');
+    }
+    if (!columns.has('cost_total')) {
+      this.db.exec('ALTER TABLE usage ADD COLUMN cost_total REAL NOT NULL DEFAULT 0');
+    }
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_usage_session_id ON usage(session_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_message_id ON usage(message_id) WHERE message_id IS NOT NULL;
+    `);
+  }
+
+  private migrateLegacyMessageUsageJson(): void {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    if (!this.getTableColumns('messages').has('usage_json')) return;
+
+    const rows = this.db
+      .prepare(
+        `SELECT id, session_id, timestamp, usage_json
+         FROM messages
+         WHERE role = 'assistant' AND usage_json IS NOT NULL AND TRIM(usage_json) <> ''`,
+      )
+      .all() as Array<{ id: number; session_id: string; timestamp: string; usage_json: string }>;
+
+    const existingLinked = this.db.prepare('SELECT id FROM usage WHERE message_id = ? LIMIT 1');
+    const findUnlinked = this.db.prepare(
+      `SELECT id FROM usage
+       WHERE message_id IS NULL
+         AND input_tokens = ?
+         AND output_tokens = ?
+         AND total_tokens = ?
+         AND cache_read_tokens = ?
+         AND cache_write_tokens = ?
+       ORDER BY ABS(strftime('%s', timestamp) - strftime('%s', ?)) ASC, id DESC
+       LIMIT 1`,
+    );
+    const linkUsage = this.db.prepare(
+      `UPDATE usage
+       SET session_id = ?,
+           message_id = ?,
+           cost_input = ?,
+           cost_output = ?,
+           cost_cache_read = ?,
+           cost_cache_write = ?,
+           cost_total = ?
+       WHERE id = ?`,
+    );
+    const insertUsage = this.db.prepare(
+      `INSERT INTO usage (
+        model, provider, api, response_id, session_id, message_id, timestamp,
+        input_tokens, output_tokens, total_tokens,
+        cache_read_tokens, cache_write_tokens,
+        cost_input, cost_output, cost_cache_read, cost_cache_write, cost_total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+
+    for (const row of rows) {
+      if (existingLinked.get(row.id)) continue;
+      const usage = parseMessageUsage(row.usage_json);
+      if (!usage) continue;
+
+      const matchingUsage = findUnlinked.get(
+        usage.input,
+        usage.output,
+        usage.totalTokens,
+        usage.cacheRead,
+        usage.cacheWrite,
+        row.timestamp,
+      ) as { id: number } | undefined;
+
+      if (matchingUsage) {
+        linkUsage.run(
+          row.session_id,
+          row.id,
+          usage.cost?.input ?? 0,
+          usage.cost?.output ?? 0,
+          usage.cost?.cacheRead ?? 0,
+          usage.cost?.cacheWrite ?? 0,
+          usage.cost?.total ?? 0,
+          matchingUsage.id,
+        );
+        continue;
+      }
+
+      insertUsage.run(
+        'persisted-history',
+        'persisted-history',
+        'persisted-history',
+        null,
+        row.session_id,
+        row.id,
+        row.timestamp,
+        usage.input,
+        usage.output,
+        usage.totalTokens,
+        usage.cacheRead,
+        usage.cacheWrite,
+        usage.cost?.input ?? 0,
+        usage.cost?.output ?? 0,
+        usage.cost?.cacheRead ?? 0,
+        usage.cost?.cacheWrite ?? 0,
+        usage.cost?.total ?? 0,
+      );
     }
   }
+
+  private dropLegacyMessageUsageColumn(): void {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    if (!this.getTableColumns('messages').has('usage_json')) return;
+
+    try {
+      this.db.exec('ALTER TABLE messages DROP COLUMN usage_json');
+    } catch (err) {
+      logger.warn('无法移除旧消息用量列，后续读取将忽略该列', err);
+    }
+  }
+
+  private getTableColumns(table: 'messages' | 'usage'): Set<string> {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    const statement =
+      table === 'messages' ? 'PRAGMA table_info(messages)' : 'PRAGMA table_info(usage)';
+    const rows = this.db.prepare(statement).all() as Array<{ name: string }>;
+    return new Set(rows.map((row) => row.name));
+  }
+}
+
+function parseMessageUsage(value: string): MessageUsage | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!isMessageUsage(parsed)) return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+function isMessageUsage(value: unknown): value is MessageUsage {
+  if (!isRecord(value)) return false;
+  return (
+    isFiniteNumber(value['input']) &&
+    isFiniteNumber(value['output']) &&
+    isFiniteNumber(value['cacheRead']) &&
+    isFiniteNumber(value['cacheWrite']) &&
+    isFiniteNumber(value['totalTokens']) &&
+    (value['cost'] === undefined || isUsageCost(value['cost']))
+  );
+}
+
+function isUsageCost(value: unknown): value is NonNullable<MessageUsage['cost']> {
+  if (!isRecord(value)) return false;
+  return (
+    isFiniteNumber(value['input']) &&
+    isFiniteNumber(value['output']) &&
+    isFiniteNumber(value['cacheRead']) &&
+    isFiniteNumber(value['cacheWrite']) &&
+    isFiniteNumber(value['total'])
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
