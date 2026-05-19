@@ -316,15 +316,12 @@ function scrollToBottom() {
   padding: 20px 24px;
   border-radius: 6px;
   font-family: 'SourceHanSerifSC', 'Noto Serif SC', 'Songti SC', 'SimSun', var(--font-body), serif;
-  font-size: 16.5px;
+  font-size: 14px;
   line-height: 1.85;
   letter-spacing: 0.02em;
   color: #2c2a26;
   background: #fffdf6;
   border: 1px solid #ebe6da;
-  box-shadow:
-    0 2px 12px rgba(60, 50, 30, 0.06),
-    0 8px 40px rgba(60, 50, 30, 0.04);
 }
 
 .rendered-content {
