@@ -270,5 +270,5 @@ function handleClose(): void { void window.aesyclaw.closeWindow(); }
 .nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
 
 /* ── Main ───────────────────────────── */
-.main-content { flex: 1; overflow: hidden; background: #faf7f4; }
+.main-content { flex: 1; min-height: 0; overflow: auto; background: #faf7f4; }
 </style>
