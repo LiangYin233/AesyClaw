@@ -57,7 +57,7 @@ const plugin: PluginDefinition = {
       chain: 'pipeline:beforeLLM',
       priority: 200,
       enabled: false,
-      handler: async (ctx, next) => {
+      handler: async (_ctx, next) => {
         return next !== undefined ? await next() : { action: 'next' };
       },
     },

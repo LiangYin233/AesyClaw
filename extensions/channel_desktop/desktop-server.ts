@@ -410,7 +410,7 @@ export class DesktopServer {
   }
 
   private handleFileEnd(
-    connectionId: string,
+    _connectionId: string,
     msg: { type: 'file_end'; sessionId: string; fileId: string },
   ): void {
     const conn = this.sessions.getConnection(msg.sessionId);
