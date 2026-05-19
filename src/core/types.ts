@@ -33,9 +33,17 @@ export type {
   SendFn,
   PersistableMessage,
   MessageUsage,
+  MessageUsageCost,
+  CompleteMessageUsage,
 } from './message-types';
 
-export { getMessageText } from './message-types';
+export {
+  getMessageText,
+  createZeroMessageUsage,
+  completeMessageUsage,
+  parseMessageUsageJson,
+  isMessageUsage,
+} from './message-types';
 
 export type {
   SessionRecord,

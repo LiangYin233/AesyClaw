@@ -38,9 +38,11 @@ function mapRow(row: UsageRow): UsageSummary {
 // ─── 公共 API ───────────────────────────────────────────────────
 
 /** 插入单条用量记录。返回生成的行 ID。 */
-export async function createUsageRecord(db: DatabaseSync, record: UsageRecord): Promise<number> {
-  const timestamp = new Date().toISOString();
-
+export function insertUsageRecord(
+  db: DatabaseSync,
+  record: UsageRecord,
+  timestamp = new Date().toISOString(),
+): number {
   const result = db
     .prepare(
       `INSERT INTO usage (
@@ -71,6 +73,11 @@ export async function createUsageRecord(db: DatabaseSync, record: UsageRecord): 
     );
 
   return Number(result.lastInsertRowid);
+}
+
+/** 插入单条用量记录。返回生成的行 ID。 */
+export async function createUsageRecord(db: DatabaseSync, record: UsageRecord): Promise<number> {
+  return insertUsageRecord(db, record);
 }
 
 /** 获取按模型 + 日期分组的聚合用量统计，支持可选过滤条件。

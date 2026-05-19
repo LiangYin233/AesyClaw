@@ -1,4 +1,8 @@
-import type { SessionKey, PersistableMessage } from '@aesyclaw/core/types';
+import {
+  completeMessageUsage,
+  type SessionKey,
+  type PersistableMessage,
+} from '@aesyclaw/core/types';
 import {
   assistantHasToolCalls,
   createPersistedAssistantMessage,
@@ -18,7 +22,7 @@ import type {
   UsageRepository,
   ToolUsageRepository,
 } from '@aesyclaw/core/database/database-manager';
-import { completeSimple, type AssistantMessage, type Usage } from '@mariozechner/pi-ai';
+import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('session');
@@ -92,7 +96,7 @@ export class Session {
         : createPersistedAssistantMessage(
             r.content,
             parseTimestamp(r.timestamp),
-            toAgentUsage(r.usage),
+            completeMessageUsage(r.usage),
           ),
     );
   }
@@ -334,23 +338,6 @@ function getPersistedAssistantTextFromToolResult(message: AgentMessage): string 
 
   const text = (details as Record<string, unknown>)['persistAsAssistantText'];
   return typeof text === 'string' && text.trim().length > 0 ? text.trim() : null;
-}
-
-function toAgentUsage(usage: PersistableMessage['usage']): Usage {
-  return {
-    input: usage?.input ?? 0,
-    output: usage?.output ?? 0,
-    cacheRead: usage?.cacheRead ?? 0,
-    cacheWrite: usage?.cacheWrite ?? 0,
-    totalTokens: usage?.totalTokens ?? 0,
-    cost: {
-      input: usage?.cost?.input ?? 0,
-      output: usage?.cost?.output ?? 0,
-      cacheRead: usage?.cost?.cacheRead ?? 0,
-      cacheWrite: usage?.cost?.cacheWrite ?? 0,
-      total: usage?.cost?.total ?? 0,
-    },
-  };
 }
 
 function parseTimestamp(timestamp?: string): number {

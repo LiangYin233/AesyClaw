@@ -117,6 +117,71 @@ export type MessageUsage = {
   };
 };
 
+export type MessageUsageCost = NonNullable<MessageUsage['cost']>;
+export type CompleteMessageUsage = MessageUsage & { cost: MessageUsageCost };
+
+export function createZeroMessageUsage(): CompleteMessageUsage {
+  return completeMessageUsage();
+}
+
+export function completeMessageUsage(usage?: MessageUsage): CompleteMessageUsage {
+  return {
+    input: usage?.input ?? 0,
+    output: usage?.output ?? 0,
+    cacheRead: usage?.cacheRead ?? 0,
+    cacheWrite: usage?.cacheWrite ?? 0,
+    totalTokens: usage?.totalTokens ?? 0,
+    cost: {
+      input: usage?.cost?.input ?? 0,
+      output: usage?.cost?.output ?? 0,
+      cacheRead: usage?.cost?.cacheRead ?? 0,
+      cacheWrite: usage?.cost?.cacheWrite ?? 0,
+      total: usage?.cost?.total ?? 0,
+    },
+  };
+}
+
+export function parseMessageUsageJson(value: string): MessageUsage | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!isMessageUsage(parsed)) return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+export function isMessageUsage(value: unknown): value is MessageUsage {
+  if (!isRecord(value)) return false;
+  return (
+    isFiniteNumber(value['input']) &&
+    isFiniteNumber(value['output']) &&
+    isFiniteNumber(value['cacheRead']) &&
+    isFiniteNumber(value['cacheWrite']) &&
+    isFiniteNumber(value['totalTokens']) &&
+    (value['cost'] === undefined || isMessageUsageCost(value['cost']))
+  );
+}
+
+function isMessageUsageCost(value: unknown): value is MessageUsageCost {
+  if (!isRecord(value)) return false;
+  return (
+    isFiniteNumber(value['input']) &&
+    isFiniteNumber(value['output']) &&
+    isFiniteNumber(value['cacheRead']) &&
+    isFiniteNumber(value['cacheWrite']) &&
+    isFiniteNumber(value['total'])
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
 /** 持久化到数据库的消息记录 */
 export type PersistableMessage = {
   role: 'user' | 'assistant';

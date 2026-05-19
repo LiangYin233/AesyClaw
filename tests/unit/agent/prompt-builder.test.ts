@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -26,9 +26,10 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
 function makeAgentTool(overrides: Partial<AgentTool> = {}): AgentTool {
   return {
     name: 'test-tool',
+    label: 'Test Tool',
     description: 'A test tool',
     parameters: { type: 'object', properties: {} },
-    execute: async () => ({ text: 'ok' }),
+    execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: {} }),
     ...overrides,
   };
 }

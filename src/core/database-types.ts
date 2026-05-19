@@ -1,5 +1,7 @@
 /** 数据库记录类型 — 内存与 SQLite 之间的传输对象。 */
 
+import type { MessageUsage } from './message-types';
+
 // ─── 会话 ──────────────────────────────────────────────────────────
 
 /** 会话的数据库记录 */
@@ -45,20 +47,7 @@ export type UsageRecord = {
   responseId?: string;
   sessionId?: string;
   messageId?: number;
-  usage: {
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheWrite: number;
-    totalTokens: number;
-    cost?: {
-      input: number;
-      output: number;
-      cacheRead: number;
-      cacheWrite: number;
-      total: number;
-    };
-  };
+  usage: MessageUsage;
 };
 
 /** 聚合用量汇总（按模型 + 日期分组） */

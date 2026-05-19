@@ -155,7 +155,8 @@ function useChatImpl() {
     const session = sessions.value.find((s) => s.id === sessionId);
     if (!session) return;
     const outboundSessionId = session.id;
-    const titleText = text.trim() || attachments[0]?.name || '新对话';
+    const trimmedText = text.trim();
+    const titleText = trimmedText.length > 0 ? trimmedText : (attachments[0]?.name ?? '新对话');
 
     // 添加用户消息
     session.messages.push({ role: 'user', text, attachments });

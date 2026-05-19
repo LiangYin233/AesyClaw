@@ -1,5 +1,6 @@
 import type { AgentMessage as PiAgentMessage, StreamFn } from '@mariozechner/pi-agent-core';
 import type { Api, Model, TextContent, ToolCall, Usage } from '@mariozechner/pi-ai';
+import { createZeroMessageUsage } from '@aesyclaw/core/types';
 
 /**
  * PiAgent 的消息类型别名。
@@ -73,14 +74,7 @@ export function makeExtraBodyOnPayload(
   };
 }
 
-const ZERO_USAGE: Usage = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  totalTokens: 0,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-};
+const ZERO_USAGE: Usage = createZeroMessageUsage();
 
 /**
  * 创建一个用户消息。

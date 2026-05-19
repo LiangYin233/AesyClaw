@@ -8,7 +8,7 @@ import * as roleBindings from './repositories/role-binding-repository';
 import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
-import type { MessageUsage } from '@aesyclaw/core/types';
+import { parseMessageUsageJson } from '@aesyclaw/core/types';
 
 const logger = createScopedLogger('database-manager');
 
@@ -384,18 +384,10 @@ export class DatabaseManager {
            cost_total = ?
        WHERE id = ?`,
     );
-    const insertUsage = this.db.prepare(
-      `INSERT INTO usage (
-        model, provider, api, response_id, session_id, message_id, timestamp,
-        input_tokens, output_tokens, total_tokens,
-        cache_read_tokens, cache_write_tokens,
-        cost_input, cost_output, cost_cache_read, cost_cache_write, cost_total
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
 
     for (const row of rows) {
       if (existingLinked.get(row.id)) continue;
-      const usage = parseMessageUsage(row.usage_json);
+      const usage = parseMessageUsageJson(row.usage_json);
       if (!usage) continue;
 
       const matchingUsage = findUnlinked.get(
@@ -421,24 +413,17 @@ export class DatabaseManager {
         continue;
       }
 
-      insertUsage.run(
-        'persisted-history',
-        'persisted-history',
-        'persisted-history',
-        null,
-        row.session_id,
-        row.id,
+      usageRepo.insertUsageRecord(
+        this.db,
+        {
+          model: 'persisted-history',
+          provider: 'persisted-history',
+          api: 'persisted-history',
+          sessionId: row.session_id,
+          messageId: row.id,
+          usage,
+        },
         row.timestamp,
-        usage.input,
-        usage.output,
-        usage.totalTokens,
-        usage.cacheRead,
-        usage.cacheWrite,
-        usage.cost?.input ?? 0,
-        usage.cost?.output ?? 0,
-        usage.cost?.cacheRead ?? 0,
-        usage.cost?.cacheWrite ?? 0,
-        usage.cost?.total ?? 0,
       );
     }
   }
@@ -461,45 +446,4 @@ export class DatabaseManager {
     const rows = this.db.prepare(statement).all() as Array<{ name: string }>;
     return new Set(rows.map((row) => row.name));
   }
-}
-
-function parseMessageUsage(value: string): MessageUsage | undefined {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!isMessageUsage(parsed)) return undefined;
-    return parsed;
-  } catch {
-    return undefined;
-  }
-}
-
-function isMessageUsage(value: unknown): value is MessageUsage {
-  if (!isRecord(value)) return false;
-  return (
-    isFiniteNumber(value['input']) &&
-    isFiniteNumber(value['output']) &&
-    isFiniteNumber(value['cacheRead']) &&
-    isFiniteNumber(value['cacheWrite']) &&
-    isFiniteNumber(value['totalTokens']) &&
-    (value['cost'] === undefined || isUsageCost(value['cost']))
-  );
-}
-
-function isUsageCost(value: unknown): value is NonNullable<MessageUsage['cost']> {
-  if (!isRecord(value)) return false;
-  return (
-    isFiniteNumber(value['input']) &&
-    isFiniteNumber(value['output']) &&
-    isFiniteNumber(value['cacheRead']) &&
-    isFiniteNumber(value['cacheWrite']) &&
-    isFiniteNumber(value['total'])
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
