@@ -10,7 +10,6 @@
     "declaration": false,
     "outDir": "./out",
     "rootDir": ".",
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/renderer/*"]
     }
