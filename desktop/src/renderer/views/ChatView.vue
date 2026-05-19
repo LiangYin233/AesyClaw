@@ -2,9 +2,7 @@
   <div class="chat-view">
     <!-- Session list -->
     <div class="session-list">
-      <button class="new-chat-btn" @click="createSession">
-        <span>+</span> New Chat
-      </button>
+      <button class="new-chat-btn" @click="createSession"><span>+</span> New Chat</button>
       <div
         v-for="session in sessions"
         :key="session.id"
@@ -15,15 +13,16 @@
         <span class="session-title">{{ session.title }}</span>
         <span v-if="session.streaming" class="session-badge">…</span>
       </div>
-      <div v-if="sessions.length === 0" class="empty-sessions">
-        No conversations yet
-      </div>
+      <div v-if="sessions.length === 0" class="empty-sessions">No conversations yet</div>
     </div>
 
     <!-- Chat area -->
     <div class="chat-area" v-if="activeSession()">
       <div class="message-list" ref="messageListRef">
-        <div v-if="activeSession()!.messages.length === 0 && !activeSession()!.streaming" class="empty-state">
+        <div
+          v-if="activeSession()!.messages.length === 0 && !activeSession()!.streaming"
+          class="empty-state"
+        >
           <p class="empty-title">Start a conversation</p>
           <p class="empty-sub">Send a message to begin your AI-powered chat.</p>
         </div>
@@ -77,10 +76,11 @@
           </div>
         </div>
 
-        <div v-if="activeSession()?.streaming && !activeSession()?.activeAssistantMessage" class="message assistant">
-          <div class="assistant-bubble streaming dim">
-            Thinking…
-          </div>
+        <div
+          v-if="activeSession()?.streaming && !activeSession()?.activeAssistantMessage"
+          class="message assistant"
+        >
+          <div class="assistant-bubble streaming dim">Thinking…</div>
         </div>
       </div>
 
@@ -94,11 +94,7 @@
           :disabled="activeSession()?.streaming"
           @keydown.enter="handleInputEnter"
         ></textarea>
-        <button
-          v-if="activeSession()?.streaming"
-          class="stop-btn"
-          @click="handleCancel"
-        >
+        <button v-if="activeSession()?.streaming" class="stop-btn" @click="handleCancel">
           Stop
         </button>
         <button
@@ -127,8 +123,14 @@ import { renderMarkdownSafe } from '../utils/renderContent';
 import type { ChatMessageEvent } from '../../preload/index';
 
 const {
-  sessions, activeSessionId, activeSession,
-  createSession, syncSessionsFromBackend, loadSessionMessages, sendMessage, handleStreamEvent,
+  sessions,
+  activeSessionId,
+  activeSession,
+  createSession,
+  syncSessionsFromBackend,
+  loadSessionMessages,
+  sendMessage,
+  handleStreamEvent,
 } = useChat();
 
 const inputText = ref('');
@@ -227,7 +229,9 @@ function scrollToBottom() {
   margin-bottom: 12px;
   transition: background var(--transition-fast);
 }
-.new-chat-btn:hover { background: var(--color-primary-hover); }
+.new-chat-btn:hover {
+  background: var(--color-primary-hover);
+}
 
 .session-item {
   padding: 10px 12px;
@@ -241,15 +245,24 @@ function scrollToBottom() {
   font-family: var(--font-body);
   transition: all var(--transition-fast);
 }
-.session-item:hover { background: rgba(20,20,19,0.04); color: var(--color-dark); }
-.session-item.active { background: #f7f0ea; color: var(--color-dark); }
+.session-item:hover {
+  background: rgba(20, 20, 19, 0.04);
+  color: var(--color-dark);
+}
+.session-item.active {
+  background: #f7f0ea;
+  color: var(--color-dark);
+}
 
 .session-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.session-badge { color: var(--color-primary); font-weight: 500; }
+.session-badge {
+  color: var(--color-primary);
+  font-weight: 500;
+}
 
 .empty-sessions {
   text-align: center;
@@ -273,7 +286,8 @@ function scrollToBottom() {
   padding: 24px 32px;
 }
 
-.empty-state, .empty-chat {
+.empty-state,
+.empty-chat {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -296,9 +310,14 @@ function scrollToBottom() {
 }
 
 /* ── Messages ────────────────────────── */
-.message { margin-bottom: 20px; }
+.message {
+  margin-bottom: 20px;
+}
 
-.user-msg { display: flex; justify-content: flex-end; }
+.user-msg {
+  display: flex;
+  justify-content: flex-end;
+}
 
 .user-bubble {
   max-width: 70%;
@@ -329,7 +348,9 @@ function scrollToBottom() {
   word-break: break-word;
 }
 
-.rendered-content :deep(*) { max-width: 100%; }
+.rendered-content :deep(*) {
+  max-width: 100%;
+}
 
 .rendered-content :deep(h1),
 .rendered-content :deep(h2),
@@ -378,8 +399,12 @@ function scrollToBottom() {
   text-indent: 2em;
 }
 
-.rendered-content :deep(p:first-of-type) { text-indent: 0; }
-.rendered-content :deep(p:last-child) { margin-bottom: 0; }
+.rendered-content :deep(p:first-of-type) {
+  text-indent: 0;
+}
+.rendered-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
 
 .rendered-content :deep(ul),
 .rendered-content :deep(ol) {
@@ -407,8 +432,12 @@ function scrollToBottom() {
   margin: 0.4em 0;
 }
 
-.rendered-content :deep(blockquote p:first-child) { margin-top: 0; }
-.rendered-content :deep(blockquote p:last-child) { margin-bottom: 0; }
+.rendered-content :deep(blockquote p:first-child) {
+  margin-top: 0;
+}
+.rendered-content :deep(blockquote p:last-child) {
+  margin-bottom: 0;
+}
 
 .rendered-content :deep(code) {
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -501,7 +530,9 @@ function scrollToBottom() {
   color: #3d3a34;
 }
 
-.rendered-content :deep(tr:nth-child(even)) { background: #faf8f3; }
+.rendered-content :deep(tr:nth-child(even)) {
+  background: #faf8f3;
+}
 
 .rendered-content :deep(::selection) {
   background: #e8dfd0;
@@ -519,7 +550,11 @@ function scrollToBottom() {
   animation: blink 1s step-end infinite;
   color: var(--color-primary);
 }
-@keyframes blink { 50% { opacity: 0; } }
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
 
 .system-bubble {
   max-width: 50%;
@@ -535,7 +570,9 @@ function scrollToBottom() {
 }
 
 /* ── Tool cards ──────────────────────── */
-.tool-block { display: flex; }
+.tool-block {
+  display: flex;
+}
 
 .tool-card {
   margin: 0;
@@ -545,7 +582,9 @@ function scrollToBottom() {
   background: var(--color-surface);
   max-width: 85%;
 }
-.tool-card.error { border-color: rgba(196, 91, 91, 0.4); }
+.tool-card.error {
+  border-color: rgba(196, 91, 91, 0.4);
+}
 
 .tool-card-header {
   display: flex;
@@ -559,24 +598,42 @@ function scrollToBottom() {
   color: var(--color-mid-gray);
   transition: background var(--transition-fast);
 }
-.tool-card-header:hover { background: rgba(20,20,19,0.03); }
+.tool-card-header:hover {
+  background: rgba(20, 20, 19, 0.03);
+}
 
-.tool-arrow { font-size: 10px; width: 14px; color: var(--color-mid-gray); }
+.tool-arrow {
+  font-size: 10px;
+  width: 14px;
+  color: var(--color-mid-gray);
+}
 
 .tool-status-dot {
-  width: 7px; height: 7px; border-radius: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
 }
-.tool-status-dot.running { background: var(--color-warning); }
-.tool-status-dot.done { background: var(--color-accent-green); }
-.tool-status-dot.error { background: var(--color-danger); }
+.tool-status-dot.running {
+  background: var(--color-warning);
+}
+.tool-status-dot.done {
+  background: var(--color-accent-green);
+}
+.tool-status-dot.error {
+  background: var(--color-danger);
+}
 
 .tool-card-body {
   padding: 10px 12px;
   border-top: 1px solid var(--color-border);
 }
 
-.tool-section { margin-bottom: 10px; }
-.tool-section:last-child { margin-bottom: 0; }
+.tool-section {
+  margin-bottom: 10px;
+}
+.tool-section:last-child {
+  margin-bottom: 0;
+}
 
 .tool-label {
   font-family: var(--font-heading);
@@ -627,8 +684,12 @@ function scrollToBottom() {
   resize: vertical;
   transition: border var(--transition-fast);
 }
-.chat-input:focus { border-color: var(--color-primary); }
-.chat-input:disabled { background: #f5f3ef; }
+.chat-input:focus {
+  border-color: var(--color-primary);
+}
+.chat-input:disabled {
+  background: #f5f3ef;
+}
 
 .send-btn,
 .stop-btn {
@@ -648,8 +709,13 @@ function scrollToBottom() {
   color: #fff;
   border: 1px solid var(--color-primary);
 }
-.send-btn:hover:not(:disabled) { background: var(--color-primary-hover); }
-.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.send-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .stop-btn {
   background: transparent;
