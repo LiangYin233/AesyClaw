@@ -28,13 +28,6 @@
 
     <div class="app-body">
       <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
-        <div class="sidebar-header">
-          <button class="sidebar-toggle" type="button" :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-expanded="!sidebarCollapsed" @click="toggleSidebar">
-            <svg class="sidebar-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-        </div>
         <nav class="sidebar-nav">
           <router-link to="/" class="nav-item" title="Conversations">
             <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -50,6 +43,13 @@
             <span class="nav-label">Settings</span>
           </router-link>
         </nav>
+        <div class="sidebar-footer">
+          <button class="sidebar-toggle" type="button" :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-expanded="!sidebarCollapsed" @click="toggleSidebar">
+            <svg class="sidebar-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        </div>
       </aside>
 
       <main class="main-content">
@@ -263,7 +263,7 @@ function toggleSidebar(): void {
 
 .sidebar.collapsed { width: var(--sidebar-collapsed-width); }
 
-.sidebar-header { display: flex; justify-content: flex-end; padding: 12px 12px 4px; }
+.sidebar-footer { display: flex; justify-content: flex-end; padding: 4px 12px 12px; }
 
 .sidebar-toggle {
   display: inline-flex; align-items: center; justify-content: center;
@@ -276,11 +276,11 @@ function toggleSidebar(): void {
 
 .sidebar-toggle-icon { transition: transform var(--transition-fast); }
 
-.sidebar.collapsed .sidebar-header { justify-content: center; }
+.sidebar.collapsed .sidebar-footer { justify-content: center; }
 
 .sidebar.collapsed .sidebar-toggle-icon { transform: rotate(180deg); }
 
-.sidebar-nav { display: flex; flex-direction: column; padding: 8px 12px 12px; gap: 4px; flex: 1; }
+.sidebar-nav { display: flex; flex-direction: column; padding: 12px; gap: 4px; flex: 1; }
 
 .nav-item {
   display: flex; align-items: center; gap: 12px;
