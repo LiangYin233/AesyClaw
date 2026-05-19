@@ -84,25 +84,26 @@
                   )
                 "
               />
-              <textarea
-                v-else-if="field.type === 'object'"
-                :value="toJson(field.value)"
-                class="field-input json-input"
-                rows="3"
-                @input="
-                  handleChannelComplexField(
-                    entry.key,
-                    field.path,
-                    ($event.target as HTMLTextAreaElement).value,
-                  )
-                "
-              />
-              <p
-                v-if="getComplexFieldError(`channels.${entry.key}.${field.path}`)"
-                class="status-text error field-error"
-              >
-                {{ getComplexFieldError(`channels.${entry.key}.${field.path}`) }}
-              </p>
+              <template v-else-if="field.type === 'object'">
+                <textarea
+                  :value="toJson(field.value)"
+                  class="field-input json-input"
+                  rows="3"
+                  @input="
+                    handleChannelComplexField(
+                      entry.key,
+                      field.path,
+                      ($event.target as HTMLTextAreaElement).value,
+                    )
+                  "
+                />
+                <p
+                  v-if="getComplexFieldError(`channels.${entry.key}.${field.path}`)"
+                  class="status-text error field-error"
+                >
+                  {{ getComplexFieldError(`channels.${entry.key}.${field.path}`) }}
+                </p>
+              </template>
               <input
                 v-else
                 :value="field.value"
@@ -165,25 +166,26 @@
                   setPluginNumberField(index, field.path, ($event.target as HTMLInputElement).value)
                 "
               />
-              <textarea
-                v-else-if="field.type === 'object'"
-                :value="toJson(field.value)"
-                class="field-input json-input"
-                rows="3"
-                @input="
-                  handlePluginComplexField(
-                    index,
-                    field.path,
-                    ($event.target as HTMLTextAreaElement).value,
-                  )
-                "
-              />
-              <p
-                v-if="getComplexFieldError(`plugins.${index}.${field.path}`)"
-                class="status-text error field-error"
-              >
-                {{ getComplexFieldError(`plugins.${index}.${field.path}`) }}
-              </p>
+              <template v-else-if="field.type === 'object'">
+                <textarea
+                  :value="toJson(field.value)"
+                  class="field-input json-input"
+                  rows="3"
+                  @input="
+                    handlePluginComplexField(
+                      index,
+                      field.path,
+                      ($event.target as HTMLTextAreaElement).value,
+                    )
+                  "
+                />
+                <p
+                  v-if="getComplexFieldError(`plugins.${index}.${field.path}`)"
+                  class="status-text error field-error"
+                >
+                  {{ getComplexFieldError(`plugins.${index}.${field.path}`) }}
+                </p>
+              </template>
               <input
                 v-else
                 :value="field.value"
@@ -485,24 +487,25 @@
                   setGenericNumberField(field.path, ($event.target as HTMLInputElement).value)
                 "
               />
-              <textarea
-                v-else-if="field.type === 'object'"
-                :value="toJson(field.value)"
-                class="field-input json-input"
-                rows="3"
-                @input="
-                  handleGenericComplexField(
-                    field.path,
-                    ($event.target as HTMLTextAreaElement).value,
-                  )
-                "
-              />
-              <p
-                v-if="getComplexFieldError(`generic.${field.path}`)"
-                class="status-text error field-error"
-              >
-                {{ getComplexFieldError(`generic.${field.path}`) }}
-              </p>
+              <template v-else-if="field.type === 'object'">
+                <textarea
+                  :value="toJson(field.value)"
+                  class="field-input json-input"
+                  rows="3"
+                  @input="
+                    handleGenericComplexField(
+                      field.path,
+                      ($event.target as HTMLTextAreaElement).value,
+                    )
+                  "
+                />
+                <p
+                  v-if="getComplexFieldError(`generic.${field.path}`)"
+                  class="status-text error field-error"
+                >
+                  {{ getComplexFieldError(`generic.${field.path}`) }}
+                </p>
+              </template>
               <input
                 v-else
                 :value="field.value"
