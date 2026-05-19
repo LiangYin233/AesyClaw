@@ -8,12 +8,12 @@
       <div class="editor-actions">
         <button
           class="save-btn"
-          :disabled="!adminReady || saving || hasExtraBodyErrors"
+          :disabled="!adminReady || saving || hasBlockingErrors"
           @click="saveSection"
         >
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
-        <button class="secondary-btn" :disabled="!adminReady || loading" @click="loadConfig">
+        <button class="secondary-btn" :disabled="!adminReady || loading" @click="resetSection">
           Reset
         </button>
       </div>
@@ -77,10 +77,10 @@
                 type="number"
                 class="field-input"
                 @input="
-                  setChannelField(
+                  setChannelNumberField(
                     entry.key,
                     field.path,
-                    parseFloat(($event.target as HTMLInputElement).value) || 0,
+                    ($event.target as HTMLInputElement).value,
                   )
                 "
               />
@@ -97,6 +97,12 @@
                   )
                 "
               />
+              <p
+                v-if="getComplexFieldError(`channels.${entry.key}.${field.path}`)"
+                class="status-text error field-error"
+              >
+                {{ getComplexFieldError(`channels.${entry.key}.${field.path}`) }}
+              </p>
               <input
                 v-else
                 :value="field.value"
@@ -156,10 +162,10 @@
                 type="number"
                 class="field-input"
                 @input="
-                  setPluginOptionField(
+                  setPluginNumberField(
                     index,
                     field.path,
-                    parseFloat(($event.target as HTMLInputElement).value) || 0,
+                    ($event.target as HTMLInputElement).value,
                   )
                 "
               />
@@ -176,6 +182,12 @@
                   )
                 "
               />
+              <p
+                v-if="getComplexFieldError(`plugins.${index}.${field.path}`)"
+                class="status-text error field-error"
+              >
+                {{ getComplexFieldError(`plugins.${index}.${field.path}`) }}
+              </p>
               <input
                 v-else
                 :value="field.value"
@@ -199,7 +211,12 @@
               <div class="entry-title">{{ provider.key || 'New provider' }}</div>
               <span class="pill">{{ provider.apiType }}</span>
             </div>
-            <button class="danger-btn" type="button" title="Remove provider" @click="removeProvider(provider.key)">
+            <button
+              class="danger-btn"
+              type="button"
+              title="Remove provider"
+              @click="removeProvider(provider.key)"
+            >
               ×
             </button>
           </div>
@@ -219,7 +236,13 @@
               <select
                 :value="provider.apiType"
                 class="field-input"
-                @change="updateProviderField(provider.key, 'apiType', ($event.target as HTMLSelectElement).value)"
+                @change="
+                  updateProviderField(
+                    provider.key,
+                    'apiType',
+                    ($event.target as HTMLSelectElement).value,
+                  )
+                "
               >
                 <option value="openai-responses">openai-responses</option>
                 <option value="openai-completions">openai-completions</option>
@@ -232,7 +255,13 @@
                 :value="provider.baseUrl ?? ''"
                 class="field-input"
                 placeholder="https://api.example.com/v1"
-                @input="updateProviderOptionalString(provider.key, 'baseUrl', ($event.target as HTMLInputElement).value)"
+                @input="
+                  updateProviderOptionalString(
+                    provider.key,
+                    'baseUrl',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
               />
             </div>
             <div class="field-block full-span">
@@ -241,7 +270,13 @@
                 :value="provider.apiKey ?? ''"
                 class="field-input"
                 placeholder="Provider API key"
-                @input="updateProviderOptionalString(provider.key, 'apiKey', ($event.target as HTMLInputElement).value)"
+                @input="
+                  updateProviderOptionalString(
+                    provider.key,
+                    'apiKey',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
               />
             </div>
           </div>
@@ -256,7 +291,9 @@
             </button>
           </div>
 
-          <div v-if="provider.models.length === 0" class="empty-state compact">No model presets configured.</div>
+          <div v-if="provider.models.length === 0" class="empty-state compact">
+            No model presets configured.
+          </div>
           <article v-for="model in provider.models" :key="model.key" class="nested-entry">
             <div class="field-grid three-col">
               <div class="field-block">
@@ -265,7 +302,13 @@
                   :value="model.key"
                   class="field-input"
                   placeholder="gpt-4o"
-                  @change="renameProviderModel(provider.key, model.key, ($event.target as HTMLInputElement).value)"
+                  @change="
+                    renameProviderModel(
+                      provider.key,
+                      model.key,
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
                 />
               </div>
               <div class="field-block">
@@ -275,7 +318,13 @@
                   type="number"
                   class="field-input"
                   placeholder="128000"
-                  @input="updateProviderModelNumber(provider.key, model.key, ($event.target as HTMLInputElement).value)"
+                  @input="
+                    updateProviderModelNumber(
+                      provider.key,
+                      model.key,
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
                 />
               </div>
               <button
@@ -293,9 +342,18 @@
                   class="field-input json-input"
                   rows="4"
                   placeholder="{}"
-                  @input="updateProviderModelExtraBody(provider.key, model.key, ($event.target as HTMLTextAreaElement).value)"
+                  @input="
+                    updateProviderModelExtraBody(
+                      provider.key,
+                      model.key,
+                      ($event.target as HTMLTextAreaElement).value,
+                    )
+                  "
                 />
-                <p v-if="getExtraBodyError(provider.key, model.key)" class="status-text error field-error">
+                <p
+                  v-if="getExtraBodyError(provider.key, model.key)"
+                  class="status-text error field-error"
+                >
                   {{ getExtraBodyError(provider.key, model.key) }}
                 </p>
               </div>
@@ -308,7 +366,11 @@
         <div class="section-toolbar">
           <button type="button" class="add-btn" @click="addMcpServer">+ Add MCP</button>
         </div>
-        <article v-for="(server, index) in mcpServers" :key="`${server.name}-${index}`" class="config-entry">
+        <article
+          v-for="(server, index) in mcpServers"
+          :key="`${server.name}-${index}`"
+          class="config-entry"
+        >
           <div class="entry-header with-margin">
             <div>
               <div class="entry-title">{{ server.name || `MCP server ${index + 1}` }}</div>
@@ -316,7 +378,12 @@
                 {{ server.enabled ? 'Enabled' : 'Disabled' }}
               </span>
             </div>
-            <button class="danger-btn" type="button" title="Remove MCP" @click="removeMcpServer(index)">
+            <button
+              class="danger-btn"
+              type="button"
+              title="Remove MCP"
+              @click="removeMcpServer(index)"
+            >
               ×
             </button>
           </div>
@@ -336,7 +403,9 @@
               <select
                 :value="server.transport"
                 class="field-input"
-                @change="updateMcpField(index, 'transport', ($event.target as HTMLSelectElement).value)"
+                @change="
+                  updateMcpField(index, 'transport', ($event.target as HTMLSelectElement).value)
+                "
               >
                 <option value="stdio">stdio</option>
                 <option value="sse">sse</option>
@@ -345,7 +414,10 @@
             </div>
             <div class="field-block toggle-block">
               <label class="field-label">Enabled</label>
-              <ToggleSwitch :model-value="server.enabled" @update:model-value="updateMcpField(index, 'enabled', $event)" />
+              <ToggleSwitch
+                :model-value="server.enabled"
+                @update:model-value="updateMcpField(index, 'enabled', $event)"
+              />
             </div>
             <div v-if="server.transport === 'stdio'" class="field-block full-span">
               <label class="field-label">Command</label>
@@ -353,7 +425,13 @@
                 :value="server.command ?? ''"
                 class="field-input"
                 placeholder="npx"
-                @input="updateOptionalStringField(index, 'command', ($event.target as HTMLInputElement).value)"
+                @input="
+                  updateOptionalStringField(
+                    index,
+                    'command',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
               />
             </div>
             <div v-else class="field-block full-span">
@@ -362,7 +440,9 @@
                 :value="server.url ?? ''"
                 class="field-input"
                 placeholder="https://example.com/mcp"
-                @input="updateOptionalStringField(index, 'url', ($event.target as HTMLInputElement).value)"
+                @input="
+                  updateOptionalStringField(index, 'url', ($event.target as HTMLInputElement).value)
+                "
               />
             </div>
             <div class="field-block full-span">
@@ -405,15 +485,26 @@
                 :value="field.value"
                 type="number"
                 class="field-input"
-                @input="setGenericField(field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                @input="setGenericNumberField(field.path, ($event.target as HTMLInputElement).value)"
               />
               <textarea
                 v-else-if="field.type === 'object'"
                 :value="toJson(field.value)"
                 class="field-input json-input"
                 rows="3"
-                @input="handleGenericComplexField(field.path, ($event.target as HTMLTextAreaElement).value)"
+                @input="
+                  handleGenericComplexField(
+                    field.path,
+                    ($event.target as HTMLTextAreaElement).value,
+                  )
+                "
               />
+              <p
+                v-if="getComplexFieldError(`generic.${field.path}`)"
+                class="status-text error field-error"
+              >
+                {{ getComplexFieldError(`generic.${field.path}`) }}
+              </p>
               <input
                 v-else
                 :value="field.value"
@@ -480,6 +571,34 @@ interface McpServerForm extends Record<string, unknown> {
 
 type ConfigSectionKey = 'channels' | 'plugins' | 'server' | 'providers' | 'agent' | 'mcp';
 
+let cachedConfig: Record<string, unknown> | null = null;
+let pendingConfigLoad: Promise<Record<string, unknown>> | null = null;
+
+async function requestAdminRaw<T = unknown>(type: string, payload?: unknown): Promise<T> {
+  const response = await window.aesyclaw.adminRequest(type, payload);
+  if (!response.ok) {
+    throw new Error(response.error ?? `${type} failed`);
+  }
+  return response.data as T;
+}
+
+async function loadSharedConfig(force = false): Promise<Record<string, unknown>> {
+  if (!force && cachedConfig !== null) return cachedConfig;
+  if (!force && pendingConfigLoad !== null) return await pendingConfigLoad;
+
+  pendingConfigLoad = requestAdminRaw<Record<string, unknown>>('get_config');
+  try {
+    cachedConfig = await pendingConfigLoad;
+    return cachedConfig;
+  } finally {
+    pendingConfigLoad = null;
+  }
+}
+
+function updateCachedConfigSection(key: ConfigSectionKey, value: unknown): void {
+  cachedConfig = { ...(cachedConfig ?? {}), [key]: value };
+}
+
 const props = defineProps<{
   sectionKey: ConfigSectionKey;
   title: string;
@@ -495,8 +614,11 @@ const feedback = ref('');
 const feedbackType = ref<'success' | 'error'>('success');
 const extraBodyErrors = ref<Record<string, string>>({});
 const extraBodyDrafts = ref<Record<string, string>>({});
+const complexFieldErrors = ref<Record<string, string>>({});
 
 const hasExtraBodyErrors = computed(() => Object.keys(extraBodyErrors.value).length > 0);
+const hasComplexFieldErrors = computed(() => Object.keys(complexFieldErrors.value).length > 0);
+const hasBlockingErrors = computed(() => hasExtraBodyErrors.value || hasComplexFieldErrors.value);
 const sectionKey = computed(() => props.sectionKey);
 const entryNoun = computed(() => {
   if (props.sectionKey === 'plugins') return 'plugin';
@@ -507,7 +629,8 @@ const entryNoun = computed(() => {
 const itemCount = computed(() => {
   if (props.sectionKey === 'providers') return providerEntries.value.length;
   if (props.sectionKey === 'mcp') return mcpServers.value.length;
-  if (props.sectionKey !== 'channels' && props.sectionKey !== 'plugins') return genericFields.value.length;
+  if (props.sectionKey !== 'channels' && props.sectionKey !== 'plugins')
+    return genericFields.value.length;
   if (Array.isArray(sectionValue.value)) return sectionValue.value.length;
   if (isRecord(sectionValue.value)) return Object.keys(sectionValue.value).length;
   return 0;
@@ -525,7 +648,9 @@ const pluginEntries = computed<PluginEntry[]>(() => {
 
 const providerEntries = computed<ProviderForm[]>(() => {
   if (!isRecord(sectionValue.value)) return [];
-  return Object.entries(sectionValue.value).map(([key, provider]) => normalizeProvider(key, provider));
+  return Object.entries(sectionValue.value).map(([key, provider]) =>
+    normalizeProvider(key, provider),
+  );
 });
 
 const mcpServers = computed<McpServerForm[]>(() => {
@@ -536,14 +661,15 @@ const genericFields = computed<ConfigField[]>(() => {
   return isRecord(sectionValue.value) ? getFields(sectionValue.value) : [];
 });
 
-async function loadConfig(): Promise<void> {
+async function loadConfig(force = false): Promise<void> {
   if (!props.adminReady) return;
   loading.value = true;
   error.value = '';
   feedback.value = '';
   extraBodyErrors.value = {};
+  complexFieldErrors.value = {};
   try {
-    const config = await requestAdmin<Record<string, unknown>>('get_config');
+    const config = await loadSharedConfig(force);
     sectionValue.value = getSectionValue(config, props.sectionKey);
     extraBodyDrafts.value = {};
   } catch (err) {
@@ -555,12 +681,13 @@ async function loadConfig(): Promise<void> {
 
 async function saveSection(): Promise<void> {
   if (!props.adminReady) return;
-  if (hasExtraBodyErrors.value) return;
+  if (hasBlockingErrors.value) return;
   saving.value = true;
   error.value = '';
   feedback.value = '';
   try {
     await requestAdmin('update_config', { [props.sectionKey]: sectionValue.value });
+    updateCachedConfigSection(props.sectionKey, sectionValue.value);
     feedbackType.value = 'success';
     feedback.value = `${props.title} configuration saved`;
   } catch (err) {
@@ -572,11 +699,11 @@ async function saveSection(): Promise<void> {
 }
 
 async function requestAdmin<T = unknown>(type: string, payload?: unknown): Promise<T> {
-  const response = await window.aesyclaw.adminRequest(type, payload);
-  if (!response.ok) {
-    throw new Error(response.error ?? `${type} failed`);
-  }
-  return response.data as T;
+  return await requestAdminRaw<T>(type, payload);
+}
+
+function resetSection(): void {
+  void loadConfig(true);
 }
 
 function removeChannel(key: string): void {
@@ -648,6 +775,12 @@ function setChannelField(channelKey: string, path: string, value: unknown): void
   sectionValue.value = { ...current, [channelKey]: channelConfig };
 }
 
+function setChannelNumberField(channelKey: string, path: string, raw: string): void {
+  const parsed = parseNumberInput(raw);
+  if (parsed === null) return;
+  setChannelField(channelKey, path, parsed);
+}
+
 function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split('.');
   let current = obj;
@@ -664,7 +797,9 @@ function setNestedValue(obj: Record<string, unknown>, path: string, value: unkno
 }
 
 function handleChannelComplexField(channelKey: string, path: string, raw: string): void {
-  handleComplexField(raw, (parsed) => setChannelField(channelKey, path, parsed));
+  handleComplexField(`channels.${channelKey}.${path}`, raw, (parsed) =>
+    setChannelField(channelKey, path, parsed),
+  );
 }
 
 function removePlugin(index: number): void {
@@ -715,16 +850,44 @@ function setPluginOptionField(index: number, path: string, value: unknown): void
   sectionValue.value = next;
 }
 
-function handlePluginComplexField(index: number, path: string, raw: string): void {
-  handleComplexField(raw, (parsed) => setPluginOptionField(index, path, parsed));
+function setPluginNumberField(index: number, path: string, raw: string): void {
+  const parsed = parseNumberInput(raw);
+  if (parsed === null) return;
+  setPluginOptionField(index, path, parsed);
 }
 
-function handleComplexField(raw: string, setParsed: (value: unknown) => void): void {
+function handlePluginComplexField(index: number, path: string, raw: string): void {
+  handleComplexField(`plugins.${index}.${path}`, raw, (parsed) =>
+    setPluginOptionField(index, path, parsed),
+  );
+}
+
+function handleComplexField(
+  errorKey: string,
+  raw: string,
+  setParsed: (value: unknown) => void,
+): void {
   try {
     setParsed(JSON.parse(raw) as unknown);
-  } catch {
-    // Match WebUI behavior: leave the last valid value intact while the user edits invalid JSON.
+    clearComplexFieldError(errorKey);
+  } catch (err) {
+    setComplexFieldError(errorKey, err instanceof Error ? err.message : 'Invalid JSON');
   }
+}
+
+function getComplexFieldError(errorKey: string): string {
+  return complexFieldErrors.value[errorKey] ?? '';
+}
+
+function setComplexFieldError(errorKey: string, message: string): void {
+  complexFieldErrors.value = { ...complexFieldErrors.value, [errorKey]: message };
+}
+
+function clearComplexFieldError(errorKey: string): void {
+  if (!Object.hasOwn(complexFieldErrors.value, errorKey)) return;
+  const next = { ...complexFieldErrors.value };
+  delete next[errorKey];
+  complexFieldErrors.value = next;
 }
 
 function setGenericField(path: string, value: unknown): void {
@@ -733,8 +896,20 @@ function setGenericField(path: string, value: unknown): void {
   sectionValue.value = current;
 }
 
+function setGenericNumberField(path: string, raw: string): void {
+  const parsed = parseNumberInput(raw);
+  if (parsed === null) return;
+  setGenericField(path, parsed);
+}
+
 function handleGenericComplexField(path: string, raw: string): void {
-  handleComplexField(raw, (parsed) => setGenericField(path, parsed));
+  handleComplexField(`generic.${path}`, raw, (parsed) => setGenericField(path, parsed));
+}
+
+function parseNumberInput(raw: string): number | null {
+  if (raw.trim() === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function addProvider(): void {
@@ -820,11 +995,7 @@ function updateProviderModelNumber(providerKey: string, modelKey: string, value:
   });
 }
 
-function updateProviderModelExtraBody(
-  providerKey: string,
-  modelKey: string,
-  value: string,
-): void {
+function updateProviderModelExtraBody(providerKey: string, modelKey: string, value: string): void {
   setExtraBodyDraft(providerKey, modelKey, value);
   const result = parseJson(value);
   if (!result.ok) {
@@ -853,6 +1024,21 @@ function removeMcpServer(index: number): void {
 }
 
 function updateMcpField(index: number, key: keyof McpServerForm, value: unknown): void {
+  if (key === 'transport') {
+    const transport = isMcpTransport(value) ? value : 'stdio';
+    updateMcpServer(index, (server) => {
+      const next = { ...server, transport };
+      if (transport === 'stdio') {
+        delete next['url'];
+      } else {
+        delete next['command'];
+        delete next['args'];
+        delete next['env'];
+      }
+      return next;
+    });
+    return;
+  }
   updateMcpServer(index, (server) => ({ ...server, [key]: value }));
 }
 
@@ -1042,11 +1228,7 @@ function clearProviderExtraBodyErrors(providerKey: string): void {
   );
 }
 
-function renameExtraBodyState(
-  providerKey: string,
-  oldModelKey: string,
-  newModelKey: string,
-): void {
+function renameExtraBodyState(providerKey: string, oldModelKey: string, newModelKey: string): void {
   const oldKey = getExtraBodyErrorKey(providerKey, oldModelKey);
   const newKey = getExtraBodyErrorKey(providerKey, newModelKey);
   if (extraBodyErrors.value[oldKey]) {
