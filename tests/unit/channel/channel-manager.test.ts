@@ -342,7 +342,9 @@ describe('ChannelManager', () => {
           execute: async () => 'ok',
         });
 
-        expect(ctx.getCommands().map((command) => command.name)).toContain('channelcmd');
+        const commands = ctx.getCommands();
+        expect(commands.map((command) => command.name)).toContain('channelcmd');
+        expect(commands.some((command) => 'execute' in command)).toBe(false);
       }),
     });
     const manager = makeManager({

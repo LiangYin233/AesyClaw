@@ -10,7 +10,11 @@
 
 export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin/plugin-types';
 
-export type { ChannelContext, ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
+export type {
+  ChannelContext,
+  ChannelPlugin,
+  RegisteredCommandInfo,
+} from '@aesyclaw/extension/channel/channel-types';
 
 export type {
   Message,

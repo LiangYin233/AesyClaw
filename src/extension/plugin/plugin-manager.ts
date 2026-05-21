@@ -83,7 +83,10 @@ export class PluginManager implements ExtensionLifecycle {
     }
 
     const configLookup = this.getPluginConfig(module);
-    const mergedConfig = getManagedPluginOptions(module.definition.defaultConfig, configLookup.options);
+    const mergedConfig = getManagedPluginOptions(
+      module.definition.defaultConfig,
+      configLookup.options,
+    );
     if (!configLookup.enabled) {
       logger.info('跳过已禁用的插件', { pluginName });
       return null;
@@ -465,9 +468,9 @@ function getManagedPluginOptions(
   return omitManagedPluginKeys(mergeDefaults(omitManagedPluginKeys(defaults ?? {}), overrides));
 }
 
-function createPluginOptionsProperty(
-  defaults: Record<string, unknown> | undefined,
-): { options?: Record<string, unknown> } {
+function createPluginOptionsProperty(defaults: Record<string, unknown> | undefined): {
+  options?: Record<string, unknown>;
+} {
   const options = omitManagedPluginKeys(defaults ?? {});
   return Object.keys(options).length === 0 ? {} : { options };
 }

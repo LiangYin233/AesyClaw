@@ -34,7 +34,7 @@ export const channel: ChannelPlugin = {
   async init(ctx: ChannelContext): Promise<void> {
     const config = ctx.config as unknown as DesktopChannelConfig;
     const authToken = config.authToken;
-    const adminToken = ctx.configManager.get('server.authToken') as string | undefined ?? '';
+    const adminToken = (ctx.configManager.get('server.authToken') as string | undefined) ?? '';
 
     server = new DesktopServer({
       port: config.port ?? 9730,
@@ -73,7 +73,10 @@ async function receive(): Promise<void> {
  * - 普通 Message：最终回复 → 作为 done 事件发送
  * - StreamMessage：流式事件 → 转发到对应桌面客户端
  */
-async function send(sessionKey: { channel: string; type: string; chatId: string }, message: { components: unknown[] } & { event?: string }): Promise<void> {
+async function send(
+  sessionKey: { channel: string; type: string; chatId: string },
+  message: { components: unknown[] } & { event?: string },
+): Promise<void> {
   if (!server) return;
 
   const sessionId = sessionKey.chatId;

@@ -313,7 +313,7 @@ export class DesktopServer {
         void this.handleChatMessage(connectionId, msg);
         break;
       case 'cancel':
-        this.handleCancelMessage(connectionId, msg);
+        void this.handleCancelMessage(connectionId, msg);
         break;
       case 'file_start':
         this.handleFileStart(connectionId, msg);
@@ -368,12 +368,30 @@ export class DesktopServer {
     }
   }
 
-  private handleCancelMessage(
+  private async handleCancelMessage(
     connectionId: string,
     msg: { type: 'cancel'; sessionId: string },
-  ): void {
+  ): Promise<void> {
     this.logger.info('收到取消请求', { connectionId, sessionId: msg.sessionId });
-    // TODO: 通过 AgentRegistry 取消对应 Agent 的运行
+    const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
+    const conn = this.sessions.getConnection(msg.sessionId);
+    try {
+      await this.options.context.receive(
+        { components: [{ type: 'Plain', text: '/stop' }] },
+        sessionKey,
+        {
+          id: connectionId,
+          name: `Desktop-${connectionId.slice(0, 8)}`,
+        },
+      );
+    } catch (err) {
+      this.logger.error('取消 Agent 处理失败', { connectionId, sessionId: msg.sessionId }, err);
+      conn?.sendJson({
+        type: 'error',
+        sessionId: msg.sessionId,
+        message: err instanceof Error ? err.message : '取消 Agent 处理失败',
+      } satisfies DesktopOutboundMessage);
+    }
   }
 
   private handleFileStart(

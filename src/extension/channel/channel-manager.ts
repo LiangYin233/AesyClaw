@@ -32,9 +32,6 @@ export class ChannelManager implements ExtensionLifecycle {
   private readonly channelOwners = new Map<string, string>();
 
   constructor(private readonly deps: ChannelManagerDependencies) {
-    for (const channel of this.definitions.values()) {
-      this.registerDefaults(channel);
-    }
     for (const channel of deps.channels ?? []) {
       this.register(channel);
     }
@@ -378,7 +375,9 @@ export class ChannelManager implements ExtensionLifecycle {
         this.deps.commandRegistry.register({ ...command, scope: channelRuntimeOwner(channelName) });
       },
       getCommands: (): ReturnType<ChannelContext['getCommands']> => {
-        return this.deps.commandRegistry.getAll();
+        return this.deps.commandRegistry
+          .getAll()
+          .map(({ execute: _execute, ...command }) => command);
       },
       logger: createScopedLogger(`channel:${channelName}`),
     };

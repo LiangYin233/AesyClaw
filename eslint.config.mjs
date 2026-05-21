@@ -9,6 +9,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'desktop/out/**',
       'node_modules/**',
       '.aesyclaw/**',
       '.trellis/**',

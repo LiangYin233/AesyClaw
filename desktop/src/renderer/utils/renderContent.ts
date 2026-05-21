@@ -27,7 +27,15 @@ function sanitizeNode(root: ParentNode): void {
     const element = node as HTMLElement;
     const tag = element.tagName.toLowerCase();
 
-    if (tag === 'script' || tag === 'iframe' || tag === 'object' || tag === 'embed' || tag === 'link' || tag === 'meta' || tag === 'base') {
+    if (
+      tag === 'script' ||
+      tag === 'iframe' ||
+      tag === 'object' ||
+      tag === 'embed' ||
+      tag === 'link' ||
+      tag === 'meta' ||
+      tag === 'base'
+    ) {
       element.remove();
       continue;
     }

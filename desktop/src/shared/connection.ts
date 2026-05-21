@@ -22,7 +22,10 @@ export function normalizeConnectionConfig(
     host: normalizeHost(config.host, fallback.host, strict),
     desktopPort: normalizePort(config.desktopPort, fallback.desktopPort),
     adminPort: normalizePort(config.adminPort, fallback.adminPort),
-    token: typeof config.token === 'string' && config.token.trim() ? config.token.trim() : fallback.token,
+    token:
+      typeof config.token === 'string' && config.token.trim()
+        ? config.token.trim()
+        : fallback.token,
   };
 }
 

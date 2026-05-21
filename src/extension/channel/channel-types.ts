@@ -10,6 +10,8 @@ import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { isRecord } from '@aesyclaw/core/utils';
 import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
+export type RegisteredCommandInfo = Omit<CommandDefinition, 'execute'>;
+
 /** 频道初始化时接收的上下文（包含名称、配置、接收回调等）。 */
 export type ChannelContext = {
   name: string;
@@ -20,7 +22,7 @@ export type ChannelContext = {
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
   registerCommand(command: CommandDefinition): void;
-  getCommands(): CommandDefinition[];
+  getCommands(): RegisteredCommandInfo[];
   logger: Logger;
 };
 
