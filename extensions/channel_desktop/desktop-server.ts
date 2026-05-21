@@ -9,11 +9,12 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { WebSocketServer, type WebSocket } from 'ws';
-import { timingSafeEqual } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import nodePath from 'node:path';
+import { WebSocketServer, type WebSocket } from 'ws';
 import { createScopedLogger } from '@aesyclaw/sdk';
+import * as desktopAttachments from './attachments';
+import { validateDesktopToken } from './auth';
 import { DesktopSessionManager, type DesktopConnection } from './session-manager';
 import type {
   DesktopInboundMessage,
@@ -25,61 +26,6 @@ import type { ChannelContext, MessageComponent, StreamMessage } from '@aesyclaw/
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const CLIENT_ALIVE_TIMEOUT_MS = HEARTBEAT_INTERVAL_MS * 2 + 5_000;
-
-function safeTokenEqual(provided: string, expected: string): boolean {
-  const providedBuf = Buffer.from(provided);
-  const expectedBuf = Buffer.from(expected);
-  if (providedBuf.length !== expectedBuf.length) return false;
-  return timingSafeEqual(providedBuf, expectedBuf);
-}
-
-function sanitizeFileName(name: string): string {
-  const sanitized = name
-    .replace(/[<>:"/\\|?*]/g, '_')
-    .replace(/\p{C}/gu, '_')
-    .trim();
-  return sanitized.length > 0 ? sanitized : 'upload.bin';
-}
-
-function sanitizePathSegment(segment: string): string {
-  const sanitized = segment.replace(/[^a-z0-9._-]/gi, '_').trim();
-  return sanitized.length > 0 ? sanitized : 'session';
-}
-
-function fileComponentType(mime: string): 'Image' | 'Record' | 'Video' | 'File' {
-  if (mime.startsWith('image/')) return 'Image';
-  if (mime.startsWith('audio/')) return 'Record';
-  if (mime.startsWith('video/')) return 'Video';
-  return 'File';
-}
-
-function attachmentKind(mime: string): string {
-  if (mime.startsWith('image/')) return 'image';
-  if (mime.startsWith('audio/')) return 'audio';
-  if (mime.startsWith('video/')) return 'video';
-  return 'file';
-}
-
-function fileToMessageComponent(file: DesktopReceivedFile): MessageComponent {
-  const type = fileComponentType(file.mime);
-  return {
-    type,
-    ['path']: file.filePath,
-    file: file.name,
-    name: file.name,
-    mimeType: file.mime,
-  } as MessageComponent;
-}
-
-function formatAttachmentText(attachments: DesktopReceivedFile[]): string {
-  if (attachments.length === 0) return '';
-  return [
-    '[Attachments]',
-    ...attachments.map(
-      (file) => `- ${attachmentKind(file.mime)}: ${file.filePath} (${file.name}, ${file.mime})`,
-    ),
-  ].join('\n');
-}
 
 export type DesktopServerOptions = {
   port: number;
@@ -288,15 +234,7 @@ export class DesktopServer {
   }
 
   private validateToken(url: string | undefined): boolean {
-    if (!url) return false;
-    try {
-      const parsed = new URL(url, 'http://localhost');
-      const token = parsed.searchParams.get('token');
-      if (!token) return false;
-      return safeTokenEqual(token, this.options.authToken);
-    } catch {
-      return false;
-    }
+    return validateDesktopToken(url, this.options.authToken);
   }
 
   private handleJsonMessage(connectionId: string, raw: string): void {
@@ -440,10 +378,17 @@ export class DesktopServer {
     // 合并所有分片并保存到媒体目录
     const fileData = Buffer.concat(buffer.chunks);
     const baseMediaDir = this.options.context.paths.mediaDir;
-    const mediaDir = nodePath.join(baseMediaDir, 'desktop', sanitizePathSegment(buffer.sessionId));
+    const mediaDir = nodePath.join(
+      baseMediaDir,
+      'desktop',
+      desktopAttachments.sanitizePathSegment(buffer.sessionId),
+    );
     mkdirSync(mediaDir, { recursive: true });
 
-    const targetFile = nodePath.join(mediaDir, `${randomUUID()}-${sanitizeFileName(buffer.name)}`);
+    const targetFile = nodePath.join(
+      mediaDir,
+      `${randomUUID()}-${desktopAttachments.sanitizeFileName(buffer.name)}`,
+    );
     writeFileSync(targetFile, fileData);
 
     conn.completedFiles.set(msg.fileId, {
@@ -487,12 +432,12 @@ export class DesktopServer {
   ): MessageComponent[] {
     const components: MessageComponent[] = [];
     const trimmedText = text.trim();
-    const attachmentText = formatAttachmentText(attachments);
+    const attachmentText = desktopAttachments.formatAttachmentText(attachments);
     const plainText = [trimmedText, attachmentText].filter(Boolean).join('\n\n');
     if (plainText.length > 0) components.push({ type: 'Plain', text: plainText });
 
     for (const attachment of attachments) {
-      components.push(fileToMessageComponent(attachment));
+      components.push(desktopAttachments.fileToMessageComponent(attachment));
     }
 
     if (components.length === 0) components.push({ type: 'Plain', text: '' });

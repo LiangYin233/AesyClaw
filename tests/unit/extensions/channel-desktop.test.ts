@@ -1,4 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import {
+  fileToMessageComponent,
+  formatAttachmentText,
+  sanitizeFileName,
+  sanitizePathSegment,
+} from '../../../extensions/channel_desktop/attachments';
+import { validateDesktopToken } from '../../../extensions/channel_desktop/auth';
 import { DesktopServer } from '../../../extensions/channel_desktop/desktop-server';
 import type { ChannelContext } from '../../../src/extension/channel/channel-types';
 
@@ -55,4 +62,34 @@ describe('DesktopServer', () => {
       { id: 'conn-abcdef12', name: 'Desktop-conn-abc' },
     );
   });
+});
+
+it('validates desktop websocket auth tokens safely', () => {
+  expect(validateDesktopToken('/ws?token=desktop-local', 'desktop-local')).toBe(true);
+  expect(validateDesktopToken('/ws?token=wrong', 'desktop-local')).toBe(false);
+  expect(validateDesktopToken('/ws', 'desktop-local')).toBe(false);
+  expect(validateDesktopToken(undefined, 'desktop-local')).toBe(false);
+});
+
+it('sanitizes attachment names and maps files to message components', () => {
+  expect(sanitizeFileName('../bad:name.png')).toBe('.._bad_name.png');
+  expect(sanitizeFileName('   ')).toBe('upload.bin');
+  expect(sanitizePathSegment('../session id')).toBe('.._session_id');
+
+  const file = {
+    fileId: 'file-1',
+    sessionId: 'session-1',
+    name: 'photo.png',
+    mime: 'image/png',
+    size: 3,
+    filePath: '/media/photo.png',
+  };
+
+  expect(fileToMessageComponent(file)).toMatchObject({
+    type: 'Image',
+    path: '/media/photo.png',
+    name: 'photo.png',
+    mimeType: 'image/png',
+  });
+  expect(formatAttachmentText([file])).toContain('- image: /media/photo.png');
 });

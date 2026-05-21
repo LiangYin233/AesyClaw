@@ -86,7 +86,7 @@
               />
               <template v-else-if="field.type === 'object'">
                 <textarea
-                  :value="toJson(field.value)"
+                  :value="configEditor.toJson(field.value)"
                   class="field-input json-input"
                   rows="3"
                   @input="
@@ -168,7 +168,7 @@
               />
               <template v-else-if="field.type === 'object'">
                 <textarea
-                  :value="toJson(field.value)"
+                  :value="configEditor.toJson(field.value)"
                   class="field-input json-input"
                   rows="3"
                   @input="
@@ -489,7 +489,7 @@
               />
               <template v-else-if="field.type === 'object'">
                 <textarea
-                  :value="toJson(field.value)"
+                  :value="configEditor.toJson(field.value)"
                   class="field-input json-input"
                   rows="3"
                   @input="
@@ -525,53 +525,15 @@ import { computed, onMounted, ref, watch } from 'vue';
 import ToggleSwitch from './ToggleSwitch.vue';
 import { toIpcCloneable } from '../../shared/ipc-clone';
 
-interface PluginEntry extends Record<string, unknown> {
-  name: string;
-  enabled: boolean;
-  options?: Record<string, unknown>;
-}
-
-interface ChannelEntry {
-  key: string;
-  value: unknown;
-}
-
-interface ConfigField {
-  path: string;
-  key: string;
-  displayLabel: string;
-  value: unknown;
-  type: 'string' | 'number' | 'boolean' | 'object';
-}
-
-type ApiType = 'openai-responses' | 'openai-completions' | 'anthropic-messages';
-type McpTransport = 'stdio' | 'sse' | 'http';
-
-interface ProviderModelForm extends Record<string, unknown> {
-  key: string;
-  contextWindow?: number;
-  extraBody?: Record<string, unknown>;
-}
-
-interface ProviderForm extends Record<string, unknown> {
-  key: string;
-  apiType: ApiType;
-  baseUrl?: string;
-  apiKey?: string;
-  models: ProviderModelForm[];
-}
-
-interface McpServerForm extends Record<string, unknown> {
-  name: string;
-  transport: McpTransport;
-  enabled: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
-}
-
-type ConfigSectionKey = 'channels' | 'plugins' | 'server' | 'providers' | 'agent' | 'mcp';
+import type {
+  ChannelEntry,
+  ConfigField,
+  ConfigSectionKey,
+  McpServerForm,
+  PluginEntry,
+  ProviderForm,
+} from '../config-editor/types';
+import * as configEditor from '../config-editor/utils';
 
 let cachedConfig: Record<string, unknown> | null = null;
 let pendingConfigLoad: Promise<Record<string, unknown>> | null = null;
@@ -608,7 +570,7 @@ const props = defineProps<{
   adminReady: boolean;
 }>();
 
-const sectionValue = ref<unknown>(getDefaultSectionValue(props.sectionKey));
+const sectionValue = ref<unknown>(configEditor.getDefaultSectionValue(props.sectionKey));
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
@@ -634,33 +596,35 @@ const itemCount = computed(() => {
   if (props.sectionKey !== 'channels' && props.sectionKey !== 'plugins')
     return genericFields.value.length;
   if (Array.isArray(sectionValue.value)) return sectionValue.value.length;
-  if (isRecord(sectionValue.value)) return Object.keys(sectionValue.value).length;
+  if (configEditor.isRecord(sectionValue.value)) return Object.keys(sectionValue.value).length;
   return 0;
 });
 
 const channelEntries = computed<ChannelEntry[]>(() => {
-  if (!isRecord(sectionValue.value)) return [];
+  if (!configEditor.isRecord(sectionValue.value)) return [];
   return Object.entries(sectionValue.value).map(([key, value]) => ({ key, value }));
 });
 
 const pluginEntries = computed<PluginEntry[]>(() => {
   if (!Array.isArray(sectionValue.value)) return [];
-  return sectionValue.value.map(normalizePluginEntry);
+  return sectionValue.value.map(configEditor.normalizePluginEntry);
 });
 
 const providerEntries = computed<ProviderForm[]>(() => {
-  if (!isRecord(sectionValue.value)) return [];
+  if (!configEditor.isRecord(sectionValue.value)) return [];
   return Object.entries(sectionValue.value).map(([key, provider]) =>
-    normalizeProvider(key, provider),
+    configEditor.normalizeProvider(key, provider),
   );
 });
 
 const mcpServers = computed<McpServerForm[]>(() => {
-  return Array.isArray(sectionValue.value) ? sectionValue.value.map(normalizeMcpServer) : [];
+  return Array.isArray(sectionValue.value)
+    ? sectionValue.value.map(configEditor.normalizeMcpServer)
+    : [];
 });
 
 const genericFields = computed<ConfigField[]>(() => {
-  return isRecord(sectionValue.value) ? getFields(sectionValue.value) : [];
+  return configEditor.isRecord(sectionValue.value) ? getFields(sectionValue.value) : [];
 });
 
 async function loadConfig(force = false): Promise<void> {
@@ -672,7 +636,7 @@ async function loadConfig(force = false): Promise<void> {
   complexFieldErrors.value = {};
   try {
     const config = await loadSharedConfig(force);
-    sectionValue.value = getSectionValue(config, props.sectionKey);
+    sectionValue.value = configEditor.getSectionValue(config, props.sectionKey);
     extraBodyDrafts.value = {};
   } catch (err) {
     error.value = err instanceof Error ? err.message : `Failed to load ${props.sectionKey} config`;
@@ -710,21 +674,21 @@ function resetSection(): void {
 }
 
 function removeChannel(key: string): void {
-  if (!isRecord(sectionValue.value)) return;
+  if (!configEditor.isRecord(sectionValue.value)) return;
   const next = { ...sectionValue.value };
   delete next[key];
   sectionValue.value = next;
 }
 
 function getChannelEnabled(entry: ChannelEntry): boolean {
-  return isRecord(entry.value) && typeof entry.value['enabled'] === 'boolean'
+  return configEditor.isRecord(entry.value) && typeof entry.value['enabled'] === 'boolean'
     ? entry.value['enabled']
     : true;
 }
 
 async function toggleChannelEnabled(key: string): Promise<void> {
-  const current = isRecord(sectionValue.value) ? sectionValue.value : {};
-  const channelValue = isRecord(current[key]) ? current[key] : {};
+  const current = configEditor.isRecord(sectionValue.value) ? sectionValue.value : {};
+  const channelValue = configEditor.isRecord(current[key]) ? current[key] : {};
   const enabled = channelValue['enabled'] === false;
   sectionValue.value = { ...current, [key]: { ...channelValue, enabled } };
 
@@ -740,7 +704,7 @@ async function toggleChannelEnabled(key: string): Promise<void> {
 }
 
 function getChannelFields(entry: ChannelEntry): ConfigField[] {
-  return isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
+  return configEditor.isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
 }
 
 function getFields(record: Record<string, unknown>, skipKeys: string[] = []): ConfigField[] {
@@ -753,7 +717,13 @@ function getFields(record: Record<string, unknown>, skipKeys: string[] = []): Co
     if (typeof val === 'number') type = 'number';
     else if (typeof val === 'boolean') type = 'boolean';
     else if (typeof val === 'object' && val !== null) type = 'object';
-    fields.push({ path: key, key, displayLabel: formatFieldLabel(key), value: val, type });
+    fields.push({
+      path: key,
+      key,
+      displayLabel: configEditor.formatFieldLabel(key),
+      value: val,
+      type,
+    });
   }
   return fields;
 }
@@ -762,7 +732,7 @@ function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
     const path = prefix ? `${prefix}.${key}` : key;
-    if (isRecord(val) && Object.keys(val).length > 0) {
+    if (configEditor.isRecord(val) && Object.keys(val).length > 0) {
       Object.assign(result, flattenObject(val, path));
     } else {
       result[path] = val;
@@ -772,8 +742,10 @@ function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string
 }
 
 function setChannelField(channelKey: string, path: string, value: unknown): void {
-  const current = isRecord(sectionValue.value) ? sectionValue.value : {};
-  const channelConfig = isRecord(current[channelKey]) ? { ...current[channelKey] } : {};
+  const current = configEditor.isRecord(sectionValue.value) ? sectionValue.value : {};
+  const channelConfig = configEditor.isRecord(current[channelKey])
+    ? { ...current[channelKey] }
+    : {};
   setNestedValue(channelConfig, path, value);
   sectionValue.value = { ...current, [channelKey]: channelConfig };
 }
@@ -790,7 +762,7 @@ function setNestedValue(obj: Record<string, unknown>, path: string, value: unkno
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
     if (!part) continue;
-    if (!isRecord(current[part])) {
+    if (!configEditor.isRecord(current[part])) {
       current[part] = {};
     }
     current = current[part] as Record<string, unknown>;
@@ -839,7 +811,7 @@ async function updatePluginField(
 }
 
 function getPluginFields(plugin: PluginEntry): ConfigField[] {
-  const options = isRecord(plugin['options']) ? plugin['options'] : {};
+  const options = configEditor.isRecord(plugin['options']) ? plugin['options'] : {};
   return getFields(options);
 }
 
@@ -847,7 +819,7 @@ function setPluginOptionField(index: number, path: string, value: unknown): void
   const next = [...getRawPlugins()];
   const current = next[index];
   if (!current) return;
-  const options = isRecord(current['options']) ? { ...current['options'] } : {};
+  const options = configEditor.isRecord(current['options']) ? { ...current['options'] } : {};
   setNestedValue(options, path, value);
   next[index] = { ...current, options };
   sectionValue.value = next;
@@ -894,7 +866,7 @@ function clearComplexFieldError(errorKey: string): void {
 }
 
 function setGenericField(path: string, value: unknown): void {
-  const current = isRecord(sectionValue.value) ? { ...sectionValue.value } : {};
+  const current = configEditor.isRecord(sectionValue.value) ? { ...sectionValue.value } : {};
   setNestedValue(current, path, value);
   sectionValue.value = current;
 }
@@ -917,7 +889,7 @@ function parseNumberInput(raw: string): number | null {
 
 function addProvider(): void {
   const providers = getRawProviders();
-  const nextKey = nextUniqueKey(providers, 'new-provider');
+  const nextKey = configEditor.nextUniqueKey(providers, 'new-provider');
   sectionValue.value = { ...providers, [nextKey]: { apiType: 'openai-responses', models: {} } };
 }
 
@@ -937,14 +909,14 @@ function renameProvider(oldKey: string, newKeyRaw: string): void {
     feedback.value = `A provider named "${newKey}" already exists`;
     return;
   }
-  sectionValue.value = renameRecordKey(providers, oldKey, newKey);
+  sectionValue.value = configEditor.renameRecordKey(providers, oldKey, newKey);
   renameProviderExtraBodyState(oldKey, newKey);
 }
 
 function updateProviderField(providerKey: string, key: 'apiType', value: unknown): void {
   updateProvider(providerKey, (provider) => ({
     ...provider,
-    [key]: isApiType(value) ? value : 'openai-responses',
+    [key]: configEditor.isApiType(value) ? value : 'openai-responses',
   }));
 }
 
@@ -953,20 +925,22 @@ function updateProviderOptionalString(
   key: 'apiKey' | 'baseUrl',
   value: string,
 ): void {
-  updateProvider(providerKey, (provider) => updateOptionalProperty(provider, key, value));
+  updateProvider(providerKey, (provider) =>
+    configEditor.updateOptionalProperty(provider, key, value),
+  );
 }
 
 function addProviderModel(providerKey: string): void {
   updateProvider(providerKey, (provider) => {
-    const models = getRawModels(provider);
-    const nextKey = nextUniqueKey(models, 'new-model');
+    const models = configEditor.getRawModels(provider);
+    const nextKey = configEditor.nextUniqueKey(models, 'new-model');
     return { ...provider, models: { ...models, [nextKey]: {} } };
   });
 }
 
 function removeProviderModel(providerKey: string, modelKey: string): void {
   updateProvider(providerKey, (provider) => {
-    const models = getRawModels(provider);
+    const models = configEditor.getRawModels(provider);
     delete models[modelKey];
     clearExtraBodyState(providerKey, modelKey);
     return { ...provider, models };
@@ -977,14 +951,14 @@ function renameProviderModel(providerKey: string, oldKey: string, newKeyRaw: str
   const newKey = newKeyRaw.trim();
   if (newKey.length === 0 || newKey === oldKey) return;
   updateProvider(providerKey, (provider) => {
-    const models = getRawModels(provider);
+    const models = configEditor.getRawModels(provider);
     if (Object.hasOwn(models, newKey)) {
       feedbackType.value = 'error';
       feedback.value = `A model preset named "${newKey}" already exists`;
       return provider;
     }
     renameExtraBodyState(providerKey, oldKey, newKey);
-    return { ...provider, models: renameRecordKey(models, oldKey, newKey) };
+    return { ...provider, models: configEditor.renameRecordKey(models, oldKey, newKey) };
   });
 }
 
@@ -1000,22 +974,24 @@ function updateProviderModelNumber(providerKey: string, modelKey: string, value:
 
 function updateProviderModelExtraBody(providerKey: string, modelKey: string, value: string): void {
   setExtraBodyDraft(providerKey, modelKey, value);
-  const result = parseJson(value);
+  const result = configEditor.parseJson(value);
   if (!result.ok) {
     setExtraBodyError(providerKey, modelKey, result.error);
     return;
   }
   clearExtraBodyError(providerKey, modelKey);
-  updateProviderModel(providerKey, modelKey, (model) => updateExtraBody(model, result.value));
+  updateProviderModel(providerKey, modelKey, (model) =>
+    configEditor.updateExtraBody(model, result.value),
+  );
 }
 
 function getExtraBodyError(providerKey: string, modelKey: string): string {
-  return extraBodyErrors.value[getExtraBodyErrorKey(providerKey, modelKey)] ?? '';
+  return extraBodyErrors.value[configEditor.getExtraBodyErrorKey(providerKey, modelKey)] ?? '';
 }
 
 function getExtraBodyText(providerKey: string, modelKey: string, value: unknown): string {
-  const key = getExtraBodyErrorKey(providerKey, modelKey);
-  return extraBodyDrafts.value[key] ?? toJson(value);
+  const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
+  return extraBodyDrafts.value[key] ?? configEditor.toJson(value);
 }
 
 function addMcpServer(): void {
@@ -1028,7 +1004,7 @@ function removeMcpServer(index: number): void {
 
 function updateMcpField(index: number, key: keyof McpServerForm, value: unknown): void {
   if (key === 'transport') {
-    const transport = isMcpTransport(value) ? value : 'stdio';
+    const transport = configEditor.isMcpTransport(value) ? value : 'stdio';
     updateMcpServer(index, (server) => {
       const next = { ...server, transport };
       if (transport === 'stdio') {
@@ -1046,7 +1022,7 @@ function updateMcpField(index: number, key: keyof McpServerForm, value: unknown)
 }
 
 function updateOptionalStringField(index: number, key: 'command' | 'url', value: string): void {
-  updateMcpServer(index, (server) => updateOptionalProperty(server, key, value));
+  updateMcpServer(index, (server) => configEditor.updateOptionalProperty(server, key, value));
 }
 
 function updateArgs(index: number, value: string): void {
@@ -1054,13 +1030,15 @@ function updateArgs(index: number, value: string): void {
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-  updateMcpServer(index, (server) => setOptionalProperty(server, 'args', args, args.length > 0));
+  updateMcpServer(index, (server) =>
+    configEditor.setOptionalProperty(server, 'args', args, args.length > 0),
+  );
 }
 
 function updateEnv(index: number, value: string): void {
-  const env = parseEnvText(value);
+  const env = configEditor.parseEnvText(value);
   updateMcpServer(index, (server) =>
-    setOptionalProperty(server, 'env', env, Object.keys(env).length > 0),
+    configEditor.setOptionalProperty(server, 'env', env, Object.keys(env).length > 0),
   );
 }
 
@@ -1071,7 +1049,7 @@ function argsToText(value: unknown): string {
 }
 
 function envToText(value: unknown): string {
-  if (!isStringRecord(value)) return '';
+  if (!configEditor.isStringRecord(value)) return '';
   return Object.entries(value)
     .map(([key, envValue]) => `${key}=${envValue}`)
     .join('\n');
@@ -1083,7 +1061,7 @@ function updateProvider(
 ): void {
   const providers = getRawProviders();
   const current = providers[providerKey];
-  if (!isRecord(current)) return;
+  if (!configEditor.isRecord(current)) return;
   providers[providerKey] = updater(current);
   sectionValue.value = providers;
 }
@@ -1094,9 +1072,9 @@ function updateProviderModel(
   updater: (model: Record<string, unknown>) => Record<string, unknown>,
 ): void {
   updateProvider(providerKey, (provider) => {
-    const models = getRawModels(provider);
+    const models = configEditor.getRawModels(provider);
     const current = models[modelKey];
-    if (!isRecord(current)) return provider;
+    if (!configEditor.isRecord(current)) return provider;
     models[modelKey] = updater(current);
     return { ...provider, models };
   });
@@ -1120,88 +1098,37 @@ function updateMcpServers(
 }
 
 function getRawProviders(): Record<string, unknown> {
-  if (!isRecord(sectionValue.value)) return {};
+  if (!configEditor.isRecord(sectionValue.value)) return {};
   return Object.fromEntries(
     Object.entries(sectionValue.value).map(([key, provider]) => [
       key,
-      isRecord(provider) ? { ...provider } : {},
+      configEditor.isRecord(provider) ? { ...provider } : {},
     ]),
   );
 }
 
 function getRawMcpServers(): Record<string, unknown>[] {
   return Array.isArray(sectionValue.value)
-    ? sectionValue.value.map((item) => (isRecord(item) ? { ...item } : {}))
+    ? sectionValue.value.map((item) => (configEditor.isRecord(item) ? { ...item } : {}))
     : [];
 }
 
-function getRawModels(provider: Record<string, unknown>): Record<string, unknown> {
-  if (!isRecord(provider['models'])) return {};
-  return Object.fromEntries(
-    Object.entries(provider['models']).map(([key, model]) => [
-      key,
-      isRecord(model) ? { ...model } : {},
-    ]),
-  );
-}
-
-function normalizeProvider(key: string, value: unknown): ProviderForm {
-  const source = isRecord(value) ? value : {};
-  return {
-    ...source,
-    key,
-    apiType: isApiType(source['apiType']) ? source['apiType'] : 'openai-responses',
-    baseUrl: typeof source['baseUrl'] === 'string' ? source['baseUrl'] : undefined,
-    apiKey: typeof source['apiKey'] === 'string' ? source['apiKey'] : undefined,
-    models: normalizeProviderModels(source['models']),
-  };
-}
-
-function normalizeProviderModels(value: unknown): ProviderModelForm[] {
-  if (!isRecord(value)) return [];
-  return Object.entries(value).map(([key, model]) => {
-    const source = isRecord(model) ? model : {};
-    return {
-      ...source,
-      key,
-      contextWindow:
-        typeof source['contextWindow'] === 'number' ? source['contextWindow'] : undefined,
-      extraBody: isRecord(source['extraBody']) ? source['extraBody'] : undefined,
-    };
-  });
-}
-
-function normalizeMcpServer(value: unknown): McpServerForm {
-  const source = isRecord(value) ? value : {};
-  return {
-    ...source,
-    name: typeof source['name'] === 'string' ? source['name'] : '',
-    transport: isMcpTransport(source['transport']) ? source['transport'] : 'stdio',
-    enabled: typeof source['enabled'] === 'boolean' ? source['enabled'] : true,
-    command: typeof source['command'] === 'string' ? source['command'] : undefined,
-    args: Array.isArray(source['args'])
-      ? source['args'].filter((item): item is string => typeof item === 'string')
-      : undefined,
-    env: isStringRecord(source['env']) ? source['env'] : undefined,
-    url: typeof source['url'] === 'string' ? source['url'] : undefined,
-  };
-}
 function setExtraBodyDraft(providerKey: string, modelKey: string, value: string): void {
   extraBodyDrafts.value = {
     ...extraBodyDrafts.value,
-    [getExtraBodyErrorKey(providerKey, modelKey)]: value,
+    [configEditor.getExtraBodyErrorKey(providerKey, modelKey)]: value,
   };
 }
 
 function setExtraBodyError(providerKey: string, modelKey: string, message: string): void {
   extraBodyErrors.value = {
     ...extraBodyErrors.value,
-    [getExtraBodyErrorKey(providerKey, modelKey)]: message,
+    [configEditor.getExtraBodyErrorKey(providerKey, modelKey)]: message,
   };
 }
 
 function clearExtraBodyError(providerKey: string, modelKey: string): void {
-  const key = getExtraBodyErrorKey(providerKey, modelKey);
+  const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
   if (!Object.hasOwn(extraBodyErrors.value, key)) return;
   const next = { ...extraBodyErrors.value };
   delete next[key];
@@ -1209,7 +1136,7 @@ function clearExtraBodyError(providerKey: string, modelKey: string): void {
 }
 
 function clearExtraBodyDraft(providerKey: string, modelKey: string): void {
-  const key = getExtraBodyErrorKey(providerKey, modelKey);
+  const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
   if (!Object.hasOwn(extraBodyDrafts.value, key)) return;
   const next = { ...extraBodyDrafts.value };
   delete next[key];
@@ -1232,8 +1159,8 @@ function clearProviderExtraBodyErrors(providerKey: string): void {
 }
 
 function renameExtraBodyState(providerKey: string, oldModelKey: string, newModelKey: string): void {
-  const oldKey = getExtraBodyErrorKey(providerKey, oldModelKey);
-  const newKey = getExtraBodyErrorKey(providerKey, newModelKey);
+  const oldKey = configEditor.getExtraBodyErrorKey(providerKey, oldModelKey);
+  const newKey = configEditor.getExtraBodyErrorKey(providerKey, newModelKey);
   if (extraBodyErrors.value[oldKey]) {
     extraBodyErrors.value = { ...extraBodyErrors.value, [newKey]: extraBodyErrors.value[oldKey] };
     clearExtraBodyError(providerKey, oldModelKey);
@@ -1245,165 +1172,21 @@ function renameExtraBodyState(providerKey: string, oldModelKey: string, newModel
 }
 
 function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: string): void {
-  extraBodyErrors.value = renameProviderScopedState(
+  extraBodyErrors.value = configEditor.renameProviderScopedState(
     extraBodyErrors.value,
     oldProviderKey,
     newProviderKey,
   );
-  extraBodyDrafts.value = renameProviderScopedState(
+  extraBodyDrafts.value = configEditor.renameProviderScopedState(
     extraBodyDrafts.value,
     oldProviderKey,
     newProviderKey,
   );
 }
 
-function renameProviderScopedState(
-  source: Record<string, string>,
-  oldProviderKey: string,
-  newProviderKey: string,
-): Record<string, string> {
-  const prefix = `${oldProviderKey}:`;
-  return Object.fromEntries(
-    Object.entries(source).map(([key, value]) => [
-      key.startsWith(prefix) ? `${newProviderKey}:${key.slice(prefix.length)}` : key,
-      value,
-    ]),
-  );
-}
-
-function updateOptionalProperty(
-  source: Record<string, unknown>,
-  key: string,
-  value: string,
-): Record<string, unknown> {
-  return setOptionalProperty(source, key, value, value.trim().length > 0);
-}
-
-function setOptionalProperty(
-  source: Record<string, unknown>,
-  key: string,
-  value: unknown,
-  shouldSet: boolean,
-): Record<string, unknown> {
-  const next = { ...source };
-  if (shouldSet) next[key] = value;
-  else delete next[key];
-  return next;
-}
-
-function updateExtraBody(model: Record<string, unknown>, value: unknown): Record<string, unknown> {
-  const next = { ...model };
-  if (isRecord(value) && Object.keys(value).length > 0) next['extraBody'] = value;
-  else delete next['extraBody'];
-  return next;
-}
-
-function parseEnvText(value: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const line of value.split('\n')) {
-    const separatorIndex = line.indexOf('=');
-    if (separatorIndex <= 0) continue;
-    const key = line.slice(0, separatorIndex).trim();
-    if (key.length === 0) continue;
-    env[key] = line.slice(separatorIndex + 1);
-  }
-  return env;
-}
-
-function nextUniqueKey(source: Record<string, unknown>, baseKey: string): string {
-  let nextKey = baseKey;
-  let suffix = 1;
-  while (Object.hasOwn(source, nextKey)) {
-    suffix += 1;
-    nextKey = `${baseKey}-${suffix}`;
-  }
-  return nextKey;
-}
-
-function renameRecordKey(
-  source: Record<string, unknown>,
-  oldKey: string,
-  newKey: string,
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(source).map(([key, value]) => [key === oldKey ? newKey : key, value]),
-  );
-}
-
-function isMcpTransport(value: unknown): value is McpTransport {
-  return value === 'stdio' || value === 'sse' || value === 'http';
-}
-
-function isApiType(value: unknown): value is ApiType {
-  return (
-    value === 'openai-responses' || value === 'openai-completions' || value === 'anthropic-messages'
-  );
-}
-
-function parseJson(value: string): { ok: true; value: unknown } | { ok: false; error: string } {
-  try {
-    return { ok: true, value: JSON.parse(value) };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Invalid JSON' };
-  }
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((item) => typeof item === 'string');
-}
-
-function getExtraBodyErrorKey(providerKey: string, modelKey: string): string {
-  return `${providerKey}:${modelKey}`;
-}
-
-function getSectionValue(source: unknown, key: ConfigSectionKey): unknown {
-  if (!isRecord(source)) return getDefaultSectionValue(key);
-  const value = source[key];
-  if (value === undefined) return getDefaultSectionValue(key);
-  if (key === 'plugins') return Array.isArray(value) ? value : [];
-  if (key === 'mcp') return Array.isArray(value) ? value : [];
-  if (key === 'channels') return isRecord(value) ? value : {};
-  return value;
-}
-
-function getDefaultSectionValue(key: ConfigSectionKey): unknown {
-  if (key === 'plugins' || key === 'mcp') return [];
-  return {};
-}
-
-function normalizePluginEntry(value: unknown): PluginEntry {
-  const source = isRecord(value) ? value : {};
-  return {
-    ...source,
-    name: typeof source['name'] === 'string' ? source['name'] : '',
-    enabled: typeof source['enabled'] === 'boolean' ? source['enabled'] : true,
-    options: isRecord(source['options']) ? source['options'] : undefined,
-  };
-}
-
 function getRawPlugins(): Record<string, unknown>[] {
   if (!Array.isArray(sectionValue.value)) return [];
-  return sectionValue.value.map((item) => (isRecord(item) ? { ...item } : {}));
-}
-
-function formatFieldLabel(key: string): string {
-  return key
-    .split('.')
-    .map((part) =>
-      part
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase()),
-    )
-    .join(' > ');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function toJson(value: unknown): string {
-  return JSON.stringify(value, null, 2);
+  return sectionValue.value.map((item) => (configEditor.isRecord(item) ? { ...item } : {}));
 }
 
 onMounted(() => {
