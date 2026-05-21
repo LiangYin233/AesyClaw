@@ -1,11 +1,11 @@
-import type {
-  CommandContext,
-  RoleConfig,
-  Message,
-  SessionKey,
-  StreamEventMeta,
+import {
+  getMessageText,
+  type CommandContext,
+  type Message,
+  type RoleConfig,
+  type SessionKey,
+  type StreamEventMeta,
 } from '@aesyclaw/core/types';
-import { getMessageText } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
 import type {

@@ -8,15 +8,16 @@ import {
   type ExtensionLifecycle,
   type ExtensionLoaderLogger,
 } from '@aesyclaw/extension/extension-loader';
-import type {
-  ChannelContext,
-  ChannelManagerDependencies,
-  ChannelPlugin,
-  ChannelStatus,
-  ChannelLifecycleState,
-  LoadedChannel,
+import {
+  discoverChannelDefinition,
+  isChannelEnabled,
+  type ChannelContext,
+  type ChannelLifecycleState,
+  type ChannelManagerDependencies,
+  type ChannelPlugin,
+  type ChannelStatus,
+  type LoadedChannel,
 } from './channel-types';
-import { isChannelEnabled, discoverChannelDefinition } from './channel-types';
 
 const logger = createScopedLogger('channel-manager');
 

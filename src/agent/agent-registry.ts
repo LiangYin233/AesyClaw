@@ -1,5 +1,4 @@
-import type { SessionKey } from '@aesyclaw/core/types';
-import { serializeSessionKey } from '@aesyclaw/core/types';
+import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { Agent } from './agent';
 

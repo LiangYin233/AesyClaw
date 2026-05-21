@@ -7,8 +7,12 @@
 
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { CronJobRecord, CronRunRecord, SessionKey } from '@aesyclaw/core/types';
-import { serializeSessionKey } from '@aesyclaw/core/types';
+import {
+  serializeSessionKey,
+  type CronJobRecord,
+  type CronRunRecord,
+  type SessionKey,
+} from '@aesyclaw/core/types';
 
 // ─── 行类型辅助函数 ─────────────────────────────────────────────
 

@@ -1,6 +1,4 @@
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import type { RoleCommandDeps } from './role-commands';
-import type { PluginCommandDeps } from './plugin-commands';
 import type { SessionManager } from '@aesyclaw/session';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
@@ -43,12 +41,12 @@ export function registerBuiltinCommands(
   registry: CommandRegistry,
   deps: BuiltinCommandDependencies,
 ): void {
-  const roleDeps: RoleCommandDeps = {
+  const roleDeps: roleCommands.RoleCommandDeps = {
     roleManager: deps.roleManager,
     databaseManager: deps.databaseManager,
     agentRegistry: deps.agentRegistry,
   };
-  const pluginDeps: PluginCommandDeps = { extensionManager: deps.pluginManager };
+  const pluginDeps: pluginCommands.PluginCommandDeps = { extensionManager: deps.pluginManager };
 
   registry.register(createHelpCommand(() => registry.getAll()));
   registry.register(

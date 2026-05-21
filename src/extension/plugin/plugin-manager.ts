@@ -11,16 +11,17 @@ import {
   loadExtensionModule,
   type ExtensionLifecycle,
 } from '@aesyclaw/extension/extension-loader';
-import type {
-  LoadedPlugin,
-  PluginConfigLookup,
-  PluginContext,
-  PluginLifecycleState,
-  PluginManagerDependencies,
-  PluginModule,
-  PluginStatus,
+import {
+  discoverPluginDefinition,
+  pluginOwner,
+  type LoadedPlugin,
+  type PluginConfigLookup,
+  type PluginContext,
+  type PluginLifecycleState,
+  type PluginManagerDependencies,
+  type PluginModule,
+  type PluginStatus,
 } from './plugin-types';
-import { pluginOwner, discoverPluginDefinition } from './plugin-types';
 
 const logger = createScopedLogger('plugin-manager');
 

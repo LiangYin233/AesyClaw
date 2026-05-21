@@ -8,13 +8,13 @@
 import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { IHooksBus, HookRegistration } from '@aesyclaw/hook';
-import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
 
 import type { Logger } from '@aesyclaw/core/logger';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
-import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
+import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { isRecord } from '@aesyclaw/core/utils';

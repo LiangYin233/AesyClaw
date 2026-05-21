@@ -4,8 +4,12 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';
-import type { CommandContext, CommandDefinition, RoleConfig } from '@aesyclaw/core/types';
-import { getMessageText } from '@aesyclaw/core/types';
+import {
+  getMessageText,
+  type CommandContext,
+  type CommandDefinition,
+  type RoleConfig,
+} from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 import { Agent } from '@aesyclaw/agent/agent';
