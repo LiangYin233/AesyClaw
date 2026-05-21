@@ -190,7 +190,12 @@ export class ChannelManager implements ExtensionLifecycle {
     }
 
     const context = this.createContext(definition.name, config);
-    await definition.init(context);
+    try {
+      await definition.init(context);
+    } catch (err) {
+      this.cleanupRuntimeOwner(definition.name);
+      throw err;
+    }
 
     const loaded: LoadedChannel = {
       definition,
@@ -219,6 +224,7 @@ export class ChannelManager implements ExtensionLifecycle {
         await loaded.definition.destroy();
       }
     } finally {
+      this.cleanupRuntimeOwner(channelName);
       this.loadedChannels.delete(channelName);
       this.failedChannels.delete(channelName);
       logger.info('频道已停止', { channel: channelName });
@@ -349,6 +355,31 @@ export class ChannelManager implements ExtensionLifecycle {
       ): Promise<void> => {
         await this.receive(channelName, message, sessionKey, sender);
       },
+      registerTool: (tool): void => {
+        this.deps.toolRegistry.register({ ...tool, owner: channelRuntimeOwner(channelName) });
+      },
+      unregisterTool: (name): void => {
+        const existing = this.deps.toolRegistry.get(name);
+        if (!existing) {
+          return;
+        }
+        const owner = channelRuntimeOwner(channelName);
+        if (existing.owner !== owner) {
+          logger.warn('频道尝试注销一个不属于自己的工具', {
+            channelName,
+            toolName: name,
+            owner: existing.owner,
+          });
+          return;
+        }
+        this.deps.toolRegistry.unregister(name);
+      },
+      registerCommand: (command): void => {
+        this.deps.commandRegistry.register({ ...command, scope: channelRuntimeOwner(channelName) });
+      },
+      getCommands: (): ReturnType<ChannelContext['getCommands']> => {
+        return this.deps.commandRegistry.getAll();
+      },
       logger: createScopedLogger(`channel:${channelName}`),
     };
   }
@@ -376,7 +407,9 @@ export class ChannelManager implements ExtensionLifecycle {
 
   private isEnabled(channelName: string): boolean {
     const definition = this.definitions.get(channelName);
-    const config = definition ? this.getMergedConfig(definition) : this.getConfigRecord(channelName);
+    const config = definition
+      ? this.getMergedConfig(definition)
+      : this.getConfigRecord(channelName);
     return isChannelEnabled(config);
   }
 
@@ -412,6 +445,12 @@ export class ChannelManager implements ExtensionLifecycle {
     return loaded;
   }
 
+  private cleanupRuntimeOwner(channelName: string): void {
+    const owner = channelRuntimeOwner(channelName);
+    this.deps.toolRegistry.unregisterByOwner(owner);
+    this.deps.commandRegistry.unregisterByScope(owner);
+  }
+
   private createUnloadedChannel(
     definition: ChannelPlugin,
     config: Record<string, unknown>,
@@ -422,6 +461,10 @@ export class ChannelManager implements ExtensionLifecycle {
       loadedAt: new Date(),
     };
   }
+}
+
+function channelRuntimeOwner(channelName: string): `channel:${string}` {
+  return `channel:${channelName}`;
 }
 
 /** 根据错误状态、加载状态和启用状态解析频道状态字符串 */

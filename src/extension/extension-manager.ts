@@ -41,6 +41,8 @@ export class ExtensionManager {
       configManager: deps.configManager,
       pipeline: deps.pipeline,
       paths: deps.paths,
+      toolRegistry: deps.toolRegistry,
+      commandRegistry: deps.commandRegistry,
     });
     this.pluginManager = new PluginManager({
       configManager: deps.configManager,

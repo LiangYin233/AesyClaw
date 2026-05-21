@@ -62,7 +62,7 @@ export type SessionKey = {
  * 工具定义将其作为所有者暴露。公共字段名刻意保持不同，
  * 因为它们描述的是不同的 API 领域。
  */
-export type ToolOwner = 'system' | `plugin:${string}` | `mcp:${string}`;
+export type ToolOwner = 'system' | `plugin:${string}` | `channel:${string}` | `mcp:${string}`;
 
 // ─── SessionKey 序列化 ────────────────────────────────────────────
 

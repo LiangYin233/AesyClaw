@@ -1,10 +1,12 @@
 /** 频道接口定义。 */
 
-import type { Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
+import type { CommandDefinition, Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
+import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { isRecord } from '@aesyclaw/core/utils';
 import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
@@ -15,6 +17,10 @@ export type ChannelContext = {
   configManager: ConfigManager;
   paths: Readonly<ResolvedPaths>;
   receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
+  registerTool(tool: AesyClawTool): void;
+  unregisterTool(name: string): void;
+  registerCommand(command: CommandDefinition): void;
+  getCommands(): CommandDefinition[];
   logger: Logger;
 };
 
@@ -56,6 +62,8 @@ export type ChannelManagerDependencies = {
   pipeline: Pipeline;
   channels?: ChannelPlugin[];
   paths: Readonly<ResolvedPaths>;
+  toolRegistry: ToolRegistry;
+  commandRegistry: CommandRegistry;
 };
 
 /** 从磁盘加载完成后的频道模块。 */
