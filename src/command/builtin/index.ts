@@ -16,16 +16,8 @@ import { createCompactCommand } from './compact';
 import { createStopCommand } from './stop';
 import { createBtwCommand } from './btw';
 import { createModelCommand } from './model';
-import {
-  createRoleListCommand,
-  createRoleSwitchCommand,
-  createRoleInfoCommand,
-} from './role-commands';
-import {
-  createPluginListCommand,
-  createPluginEnableCommand,
-  createPluginDisableCommand,
-} from './plugin-commands';
+import * as pluginCommands from './plugin-commands';
+import * as roleCommands from './role-commands';
 import { createSkillReloadCommand } from './skill-commands';
 
 /** 注册内置命令所需的完整依赖集合。 */
@@ -86,11 +78,11 @@ export function registerBuiltinCommands(
     ),
   );
   registry.register(createStopCommand(deps.sessionManager, deps.agentRegistry));
-  registry.register(createRoleListCommand(roleDeps));
-  registry.register(createRoleSwitchCommand(roleDeps));
-  registry.register(createRoleInfoCommand(roleDeps));
-  registry.register(createPluginListCommand(pluginDeps));
-  registry.register(createPluginEnableCommand(pluginDeps));
-  registry.register(createPluginDisableCommand(pluginDeps));
+  registry.register(roleCommands.createRoleListCommand(roleDeps));
+  registry.register(roleCommands.createRoleSwitchCommand(roleDeps));
+  registry.register(roleCommands.createRoleInfoCommand(roleDeps));
+  registry.register(pluginCommands.createPluginListCommand(pluginDeps));
+  registry.register(pluginCommands.createPluginEnableCommand(pluginDeps));
+  registry.register(pluginCommands.createPluginDisableCommand(pluginDeps));
   registry.register(createSkillReloadCommand(deps.skillManager, deps.agentRegistry));
 }
