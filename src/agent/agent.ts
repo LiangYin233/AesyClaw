@@ -21,7 +21,7 @@ import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
 import { runAgentTask } from './runner/agent-runner';
-import { buildAgentPrompt } from './agent-prompt';
+import { buildPrompt as buildPromptFromBuilder } from './prompt-builder';
 import type { StreamMessage } from '@aesyclaw/core/stream-types';
 
 const logger = createScopedLogger('agent');
@@ -281,34 +281,19 @@ export class Agent {
   }
 
   /**
-   * 构建发送给 LLM 的完整 Prompt，包含系统提示、工具列表、技能和角色信息。
-   *
-   * @param role - 角色配置
-   * @param executionContext - 可选的工具执行上下文
-   * @returns Prompt 文本和工具列表
+   * 构建发送给 LLM 的完整 Prompt。
+   * 委托给 prompt-builder 模块。
    */
   buildPrompt(
     role: RoleConfig,
     executionContext?: Partial<ToolExecutionContext>,
   ): BuildPromptResult {
-    const allRoles = this.roleManager.getEnabledRoles();
-    const skills = this.skillManager.getSkillsForRole(role);
-    const resolvedTools = this.toolRegistry.resolveForRole(
-      role,
-      this.hooksBus,
-      executionContext ?? {},
-    );
-    const prompt = buildAgentPrompt({
-      role,
-      availableTools: resolvedTools.tools,
-      skills,
-      allRoles,
-      skillDirs: this.skillManager.getSkillDirs(),
-      isSubAgent: executionContext !== undefined && executionContext.sendMessage === undefined,
-      isCron: executionContext?.sessionKey?.channel === 'cron',
+    return buildPromptFromBuilder(role, executionContext, {
+      roleManager: this.roleManager,
+      skillManager: this.skillManager,
+      toolRegistry: this.toolRegistry,
+      hooksBus: this.hooksBus,
     });
-
-    return { prompt, tools: resolvedTools.agentTools };
   }
 
   private createProcessContext(options?: ProcessOptions): ProcessContext | null {
