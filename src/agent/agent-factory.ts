@@ -8,7 +8,7 @@
 import type { RoleConfig } from '@aesyclaw/core/types';
 import type { AgentRuntimeRef } from '@aesyclaw/contracts/agent';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { LlmAdapter } from './llm-adapter';
+import type { LlmAdapter } from './llm/adapter';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/contracts/hook';

@@ -3,7 +3,7 @@ import type { Api, Model, SimpleStreamOptions } from '@mariozechner/pi-ai';
 import {
   withDefaultPromptCacheModel,
   withDefaultPromptCacheOptions,
-} from '../../../src/agent/llm-cache-options';
+} from '../../../src/agent/llm/cache-options';
 
 function makeModel(api: Api, compat?: unknown): Model<Api> {
   return {

@@ -8,7 +8,7 @@ import { errorMessage, loadMediaSource } from '@aesyclaw/core/utils';
 import { ApiType } from '@aesyclaw/contracts/llm';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 
 const SPEECH_TO_TEXT_SCHEMA = Type.Object({
   source: Type.String({

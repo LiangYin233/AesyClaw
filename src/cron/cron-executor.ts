@@ -10,7 +10,7 @@ import {
 import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { SessionManager } from '@aesyclaw/session';
-import { createPersistedAssistantMessage } from '@aesyclaw/agent/agent-types';
+import { createPersistedAssistantMessage } from '@aesyclaw/agent/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('cron');

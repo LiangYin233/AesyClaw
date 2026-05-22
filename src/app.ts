@@ -1,4 +1,4 @@
-import { LlmAdapter } from './agent/llm-adapter';
+import { LlmAdapter } from './agent/llm/adapter';
 import { AgentRegistry } from './agent/agent-registry';
 import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';

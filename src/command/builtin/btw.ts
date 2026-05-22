@@ -1,5 +1,5 @@
 import type { SessionManager } from '@aesyclaw/session';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';

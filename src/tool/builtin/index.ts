@@ -1,7 +1,7 @@
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { UsageRecord } from '@aesyclaw/core/database-types';

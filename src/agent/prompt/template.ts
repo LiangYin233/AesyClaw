@@ -1,6 +1,6 @@
 import type { RoleConfig, Skill } from '@aesyclaw/core/types';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import { buildRoleSection, buildSkillSection } from './prompt-sections';
+import { buildRoleSection, buildSkillSection } from './sections';
 
 export type BuildAgentPromptInput = {
   role: RoleConfig;

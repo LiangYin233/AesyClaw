@@ -13,7 +13,7 @@ import {
 import { completeSimple } from '@mariozechner/pi-ai';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 
 const IMAGE_UNDERSTANDING_SCHEMA = Type.Object({
   source: Type.String({

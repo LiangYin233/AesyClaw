@@ -6,7 +6,10 @@ import type {
 } from '../../../src/core/database/database-manager';
 import type { IHooksBus } from '../../../src/contracts/hook';
 import type { SessionManager } from '../../../src/session';
-import { RuntimeLifecycle, type RuntimeLifecycleDependencies } from '../../../src/runtime/lifecycle';
+import {
+  RuntimeLifecycle,
+  type RuntimeLifecycleDependencies,
+} from '../../../src/runtime/lifecycle';
 import { CronManager } from '../../../src/cron/cron-manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
 import {

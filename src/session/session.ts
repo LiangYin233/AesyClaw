@@ -11,12 +11,12 @@ import {
   type AgentMessage,
   type ResolvedModel,
 } from '@aesyclaw/contracts/llm';
-import { createPersistedAssistantMessage } from '@aesyclaw/agent/agent-types';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import { createPersistedAssistantMessage } from '@aesyclaw/agent/types';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import {
   withDefaultPromptCacheModel,
   withDefaultPromptCacheOptions,
-} from '@aesyclaw/agent/llm-cache-options';
+} from '@aesyclaw/agent/llm/cache-options';
 import type {
   MessagesRepository,
   UsageRepository,

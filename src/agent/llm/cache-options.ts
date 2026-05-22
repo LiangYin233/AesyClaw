@@ -1,5 +1,5 @@
 import type { Api, Model, SimpleStreamOptions } from '@mariozechner/pi-ai';
-import { ApiType } from './agent-types';
+import { ApiType } from '../types';
 
 type CompatRecord = Record<string, unknown> & {
   sendSessionAffinityHeaders?: boolean;

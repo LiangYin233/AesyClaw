@@ -1,7 +1,7 @@
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { SessionManager } from '@aesyclaw/session';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';

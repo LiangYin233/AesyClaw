@@ -3,12 +3,12 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Agent } from '../../../src/agent/agent';
-import { buildAgentPrompt } from '../../../src/agent/agent-prompt';
+import { buildAgentPrompt } from '../../../src/agent/prompt/template';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
 import type { Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/skill-manager';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
-import type { AgentTool } from '../../../src/agent/agent-types';
+import type { AgentTool } from '../../../src/agent/types';
 import { makeRole } from '../../helpers/role';
 import { Type } from '@sinclair/typebox';
 

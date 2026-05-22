@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { completeSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import { Session } from '../../../src/session/session';
-import type { AgentMessage } from '../../../src/agent/agent-types';
+import type { AgentMessage } from '../../../src/agent/types';
 import type { SessionKey } from '../../../src/core/identity-types';
 import {
   clearRecentLogEntriesForTests,

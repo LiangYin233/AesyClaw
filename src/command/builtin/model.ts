@@ -1,5 +1,5 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
 /**

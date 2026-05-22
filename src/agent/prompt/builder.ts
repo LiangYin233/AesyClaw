@@ -11,7 +11,7 @@ import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { IHooksBus } from '@aesyclaw/contracts/hook';
-import { buildAgentPrompt } from './agent-prompt';
+import { buildAgentPrompt } from './template';
 
 export type PromptBuilderDeps = {
   roleManager: RoleManager;

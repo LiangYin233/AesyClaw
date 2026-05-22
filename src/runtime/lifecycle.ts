@@ -5,7 +5,7 @@
  * 移出 core 目录后，core 不再依赖业务模块。
  */
 
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { SessionManager } from '@aesyclaw/session';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { registerBuiltinCommands } from '@aesyclaw/command/builtin';

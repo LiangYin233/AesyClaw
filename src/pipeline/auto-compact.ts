@@ -6,7 +6,7 @@
  */
 import type { Middleware, HookRegistration, HookResult, HookCtx } from '@aesyclaw/hook';
 import { estimateApproximateTokens } from '@aesyclaw/session';
-import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 
 const AUTO_COMPACT_HOOK_ID = 'core:auto-compact';
 

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { streamSimple } from '@mariozechner/pi-ai';
-import { LlmAdapter } from '../../../src/agent/llm-adapter';
+import { LlmAdapter } from '../../../src/agent/llm/adapter';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import type { ConfigManager } from '../../../src/core/config/config-manager';
 import type { AppConfig } from '../../../src/core/config/schema';
