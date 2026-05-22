@@ -3,7 +3,7 @@ import { AgentRegistry } from './agent/agent-registry';
 import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
-import { CoreLifecycle, type CoreLifecycleDependencies } from './core/core-lifecycle';
+import { RuntimeLifecycle, type RuntimeLifecycleDependencies } from './runtime/lifecycle';
 import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger } from './core/logger';
 import { McpManager } from './tool/mcp/mcp-manager';
@@ -17,7 +17,7 @@ import { ToolRegistry } from './tool/tool-registry';
 
 const logger = createScopedLogger('app');
 
-function createSubsystems(): CoreLifecycleDependencies {
+function createSubsystems(): RuntimeLifecycleDependencies {
   const agentRegistry = new AgentRegistry();
   const configManager = new ConfigManager();
   const databaseManager = new DatabaseManager();
@@ -67,13 +67,13 @@ function createSubsystems(): CoreLifecycleDependencies {
  * 负责创建和管理所有子系统，并协调启动/关闭生命周期。
  */
 export class Application {
-  private readonly coreLifecycle: CoreLifecycle;
+  private readonly runtimeLifecycle: RuntimeLifecycle;
   private started = false;
 
   constructor() {
     const subsystems = createSubsystems();
 
-    this.coreLifecycle = new CoreLifecycle({
+    this.runtimeLifecycle = new RuntimeLifecycle({
       configManager: subsystems.configManager,
       databaseManager: subsystems.databaseManager,
       roleStore: subsystems.roleStore,
@@ -95,13 +95,13 @@ export class Application {
       return;
     }
 
-    await this.coreLifecycle.start();
+    await this.runtimeLifecycle.start();
 
     this.started = true;
   }
 
   async shutdown(): Promise<void> {
-    await this.coreLifecycle.stop();
+    await this.runtimeLifecycle.stop();
     this.started = false;
   }
 }
