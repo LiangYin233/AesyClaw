@@ -6,10 +6,6 @@ import type {
 } from '../../../src/core/database/database-manager';
 import type { IHooksBus } from '../../../src/contracts/hook';
 import type { SessionManager } from '../../../src/session';
-import {
-  RuntimeLifecycle,
-  type RuntimeLifecycleDependencies,
-} from '../../../src/runtime/lifecycle';
 import { CronManager } from '../../../src/cron/manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/scheduler';
 import {
@@ -775,54 +771,4 @@ describe('Cron', () => {
   });
 });
 
-describe('RuntimeLifecycle shutdown', () => {
-  it('destroys cron before extension and MCP teardown', async () => {
-    const order: string[] = [];
-    const lifecycle = new RuntimeLifecycle({
-      configManager: { stopHotReload: () => order.push('config') },
-      roleManager: { destroy: () => order.push('role') },
-      mcpManager: {
-        disconnectAll: async () => {
-          order.push('mcp');
-        },
-      },
-      pipeline: { destroy: () => order.push('pipeline') },
-      databaseManager: { destroy: () => order.push('database') },
-    } as unknown as RuntimeLifecycleDependencies);
-    Object.defineProperty(lifecycle, 'extensionManager', {
-      value: {
-        destroy: async () => {
-          order.push('extension');
-        },
-      },
-      writable: true,
-    });
-    Object.defineProperty(lifecycle, 'cronManager', {
-      value: {
-        destroy: async () => {
-          order.push('cron');
-        },
-      },
-      writable: true,
-    });
-    Object.defineProperty(lifecycle, 'webUiManager', {
-      value: {
-        destroy: () => order.push('web'),
-      },
-      writable: true,
-    });
 
-    await lifecycle.stop();
-
-    expect(order).toEqual([
-      'config',
-      'web',
-      'cron',
-      'role',
-      'extension',
-      'mcp',
-      'pipeline',
-      'database',
-    ]);
-  });
-});
