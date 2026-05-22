@@ -1,21 +1,17 @@
-/** WebSocket 服务器 — 接受 Electron 客户端连接并桥接消息。
+/**
+ * desktop-server — Desktop 频道协议层。
  *
- * 基于 ws 库实现：
- * - 鉴权（URL query token）
- * - JSON 文本帧 + 二进制帧混合协议
- * - 文件分片重组
- * - 心跳管理
- * - 连接生命周期
+ * 负责消息协议处理：聊天、取消、文件传输、流式转发。
+ * WebSocket 传输层委托给 WsServer。
  */
 
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import nodePath from 'node:path';
-import { WebSocketServer, type WebSocket } from 'ws';
 import { createScopedLogger } from '@aesyclaw/sdk';
 import * as desktopAttachments from './attachments';
-import { validateDesktopToken } from './auth';
-import { DesktopSessionManager, type DesktopConnection } from './session-manager';
+import type { DesktopConnection, DesktopSessionManager } from './session-manager';
+import { WsServer } from './ws-server';
 import type {
   DesktopInboundMessage,
   DesktopOutboundMessage,
@@ -23,9 +19,6 @@ import type {
   DesktopReceivedFile,
 } from './types';
 import type { ChannelContext, MessageComponent, StreamMessage } from '@aesyclaw/sdk';
-
-const HEARTBEAT_INTERVAL_MS = 30_000;
-const CLIENT_ALIVE_TIMEOUT_MS = HEARTBEAT_INTERVAL_MS * 2 + 5_000;
 
 export type DesktopServerOptions = {
   port: number;
@@ -36,45 +29,32 @@ export type DesktopServerOptions = {
 };
 
 export class DesktopServer {
-  private wss: WebSocketServer | null = null;
-  private sessions = new DesktopSessionManager();
+  private wsServer: WsServer;
   private options: DesktopServerOptions;
   private logger = createScopedLogger('channel:desktop:server');
 
   constructor(options: DesktopServerOptions) {
     this.options = options;
-  }
-
-  /** 启动 WebSocket 服务器 */
-  async start(): Promise<void> {
-    return await new Promise((resolve, reject) => {
-      const { port, host } = this.options;
-      this.wss = new WebSocketServer({ port, host: host ?? '127.0.0.1' });
-
-      this.wss.on('listening', () => {
-        this.logger.info(`Desktop WebSocket 服务器已启动`, { port, host });
-        resolve();
-      });
-
-      this.wss.on('error', (err) => {
-        this.logger.error('WebSocket 服务器错误', err);
-        reject(err);
-      });
-
-      this.wss.on('connection', (ws, req) => {
-        this.handleConnection(ws, req);
-      });
-
-      // 启动心跳
-      this.startHeartbeat();
+    this.wsServer = new WsServer({
+      port: options.port,
+      host: options.host,
+      authToken: options.authToken,
+      adminToken: options.adminToken,
+      onJsonMessage: (cid, raw) => this.handleJsonMessage(cid, raw),
+      onBinaryFrame: (cid, data) => this.handleBinaryFrame(cid, data),
     });
   }
 
-  /** 停止服务器 */
+  get sessions(): DesktopSessionManager {
+    return this.wsServer.sessions;
+  }
+
+  async start(): Promise<void> {
+    await this.wsServer.start();
+  }
+
   async stop(): Promise<void> {
-    this.wss?.close();
-    this.wss = null;
-    this.logger.info('Desktop WebSocket 服务器已停止');
+    await this.wsServer.stop();
   }
 
   /** 向指定 session 的所有连接发送下行消息 */
@@ -93,17 +73,14 @@ export class DesktopServer {
       case 'chunk': {
         const text = (streamMsg.components[0] as { text?: string })?.text ?? '';
         conn.sendJson({
-          type: 'chunk',
-          sessionId,
-          text,
+          type: 'chunk', sessionId, text,
           index: streamMsg.chunkIndex ?? 0,
         } satisfies DesktopOutboundMessage);
         break;
       }
       case 'toolCall':
         conn.sendJson({
-          type: 'tool_call',
-          sessionId,
+          type: 'tool_call', sessionId,
           toolCallId: streamMsg.toolCallId ?? '',
           toolName: streamMsg.toolName ?? '',
           args: streamMsg.args,
@@ -111,8 +88,7 @@ export class DesktopServer {
         break;
       case 'toolResult':
         conn.sendJson({
-          type: 'tool_result',
-          sessionId,
+          type: 'tool_result', sessionId,
           toolCallId: streamMsg.toolCallId ?? '',
           toolName: streamMsg.toolName ?? '',
           result: streamMsg.result,
@@ -121,121 +97,20 @@ export class DesktopServer {
         break;
       case 'done':
         conn.sendJson({
-          type: 'done',
-          sessionId,
+          type: 'done', sessionId,
           usage: streamMsg.usage,
         } satisfies DesktopOutboundMessage);
         break;
       case 'error':
         conn.sendJson({
-          type: 'error',
-          sessionId,
+          type: 'error', sessionId,
           message: streamMsg.errorMessage ?? '未知错误',
         } satisfies DesktopOutboundMessage);
         break;
     }
   }
 
-  // ─── 私有方法 ──────────────────────────────────────────────────
-
-  private handleConnection(ws: WebSocket, req: { url?: string }): void {
-    // 鉴权
-    if (!this.validateToken(req.url)) {
-      this.logger.warn('Desktop 客户端鉴权失败，关闭连接');
-      ws.close(4001, 'Unauthorized');
-      return;
-    }
-
-    const connectionId = randomUUID();
-    const connection = this.createConnection(connectionId, ws);
-    this.sessions.register(connection);
-
-    this.logger.info('Desktop 客户端已连接', { connectionId });
-    connection.sendJson({
-      type: 'auth',
-      adminToken: this.options.adminToken,
-    } satisfies DesktopOutboundMessage);
-
-    // 心跳管理
-    let clientAlive = true;
-    let pongTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const resetPongTimer = (): void => {
-      if (pongTimeout) clearTimeout(pongTimeout);
-      pongTimeout = setTimeout(() => {
-        this.logger.warn('Desktop 客户端心跳超时', { connectionId });
-        connection.close(4002, 'Heartbeat timeout');
-      }, CLIENT_ALIVE_TIMEOUT_MS);
-    };
-    resetPongTimer();
-
-    ws.on('pong', () => {
-      clientAlive = true;
-      resetPongTimer();
-    });
-
-    const heartbeatTimer = setInterval(() => {
-      if (!clientAlive) {
-        connection.close(4002, 'Heartbeat timeout');
-        return;
-      }
-      clientAlive = false;
-      ws.ping();
-      connection.sendJson({ type: 'ping' } satisfies DesktopOutboundMessage);
-    }, HEARTBEAT_INTERVAL_MS);
-
-    // 文本消息
-    ws.on('message', (raw, isBinary) => {
-      if (isBinary) {
-        // 二进制帧 = 文件数据块
-        const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
-        this.handleBinaryFrame(connectionId, buffer);
-        return;
-      }
-
-      // 文本帧 = JSON 消息。ws 在 Node 端通常也会以 Buffer 承载文本帧，
-      // 必须依赖 isBinary 判断，不能用 Buffer instanceof 区分。
-      this.handleJsonMessage(connectionId, raw.toString());
-    });
-
-    // 关闭
-    ws.on('close', () => {
-      clearInterval(heartbeatTimer);
-      if (pongTimeout) clearTimeout(pongTimeout);
-      this.sessions.unregister(connectionId);
-      this.logger.info('Desktop 客户端已断开', { connectionId });
-    });
-
-    ws.on('error', (err) => {
-      this.logger.error('Desktop WebSocket 连接错误', { connectionId }, err);
-    });
-  }
-
-  private createConnection(id: string, ws: WebSocket): DesktopConnection {
-    return {
-      id,
-      sessions: new Set(),
-      fileBuffers: new Map(),
-      completedFiles: new Map(),
-      sendJson(data: unknown): void {
-        if (ws.readyState === ws.OPEN) {
-          ws.send(JSON.stringify(data));
-        }
-      },
-      sendBinary(data: Buffer): void {
-        if (ws.readyState === ws.OPEN) {
-          ws.send(data);
-        }
-      },
-      close(code?: number, reason?: string): void {
-        ws.close(code, reason);
-      },
-    };
-  }
-
-  private validateToken(url: string | undefined): boolean {
-    return validateDesktopToken(url, this.options.authToken);
-  }
+  // ─── 消息路由 ──────────────────────────────────────────────────
 
   private handleJsonMessage(connectionId: string, raw: string): void {
     let msg: DesktopInboundMessage;
@@ -260,7 +135,6 @@ export class DesktopServer {
         this.handleFileEnd(connectionId, msg);
         break;
       case 'pong':
-        // 由 pong 事件处理
         break;
       default:
         this.logger.warn('未知消息类型', {
@@ -270,14 +144,11 @@ export class DesktopServer {
     }
   }
 
+  // ─── 业务处理 ──────────────────────────────────────────────────
+
   private async handleChatMessage(
     connectionId: string,
-    msg: {
-      type: 'chat';
-      sessionId: string;
-      text: string;
-      files?: Array<{ fileId?: string; name: string; mime: string; size?: number }>;
-    },
+    msg: { type: 'chat'; sessionId: string; text: string; files?: Array<{ fileId?: string; name: string; mime: string; size?: number }> },
   ): Promise<void> {
     const { sessionId } = msg;
     this.sessions.bindSession(sessionId, connectionId);
@@ -286,9 +157,7 @@ export class DesktopServer {
     const conn = this.sessions.getConnection(sessionId);
     if (!conn) return;
     const attachments = this.consumeChatAttachments(conn, sessionId, msg.files ?? []);
-    const message = {
-      components: this.buildMessageComponents(msg.text, attachments),
-    };
+    const message = { components: this.buildMessageComponents(msg.text, attachments) };
 
     try {
       this.logger.info('收到 Desktop 聊天消息', { connectionId, sessionId });
@@ -299,8 +168,7 @@ export class DesktopServer {
     } catch (err) {
       this.logger.error('处理聊天消息失败', { connectionId, sessionId }, err);
       conn.sendJson({
-        type: 'error',
-        sessionId,
+        type: 'error', sessionId,
         message: err instanceof Error ? err.message : '处理聊天消息失败',
       } satisfies DesktopOutboundMessage);
     }
@@ -317,51 +185,35 @@ export class DesktopServer {
       await this.options.context.receive(
         { components: [{ type: 'Plain', text: '/stop' }] },
         sessionKey,
-        {
-          id: connectionId,
-          name: `Desktop-${connectionId.slice(0, 8)}`,
-        },
+        { id: connectionId, name: `Desktop-${connectionId.slice(0, 8)}` },
       );
     } catch (err) {
       this.logger.error('取消 Agent 处理失败', { connectionId, sessionId: msg.sessionId }, err);
       conn?.sendJson({
-        type: 'error',
-        sessionId: msg.sessionId,
+        type: 'error', sessionId: msg.sessionId,
         message: err instanceof Error ? err.message : '取消 Agent 处理失败',
       } satisfies DesktopOutboundMessage);
     }
   }
 
+  // ─── 文件传输 ──────────────────────────────────────────────────
+
   private handleFileStart(
     connectionId: string,
-    msg: {
-      type: 'file_start';
-      sessionId: string;
-      fileId: string;
-      name: string;
-      mime: string;
-      totalSize: number;
-      totalChunks: number;
-    },
+    msg: { type: 'file_start'; sessionId: string; fileId: string; name: string; mime: string; totalSize: number; totalChunks: number },
   ): void {
     this.sessions.bindSession(msg.sessionId, connectionId);
     const conn = this.sessions.getConnection(msg.sessionId);
     if (!conn) return;
 
     const buffer: DesktopFileBuffer = {
-      fileId: msg.fileId,
-      sessionId: msg.sessionId,
-      name: msg.name,
-      mime: msg.mime,
-      totalChunks: msg.totalChunks,
-      chunks: [],
-      received: 0,
+      fileId: msg.fileId, sessionId: msg.sessionId,
+      name: msg.name, mime: msg.mime,
+      totalChunks: msg.totalChunks, chunks: [], received: 0,
     };
     conn.fileBuffers.set(msg.fileId, buffer);
     this.logger.debug('文件传输开始', {
-      fileId: msg.fileId,
-      name: msg.name,
-      totalChunks: msg.totalChunks,
+      fileId: msg.fileId, name: msg.name, totalChunks: msg.totalChunks,
     });
   }
 
@@ -375,12 +227,10 @@ export class DesktopServer {
     const buffer = conn.fileBuffers.get(msg.fileId);
     if (!buffer) return;
 
-    // 合并所有分片并保存到媒体目录
     const fileData = Buffer.concat(buffer.chunks);
     const baseMediaDir = this.options.context.paths.mediaDir;
     const mediaDir = nodePath.join(
-      baseMediaDir,
-      'desktop',
+      baseMediaDir, 'desktop',
       desktopAttachments.sanitizePathSegment(buffer.sessionId),
     );
     mkdirSync(mediaDir, { recursive: true });
@@ -392,23 +242,20 @@ export class DesktopServer {
     writeFileSync(targetFile, fileData);
 
     conn.completedFiles.set(msg.fileId, {
-      fileId: msg.fileId,
-      sessionId: buffer.sessionId,
-      name: buffer.name,
-      mime: buffer.mime,
-      size: fileData.length,
-      filePath: targetFile,
+      fileId: msg.fileId, sessionId: buffer.sessionId,
+      name: buffer.name, mime: buffer.mime,
+      size: fileData.length, filePath: targetFile,
     });
 
     this.logger.info('文件接收完成', {
-      fileId: msg.fileId,
-      name: buffer.name,
-      path: targetFile,
-      size: fileData.length,
+      fileId: msg.fileId, name: buffer.name,
+      path: targetFile, size: fileData.length,
     });
 
     conn.fileBuffers.delete(msg.fileId);
   }
+
+  // ─── 附件构建 ──────────────────────────────────────────────────
 
   private consumeChatAttachments(
     conn: DesktopConnection,
@@ -445,11 +292,9 @@ export class DesktopServer {
   }
 
   private handleBinaryFrame(connectionId: string, data: Buffer): void {
-    // 二进制帧来自最近 file_start 的活跃传输
     const conn = this.sessions.activeConnections.find((c) => c.id === connectionId);
     if (!conn || conn.fileBuffers.size === 0) return;
 
-    // 取第一个活跃的传输
     const [buffer] = conn.fileBuffers.values();
     if (!buffer) return;
     if (buffer.received >= buffer.totalChunks) return;
@@ -460,15 +305,5 @@ export class DesktopServer {
     if (buffer.received === buffer.totalChunks) {
       this.logger.debug('文件分片全部接收', { fileId: buffer.fileId });
     }
-  }
-
-  private startHeartbeat(): void {
-    const interval = setInterval(() => {
-      for (const conn of this.sessions.activeConnections) {
-        conn.sendJson({ type: 'ping' } satisfies DesktopOutboundMessage);
-      }
-    }, HEARTBEAT_INTERVAL_MS);
-
-    this.wss?.on('close', () => clearInterval(interval));
   }
 }
