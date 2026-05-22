@@ -4,24 +4,10 @@
  * 所有 hook 通过 HooksBus 统一注册、按优先级排序、
  * 按 enabled 过滤后以中间件链形式执行。
  */
-import type { HookChain, HookCtx, HookRegistration, HookResult, Middleware } from './types';
+import type { HookChain, HookCtx, HookRegistration, HookResult, Middleware, IHooksBus } from '@aesyclaw/contracts/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('hooks-bus');
-
-// ─── 接口 ────────────────────────────────────────────────────────
-
-/** Hook 总线公共接口 */
-export type IHooksBus = {
-  register(reg: HookRegistration): void;
-  unregister(id: string): void;
-  unregisterByPrefix(prefix: string): void;
-  enable(id: string): void;
-  disable(id: string): void;
-  isEnabled(id: string): boolean;
-  dispatch(chain: HookChain, ctx: HookCtx): Promise<HookResult>;
-  clear(): void;
-};
 
 // ─── compose ─────────────────────────────────────────────────────
 

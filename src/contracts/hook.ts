@@ -1,14 +1,12 @@
 /**
- * hook/types — 统一的 Hook 体系类型定义。
+ * contracts/hook — Hook 体系公共类型。
  *
- * 所有 hook 使用同一种中间件签名、同一种上下文、同一种结果，
- * 取代原先分散的 PipeCtx/SendCtx/BeforeToolCallHookContext 等。
+ * 独立于具体 Agent / Session / Tool 实现，仅依赖基础设施类型和契约接口。
  */
 
 import type { Message, SessionKey, SenderInfo, RoleConfig } from '@aesyclaw/core/types';
 import type { SessionRuntimeRef } from '@aesyclaw/contracts/session';
 import type { AgentRuntimeRef } from '@aesyclaw/contracts/agent';
-import type { HookToolExecutionResult } from '@aesyclaw/contracts/hook';
 
 // ─── Hook 链标识 ────────────────────────────────────────────────
 
@@ -21,6 +19,14 @@ export type HookChain =
   | 'tool:afterCall';
 
 // ─── 统一上下文 ─────────────────────────────────────────────────
+
+/** 工具执行结果（轻量定义，避免直接依赖 tool-registry） */
+export type HookToolExecutionResult = {
+  content: string;
+  details?: unknown;
+  isError?: boolean;
+  terminate?: boolean;
+};
 
 /**
  * 统一 Hook 上下文，贯穿整个管道生命周期。
@@ -73,4 +79,16 @@ export type HookRegistration = {
   priority: number;
   enabled: boolean;
   handler: Middleware;
+};
+
+// ─── Hook 总线接口 ─────────────────────────────────────────────
+
+/** Hook 总线公共接口 */
+export type IHooksBus = {
+  register(registration: HookRegistration): void;
+  unregister(id: string): void;
+  /** 按前缀批量注销 */
+  unregisterByPrefix(prefix: string): void;
+  dispatch(chain: HookChain, ctx: HookCtx): Promise<HookResult>;
+  clear(): void;
 };

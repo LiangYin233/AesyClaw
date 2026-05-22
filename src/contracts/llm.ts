@@ -16,6 +16,10 @@ export type { StreamFn };
 
 // ─── 模型类型 ─────────────────────────────────────────────────────
 
+/** 最小模型解析器接口（用于 Session.compact 等场景） */
+export type ModelResolver = {
+  resolveModel(identifier: string): ResolvedModel;
+};
 /** 解析后的模型配置，包含 modelId、API 密钥、API 类型和额外请求体 */
 export type ResolvedModel = Model<Api> & {
   modelId: string;
