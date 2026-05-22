@@ -216,10 +216,5 @@ function parseTimestamp(timestamp?: string): number {
   return Number.isNaN(parsed) ? Date.now() : parsed;
 }
 
-export function estimateApproximateTokens(messages: readonly AgentMessage[]): number {
-  const textLength = messages.reduce(
-    (total, message) => total + extractMessageText(message).length,
-    0,
-  );
-  return Math.ceil(textLength / 4);
-}
+import { estimateApproximateTokens } from './token-utils';
+export { estimateApproximateTokens };

@@ -15,7 +15,7 @@ import {
 import type { MessagesRepository, UsageRepository } from '@aesyclaw/core/database/database-manager';
 import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { estimateApproximateTokens } from './session';
+import { estimateApproximateTokens } from './token-utils';
 
 const logger = createScopedLogger('session-compactor');
 
