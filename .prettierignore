@@ -1,11 +1,1 @@
-node_modules/
-dist/
-desktop/out/
-.yarn/
-.aesyclaw/
-.trellis/
-.opencode/
-skills/
-coverage/
-yarn.lock
-AGENTS.md
+README.md
