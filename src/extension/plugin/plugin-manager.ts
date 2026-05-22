@@ -7,7 +7,6 @@ import type { CommandDefinition } from '@aesyclaw/core/types';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import {
-  discoverExtensionDirs,
   loadExtensionModule,
   type ExtensionLifecycle,
 } from '@aesyclaw/extension/extension-loader';
@@ -22,30 +21,30 @@ import {
   type PluginModule,
   type PluginStatus,
 } from './plugin-types';
+import { PluginDiscovery } from './plugin-discovery';
 
 const logger = createScopedLogger('plugin-manager');
 
 /**
  * 插件管理器 — 负责插件的发现、加载、卸载、启用/禁用及配置热重载。
- *
- * @param deps - 插件管理器依赖项
  */
 export class PluginManager implements ExtensionLifecycle {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
-  private readonly failedPlugins = new Map<string, string>();
-  private readonly moduleCache = new Map<string, PluginModule | null>();
+  readonly failedPlugins = new Map<string, string>();
+  private readonly discovery: PluginDiscovery;
 
-  constructor(private readonly deps: PluginManagerDependencies) {}
-
-  private get extensionsDir(): string {
-    return this.deps.paths.extensionsDir;
+  constructor(private readonly deps: PluginManagerDependencies) {
+    this.discovery = new PluginDiscovery(
+      { paths: { extensionsDir: deps.paths.extensionsDir } },
+      this.failedPlugins,
+    );
   }
 
   // ─── ExtensionLifecycle ──────────────────────────────────────────
 
   /** 发现并加载所有已启用的插件。 */
   async setup(): Promise<void> {
-    const pluginDirs = await this.discoverPluginDirs();
+    const pluginDirs = await this.discovery.discoverPluginDirs();
     for (const pluginDir of pluginDirs) {
       const directoryName = path.basename(pluginDir);
       if (!this.isDirectoryEnabled(directoryName)) {
@@ -69,12 +68,6 @@ export class PluginManager implements ExtensionLifecycle {
 
   // ─── 加载 / 卸载 ─────────────────────────────────────────────────
 
-  /**
-   * 加载单个插件。
-   *
-   * @param pluginDir - 插件目录路径
-   * @returns 加载成功返回 LoadedPlugin，插件被禁用则返回 null
-   */
   async load(pluginDir: string): Promise<LoadedPlugin | null> {
     const module = await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
     const pluginName = module.definition.name;
@@ -160,14 +153,9 @@ export class PluginManager implements ExtensionLifecycle {
 
   // ─── 运行时控制 ─────────────────────────────────────────────────
 
-  /**
-   * 启用指定插件（写入配置并加载）。
-   *
-   * @param pluginName - 插件名称或目录名
-   */
   async enable(pluginName: string): Promise<void> {
     await this.setPluginEnabled(pluginName, true);
-    const match = await this.findPlugin(pluginName);
+    const match = await this.discovery.findPlugin(pluginName, this.loadedPlugins);
     if (match && !this.loadedPlugins.has(match.definition.name)) {
       try {
         await this.load(match.directory);
@@ -177,11 +165,6 @@ export class PluginManager implements ExtensionLifecycle {
     }
   }
 
-  /**
-   * 禁用指定插件（卸载并写入配置）。
-   *
-   * @param pluginName - 插件名称或目录名
-   */
   async disable(pluginName: string): Promise<void> {
     await this.unload(pluginName);
     await this.setPluginEnabled(pluginName, false);
@@ -190,17 +173,12 @@ export class PluginManager implements ExtensionLifecycle {
   /** 卸载全部插件并重新加载（配置热重载）。 */
   async handleConfigReload(): Promise<void> {
     await this.unloadAll();
-    this.moduleCache.clear();
+    this.discovery.clearCache();
     await this.setup();
   }
 
   // ─── 查询 ────────────────────────────────────────────────────────
 
-  /**
-   * 列出所有插件的运行时状态。
-   *
-   * @returns 按目录名排序的插件状态列表
-   */
   async listPlugins(): Promise<PluginStatus[]> {
     const statuses = new Map<string, PluginStatus>();
     for (const loaded of this.loadedPlugins.values()) {
@@ -215,14 +193,12 @@ export class PluginManager implements ExtensionLifecycle {
       });
     }
 
-    const discovered = await this.discoverPluginDirs();
+    const discovered = await this.discovery.discoverPluginDirs();
     for (const pluginDir of discovered) {
       const directoryName = path.basename(pluginDir);
-      if (statuses.has(directoryName)) {
-        continue;
-      }
+      if (statuses.has(directoryName)) continue;
 
-      const module = await this.safeLoadModule(pluginDir);
+      const module = await this.discovery.safeLoadModule(pluginDir);
       const configLookup = module ? this.getPluginConfig(module) : null;
       const enabled = configLookup?.enabled ?? this.isDirectoryEnabled(directoryName);
       const name = module?.definition.name ?? directoryName;
@@ -242,73 +218,11 @@ export class PluginManager implements ExtensionLifecycle {
     return [...statuses.values()].sort((a, b) => a.directoryName.localeCompare(b.directoryName));
   }
 
-  /**
-   * 按名称或目录名查找插件模块。
-   *
-   * @param nameOrAlias - 插件名称或目录名
-   * @returns 找到的模块，未找到返回 null
-   */
-  async findPlugin(nameOrAlias: string): Promise<PluginModule | null> {
-    const loaded = this.findLoadedPlugin(nameOrAlias);
-    if (loaded) {
-      return {
-        definition: loaded.definition,
-        directory: loaded.directory,
-        directoryName: loaded.directoryName,
-        entryPath: '',
-      };
-    }
-
-    const pluginDirs = await this.discoverPluginDirs();
-    for (const pluginDir of pluginDirs) {
-      const directoryName = path.basename(pluginDir);
-      const module = await this.safeLoadModule(pluginDir);
-      if (!module) {
-        continue;
-      }
-      if (directoryName === nameOrAlias || module.definition.name === nameOrAlias) {
-        return module;
-      }
-    }
-
-    return null;
+  /** 获取所有已发现插件的定义信息 */
+  async getPluginDefinitions() {
+    return await this.discovery.getPluginDefinitions();
   }
 
-  /**
-   * 获取所有已发现插件的定义（名称、版本、描述、默认配置）。
-   *
-   * @returns 插件定义数组
-   */
-  async getPluginDefinitions(): Promise<
-    Array<{
-      name: string;
-      version?: string;
-      description?: string;
-      defaultConfig?: Record<string, unknown>;
-    }>
-  > {
-    const result = [];
-    const discovered = await this.discoverPluginDirs();
-    for (const dir of discovered) {
-      const module = await this.safeLoadModule(dir);
-      if (module) {
-        result.push({
-          name: module.definition.name,
-          version: module.definition.version,
-          description: module.definition.description,
-          defaultConfig: module.definition.defaultConfig,
-        });
-      }
-    }
-    return result;
-  }
-
-  /**
-   * 获取已加载插件的运行时实例。
-   *
-   * @param pluginName - 插件名称
-   * @returns 已加载的插件，未找到返回 undefined
-   */
   getLoaded(pluginName: string): LoadedPlugin | undefined {
     return this.findLoadedPlugin(pluginName);
   }
@@ -317,9 +231,7 @@ export class PluginManager implements ExtensionLifecycle {
 
   private async unload(pluginName: string): Promise<void> {
     const loaded = this.findLoadedPlugin(pluginName);
-    if (!loaded) {
-      return;
-    }
+    if (!loaded) return;
 
     const actualName = loaded.definition.name;
     try {
@@ -330,33 +242,6 @@ export class PluginManager implements ExtensionLifecycle {
       await this.cleanupOwner(actualName);
       this.loadedPlugins.delete(actualName);
       logger.info('插件已卸载', { pluginName: actualName });
-    }
-  }
-
-  private async discoverPluginDirs(): Promise<string[]> {
-    return await discoverExtensionDirs({
-      extensionsDir: this.extensionsDir,
-      directoryPrefix: 'plugin_',
-      logger,
-      unreadableMessage: '插件扩展目录不可读',
-      inspectFailureMessage: '检查插件目录候选失败',
-      candidateField: 'pluginDir',
-    });
-  }
-
-  private async safeLoadModule(pluginDir: string): Promise<PluginModule | null> {
-    if (this.moduleCache.has(pluginDir)) {
-      return this.moduleCache.get(pluginDir) ?? null;
-    }
-    try {
-      const module = await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
-      this.moduleCache.set(pluginDir, module);
-      return module;
-    } catch (err) {
-      this.moduleCache.set(pluginDir, null);
-      this.failedPlugins.set(path.basename(pluginDir), errorMessage(err));
-      logger.error('检查插件模块失败', err);
-      return null;
     }
   }
 
@@ -371,9 +256,7 @@ export class PluginManager implements ExtensionLifecycle {
       },
       unregisterTool: (name: string): void => {
         const existing = deps.toolRegistry.get(name);
-        if (!existing) {
-          return;
-        }
+        if (!existing) return;
         if (existing.owner !== owner) {
           logger.warn('插件尝试注销一个不属于自己的工具', {
             pluginName,
@@ -407,10 +290,10 @@ export class PluginManager implements ExtensionLifecycle {
 
   private findLoadedPlugin(nameOrAlias: string): LoadedPlugin | undefined {
     const direct = this.loadedPlugins.get(nameOrAlias);
-    if (direct) {
-      return direct;
-    }
-    return [...this.loadedPlugins.values()].find((plugin) => plugin.directoryName === nameOrAlias);
+    if (direct) return direct;
+    return [...this.loadedPlugins.values()].find(
+      (plugin) => plugin.directoryName === nameOrAlias,
+    );
   }
 
   private getPluginConfig(module: PluginModule): PluginConfigLookup {
@@ -440,7 +323,7 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   private async setPluginEnabled(pluginName: string, enabled: boolean): Promise<void> {
-    const match = await this.findPlugin(pluginName);
+    const match = await this.discovery.findPlugin(pluginName, this.loadedPlugins);
     const aliases = new Set([
       pluginName,
       ...(match ? [match.definition.name, match.directoryName] : []),
@@ -461,6 +344,8 @@ export class PluginManager implements ExtensionLifecycle {
     await this.deps.configManager.set('plugins', plugins);
   }
 }
+
+// ─── 工具函数 ────────────────────────────────────────────────────────
 
 function getManagedPluginOptions(
   defaults: Record<string, unknown> | undefined,

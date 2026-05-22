@@ -1,7 +1,4 @@
-import type {
-  ChannelContext,
-  MessageComponent,
-} from '@aesyclaw/sdk';
+import type { ChannelContext, MessageComponent } from '@aesyclaw/sdk';
 export type { MediaComponent } from '@aesyclaw/sdk';
 
 /** OneBot 支持的附件类型 */

@@ -5,7 +5,6 @@
  * 此为内部组织细节，不暴露为公开导入路径。
  */
 
-
 // ─── 重导出 ────────────────────────────────────────────────────────
 
 export {
@@ -34,7 +33,6 @@ export type {
   MessageUsageCost,
   CompleteMessageUsage,
 } from './types/message';
-
 
 export {
   getMessageText,

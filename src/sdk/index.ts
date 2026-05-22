@@ -29,8 +29,6 @@ export type {
   CommandDefinition,
 } from '@aesyclaw/core/types';
 
-
-
 export { getMessageText } from '@aesyclaw/core/types';
 
 export { isRecord, errorMessage } from '@aesyclaw/core/utils';

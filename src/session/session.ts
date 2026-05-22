@@ -7,23 +7,17 @@ import {
   assistantHasToolCalls,
   createUserMessage,
   extractMessageText,
-  makeExtraBodyOnPayload,
   type AgentMessage,
-  type ResolvedModel,
 } from '@aesyclaw/contracts/llm';
 import { createPersistedAssistantMessage } from '@aesyclaw/agent/types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import {
-  withDefaultPromptCacheModel,
-  withDefaultPromptCacheOptions,
-} from '@aesyclaw/agent/llm/cache-options';
 import type {
   MessagesRepository,
   UsageRepository,
   ToolUsageRepository,
 } from '@aesyclaw/core/database/database-manager';
-import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { compactSession } from './session-compactor';
 
 const logger = createScopedLogger('session');
 
@@ -156,39 +150,12 @@ export class Session {
    * @returns 压缩后的摘要文本
    */
   async compact(llmAdapter: LlmAdapter, modelIdentifier: string): Promise<string> {
-    const model = llmAdapter.resolveModel(modelIdentifier);
-    logger.info('正在压缩会话历史', {
+    return await compactSession(llmAdapter, modelIdentifier, {
       sessionId: this.sessionId,
-      messageCount: this._messages.length,
-      totalTokens: `${estimateApproximateTokens(this._messages)}/${model.contextWindow}`,
+      get: () => this.get(),
+      bind: () => this.bind(),
+      db: this.db as { messages: MessagesRepository; usage?: UsageRepository },
     });
-
-    const { summary, message } = await this.summarizeConversation(model, this._messages);
-
-    if (this.db.usage) {
-      try {
-        await this.db.usage.create({
-          model: message.model,
-          provider: message.provider,
-          api: message.api,
-          responseId: message.responseId,
-          usage: message.usage,
-          sessionId: this.sessionId,
-        });
-      } catch (err) {
-        logger.error('记录压缩用量失败', err);
-      }
-    }
-
-    await this.db.messages.replaceWithSummary(this.sessionId, summary);
-    await this.bind();
-
-    logger.info('会话历史已压缩', {
-      sessionId: this.sessionId,
-      summaryLength: summary.length,
-    });
-
-    return summary;
   }
 
   /**
@@ -252,51 +219,12 @@ export class Session {
         }
       }
     }
-  }
-
-  private async summarizeConversation(
-    model: ResolvedModel,
-    messages: AgentMessage[],
-  ): Promise<{ summary: string; message: AssistantMessage }> {
-    const prompt = buildSummaryPrompt(messages);
-
-    const cacheModel = withDefaultPromptCacheModel(model);
-    const response = await completeSimple(
-      cacheModel,
-      {
-        systemPrompt: [
-          'You are a conversation archivist. Summarize the following dialogue into a compact record for future turns.',
-          'Output ONLY the summary in the following structure, using plain text:',
-          '',
-          '## Previous Discussion',
-          '- What has already been discussed with the user (topics, decisions made, conclusions reached)',
-          '',
-          '## Current Focus',
-          '- What is being worked on or discussed right now (the active task or question)',
-          '',
-          '## Next Steps',
-          '- What remains to be done, unresolved questions, or pending follow-ups',
-          '',
-          '## Notes',
-          '- Special constraints, important facts, user preferences, tool results, file paths, or any context critical for continuity',
-          '',
-          'Keep each section concise. Do not mention that you are summarizing or refer to missing context.',
-        ].join('\n'),
-        messages: [{ role: 'user', content: prompt, timestamp: Date.now() }],
-      },
-      withDefaultPromptCacheOptions(cacheModel, {
-        apiKey: model.apiKey,
-        sessionId: this.sessionId,
-        onPayload: makeExtraBodyOnPayload(model),
-      }),
-    );
-
-    const summary = extractMessageText(response).trim();
-    if (summary.length === 0) throw new Error('LLM 返回了空总结');
-    return { summary, message: response };
-  }
 }
 
+/**
+ * 过滤掉 AI 幻觉遗留的幽灵 toolCall 块（LLM 声明调用工具但未正确执行）。
+ * 这些块只有 type 没有 name，会导致后续处理出错。
+ */
 function sanitizeGhostToolCalls(agentMessages: AgentMessage[]): void {
   for (const message of agentMessages) {
     if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
@@ -360,12 +288,4 @@ export function estimateApproximateTokens(messages: readonly AgentMessage[]): nu
     0,
   );
   return Math.ceil(textLength / 4);
-}
-
-function buildSummaryPrompt(messages: AgentMessage[]): string {
-  const transcript = messages
-    .map((m) => `${m.role.toUpperCase()}: ${extractMessageText(m).trim()}`)
-    .filter((line) => !line.endsWith(':'))
-    .join('\n\n');
-  return ['Conversation transcript:', '', transcript].join('\n');
 }
