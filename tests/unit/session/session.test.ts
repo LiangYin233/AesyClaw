@@ -4,11 +4,7 @@ import type * as PiAiModule from '@mariozechner/pi-ai';
 import { Session } from '../../../src/session/core';
 import type { AgentMessage } from '../../../src/agent/types';
 import type { SessionKey } from '../../../src/core/types/identity';
-import {
-  getRecentLogEntries,
-  setLogLevel,
-  resetLogState,
-} from '../../../src/core/logger';
+import { getRecentLogEntries, setLogLevel, resetLogState } from '../../../src/core/logger';
 
 vi.mock('@mariozechner/pi-ai', async () => {
   const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');

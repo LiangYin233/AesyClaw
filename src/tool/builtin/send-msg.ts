@@ -12,11 +12,7 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
-import type {
-  Message,
-  MediaComponent,
-  ToolOwner,
-} from '@aesyclaw/core/types';
+import type { Message, MediaComponent, ToolOwner } from '@aesyclaw/core/types';
 
 const MEDIA_TYPE_MAP = {
   image: 'Image',
@@ -32,7 +28,6 @@ type MediaParam = {
   base64?: string;
   mimeType?: string;
 };
-
 
 const SEND_MSG_SCHEMA = Type.Object({
   text: Type.String({ description: '要发送的文本内容' }),

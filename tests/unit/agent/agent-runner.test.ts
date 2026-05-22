@@ -2,10 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { streamSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import { AgentRegistry } from '../../../src/agent/registry';
-import {
-  createProviderCacheKey,
-  type AgentRunParams,
-} from '../../../src/agent/runner';
+import { createProviderCacheKey, type AgentRunParams } from '../../../src/agent/runner';
 import { runAgentTask } from '../../../src/agent/runner';
 
 const runnerMock = vi.hoisted(() => {

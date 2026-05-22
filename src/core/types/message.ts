@@ -39,11 +39,7 @@ export type UnknownComponent = {
   data?: Record<string, unknown>;
 };
 
-export type MessageComponent =
-  | PlainComponent
-  | MediaComponent
-  | ReplyComponent
-  | UnknownComponent;
+export type MessageComponent = PlainComponent | MediaComponent | ReplyComponent | UnknownComponent;
 
 /** 纯消息载荷：只表示消息本身，不携带会话、发送者上下文。 */
 export type Message = {
