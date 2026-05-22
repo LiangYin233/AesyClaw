@@ -73,14 +73,17 @@ export class DesktopServer {
       case 'chunk': {
         const text = (streamMsg.components[0] as { text?: string })?.text ?? '';
         conn.sendJson({
-          type: 'chunk', sessionId, text,
+          type: 'chunk',
+          sessionId,
+          text,
           index: streamMsg.chunkIndex ?? 0,
         } satisfies DesktopOutboundMessage);
         break;
       }
       case 'toolCall':
         conn.sendJson({
-          type: 'tool_call', sessionId,
+          type: 'tool_call',
+          sessionId,
           toolCallId: streamMsg.toolCallId ?? '',
           toolName: streamMsg.toolName ?? '',
           args: streamMsg.args,
@@ -88,7 +91,8 @@ export class DesktopServer {
         break;
       case 'toolResult':
         conn.sendJson({
-          type: 'tool_result', sessionId,
+          type: 'tool_result',
+          sessionId,
           toolCallId: streamMsg.toolCallId ?? '',
           toolName: streamMsg.toolName ?? '',
           result: streamMsg.result,
@@ -97,13 +101,15 @@ export class DesktopServer {
         break;
       case 'done':
         conn.sendJson({
-          type: 'done', sessionId,
+          type: 'done',
+          sessionId,
           usage: streamMsg.usage,
         } satisfies DesktopOutboundMessage);
         break;
       case 'error':
         conn.sendJson({
-          type: 'error', sessionId,
+          type: 'error',
+          sessionId,
           message: streamMsg.errorMessage ?? '未知错误',
         } satisfies DesktopOutboundMessage);
         break;
@@ -148,7 +154,12 @@ export class DesktopServer {
 
   private async handleChatMessage(
     connectionId: string,
-    msg: { type: 'chat'; sessionId: string; text: string; files?: Array<{ fileId?: string; name: string; mime: string; size?: number }> },
+    msg: {
+      type: 'chat';
+      sessionId: string;
+      text: string;
+      files?: Array<{ fileId?: string; name: string; mime: string; size?: number }>;
+    },
   ): Promise<void> {
     const { sessionId } = msg;
     this.sessions.bindSession(sessionId, connectionId);
@@ -168,7 +179,8 @@ export class DesktopServer {
     } catch (err) {
       this.logger.error('处理聊天消息失败', { connectionId, sessionId }, err);
       conn.sendJson({
-        type: 'error', sessionId,
+        type: 'error',
+        sessionId,
         message: err instanceof Error ? err.message : '处理聊天消息失败',
       } satisfies DesktopOutboundMessage);
     }
@@ -190,7 +202,8 @@ export class DesktopServer {
     } catch (err) {
       this.logger.error('取消 Agent 处理失败', { connectionId, sessionId: msg.sessionId }, err);
       conn?.sendJson({
-        type: 'error', sessionId: msg.sessionId,
+        type: 'error',
+        sessionId: msg.sessionId,
         message: err instanceof Error ? err.message : '取消 Agent 处理失败',
       } satisfies DesktopOutboundMessage);
     }
@@ -200,20 +213,34 @@ export class DesktopServer {
 
   private handleFileStart(
     connectionId: string,
-    msg: { type: 'file_start'; sessionId: string; fileId: string; name: string; mime: string; totalSize: number; totalChunks: number },
+    msg: {
+      type: 'file_start';
+      sessionId: string;
+      fileId: string;
+      name: string;
+      mime: string;
+      totalSize: number;
+      totalChunks: number;
+    },
   ): void {
     this.sessions.bindSession(msg.sessionId, connectionId);
     const conn = this.sessions.getConnection(msg.sessionId);
     if (!conn) return;
 
     const buffer: DesktopFileBuffer = {
-      fileId: msg.fileId, sessionId: msg.sessionId,
-      name: msg.name, mime: msg.mime,
-      totalChunks: msg.totalChunks, chunks: [], received: 0,
+      fileId: msg.fileId,
+      sessionId: msg.sessionId,
+      name: msg.name,
+      mime: msg.mime,
+      totalChunks: msg.totalChunks,
+      chunks: [],
+      received: 0,
     };
     conn.fileBuffers.set(msg.fileId, buffer);
     this.logger.debug('文件传输开始', {
-      fileId: msg.fileId, name: msg.name, totalChunks: msg.totalChunks,
+      fileId: msg.fileId,
+      name: msg.name,
+      totalChunks: msg.totalChunks,
     });
   }
 
@@ -230,7 +257,8 @@ export class DesktopServer {
     const fileData = Buffer.concat(buffer.chunks);
     const baseMediaDir = this.options.context.paths.mediaDir;
     const mediaDir = nodePath.join(
-      baseMediaDir, 'desktop',
+      baseMediaDir,
+      'desktop',
       desktopAttachments.sanitizePathSegment(buffer.sessionId),
     );
     mkdirSync(mediaDir, { recursive: true });
@@ -242,14 +270,19 @@ export class DesktopServer {
     writeFileSync(targetFile, fileData);
 
     conn.completedFiles.set(msg.fileId, {
-      fileId: msg.fileId, sessionId: buffer.sessionId,
-      name: buffer.name, mime: buffer.mime,
-      size: fileData.length, filePath: targetFile,
+      fileId: msg.fileId,
+      sessionId: buffer.sessionId,
+      name: buffer.name,
+      mime: buffer.mime,
+      size: fileData.length,
+      filePath: targetFile,
     });
 
     this.logger.info('文件接收完成', {
-      fileId: msg.fileId, name: buffer.name,
-      path: targetFile, size: fileData.length,
+      fileId: msg.fileId,
+      name: buffer.name,
+      path: targetFile,
+      size: fileData.length,
     });
 
     conn.fileBuffers.delete(msg.fileId);
