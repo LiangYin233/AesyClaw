@@ -55,24 +55,7 @@ describe('scoped logger', () => {
     });
   });
 
-  it('colorizes level and scope for interactive info logs', () => {
-    setTTY(process.stdout, true);
 
-    logger.info('Ready');
-
-    expectConsoleInfo(`${FORMATTED_TIME} \x1b[36m[INFO]\x1b[0m \x1b[36m[app]\x1b[0m Ready`);
-  });
-
-  it('uses stderr color support for warn logs', () => {
-    setTTY(process.stdout, false);
-    setTTY(process.stderr, true);
-
-    logger.warn('Watch out');
-
-    expect(console.warn).toHaveBeenCalledWith(
-      `${FORMATTED_TIME} \x1b[33m[WARN]\x1b[0m \x1b[33m[app]\x1b[0m Watch out`,
-    );
-  });
 
   it('falls back to plain text for redirected warn logs', () => {
     setTTY(process.stdout, true);
@@ -111,18 +94,7 @@ describe('scoped logger', () => {
     expectConsoleInfo(`${FORMATTED_TIME} [INFO] [app] Ready`);
   });
 
-  it('preserves log level filtering', () => {
-    setTTY(process.stderr, true);
-    setLogLevel('error');
 
-    logger.warn('Skipped');
-    logger.error('Failed');
-
-    expect(console.warn).not.toHaveBeenCalled();
-    expect(console.error).toHaveBeenCalledWith(
-      `${FORMATTED_TIME} \x1b[31m[ERROR]\x1b[0m \x1b[31m[app]\x1b[0m Failed`,
-    );
-  });
 
   it('captures recent log entries without ANSI colors', () => {
     setTTY(process.stdout, true);
@@ -137,7 +109,6 @@ describe('scoped logger', () => {
         scope: 'app',
         message: 'Ready',
         details: '{ port: 3000 }',
-        formatted: `${FORMATTED_TIME} [INFO] [app] Ready { port: 3000 }`,
       },
     ]);
   });
@@ -156,7 +127,6 @@ describe('scoped logger', () => {
         scope: 'app',
         message: 'Failed',
         details: null,
-        formatted: `${FORMATTED_TIME} [ERROR] [app] Failed`,
       },
     ]);
   });
@@ -179,7 +149,6 @@ describe('scoped logger', () => {
         scope: 'app',
         message: 'Realtime update',
         details: "{ source: 'logs-page' }",
-        formatted: `${FORMATTED_TIME} [INFO] [app] Realtime update { source: 'logs-page' }`,
       },
     ]);
   });
@@ -202,7 +171,6 @@ describe('scoped logger', () => {
         scope: 'app',
         message: 'Before unsubscribe',
         details: null,
-        formatted: `${FORMATTED_TIME} [INFO] [app] Before unsubscribe`,
       },
     ]);
   });

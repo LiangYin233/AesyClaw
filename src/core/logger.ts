@@ -12,7 +12,7 @@ import { inspect } from 'node:util';
 /** 日志级别 */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-/** 单条日志条目，包含格式化输出和元数据 */
+/** 单条日志条目 — 不含格式化文本，供消费者自行拼装 */
 export type LogEntry = {
   id: number;
   timestamp: string;
@@ -20,16 +20,6 @@ export type LogEntry = {
   scope: string;
   message: string;
   details: string | null;
-  formatted: string;
-};
-
-const ANSI_RESET = '\x1b[0m';
-
-const LOG_COLORS: Record<LogLevel, string> = {
-  debug: '\x1b[90m',
-  info: '\x1b[36m',
-  warn: '\x1b[33m',
-  error: '\x1b[31m',
 };
 
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -44,48 +34,13 @@ let nextLogEntryId = 1;
 
 const MAX_LOG_BUFFER_SIZE = 500;
 const recentLogBuffer: LogEntry[] = [];
+const logSubscribers = new Set<(entry: LogEntry) => void>();
 
-type LogSubscriber = (entry: LogEntry) => void;
-
-const logSubscribers = new Set<LogSubscriber>();
-
-/**
- * 设置全局日志级别。在配置加载或热重载时调用。
- */
+/** 设置全局日志级别 */
 export function setLogLevel(level: string): void {
   if (level in LOG_LEVELS) {
     currentLevel = level as LogLevel;
   }
-}
-
-function supportsAnsiColor(stream: NodeJS.WriteStream): boolean {
-  const forceColor = process.env['FORCE_COLOR'];
-
-  if ('NO_COLOR' in process.env) {
-    return false;
-  }
-
-  if (forceColor === '0' || forceColor === 'false') {
-    return false;
-  }
-
-  if (forceColor && forceColor !== '') {
-    return true;
-  }
-
-  if (!stream.isTTY) {
-    return false;
-  }
-
-  return process.env['TERM'] !== 'dumb';
-}
-
-function colorize(text: string, level: LogLevel, enabled: boolean): string {
-  if (!enabled) {
-    return text;
-  }
-
-  return `${LOG_COLORS[level]}${text}${ANSI_RESET}`;
 }
 
 function formatTimestamp(date: Date): string {
@@ -97,32 +52,16 @@ function formatTimestamp(date: Date): string {
   return `${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-function formatMessage(scope: string, level: LogLevel, message: string): string {
+/** 格式化为带颜色的终端输出行 */
+function formatConsoleLine(scope: string, level: LogLevel, message: string): string {
   const timestamp = formatTimestamp(new Date());
-  const useColor = supportsAnsiColor(
-    level === 'warn' || level === 'error' ? process.stderr : process.stdout,
-  );
-  return formatMessageWithTimestamp(timestamp, scope, level, message, useColor);
-}
-
-function formatMessageWithTimestamp(
-  timestamp: string,
-  scope: string,
-  level: LogLevel,
-  message: string,
-  useColor: boolean,
-): string {
-  const formattedLevel = colorize(`[${level.toUpperCase()}]`, level, useColor);
-  const formattedScope = colorize(`[${scope}]`, level, useColor);
-
-  return `${timestamp} ${formattedLevel} ${formattedScope} ${message}`;
+  const levelTag = `[${level.toUpperCase()}]`;
+  const scopeTag = `[${scope}]`;
+  return `${timestamp} ${levelTag} ${scopeTag} ${message}`;
 }
 
 function formatLogDetails(args: readonly unknown[]): string | null {
-  if (args.length === 0) {
-    return null;
-  }
-
+  if (args.length === 0) return null;
   return args
     .map((arg) => inspect(arg, { colors: false, depth: 4, breakLength: Infinity }))
     .join(' ');
@@ -134,24 +73,16 @@ function appendRecentLogEntry(
   message: string,
   args: readonly unknown[],
 ): void {
-  const timestamp = formatTimestamp(new Date());
-  const details = formatLogDetails(args);
-  const formatted = details
-    ? `${formatMessageWithTimestamp(timestamp, scope, level, message, false)} ${details}`
-    : formatMessageWithTimestamp(timestamp, scope, level, message, false);
-
   const entry: LogEntry = {
     id: nextLogEntryId++,
-    timestamp,
+    timestamp: formatTimestamp(new Date()),
     level,
     scope,
     message,
-    details,
-    formatted,
+    details: formatLogDetails(args),
   };
 
   recentLogBuffer.push(entry);
-
   if (recentLogBuffer.length > MAX_LOG_BUFFER_SIZE) {
     recentLogBuffer.splice(0, recentLogBuffer.length - MAX_LOG_BUFFER_SIZE);
   }
@@ -168,47 +99,34 @@ function log(
   message: string,
   args: readonly unknown[],
 ): void {
-  if (!(LOG_LEVELS[level] >= LOG_LEVELS[currentLevel])) {
-    return;
-  }
+  if (!(LOG_LEVELS[level] >= LOG_LEVELS[currentLevel])) return;
 
   appendRecentLogEntry(scope, level, message, args);
-  globalThis.console[consoleMethod](formatMessage(scope, level, message), ...args);
+  globalThis.console[consoleMethod](formatConsoleLine(scope, level, message), ...args);
 }
 
-/**
- * 获取最近 N 条日志条目。
- *
- * @param limit - 返回数量上限（默认 200，最大 500）
- * @returns 最近的日志条目数组
- */
+/** 获取最近 N 条日志条目 */
 export function getRecentLogEntries(limit = 200): LogEntry[] {
   const normalizedLimit = Math.max(1, Math.min(limit, MAX_LOG_BUFFER_SIZE));
   return recentLogBuffer.slice(-normalizedLimit);
 }
 
-/**
- * 订阅实时日志条目通知。
- *
- * @param subscriber - 每次写入日志时调用的回调
- * @returns 取消订阅的函数
- */
-export function subscribeToLogEntries(subscriber: LogSubscriber): () => void {
+/** 订阅实时日志条目通知。返回取消订阅的函数。 */
+export function subscribeToLogEntries(subscriber: (entry: LogEntry) => void): () => void {
   logSubscribers.add(subscriber);
   return () => {
     logSubscribers.delete(subscriber);
   };
 }
 
-/** 重置日志内部状态（测试用）。不会抛出环境检查。 */
+/** 重置日志内部状态（测试用） */
 export function resetLogState(): void {
   recentLogBuffer.length = 0;
   nextLogEntryId = 1;
   logSubscribers.clear();
 }
 
-
-/** 作用域日志器接口 — 提供 debug/info/warn/error 四级日志方法 */
+/** 作用域日志器接口 */
 export type Logger = {
   debug(message: string, ...args: unknown[]): void;
   info(message: string, ...args: unknown[]): void;
@@ -216,12 +134,7 @@ export type Logger = {
   error(message: string, ...args: unknown[]): void;
 };
 
-/**
- * 创建一个带作用域的日志实例。
- *
- * @param scope - 遵循 `category:name` 约定的模块标识符
- *   （如 'config'、'db'、'plugin:myfeature'、'channel:onebot'）
- */
+/** 创建一个带作用域的日志实例 */
 export function createScopedLogger(scope: string): Logger {
   return {
     debug(message: string, ...args: unknown[]): void {

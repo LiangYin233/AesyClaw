@@ -104,8 +104,7 @@ function setupWebSocketTest() {
 }
 
 describe('createWebSocketServer', () => {
-  beforeEach(() => {
-  });
+  beforeEach(() => {});
 
   afterEach(() => {
     vi.restoreAllMocks();
