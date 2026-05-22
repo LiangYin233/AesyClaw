@@ -5,7 +5,6 @@
  * 此为内部组织细节，不暴露为公开导入路径。
  */
 
-import type { MediaComponent } from './types/message';
 
 // ─── 重导出 ────────────────────────────────────────────────────────
 
@@ -36,14 +35,7 @@ export type {
   CompleteMessageUsage,
 } from './types/message';
 
-/** @deprecated 使用 MediaComponent */
-export type ImageComponent = MediaComponent;
-/** @deprecated 使用 MediaComponent */
-export type RecordComponent = MediaComponent;
-/** @deprecated 使用 MediaComponent */
-export type VideoComponent = MediaComponent;
-/** @deprecated 使用 MediaComponent */
-export type FileComponent = MediaComponent;
+
 export {
   getMessageText,
   createZeroMessageUsage,

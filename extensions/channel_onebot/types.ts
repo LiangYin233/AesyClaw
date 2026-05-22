@@ -1,11 +1,8 @@
 import type {
   ChannelContext,
-  FileComponent,
-  ImageComponent,
   MessageComponent,
-  RecordComponent,
-  VideoComponent,
 } from '@aesyclaw/sdk';
+export type { MediaComponent } from '@aesyclaw/sdk';
 
 /** OneBot 支持的附件类型 */
 export type OneBotAttachmentType = 'image' | 'audio' | 'video' | 'file';
@@ -16,9 +13,6 @@ export type OneBotDownloadResult = {
   path?: string;
   url?: string;
 };
-
-/** 媒体消息组件联合类型（Image | Record | Video | File） */
-export type MediaComponent = ImageComponent | RecordComponent | VideoComponent | FileComponent;
 
 /** OneBot 渠道配置 */
 export type OneBotChannelConfig = {
