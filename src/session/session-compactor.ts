@@ -8,7 +8,10 @@
 import type { AgentMessage, ResolvedModel } from '@aesyclaw/contracts/llm';
 import { extractMessageText, makeExtraBodyOnPayload } from '@aesyclaw/contracts/llm';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from '@aesyclaw/agent/llm/cache-options';
+import {
+  withDefaultPromptCacheModel,
+  withDefaultPromptCacheOptions,
+} from '@aesyclaw/agent/llm/cache-options';
 import type { MessagesRepository, UsageRepository } from '@aesyclaw/core/database/database-manager';
 import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';

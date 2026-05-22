@@ -6,10 +6,7 @@ import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import type { CommandDefinition } from '@aesyclaw/core/types';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import {
-  loadExtensionModule,
-  type ExtensionLifecycle,
-} from '@aesyclaw/extension/extension-loader';
+import { loadExtensionModule, type ExtensionLifecycle } from '@aesyclaw/extension/extension-loader';
 import {
   discoverPluginDefinition,
   pluginOwner,
@@ -291,9 +288,7 @@ export class PluginManager implements ExtensionLifecycle {
   private findLoadedPlugin(nameOrAlias: string): LoadedPlugin | undefined {
     const direct = this.loadedPlugins.get(nameOrAlias);
     if (direct) return direct;
-    return [...this.loadedPlugins.values()].find(
-      (plugin) => plugin.directoryName === nameOrAlias,
-    );
+    return [...this.loadedPlugins.values()].find((plugin) => plugin.directoryName === nameOrAlias);
   }
 
   private getPluginConfig(module: PluginModule): PluginConfigLookup {

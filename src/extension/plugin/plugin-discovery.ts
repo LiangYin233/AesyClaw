@@ -8,14 +8,8 @@
 import path from 'node:path';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage } from '@aesyclaw/core/utils';
-import {
-  discoverExtensionDirs,
-  loadExtensionModule,
-} from '@aesyclaw/extension/extension-loader';
-import {
-  discoverPluginDefinition,
-  type PluginModule,
-} from './plugin-types';
+import { discoverExtensionDirs, loadExtensionModule } from '@aesyclaw/extension/extension-loader';
+import { discoverPluginDefinition, type PluginModule } from './plugin-types';
 
 const logger = createScopedLogger('plugin-discovery');
 
@@ -72,7 +66,10 @@ export class PluginDiscovery {
   /** 按名称或目录名查找插件 */
   async findPlugin(
     nameOrAlias: string,
-    loadedPlugins: Map<string, { definition: PluginModule['definition']; directory: string; directoryName: string }>,
+    loadedPlugins: Map<
+      string,
+      { definition: PluginModule['definition']; directory: string; directoryName: string }
+    >,
   ): Promise<PluginModule | null> {
     // 先查已加载的
     for (const loaded of loadedPlugins.values()) {
