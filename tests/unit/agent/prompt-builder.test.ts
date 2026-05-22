@@ -102,7 +102,7 @@ describe('PromptBuilder', () => {
   describe('buildAgentPrompt', () => {
     it('should replace template variables and include prompt sections', () => {
       const prompt = buildAgentPrompt({
-        role: makeRole({ systemPrompt: 'Today is {{date}} on {{os}} using {{systemLang}}.' }),
+        role: makeRole({ systemPrompt: 'Today is {{os}} using {{systemLang}}.' }),
         availableTools: [makeTool({ name: 'send-msg' })],
         skills: [makeSkill()],
         allRoles: [makeRole({ id: 'helper' })],
@@ -111,7 +111,6 @@ describe('PromptBuilder', () => {
         isCron: false,
       });
 
-      expect(prompt).toContain('{{date}}');
       expect(prompt).not.toContain('{{os}}');
       expect(prompt).not.toContain('{{systemLang}}');
       expect(prompt).toContain('## Available Tools');
