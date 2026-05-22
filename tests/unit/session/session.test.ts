@@ -5,9 +5,9 @@ import { Session } from '../../../src/session/session';
 import type { AgentMessage } from '../../../src/agent/types';
 import type { SessionKey } from '../../../src/core/identity-types';
 import {
-  clearRecentLogEntriesForTests,
   getRecentLogEntries,
   setLogLevel,
+  resetLogState,
 } from '../../../src/core/logger';
 
 vi.mock('@mariozechner/pi-ai', async () => {
@@ -20,12 +20,11 @@ vi.mock('@mariozechner/pi-ai', async () => {
 
 beforeEach(() => {
   setLogLevel('info');
-  clearRecentLogEntriesForTests();
+  resetLogState();
   vi.mocked(completeSimple).mockResolvedValue(makeSummaryMessage() as never);
 });
 
 afterEach(() => {
-  clearRecentLogEntriesForTests();
   vi.mocked(completeSimple).mockReset();
 });
 

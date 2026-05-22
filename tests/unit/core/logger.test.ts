@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  clearRecentLogEntriesForTests,
   createScopedLogger,
   getRecentLogEntries,
   setLogLevel,
   subscribeToLogEntries,
+  resetLogState,
 } from '../../../src/core/logger';
 
 const FIXED_TIME = new Date('2026-04-26T12:34:56.789Z');
@@ -24,10 +24,10 @@ describe('scoped logger', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     setLogLevel('info');
+    resetLogState();
     delete process.env.NO_COLOR;
     delete process.env.FORCE_COLOR;
     process.env.TERM = 'xterm-256color';
-    clearRecentLogEntriesForTests();
   });
 
   function expectConsoleInfo(...args: unknown[]): void {
@@ -38,11 +38,11 @@ describe('scoped logger', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     setLogLevel('info');
+    resetLogState();
     restoreTTY(process.stdout, originalStdoutTTY);
     restoreTTY(process.stderr, originalStderrTTY);
     delete process.env.NO_COLOR;
     delete process.env.FORCE_COLOR;
-    clearRecentLogEntriesForTests();
   });
 
   it('falls back to plain text for non-interactive info logs', () => {

@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { clearRecentLogEntriesForTests, createScopedLogger } from '../../../src/core/logger';
+import { createScopedLogger, resetLogState } from '../../../src/core/logger';
 import { createWebSocketServer } from '../../../src/web/ws/handler';
-
 const { MockWebSocket, MockWebSocketServer } = vi.hoisted(() => {
   class MockWebSocket {
     static readonly OPEN = 1;
@@ -106,12 +105,11 @@ function setupWebSocketTest() {
 
 describe('createWebSocketServer', () => {
   beforeEach(() => {
-    clearRecentLogEntriesForTests();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    clearRecentLogEntriesForTests();
+    resetLogState();
   });
 
   it('sends a log_entry message to connected clients when a log is appended', () => {

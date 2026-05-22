@@ -1,17 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { clearRecentLogEntriesForTests, createScopedLogger } from '../../../src/core/logger';
 import * as loggerModule from '../../../src/core/logger';
+import { createScopedLogger, resetLogState } from '../../../src/core/logger';
 import { getLogs } from '../../../src/web/services/logs';
-
 describe('logs service', () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    clearRecentLogEntriesForTests();
+    resetLogState();
   });
 
   it('returns recent log entries', () => {
-    clearRecentLogEntriesForTests();
     const logger = createScopedLogger('test:logs');
     logger.info('First message');
     logger.warn('Second message', { detail: true });
@@ -34,7 +32,6 @@ describe('logs service', () => {
   });
 
   it('falls back to default limit for invalid values and clamps oversized requests', () => {
-    clearRecentLogEntriesForTests();
     const logger = createScopedLogger('test:logs');
     logger.info('Only message');
 

@@ -200,15 +200,13 @@ export function subscribeToLogEntries(subscriber: LogSubscriber): () => void {
   };
 }
 
-/** 清空日志缓冲区（仅限测试环境调用） */
-export function clearRecentLogEntriesForTests(): void {
-  if (process.env['VITEST'] === undefined) {
-    throw new Error('clearRecentLogEntriesForTests 仅可在测试环境中使用');
-  }
+/** 重置日志内部状态（测试用）。不会抛出环境检查。 */
+export function resetLogState(): void {
   recentLogBuffer.length = 0;
   nextLogEntryId = 1;
   logSubscribers.clear();
 }
+
 
 /** 作用域日志器接口 — 提供 debug/info/warn/error 四级日志方法 */
 export type Logger = {
