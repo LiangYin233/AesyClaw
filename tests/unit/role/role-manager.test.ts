@@ -3,9 +3,9 @@ import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../src/core/config/config-manager';
-import { RoleStore } from '../../../src/role/role-store';
+import { RoleStore } from '../../../src/role/store';
 import type { RoleConfig } from '../../../src/core/types';
-import { RoleManager } from '../../../src/role/role-manager';
+import { RoleManager } from '../../../src/role/manager';
 import { makeRole } from '../../helpers/role';
 
 const TEST_BASE = join(tmpdir(), 'aesyclaw-test-role-manager');

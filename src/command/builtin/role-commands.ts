@@ -1,7 +1,7 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 import { Agent } from '@aesyclaw/agent/agent';
 
 /** role 子命令所需的依赖集合 */

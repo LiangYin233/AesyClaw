@@ -24,7 +24,7 @@ import type { AgentMessage, AgentTool, AgentToolResult, ResolvedModel } from './
 import { serializeSessionKey, type SessionKey, type StreamEventMeta } from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './llm/cache-options';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { AgentRegistry, AgentRunHandle } from './agent-registry';
+import type { AgentRegistry, AgentRunHandle } from './registry';
 import {
   adaptToolForPiAgent,
   calculateToolResultBudget,

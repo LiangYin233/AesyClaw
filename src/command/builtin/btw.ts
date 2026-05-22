@@ -1,7 +1,7 @@
 import type { SessionManager } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';
 import {
@@ -11,7 +11,7 @@ import {
   type RoleConfig,
 } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 import { Agent } from '@aesyclaw/agent/agent';
 
 /**

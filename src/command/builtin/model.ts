@@ -1,6 +1,6 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
 /**
  * 创建 /model 命令，用于切换当前 Agent 使用的模型。

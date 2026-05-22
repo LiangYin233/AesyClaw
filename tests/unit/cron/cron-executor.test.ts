@@ -3,7 +3,7 @@ import {
   CronExecutor,
   createCronContextSessionKey,
   formatResult,
-} from '../../../src/cron/cron-executor';
+} from '../../../src/cron/executor';
 import { parseSerializedSessionKey } from '../../../src/core/types';
 import type { CronJobRecord } from '../../../src/core/types';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { CronScheduler, computeNextRun } from '../../../src/cron/cron-scheduler';
+import { CronScheduler, computeNextRun } from '../../../src/cron/scheduler';
 import type { CronJobRecord } from '../../../src/core/types';
 
 function makeJob(overrides: Partial<CronJobRecord> = {}): CronJobRecord {

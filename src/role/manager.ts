@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { RoleConfig } from '@aesyclaw/core/types';
-import type { RoleStore } from './role-store';
+import type { RoleStore } from './store';
 
 const logger = createScopedLogger('role');
 

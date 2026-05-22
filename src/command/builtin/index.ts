@@ -1,13 +1,13 @@
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { SessionManager } from '@aesyclaw/session';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';

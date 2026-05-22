@@ -1,5 +1,5 @@
 import { LlmAdapter } from './agent/llm/adapter';
-import { AgentRegistry } from './agent/agent-registry';
+import { AgentRegistry } from './agent/registry';
 import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
@@ -9,12 +9,12 @@ import { createScopedLogger } from './core/logger';
 import { McpManager } from './tool/mcp/mcp-manager';
 import { SdkMcpClientFactory } from './tool/mcp/sdk-mcp-client';
 import { Pipeline } from './pipeline/pipeline';
-import { createAgentFactory } from './agent/agent-factory';
+import { createAgentFactory } from './agent/factory';
 import { createRoleResolver } from './agent/role-resolver';
 import { HooksBus } from './hook';
-import { RoleManager } from './role/role-manager';
-import { RoleStore } from './role/role-store';
-import { SkillManager } from './skill/skill-manager';
+import { RoleManager } from './role/manager';
+import { RoleStore } from './role/store';
+import { SkillManager } from './skill/manager';
 import { ToolRegistry } from './tool/tool-registry';
 
 const logger = createScopedLogger('app');

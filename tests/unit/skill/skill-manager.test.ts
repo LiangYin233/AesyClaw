@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { SkillManager } from '../../../src/skill/skill-manager';
+import { SkillManager } from '../../../src/skill/manager';
 import type { SkillDefinition } from '../../../src/core/types';
 import { makeRole } from '../../helpers/role';
 

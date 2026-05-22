@@ -7,7 +7,7 @@
 
 import type { CommandContext } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
 export type RoleResolver = {
   resolveActiveRoleId(

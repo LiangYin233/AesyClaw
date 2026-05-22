@@ -5,11 +5,11 @@
 import type { IHooksBus } from '@aesyclaw/contracts/hook';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { SessionManager } from '@aesyclaw/session';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
-import type { AgentFactory } from '@aesyclaw/agent/agent-factory';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
+import type { AgentFactory } from '@aesyclaw/agent/factory';
 import type { RoleResolver } from '@aesyclaw/agent/role-resolver';
 
 // ─── 管道依赖 ───────────────────────────────────────────────

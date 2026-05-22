@@ -1,6 +1,6 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/session';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
 /**
  * 创建 /stop 命令，用于中止当前正在进行的 Agent 处理。

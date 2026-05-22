@@ -7,9 +7,9 @@
 import type { RoleConfig } from '@aesyclaw/core/types';
 import type { AgentTool } from '@aesyclaw/contracts/llm';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
 import type { IHooksBus } from '@aesyclaw/contracts/hook';
 import { buildAgentPrompt } from './template';
 

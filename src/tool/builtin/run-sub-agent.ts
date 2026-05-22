@@ -7,7 +7,7 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner, SessionKey, Message, RoleConfig } from '@aesyclaw/core/types';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
 import type { AgentMessage } from '@aesyclaw/contracts/llm';
 
 const RUN_SUB_AGENT_SCHEMA = Type.Object({

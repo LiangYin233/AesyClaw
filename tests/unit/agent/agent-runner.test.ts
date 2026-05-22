@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { streamSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
-import { AgentRegistry } from '../../../src/agent/agent-registry';
+import { AgentRegistry } from '../../../src/agent/registry';
 import {
   createProviderCacheKey,
   type AgentRunParams,
-} from '../../../src/agent/agent-runner';
-import { runAgentTask } from '../../../src/agent/agent-runner';
+} from '../../../src/agent/runner';
+import { runAgentTask } from '../../../src/agent/runner';
 
 const runnerMock = vi.hoisted(() => {
   function defer<T>() {

@@ -8,12 +8,12 @@
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { SessionManager } from '@aesyclaw/session';
-import type { CronManager } from '@aesyclaw/cron/cron-manager';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { CronManager } from '@aesyclaw/cron/manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
 import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 
 /** Web 运行时需要的所有依赖项 */

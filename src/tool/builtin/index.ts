@@ -1,11 +1,11 @@
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { CronManager } from '@aesyclaw/cron/cron-manager';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { CronManager } from '@aesyclaw/cron/manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { UsageRecord } from '@aesyclaw/core/database/database-types';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 import type { Agent } from '@aesyclaw/agent/agent';
 import { createSendMsgTool } from './send-msg';
 import { createCreateCronTool, createListCronTool, createDeleteCronTool } from './cron-tools';

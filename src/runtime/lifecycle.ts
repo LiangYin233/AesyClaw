@@ -14,17 +14,17 @@ import { DEFAULT_CONFIG } from '@aesyclaw/core/config/defaults';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger, setLogLevel } from '@aesyclaw/core/logger';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
-import { CronManager } from '@aesyclaw/cron/cron-manager';
+import { CronManager } from '@aesyclaw/cron/manager';
 import type { McpManager } from '@aesyclaw/tool/mcp/mcp-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { ExtensionManager } from '@aesyclaw/extension/extension-manager';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { RoleStore } from '@aesyclaw/role/role-store';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
+import type { RoleStore } from '@aesyclaw/role/store';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import { registerBuiltinTools } from '@aesyclaw/tool/builtin';
 import { WebUiManager } from '@aesyclaw/web/webui-manager';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
 const logger = createScopedLogger('runtime-lifecycle');
 

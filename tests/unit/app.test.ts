@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
 import { ChannelManager } from '../../src/extension/channel/channel-manager';
-import { CronManager } from '../../src/cron/cron-manager';
+import { CronManager } from '../../src/cron/manager';
 import { McpManager } from '../../src/tool/mcp/mcp-manager';
 import { WebUiManager } from '../../src/web/webui-manager';
 import { DEFAULT_CONFIG } from '../../src/core/config/defaults';

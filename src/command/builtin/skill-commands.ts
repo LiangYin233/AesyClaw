@@ -1,6 +1,6 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
-import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
+import type { SkillManager } from '@aesyclaw/skill/manager';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
 /**
  * 创建 /skill reload 命令，用于重新加载所有技能文件并刷新 Agent 的 Prompt 缓存。

@@ -12,7 +12,7 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 import type { SessionKey, ToolOwner } from '@aesyclaw/core/types';
-import type { CronManager, CreateCronJobParams } from '@aesyclaw/cron/cron-manager';
+import type { CronManager, CreateCronJobParams } from '@aesyclaw/cron/manager';
 import { errorMessage } from '@aesyclaw/core/utils';
 
 const CREATE_CRON_SCHEMA = Type.Object({

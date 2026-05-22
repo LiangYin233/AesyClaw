@@ -15,12 +15,12 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm/adapter';
 import { estimateApproximateTokens, type Session } from '@aesyclaw/session';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { RoleManager } from '@aesyclaw/role/manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { AgentRegistry } from './agent-registry';
-import { runAgentTask, type AgentRunResult } from './agent-runner';
+import type { AgentRegistry } from './registry';
+import { runAgentTask, type AgentRunResult } from './runner';
 import { buildPrompt as buildPromptFromBuilder, type BuildPromptResult } from './prompt/builder';
 import type { StreamMessage } from '@aesyclaw/core/types/stream';
 

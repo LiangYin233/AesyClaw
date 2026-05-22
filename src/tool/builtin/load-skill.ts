@@ -9,7 +9,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from '@sinclair/typebox';
 import type { Skill, ToolOwner } from '@aesyclaw/core/types';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   AesyClawTool,

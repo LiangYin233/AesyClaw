@@ -10,8 +10,8 @@ import {
   RuntimeLifecycle,
   type RuntimeLifecycleDependencies,
 } from '../../../src/runtime/lifecycle';
-import { CronManager } from '../../../src/cron/cron-manager';
-import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
+import { CronManager } from '../../../src/cron/manager';
+import { computeNextRun, CronScheduler } from '../../../src/cron/scheduler';
 import {
   createCreateCronTool,
   createDeleteCronTool,
