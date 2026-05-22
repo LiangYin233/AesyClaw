@@ -1,6 +1,6 @@
 /** 配置 Service。 */
 
-import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 import { AppConfigSchema, type AppConfig } from '@aesyclaw/core/config/schema';
 import type { DeepPartial } from '@aesyclaw/core/types';
 
@@ -10,7 +10,7 @@ import type { DeepPartial } from '@aesyclaw/core/types';
  * @param deps - WebUI 管理器依赖项
  * @returns 完整的应用配置对象
  */
-export function getConfig(deps: WebUiManagerDependencies): AppConfig {
+export function getConfig(deps: WebRuntimeDependencies): AppConfig {
   return {
     server: deps.configManager.get('server') as AppConfig['server'],
     providers: deps.configManager.get('providers') as AppConfig['providers'],
@@ -37,7 +37,7 @@ export function getConfigSchema(): typeof AppConfigSchema {
  * @param body - 部分配置更新对象
  */
 export async function updateConfig(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   body: DeepPartial<AppConfig>,
 ): Promise<void> {
   if (body.server !== undefined)

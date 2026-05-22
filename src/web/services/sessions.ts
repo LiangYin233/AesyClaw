@@ -1,6 +1,6 @@
 /** 会话 Service。 */
 
-import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 
 function makeSessionTitle(text: string, fallback: string): string {
   const source = text.length > 0 ? text : fallback;
@@ -13,7 +13,7 @@ function makeSessionTitle(text: string, fallback: string): string {
  * @param deps - WebUI 管理器依赖项
  * @returns 会话列表
  */
-export async function getSessions(deps: WebUiManagerDependencies): Promise<unknown> {
+export async function getSessions(deps: WebRuntimeDependencies): Promise<unknown> {
   const sessions = await deps.databaseManager.sessions.findAllSummaries();
   return sessions.map((session) => ({
     ...session,
@@ -30,7 +30,7 @@ export async function getSessions(deps: WebUiManagerDependencies): Promise<unkno
  * @throws 会话未找到时抛出
  */
 export async function getSessionMessages(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   sessionId: string,
 ): Promise<unknown> {
   const session = await deps.databaseManager.sessions.findById(sessionId);
@@ -49,7 +49,7 @@ export async function getSessionMessages(
  * @throws 会话未找到时抛出
  */
 export async function clearSessionHistory(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   sessionId: string,
 ): Promise<void> {
   const session = await deps.databaseManager.sessions.findById(sessionId);

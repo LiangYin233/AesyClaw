@@ -4,35 +4,15 @@ import { serve } from '@hono/node-server';
 import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { SessionManager } from '@aesyclaw/session';
-import type { CronManager } from '@aesyclaw/cron/cron-manager';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
-import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
-import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { SkillManager } from '@aesyclaw/skill/skill-manager';
-import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import type { WebRuntimeDependencies } from './types';
 import type { WebSocketServer } from 'ws';
 import { createApp } from './server';
 import { createWebSocketServer } from './ws/handler';
 
 const logger = createScopedLogger('webui');
 
-/** WebUiManager 的依赖项集合。 */
-export type WebUiManagerDependencies = {
-  configManager: ConfigManager;
-  databaseManager: DatabaseManager;
-  sessionManager: SessionManager;
-  cronManager: CronManager;
-  roleManager: RoleManager;
-  channelManager: ChannelManager;
-  pluginManager: ExtensionManager;
-  toolRegistry: ToolRegistry;
-  skillManager: SkillManager;
-  paths: Readonly<ResolvedPaths>;
-};
+/** WebUiManager 的依赖项集合（来自 types 的 `WebRuntimeDependencies`）。 */
+export type WebUiManagerDependencies = WebRuntimeDependencies;
 
 /**
  * WebUiManager — WebUI 管理后台的 HTTP + WebSocket 服务器。

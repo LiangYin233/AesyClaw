@@ -1,6 +1,6 @@
 /** 用量 Service。 */
 
-import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('webui:usage');
@@ -19,7 +19,7 @@ type UsageQuery = {
  * @returns 用量统计结果
  */
 export async function getUsage(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   params?: UsageQuery,
 ): Promise<unknown> {
   try {
@@ -40,7 +40,7 @@ export async function getUsage(
  * @param deps - WebUI 管理器依赖项
  * @returns 今日用量汇总数据
  */
-export async function getUsageToday(deps: WebUiManagerDependencies): Promise<unknown> {
+export async function getUsageToday(deps: WebRuntimeDependencies): Promise<unknown> {
   try {
     return await deps.databaseManager.usage.getTodaySummary();
   } catch (err) {
@@ -57,7 +57,7 @@ export async function getUsageToday(deps: WebUiManagerDependencies): Promise<unk
  * @returns 工具调用统计结果
  */
 export async function getUsageTools(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   params?: { from?: string; to?: string },
 ): Promise<unknown> {
   try {

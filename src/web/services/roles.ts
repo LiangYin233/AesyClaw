@@ -1,6 +1,6 @@
 /** 角色 Service。 */
 
-import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 import type { RoleConfig } from '@aesyclaw/core/types';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 
@@ -10,7 +10,7 @@ import { parseModelIdentifier } from '@aesyclaw/core/utils';
  * @param deps - WebUI 管理器依赖项
  * @returns 角色配置数组
  */
-export function getRoles(deps: WebUiManagerDependencies): RoleConfig[] {
+export function getRoles(deps: WebRuntimeDependencies): RoleConfig[] {
   return deps.roleManager.getAllRoles();
 }
 
@@ -22,12 +22,12 @@ export function getRoles(deps: WebUiManagerDependencies): RoleConfig[] {
  * @returns 角色配置
  * @throws 角色未找到时抛出
  */
-export function getRole(deps: WebUiManagerDependencies, id: string): RoleConfig {
+export function getRole(deps: WebRuntimeDependencies, id: string): RoleConfig {
   // getRole 在未找到时抛出异常
   return deps.roleManager.getRole(id);
 }
 
-function validateProviderModel(deps: WebUiManagerDependencies, model: string): void {
+function validateProviderModel(deps: WebRuntimeDependencies, model: string): void {
   const { provider: providerName, modelId } = parseModelIdentifier(model);
   const provider = deps.configManager.get(`providers.${providerName}`) as
     | { models?: Record<string, unknown> }
@@ -49,7 +49,7 @@ function validateProviderModel(deps: WebUiManagerDependencies, model: string): v
  * @throws model 缺失或提供商/模型校验失败时抛出
  */
 export async function createRole(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   body: Partial<RoleConfig> & { model: string },
 ): Promise<RoleConfig> {
   if (!body.model) {
@@ -81,7 +81,7 @@ export async function createRole(
  * @throws id 不一致或提供商/模型校验失败时抛出
  */
 export async function updateRole(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   id: string,
   body: Partial<RoleConfig>,
 ): Promise<RoleConfig> {
@@ -104,6 +104,6 @@ export async function updateRole(
  * @param deps - WebUI 管理器依赖项
  * @param id - 角色 ID
  */
-export async function deleteRole(deps: WebUiManagerDependencies, id: string): Promise<void> {
+export async function deleteRole(deps: WebRuntimeDependencies, id: string): Promise<void> {
   await deps.roleManager.deleteRole(id);
 }

@@ -5,7 +5,7 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage, loadMediaSource } from '@aesyclaw/core/utils';
-import { ApiType } from '@aesyclaw/agent/agent-types';
+import { ApiType } from '@aesyclaw/contracts/llm';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';

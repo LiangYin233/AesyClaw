@@ -1,6 +1,6 @@
 /** WebSocket 消息分发器 — 根据 type 路由到对应的 service handler。 */
 
-import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 import type { WsMessage, WsResponse } from './types';
 
 import * as configService from '@aesyclaw/web/services/config';
@@ -15,7 +15,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('webui:ws');
 
-type Handler = (data: unknown, deps: WebUiManagerDependencies) => Promise<unknown>;
+type Handler = (data: unknown, deps: WebRuntimeDependencies) => Promise<unknown>;
 
 const handlers = new Map<string, Handler>();
 
@@ -137,7 +137,7 @@ on('get_skill_content', (data, deps) => {
  */
 export async function dispatchMessage(
   msg: WsMessage,
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
 ): Promise<WsResponse> {
   try {
     const handler = handlers.get(msg.type);

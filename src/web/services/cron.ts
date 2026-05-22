@@ -1,6 +1,6 @@
 /** Cron Service。 */
 
-import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 
 /**
  * 获取所有 cron 任务列表。
@@ -8,7 +8,7 @@ import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
  * @param deps - WebUI 管理器依赖项
  * @returns cron 任务列表
  */
-export async function getCronJobs(deps: WebUiManagerDependencies): Promise<unknown> {
+export async function getCronJobs(deps: WebRuntimeDependencies): Promise<unknown> {
   const jobs = await deps.cronManager.listJobs();
   return jobs;
 }
@@ -21,7 +21,7 @@ export async function getCronJobs(deps: WebUiManagerDependencies): Promise<unkno
  * @returns 执行记录列表
  */
 export async function getCronJobRuns(
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
   jobId: string,
 ): Promise<unknown> {
   const runs = await deps.databaseManager.cronRuns.findByJobId(jobId);

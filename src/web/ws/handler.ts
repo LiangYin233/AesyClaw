@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 import { dispatchMessage } from './dispatcher';
 import type { WsMessage } from './types';
 import { createScopedLogger, subscribeToLogEntries } from '@aesyclaw/core/logger';
@@ -58,7 +58,7 @@ function validateWsToken(requestUrl: string | undefined, configManager: ConfigMa
  */
 export function createWebSocketServer(
   httpServer: Server,
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
 ): WebSocketServer {
   const configManager = deps.configManager;
   const wss = new WebSocketServer({ noServer: true });
@@ -180,7 +180,7 @@ export function createWebSocketServer(
 async function handleWsMessage(
   raw: unknown,
   ws: WebSocket,
-  deps: WebUiManagerDependencies,
+  deps: WebRuntimeDependencies,
 ): Promise<void> {
   let msg: WsMessage;
   try {
