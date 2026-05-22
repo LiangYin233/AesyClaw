@@ -6,7 +6,7 @@
  */
 
 import type { AgentEvent } from '@mariozechner/pi-agent-core';
-import type { StreamEventMeta, StreamMessage } from '@aesyclaw/core/stream-types';
+import type { StreamEventMeta, StreamMessage } from '@aesyclaw/core/types/stream';
 import { getFinalAssistantUsage } from './run-parser';
 
 /**

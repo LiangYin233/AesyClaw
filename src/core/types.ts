@@ -5,7 +5,7 @@
  * 此为内部组织细节，不暴露为公开导入路径。
  */
 
-import type { MediaComponent } from './message-types';
+import type { MediaComponent } from './types/message';
 
 // ─── 重导出 ────────────────────────────────────────────────────────
 
@@ -17,9 +17,9 @@ export {
   DEFAULTS,
   serializeSessionKey,
   parseSerializedSessionKey,
-} from './identity-types';
+} from './types/identity';
 
-export type { ChannelId, ChatType, ChatId, SessionKey, ToolOwner } from './identity-types';
+export type { ChannelId, ChatType, ChatId, SessionKey, ToolOwner } from './types/identity';
 
 export type {
   Message,
@@ -34,7 +34,7 @@ export type {
   MessageUsage,
   MessageUsageCost,
   CompleteMessageUsage,
-} from './message-types';
+} from './types/message';
 
 /** @deprecated 使用 MediaComponent */
 export type ImageComponent = MediaComponent;
@@ -50,7 +50,7 @@ export {
   completeMessageUsage,
   parseMessageUsageJson,
   isMessageUsage,
-} from './message-types';
+} from './types/message';
 
 export type {
   SessionRecord,
@@ -64,7 +64,7 @@ export type {
 
 // ─── 领域类型 ──────────────────────────────────────────────────────
 
-import type { SessionKey, ToolOwner as ToolOwnerType } from './identity-types';
+import type { SessionKey, ToolOwner as ToolOwnerType } from './types/identity';
 
 /** 工具权限过滤模式 */
 export type ToolPermissionMode = 'allowlist' | 'denylist';
@@ -127,4 +127,4 @@ export type {
   OnStreamEvent,
   StreamEventMeta,
   StreamUsage,
-} from './stream-types';
+} from './types/stream';

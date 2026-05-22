@@ -7,7 +7,7 @@
 
 import type { RoleConfig, SessionKey, Message } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel } from '@aesyclaw/contracts/llm';
-import type { StreamMessage } from '@aesyclaw/core/stream-types';
+import type { StreamMessage } from '@aesyclaw/core/types/stream';
 import type { SessionRuntimeRef } from '@aesyclaw/contracts/session';
 
 /** callLLM 的返回结果 */

@@ -5,7 +5,7 @@
  */
 
 import type { AgentMessage } from '../types';
-import type { StreamUsage } from '@aesyclaw/core/stream-types';
+import type { StreamUsage } from '@aesyclaw/core/types/stream';
 import { assistantHasToolCalls } from '@aesyclaw/contracts/llm';
 
 export function createAgentRunResult(newMessages: readonly AgentMessage[]): {

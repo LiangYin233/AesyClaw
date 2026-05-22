@@ -1,6 +1,6 @@
 /** 数据库记录类型 — 内存与 SQLite 之间的传输对象。 */
 
-import type { MessageUsage } from '../message-types';
+import type { MessageUsage } from '../types/message';
 
 // ─── 会话 ──────────────────────────────────────────────────────────
 

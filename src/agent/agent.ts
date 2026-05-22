@@ -22,7 +22,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
 import { runAgentTask, type AgentRunResult } from './agent-runner';
 import { buildPrompt as buildPromptFromBuilder, type BuildPromptResult } from './prompt/builder';
-import type { StreamMessage } from '@aesyclaw/core/stream-types';
+import type { StreamMessage } from '@aesyclaw/core/types/stream';
 
 const logger = createScopedLogger('agent');
 

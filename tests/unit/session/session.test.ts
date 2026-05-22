@@ -3,7 +3,7 @@ import { completeSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import { Session } from '../../../src/session/session';
 import type { AgentMessage } from '../../../src/agent/types';
-import type { SessionKey } from '../../../src/core/identity-types';
+import type { SessionKey } from '../../../src/core/types/identity';
 import {
   getRecentLogEntries,
   setLogLevel,

@@ -4,7 +4,7 @@
  * 转换为统一的 StreamEvent，经 Pipeline → Channel.send() 推给客户端。
  */
 
-import type { Message, MessageUsage } from './message-types';
+import type { Message, MessageUsage } from './message';
 
 // ─── 流式事件判别 ──────────────────────────────────────────────────
 

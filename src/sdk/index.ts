@@ -7,7 +7,7 @@
  * 内部重构时，只需更新此文件的重新导出路径，
  * 所有外部扩展代码无需修改。
  */
-import type { MediaComponent } from '@aesyclaw/core/message-types';
+import type { MediaComponent } from '@aesyclaw/core/types/message';
 
 export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin/plugin-types';
 
@@ -56,7 +56,7 @@ export type {
   OnStreamEvent,
   StreamEventMeta,
   StreamUsage,
-} from '@aesyclaw/core/stream-types';
+} from '@aesyclaw/core/types/stream';
 
 export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';

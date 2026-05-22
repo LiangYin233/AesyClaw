@@ -1,6 +1,6 @@
 /** 标识符类型 — SessionKey、频道/聊天 ID、所有者标记及运行时常量。 */
 
-import pkg from '../../package.json';
+import pkg from '../../../package.json';
 
 // ─── 常量 ───────────────────────────────────────────────────────────
 

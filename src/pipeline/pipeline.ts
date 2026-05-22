@@ -21,7 +21,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import { createTimeInjectHook } from './time-inject';
 import { createAutoCompactHook } from './auto-compact';
-import type { StreamMessage } from '@aesyclaw/core/stream-types';
+import type { StreamMessage } from '@aesyclaw/core/types/stream';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 
 const logger = createScopedLogger('pipeline');
