@@ -16,36 +16,8 @@ export type PlainComponent = {
   type: 'Plain';
   text: string;
 };
-
-export type ImageComponent = {
-  type: 'Image';
-  url?: string;
-  path?: string;
-  file?: string;
-  base64?: string;
-  mimeType?: string;
-};
-
-export type RecordComponent = {
-  type: 'Record';
-  url?: string;
-  path?: string;
-  file?: string;
-  base64?: string;
-  mimeType?: string;
-};
-
-export type VideoComponent = {
-  type: 'Video';
-  url?: string;
-  path?: string;
-  file?: string;
-  base64?: string;
-  mimeType?: string;
-};
-
-export type FileComponent = {
-  type: 'File';
+export type MediaComponent = {
+  type: 'Image' | 'Record' | 'Video' | 'File';
   url?: string;
   path?: string;
   file?: string;
@@ -54,7 +26,6 @@ export type FileComponent = {
   base64?: string;
   mimeType?: string;
 };
-
 export type ReplyComponent = {
   type: 'Reply';
   components: MessageComponent[];
@@ -70,10 +41,7 @@ export type UnknownComponent = {
 
 export type MessageComponent =
   | PlainComponent
-  | ImageComponent
-  | RecordComponent
-  | VideoComponent
-  | FileComponent
+  | MediaComponent
   | ReplyComponent
   | UnknownComponent;
 

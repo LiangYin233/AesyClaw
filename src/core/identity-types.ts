@@ -96,11 +96,8 @@ export function parseSerializedSessionKey(value: string): SessionKey {
     throw new Error(`无效的 SessionKey 序列化: ${value}`);
   }
   const record = parsed as Record<string, string>;
-  const channel = record['channel'];
-  const type = record['type'];
-  const chatId = record['chatId'];
-  if (channel === undefined || type === undefined || chatId === undefined) {
-    throw new Error(`无效的 SessionKey 序列化: ${value}`);
-  }
+  const channel = record['channel'] as string;
+  const type = record['type'] as string;
+  const chatId = record['chatId'] as string;
   return { channel, type, chatId };
 }

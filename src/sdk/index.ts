@@ -7,6 +7,7 @@
  * 内部重构时，只需更新此文件的重新导出路径，
  * 所有外部扩展代码无需修改。
  */
+import type { MediaComponent } from '@aesyclaw/core/message-types';
 
 export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin/plugin-types';
 
@@ -22,15 +23,21 @@ export type {
   SenderInfo,
   MessageComponent,
   PlainComponent,
-  ImageComponent,
-  RecordComponent,
-  VideoComponent,
-  FileComponent,
+  MediaComponent,
   ReplyComponent,
   UnknownComponent,
   MessageUsage,
   CommandDefinition,
 } from '@aesyclaw/core/types';
+
+/** @deprecated 使用 MediaComponent */
+export type ImageComponent = MediaComponent;
+/** @deprecated 使用 MediaComponent */
+export type RecordComponent = MediaComponent;
+/** @deprecated 使用 MediaComponent */
+export type VideoComponent = MediaComponent;
+/** @deprecated 使用 MediaComponent */
+export type FileComponent = MediaComponent;
 
 export { getMessageText } from '@aesyclaw/core/types';
 

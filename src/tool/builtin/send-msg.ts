@@ -14,10 +14,7 @@ import type {
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   Message,
-  ImageComponent,
-  RecordComponent,
-  VideoComponent,
-  FileComponent,
+  MediaComponent,
   ToolOwner,
 } from '@aesyclaw/core/types';
 
@@ -36,7 +33,6 @@ type MediaParam = {
   mimeType?: string;
 };
 
-type MediaComponent = ImageComponent | RecordComponent | VideoComponent | FileComponent;
 
 const SEND_MSG_SCHEMA = Type.Object({
   text: Type.String({ description: '要发送的文本内容' }),

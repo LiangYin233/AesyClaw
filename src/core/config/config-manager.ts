@@ -5,7 +5,6 @@ import Conf from 'conf';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { resolvePaths, type ResolvedPaths } from '@aesyclaw/core/path-resolver';
-import { AsyncMutex } from '@aesyclaw/core/mutex';
 import { validateWithSchema } from './schema-utils';
 import { AppConfigSchema, type AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
@@ -19,8 +18,6 @@ export class ConfigManager {
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private readonly configStore: Conf<Record<string, unknown>>;
   private readonly fileWatcher: ConfigFileWatcher;
-
-  private configMutex = new AsyncMutex();
 
   /**
    * 创建配置管理器实例。
@@ -179,19 +176,17 @@ export class ConfigManager {
   }
 
   private async reloadFromFile(): Promise<void> {
-    await this.configMutex.runExclusive(async () => {
-      try {
-        const newConfig = this.readValidatedConfigFromStore(this.configStore);
-        if (JSON.stringify(this.lastKnownConfig) === JSON.stringify(newConfig)) {
-          logger.debug('配置文件已变更但内容相同 —— 跳过');
-          return;
-        }
-        this.lastKnownConfig = structuredClone(newConfig);
-        logger.info('已从文件重新加载配置缓存');
-      } catch (err) {
-        logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
+    try {
+      const newConfig = this.readValidatedConfigFromStore(this.configStore);
+      if (JSON.stringify(this.lastKnownConfig) === JSON.stringify(newConfig)) {
+        logger.debug('配置文件已变更但内容相同 —— 跳过');
+        return;
       }
-    });
+      this.lastKnownConfig = structuredClone(newConfig);
+      logger.info('已从文件重新加载配置缓存');
+    } catch (err) {
+      logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
+    }
   }
 
   private readValidatedConfigFromStore(store: Conf<Record<string, unknown>>): AppConfig {
@@ -227,10 +222,8 @@ export class ConfigManager {
   }
 
   private async persistWithGuard(config: AppConfig): Promise<void> {
-    await this.configMutex.runExclusive(async () => {
-      this.writeConfigToStore(this.configStore, config);
-      this.lastKnownConfig = structuredClone(config);
-    });
+    this.writeConfigToStore(this.configStore, config);
+    this.lastKnownConfig = structuredClone(config);
   }
 
   private findMissingFields(
