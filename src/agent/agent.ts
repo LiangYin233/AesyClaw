@@ -7,7 +7,7 @@ import {
   type StreamEventMeta,
 } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { AgentMessage, ResolvedModel, AgentTool } from './types';
+import type { AgentMessage, ResolvedModel } from './types';
 import type {
   AesyClawTool,
   ToolExecutionContext,
@@ -20,8 +20,8 @@ import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './agent-registry';
-import { runAgentTask } from './agent-runner';
-import { buildPrompt as buildPromptFromBuilder } from './prompt/builder';
+import { runAgentTask, type AgentRunResult } from './agent-runner';
+import { buildPrompt as buildPromptFromBuilder, type BuildPromptResult } from './prompt/builder';
 import type { StreamMessage } from '@aesyclaw/core/stream-types';
 
 const logger = createScopedLogger('agent');
@@ -40,22 +40,7 @@ export type AgentOptions = {
   registry: AgentRegistry;
 };
 
-/**
- * callLLM 的返回结果。
- */
-type CallLLMResult = {
-  newMessages: AgentMessage[];
-  lastAssistant: string | null;
-  cancelled: boolean;
-};
 
-/**
- * buildPrompt 的返回结果。
- */
-type BuildPromptResult = {
-  prompt: string;
-  tools: AgentTool[];
-};
 
 type ProcessOptions = {
   ephemeral?: boolean;
@@ -250,7 +235,7 @@ export class Agent {
     sessionKey: SessionKey,
     sendMessage?: (message: Message) => Promise<boolean>,
     onStream?: (event: StreamMessage) => void,
-  ): Promise<CallLLMResult> {
+  ): Promise<AgentRunResult> {
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
       sendMessage,
@@ -317,9 +302,9 @@ export class Agent {
   private async ensureAssistantText(
     role: RoleConfig,
     history: AgentMessage[],
-    result: CallLLMResult,
+    result: AgentRunResult,
     sendMessage?: (message: Message) => Promise<boolean>,
-  ): Promise<CallLLMResult> {
+  ): Promise<AgentRunResult> {
     if (result.lastAssistant) return result;
 
     const combinedHistory = history.concat(result.newMessages);
@@ -362,7 +347,7 @@ export class Agent {
    * @param result - LLM 调用结果
    * @returns 包含文本组件的 Message
    */
-  private toMessage(roleId: string, result: CallLLMResult): Message {
+  private toMessage(roleId: string, result: AgentRunResult): Message {
     if (result.lastAssistant) {
       return { components: [{ type: 'Plain', text: result.lastAssistant }] };
     }
