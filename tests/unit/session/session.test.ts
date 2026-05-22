@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { completeSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
-import { Session } from '../../../src/session/session';
+import { Session } from '../../../src/session/core';
 import type { AgentMessage } from '../../../src/agent/types';
 import type { SessionKey } from '../../../src/core/types/identity';
 import {

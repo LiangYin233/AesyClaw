@@ -8,7 +8,7 @@
  * - AGENT_PROCESSING_BUSY_MESSAGE: Agent 繁忙时的提示文本
  */
 
-export { Session, estimateApproximateTokens } from './session';
+export { Session, estimateApproximateTokens } from './core';
 export { SessionManager } from './manager';
 
 export const AGENT_PROCESSING_BUSY_MESSAGE = 'Agent处理任务中。';

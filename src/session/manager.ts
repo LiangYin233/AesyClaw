@@ -1,7 +1,7 @@
 import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { Session } from './session';
+import { Session } from './core';
 
 const logger = createScopedLogger('session-manager');
 
