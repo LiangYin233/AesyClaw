@@ -4,7 +4,14 @@
  * 所有 hook 通过 HooksBus 统一注册、按优先级排序、
  * 按 enabled 过滤后以中间件链形式执行。
  */
-import type { HookChain, HookCtx, HookRegistration, HookResult, Middleware, IHooksBus } from '@aesyclaw/contracts/hook';
+import type {
+  HookChain,
+  HookCtx,
+  HookRegistration,
+  HookResult,
+  Middleware,
+  IHooksBus,
+} from '@aesyclaw/contracts/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('hooks-bus');

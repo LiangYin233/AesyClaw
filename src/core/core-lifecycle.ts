@@ -7,4 +7,7 @@
  * 此文件将在后续清理阶段完全删除。
  */
 
-export { RuntimeLifecycle as CoreLifecycle, type RuntimeLifecycleDependencies as CoreLifecycleDependencies } from '@aesyclaw/runtime/lifecycle';
+export {
+  RuntimeLifecycle as CoreLifecycle,
+  type RuntimeLifecycleDependencies as CoreLifecycleDependencies,
+} from '@aesyclaw/runtime/lifecycle';

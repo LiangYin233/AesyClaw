@@ -5,15 +5,8 @@
  * 而无需直接依赖 agent/agent 具体类。
  */
 
-import type {
-  RoleConfig,
-  SessionKey,
-  Message,
-} from '@aesyclaw/core/types';
-import type {
-  AgentMessage,
-  ResolvedModel,
-} from '@aesyclaw/contracts/llm';
+import type { RoleConfig, SessionKey, Message } from '@aesyclaw/core/types';
+import type { AgentMessage, ResolvedModel } from '@aesyclaw/contracts/llm';
 import type { StreamMessage } from '@aesyclaw/core/stream-types';
 import type { SessionRuntimeRef } from '@aesyclaw/contracts/session';
 

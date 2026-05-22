@@ -28,9 +28,7 @@ export type AgentFactory = {
   create(session: AgentOptions['session'], role: RoleConfig): Promise<AgentRuntimeRef>;
 };
 
-export function createAgentFactory(
-  deps: AgentFactoryDependencies,
-): AgentFactory {
+export function createAgentFactory(deps: AgentFactoryDependencies): AgentFactory {
   return {
     create: async (session, role: RoleConfig): Promise<AgentRuntimeRef> => {
       const agent = new Agent({

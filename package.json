@@ -25,7 +25,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "check:deps": "tsx scripts/check-deps.ts",
     "@hono/node-server": "^2.0.2",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",

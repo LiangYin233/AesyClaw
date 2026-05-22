@@ -35,15 +35,27 @@ function createSubsystems(): RuntimeLifecycleDependencies {
   const hooksBus = new HooksBus();
 
   const agentFactory = createAgentFactory({
-    llmAdapter, roleManager, skillManager, toolRegistry, hooksBus, compressionThreshold,
+    llmAdapter,
+    roleManager,
+    skillManager,
+    toolRegistry,
+    hooksBus,
+    compressionThreshold,
     agentRegistry,
   });
   const roleResolver = createRoleResolver();
 
   const pipeline = new Pipeline({
-    sessionManager, commandRegistry, roleManager, databaseManager, agentRegistry,
-    hooksBus, llmAdapter, compressionThreshold,
-    agentFactory, roleResolver,
+    sessionManager,
+    commandRegistry,
+    roleManager,
+    databaseManager,
+    agentRegistry,
+    hooksBus,
+    llmAdapter,
+    compressionThreshold,
+    agentFactory,
+    roleResolver,
   });
 
   const mcpManager = new McpManager(configManager, toolRegistry, new SdkMcpClientFactory());

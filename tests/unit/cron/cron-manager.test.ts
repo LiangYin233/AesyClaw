@@ -90,7 +90,9 @@ class FakeCronRunRepo implements CronRunsRepository {
     return [{ id: 'leftover' }];
   }
 
-  async findByJobId(): Promise<[]> { return []; }
+  async findByJobId(): Promise<[]> {
+    return [];
+  }
 
   async markAbandoned(runIds: string[]): Promise<void> {
     if (this.abandonError) {
