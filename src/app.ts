@@ -9,6 +9,8 @@ import { createScopedLogger } from './core/logger';
 import { McpManager } from './tool/mcp/mcp-manager';
 import { SdkMcpClientFactory } from './tool/mcp/sdk-mcp-client';
 import { Pipeline } from './pipeline/pipeline';
+import { createAgentFactory } from './agent/agent-factory';
+import { createRoleResolver } from './agent/role-resolver';
 import { HooksBus } from './hook';
 import { RoleManager } from './role/role-manager';
 import { RoleStore } from './role/role-store';
@@ -31,17 +33,17 @@ function createSubsystems(): RuntimeLifecycleDependencies {
 
   const compressionThreshold = configManager.get('agent.memory.compressionThreshold') as number;
   const hooksBus = new HooksBus();
-  const pipeline = new Pipeline({
-    sessionManager,
-    commandRegistry,
-    roleManager,
-    databaseManager,
-    llmAdapter,
-    skillManager,
-    toolRegistry,
-    hooksBus,
-    compressionThreshold,
+
+  const agentFactory = createAgentFactory({
+    llmAdapter, roleManager, skillManager, toolRegistry, hooksBus, compressionThreshold,
     agentRegistry,
+  });
+  const roleResolver = createRoleResolver();
+
+  const pipeline = new Pipeline({
+    sessionManager, commandRegistry, roleManager, databaseManager, agentRegistry,
+    hooksBus, llmAdapter, compressionThreshold,
+    agentFactory, roleResolver,
   });
 
   const mcpManager = new McpManager(configManager, toolRegistry, new SdkMcpClientFactory());

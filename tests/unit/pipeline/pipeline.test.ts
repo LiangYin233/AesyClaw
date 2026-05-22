@@ -81,10 +81,23 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
       },
     },
     llmAdapter: {} as never,
-    skillManager: {} as never,
-    toolRegistry: {} as never,
     compressionThreshold: 0.8,
     agentRegistry: {} as never,
+    agentFactory: {
+      create: vi.fn(async () => ({
+        process: vi.fn(async () => ({ components: [{ type: 'Plain', text: 'response' }] })),
+        setRole: vi.fn(),
+        callLLM: vi.fn(),
+        invalidatePromptCache: vi.fn(),
+        setModel: vi.fn(),
+        session: session as never,
+        model: {} as never,
+        activeRole: role,
+      })),
+    },
+    roleResolver: {
+      resolveActiveRoleId: vi.fn(async () => undefined),
+    },
   };
 }
 

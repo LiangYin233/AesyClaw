@@ -8,7 +8,7 @@
  * 4. pipeline:beforeLLM 链派发与 Agent 处理
  * 5. 结果投递（含 pipeline:send 链）
  */
-import type { IHooksBus, HookCtx } from '@aesyclaw/hook';
+import type { IHooksBus, HookCtx } from '@aesyclaw/contracts/hook';
 import {
   getMessageText,
   type Message,
@@ -17,7 +17,6 @@ import {
   type SendFn,
 } from '@aesyclaw/core/types';
 import type { PipelineDependencies } from './types';
-import { Agent } from '@aesyclaw/agent/agent';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import { createTimeInjectHook } from './hooks/time-inject';
@@ -36,7 +35,7 @@ export class Pipeline {
 
   /**
    * 创建 Pipeline 实例。
-   * @param deps - 管道所需的基础设施与 Agent 处理服务
+   * @param deps - 管道依赖
    */
   constructor(deps: PipelineDependencies) {
     this.deps = deps;
@@ -88,10 +87,10 @@ export class Pipeline {
         return;
       }
 
-      // ── Step 2: 会话与 Agent 解析 ────────────────────────
+      // ── Step 2: 会话与角色解析 ────────────────────────────
       const session = await this.deps.sessionManager.create(sessionKey);
 
-      const activeRoleId = await Agent.resolveActiveRoleId(
+      const activeRoleId = await this.deps.roleResolver.resolveActiveRoleId(
         { sessionKey },
         { databaseManager: this.deps.databaseManager, agentRegistry: this.deps.agentRegistry },
       );
@@ -100,19 +99,10 @@ export class Pipeline {
         ? this.deps.roleManager.getRole(activeRoleId)
         : this.deps.roleManager.getDefaultRole();
 
-      const agent = new Agent({
-        session,
-        llmAdapter: this.deps.llmAdapter,
-        roleManager: this.deps.roleManager,
-        skillManager: this.deps.skillManager,
-        toolRegistry: this.deps.toolRegistry,
-        hooksBus: this.hooksBus,
-        compressionThreshold: this.deps.compressionThreshold,
-        registry: this.deps.agentRegistry,
-      });
-      await agent.setRole(activeRole);
+      // ── Step 3: 创建 Agent ───────────────────────────────
+      const agent = await this.deps.agentFactory.create(session, activeRole);
 
-      // ── Step 3: 命令检测 ─────────────────────────────────
+      // ── Step 4: 命令检测 ─────────────────────────────────
       const text = getMessageText(message);
       const resolved = this.deps.commandRegistry.resolve(text);
 
@@ -127,14 +117,14 @@ export class Pipeline {
         return;
       }
 
-      // ── Step 4: 非命令锁定 ───────────────────────────────
+      // ── Step 5: 非命令锁定 ───────────────────────────────
       if (!session.lock()) {
         await this.deliver(send, busyMessage(), session.key);
         return;
       }
 
       try {
-        // ── Step 5: pipeline:beforeLLM 链与 Agent 处理 ─────
+        // ── Step 6: pipeline:beforeLLM 链与 Agent 处理 ─────
         const beforeCtx: HookCtx = {
           message,
           sessionKey,

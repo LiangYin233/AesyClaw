@@ -41,4 +41,11 @@ export type AgentRuntimeRef = {
     sendMessage?: (message: Message) => Promise<boolean>,
     onStream?: (event: StreamMessage) => void,
   ): Promise<CallLLMResult>;
+  /** 处理用户消息并返回回复 */
+  process(
+    message: Message,
+    sendMessage?: (message: Message) => Promise<boolean>,
+    options?: { ephemeral?: boolean; role?: RoleConfig },
+    onStream?: (event: StreamMessage) => void,
+  ): Promise<Message>;
 };
