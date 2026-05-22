@@ -8,7 +8,6 @@ import * as roleBindings from './repositories/role-binding-repository';
 import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
-import { parseMessageUsageJson } from '@aesyclaw/core/types';
 import type {
   SessionsRepository,
   MessagesRepository,
@@ -231,10 +230,7 @@ export class DatabaseManager {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
-
     this.ensureUsageDetailColumns();
-    this.migrateLegacyMessageUsageJson();
-    this.dropLegacyMessageUsageColumn();
   }
 
   private ensureUsageDetailColumns(): void {
@@ -271,98 +267,7 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_usage_session_id ON usage(session_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_message_id ON usage(message_id) WHERE message_id IS NOT NULL;
     `);
-  }
-
-  private migrateLegacyMessageUsageJson(): void {
-    if (!this.db) throw new Error('数据库尚未初始化');
-    if (!this.getTableColumns('messages').has('usage_json')) return;
-
-    const rows = this.db
-      .prepare(
-        `SELECT id, session_id, timestamp, usage_json
-         FROM messages
-         WHERE role = 'assistant' AND usage_json IS NOT NULL AND TRIM(usage_json) <> ''`,
-      )
-      .all() as Array<{ id: number; session_id: string; timestamp: string; usage_json: string }>;
-
-    const existingLinked = this.db.prepare('SELECT id FROM usage WHERE message_id = ? LIMIT 1');
-    const findUnlinked = this.db.prepare(
-      `SELECT id FROM usage
-       WHERE message_id IS NULL
-         AND input_tokens = ?
-         AND output_tokens = ?
-         AND total_tokens = ?
-         AND cache_read_tokens = ?
-         AND cache_write_tokens = ?
-       ORDER BY ABS(strftime('%s', timestamp) - strftime('%s', ?)) ASC, id DESC
-       LIMIT 1`,
-    );
-    const linkUsage = this.db.prepare(
-      `UPDATE usage
-       SET session_id = ?,
-           message_id = ?,
-           cost_input = ?,
-           cost_output = ?,
-           cost_cache_read = ?,
-           cost_cache_write = ?,
-           cost_total = ?
-       WHERE id = ?`,
-    );
-
-    for (const row of rows) {
-      if (existingLinked.get(row.id)) continue;
-      const usage = parseMessageUsageJson(row.usage_json);
-      if (!usage) continue;
-
-      const matchingUsage = findUnlinked.get(
-        usage.input,
-        usage.output,
-        usage.totalTokens,
-        usage.cacheRead,
-        usage.cacheWrite,
-        row.timestamp,
-      ) as { id: number } | undefined;
-
-      if (matchingUsage) {
-        linkUsage.run(
-          row.session_id,
-          row.id,
-          usage.cost?.input ?? 0,
-          usage.cost?.output ?? 0,
-          usage.cost?.cacheRead ?? 0,
-          usage.cost?.cacheWrite ?? 0,
-          usage.cost?.total ?? 0,
-          matchingUsage.id,
-        );
-        continue;
-      }
-
-      usageRepo.insertUsageRecord(
-        this.db,
-        {
-          model: 'persisted-history',
-          provider: 'persisted-history',
-          api: 'persisted-history',
-          sessionId: row.session_id,
-          messageId: row.id,
-          usage,
-        },
-        row.timestamp,
-      );
-    }
-  }
-
-  private dropLegacyMessageUsageColumn(): void {
-    if (!this.db) throw new Error('数据库尚未初始化');
-    if (!this.getTableColumns('messages').has('usage_json')) return;
-
-    try {
-      this.db.exec('ALTER TABLE messages DROP COLUMN usage_json');
-    } catch (err) {
-      logger.warn('无法移除旧消息用量列，后续读取将忽略该列', err);
-    }
-  }
-
+}
   private getTableColumns(table: 'messages' | 'usage'): Set<string> {
     if (!this.db) throw new Error('数据库尚未初始化');
     const statement =
