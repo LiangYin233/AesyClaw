@@ -55,8 +55,6 @@ describe('scoped logger', () => {
     });
   });
 
-
-
   it('falls back to plain text for redirected warn logs', () => {
     setTTY(process.stdout, true);
     setTTY(process.stderr, false);
@@ -93,8 +91,6 @@ describe('scoped logger', () => {
 
     expectConsoleInfo(`${FORMATTED_TIME} [INFO] [app] Ready`);
   });
-
-
 
   it('captures recent log entries without ANSI colors', () => {
     setTTY(process.stdout, true);

@@ -4,7 +4,7 @@ import { basename, dirname, extname } from 'node:path';
 import Conf from 'conf';
 import type { RoleConfig } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { AsyncMutex } from '@aesyclaw/core/mutex';
+
 import { DEFAULT_ROLES_CONFIG } from './default-role';
 import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 import { RolesConfigSchema } from './role-schema';
@@ -15,7 +15,7 @@ export class RoleStore {
   private readonly ROLES_STORE_KEY = 'roles';
   private rolesStore: Conf<Record<string, unknown>>;
   private lastKnownRoles: readonly RoleConfig[];
-  private rolesMutex = new AsyncMutex();
+
   private unsubscribeRolesHotReload?: () => void;
   private readonly rolesPath: string;
 
@@ -91,26 +91,22 @@ export class RoleStore {
   }
 
   private async persistRolesWithGuard(roles: readonly RoleConfig[]): Promise<void> {
-    await this.rolesMutex.runExclusive(async () => {
-      this.writeRolesToStore(this.rolesStore, roles);
-      this.lastKnownRoles = structuredClone(roles);
-    });
+    this.writeRolesToStore(this.rolesStore, roles);
+    this.lastKnownRoles = structuredClone(roles);
   }
 
   private async reloadRolesFromFile(): Promise<void> {
-    await this.rolesMutex.runExclusive(async () => {
-      try {
-        const newRoles = this.readValidatedRolesFromStore(this.rolesStore);
-        if (JSON.stringify(this.lastKnownRoles) === JSON.stringify(newRoles)) {
-          logger.debug('角色配置文件已变更但内容相同 —— 跳过');
-          return;
-        }
-        this.lastKnownRoles = structuredClone(newRoles);
-        logger.info('已从文件重新加载角色配置缓存');
-      } catch (err) {
-        logger.error('重新加载角色配置文件失败，继续使用上一次有效角色配置', err);
+    try {
+      const newRoles = this.readValidatedRolesFromStore(this.rolesStore);
+      if (JSON.stringify(this.lastKnownRoles) === JSON.stringify(newRoles)) {
+        logger.debug('角色配置文件已变更但内容相同 —— 跳过');
+        return;
       }
-    });
+      this.lastKnownRoles = structuredClone(newRoles);
+      logger.info('已从文件重新加载角色配置缓存');
+    } catch (err) {
+      logger.error('重新加载角色配置文件失败，继续使用上一次有效角色配置', err);
+    }
   }
 
   private assertUniqueRoleIds(roles: readonly RoleConfig[]): void {
