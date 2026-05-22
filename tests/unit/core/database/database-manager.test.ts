@@ -7,7 +7,6 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-
 import { DatabaseSync } from 'node:sqlite';
 import {
   findOrCreateSession,
@@ -112,7 +111,6 @@ function createTestDb() {
 }
 
 describe('Database Layer', () => {
-
   // ─── Session Repository Functions ────────────────────────────────
 
   describe('SessionRepository', () => {

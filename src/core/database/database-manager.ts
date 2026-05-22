@@ -267,7 +267,7 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_usage_session_id ON usage(session_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_message_id ON usage(message_id) WHERE message_id IS NOT NULL;
     `);
-}
+  }
   private getTableColumns(table: 'messages' | 'usage'): Set<string> {
     if (!this.db) throw new Error('数据库尚未初始化');
     const statement =
