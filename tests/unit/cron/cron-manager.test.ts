@@ -770,5 +770,3 @@ describe('Cron', () => {
     ).resolves.toEqual({ content: '定时任务已删除: job-1' });
   });
 });
-
-

@@ -61,23 +61,44 @@ function createSubsystems(): Deps {
   const hooksBus = new HooksBus();
 
   const agentFactory = createAgentFactory({
-    llmAdapter, roleManager, skillManager, toolRegistry, hooksBus,
-    compressionThreshold, agentRegistry,
+    llmAdapter,
+    roleManager,
+    skillManager,
+    toolRegistry,
+    hooksBus,
+    compressionThreshold,
+    agentRegistry,
   });
   const roleResolver = createRoleResolver();
 
   const pipeline = new Pipeline({
-    sessionManager, commandRegistry, roleManager, databaseManager, agentRegistry,
-    hooksBus, llmAdapter, compressionThreshold,
-    agentFactory, roleResolver,
+    sessionManager,
+    commandRegistry,
+    roleManager,
+    databaseManager,
+    agentRegistry,
+    hooksBus,
+    llmAdapter,
+    compressionThreshold,
+    agentFactory,
+    roleResolver,
   });
 
   const mcpManager = new McpManager(configManager, toolRegistry, new SdkMcpClientFactory());
 
   return {
-    configManager, databaseManager, roleStore, roleManager, skillManager,
-    toolRegistry, commandRegistry, llmAdapter, sessionManager, pipeline,
-    mcpManager, agentRegistry,
+    configManager,
+    databaseManager,
+    roleStore,
+    roleManager,
+    skillManager,
+    toolRegistry,
+    commandRegistry,
+    llmAdapter,
+    sessionManager,
+    pipeline,
+    mcpManager,
+    agentRegistry,
   };
 }
 
@@ -98,7 +119,10 @@ export class Application {
   }
 
   async start(): Promise<void> {
-    if (this.started) { logger.warn('应用已启动'); return; }
+    if (this.started) {
+      logger.warn('应用已启动');
+      return;
+    }
     logger.info('正在启动 AesyClaw...');
     await this.runStartupSequence();
     this.started = true;
@@ -123,7 +147,11 @@ export class Application {
     ];
 
     for (const step of steps) {
-      try { await step(); } catch (err) { logger.error('关闭步骤失败', err); }
+      try {
+        await step();
+      } catch (err) {
+        logger.error('关闭步骤失败', err);
+      }
     }
     logger.info('AesyClaw 关闭完成');
     this.started = false;
@@ -164,7 +192,9 @@ export class Application {
       toolRegistry: this.sub.toolRegistry,
       hooksBus: this.sub.pipeline.hooksBus,
       databaseManager: this.sub.databaseManager,
-      compressionThreshold: this.sub.configManager.get('agent.memory.compressionThreshold') as number,
+      compressionThreshold: this.sub.configManager.get(
+        'agent.memory.compressionThreshold',
+      ) as number,
       agentRegistry: this.sub.agentRegistry,
     });
 
