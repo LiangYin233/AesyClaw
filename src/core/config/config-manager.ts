@@ -9,6 +9,7 @@ import { AsyncMutex } from '@aesyclaw/core/mutex';
 import { validateWithSchema } from './schema-utils';
 import { AppConfigSchema, type AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
+import { ConfigFileWatcher } from './file-watcher';
 
 const logger = createScopedLogger('config-manager');
 
@@ -17,7 +18,7 @@ export class ConfigManager {
   private lastKnownConfig: AppConfig;
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private readonly configStore: Conf<Record<string, unknown>>;
-  private unsubscribeHotReload?: () => void;
+  private readonly fileWatcher: ConfigFileWatcher;
 
   private configMutex = new AsyncMutex();
 
@@ -43,6 +44,10 @@ export class ConfigManager {
 
     logger.info('配置已加载', {
       configFile: this.paths.configFile,
+    });
+
+    this.fileWatcher = new ConfigFileWatcher(() => {
+      void this.reloadFromFile();
     });
   }
 
@@ -129,20 +134,12 @@ export class ConfigManager {
 
   /** 启动配置文件热重载监视器。 */
   startHotReload(): void {
-    this.stopHotReload();
-
-    this.unsubscribeHotReload = this.configStore.onDidAnyChange(() => {
-      void this.reloadFromFile();
-    });
-
-    logger.info('热重载监视器已启动');
+    this.fileWatcher.start(this.configStore);
   }
 
   /** 停止配置文件热重载监视器。 */
   stopHotReload(): void {
-    this.unsubscribeHotReload?.();
-    this.unsubscribeHotReload = undefined;
-    logger.info('热重载监视器已停止');
+    this.fileWatcher.stop();
   }
 
   private ensureRuntimeDirs(): void {

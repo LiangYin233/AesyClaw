@@ -1,4 +1,5 @@
 /** 消息类型 — 纯消息载荷、组件及持久化协议。 */
+import { isRecord } from './utils';
 
 // ─── 发送者 ─────────────────────────────────────────────────
 
@@ -173,11 +174,6 @@ function isMessageUsageCost(value: unknown): value is MessageUsageCost {
     isFiniteNumber(value['total'])
   );
 }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }

@@ -4,7 +4,7 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
-import type { UsageRecord } from '@aesyclaw/core/database-types';
+import type { UsageRecord } from '@aesyclaw/core/database/database-types';
 import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 import type { Agent } from '@aesyclaw/agent/agent';
 import { createSendMsgTool } from './send-msg';

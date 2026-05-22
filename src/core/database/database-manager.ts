@@ -9,92 +9,16 @@ import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
 import { parseMessageUsageJson } from '@aesyclaw/core/types';
-
+import type {
+  SessionsRepository,
+  MessagesRepository,
+  RoleBindingsRepository,
+  CronJobsRepository,
+  CronRunsRepository,
+  UsageRepository,
+  ToolUsageRepository,
+} from './repository-types';
 const logger = createScopedLogger('database-manager');
-
-/**
- * 仓库 API 类型 — 由 DatabaseManager 在 initialize() 时一次性构造,
- * 供其它子系统直接消费。通过方法签名声明接口，避免各子系统
- * 重复声明相同子集类型。
- */
-
-/** 会话仓库 API 类型 */
-export type SessionsRepository = {
-  findOrCreate: (
-    key: Parameters<typeof sessions.findOrCreateSession>[1],
-  ) => ReturnType<typeof sessions.findOrCreateSession>;
-  findByKey: (
-    key: Parameters<typeof sessions.findSessionByKey>[1],
-  ) => ReturnType<typeof sessions.findSessionByKey>;
-  findAll: () => ReturnType<typeof sessions.findAllSessions>;
-  findAllSummaries: () => ReturnType<typeof sessions.findAllSessionSummaries>;
-  findById: (id: string) => ReturnType<typeof sessions.findSessionById>;
-};
-
-/** 消息仓库 API 类型 */
-export type MessagesRepository = {
-  save: (
-    sessionId: string,
-    message: Parameters<typeof messages.saveMessage>[2],
-  ) => ReturnType<typeof messages.saveMessage>;
-  loadHistory: (sessionId: string) => ReturnType<typeof messages.loadMessageHistory>;
-  clearHistory: (sessionId: string) => ReturnType<typeof messages.clearMessageHistory>;
-  replaceWithSummary: (
-    sessionId: string,
-    summary: string,
-  ) => ReturnType<typeof messages.replaceMessageWithSummary>;
-};
-
-/** 角色绑定仓库 API 类型 */
-export type RoleBindingsRepository = {
-  getActiveRole: (sessionId: string) => ReturnType<typeof roleBindings.getActiveRoleBinding>;
-  setActiveRole: (
-    sessionId: string,
-    roleId: string,
-  ) => ReturnType<typeof roleBindings.setActiveRoleBinding>;
-};
-
-/** 定时任务仓库 API 类型 */
-export type CronJobsRepository = {
-  create: (
-    params: Parameters<typeof cron.createCronJob>[1],
-  ) => ReturnType<typeof cron.createCronJob>;
-  findById: (id: string) => ReturnType<typeof cron.findCronJobById>;
-  findAll: () => ReturnType<typeof cron.findAllCronJobs>;
-  delete: (id: string) => ReturnType<typeof cron.deleteCronJob>;
-  updateNextRun: (id: string, nextRun: Date | null) => ReturnType<typeof cron.updateCronJobNextRun>;
-};
-
-/** 定时任务执行仓库 API 类型 */
-export type CronRunsRepository = {
-  create: (params: { jobId: string }) => ReturnType<typeof cron.createCronRun>;
-  markCompleted: (runId: string, result: string) => ReturnType<typeof cron.markCronRunCompleted>;
-  markFailed: (runId: string, error: string) => ReturnType<typeof cron.markCronRunFailed>;
-  markAbandoned: (runIds: string[]) => ReturnType<typeof cron.markCronRunsAbandoned>;
-  findRunning: () => ReturnType<typeof cron.findRunningCronRuns>;
-  findByJobId: (jobId: string) => ReturnType<typeof cron.findCronRunsByJobId>;
-};
-
-/** 用量统计仓库 API 类型 */
-export type UsageRepository = {
-  create: (
-    record: Parameters<typeof usageRepo.createUsageRecord>[1],
-  ) => ReturnType<typeof usageRepo.createUsageRecord>;
-  getStats: (
-    options?: Parameters<typeof usageRepo.getUsageStats>[1],
-  ) => ReturnType<typeof usageRepo.getUsageStats>;
-  getTodaySummary: () => ReturnType<typeof usageRepo.getTodayUsageSummary>;
-};
-
-/** 工具使用统计仓库 API 类型 */
-export type ToolUsageRepository = {
-  create: (
-    record: Parameters<typeof toolUsageRepo.createToolUsageRecord>[1],
-  ) => ReturnType<typeof toolUsageRepo.createToolUsageRecord>;
-  getStats: (
-    options?: Parameters<typeof toolUsageRepo.getToolUsageStats>[1],
-  ) => ReturnType<typeof toolUsageRepo.getToolUsageStats>;
-};
 
 /**
  * SQLite 数据库管理器。
@@ -447,3 +371,13 @@ export class DatabaseManager {
     return new Set(rows.map((row) => row.name));
   }
 }
+
+export type {
+  SessionsRepository,
+  MessagesRepository,
+  RoleBindingsRepository,
+  CronJobsRepository,
+  CronRunsRepository,
+  UsageRepository,
+  ToolUsageRepository,
+} from './repository-types';

@@ -53,7 +53,7 @@ export type {
   UsageSummary,
   ToolUsageRecord,
   ToolUsageSummary,
-} from './database-types';
+} from './database/database-types';
 
 // ─── 领域类型 ──────────────────────────────────────────────────────
 

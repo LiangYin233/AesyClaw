@@ -20,22 +20,21 @@ import {
   type SimpleStreamOptions,
   type TSchema,
 } from '@mariozechner/pi-ai';
-import type {
-  AgentMessage,
-  AgentTool,
-  AgentToolResult,
-  ResolvedModel,
-} from './types';
-import {
-  serializeSessionKey,
-  type SessionKey,
-  type StreamEventMeta,
-} from '@aesyclaw/core/types';
+import type { AgentMessage, AgentTool, AgentToolResult, ResolvedModel } from './types';
+import { serializeSessionKey, type SessionKey, type StreamEventMeta } from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './llm/cache-options';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry, AgentRunHandle } from './agent-registry';
-import { adaptToolForPiAgent, calculateToolResultBudget, createToolResultBudgetHandler } from './runner/tool-runtime';
-import { createAgentRunResult, createCancelledRunResult, getFinalAssistantMeta } from './runner/run-parser';
+import {
+  adaptToolForPiAgent,
+  calculateToolResultBudget,
+  createToolResultBudgetHandler,
+} from './runner/tool-runtime';
+import {
+  createAgentRunResult,
+  createCancelledRunResult,
+  getFinalAssistantMeta,
+} from './runner/run-parser';
 import { convertAgentEvent } from './runner/event-converter';
 
 const logger = createScopedLogger('agent-runner');

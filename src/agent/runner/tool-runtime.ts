@@ -122,9 +122,6 @@ export function limitToolResultContent<T extends AgentToolResult>(
   };
 }
 
-
-
-
 export function createToolResultBudgetHandler(toolResultBudget: {
   maxToolResultTokens: number;
   maxToolResultChars: number;

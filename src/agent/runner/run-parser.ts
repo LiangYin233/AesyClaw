@@ -8,9 +8,11 @@ import type { AgentMessage } from '../types';
 import type { StreamUsage } from '@aesyclaw/core/stream-types';
 import { assistantHasToolCalls } from '@aesyclaw/contracts/llm';
 
-export function createAgentRunResult(
-  newMessages: readonly AgentMessage[],
-): { newMessages: AgentMessage[]; lastAssistant: string | null; cancelled: boolean } {
+export function createAgentRunResult(newMessages: readonly AgentMessage[]): {
+  newMessages: AgentMessage[];
+  lastAssistant: string | null;
+  cancelled: boolean;
+} {
   return {
     newMessages: [...newMessages],
     lastAssistant: resolveLastAssistant(newMessages),
@@ -26,9 +28,7 @@ export function createCancelledRunResult(): {
   return { newMessages: [], lastAssistant: null, cancelled: true };
 }
 
-export function getFinalAssistantMeta(
-  messages: readonly AgentMessage[],
-): Record<string, unknown> {
+export function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string, unknown> {
   const finalAssistant = findFinalAssistant(messages);
   if (!finalAssistant) return { lastAssistantRole: null };
   const record = finalAssistant as unknown as Record<string, unknown>;
@@ -40,9 +40,7 @@ export function getFinalAssistantMeta(
   };
 }
 
-export function getFinalAssistantUsage(
-  messages: readonly AgentMessage[],
-): StreamUsage | undefined {
+export function getFinalAssistantUsage(messages: readonly AgentMessage[]): StreamUsage | undefined {
   const finalAssistant = findFinalAssistant(messages);
   if (!finalAssistant || assistantHasToolCalls(finalAssistant)) return undefined;
   const usage = (finalAssistant as unknown as { usage?: unknown }).usage;
