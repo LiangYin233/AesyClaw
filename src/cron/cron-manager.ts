@@ -11,7 +11,8 @@ import type {
   CronRunsRepository,
   DatabaseManager,
 } from '@aesyclaw/core/database/database-manager';
-import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
+import type { IHooksBus } from '@aesyclaw/contracts/hook';
 import type { SessionManager } from '@aesyclaw/session';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage } from '@aesyclaw/core/utils';
@@ -22,7 +23,8 @@ const logger = createScopedLogger('cron');
 
 export type CronManagerDependencies = {
   databaseManager: DatabaseManager;
-  pipeline: Pipeline;
+  pipeline: MessageProcessor;
+  hooksBus: IHooksBus;
   sessionManager: SessionManager;
   send: (sessionKey: SessionKey, message: Message) => Promise<void>;
   scheduler?: CronScheduler;
@@ -48,7 +50,7 @@ type CronManagerStoredDeps = {
 
 export class CronManager {
   private deps: CronManagerStoredDeps;
-  private pipeline: Pipeline;
+  private hooksBus: IHooksBus;
   private sessionManager: SessionManager;
   private initialized = false;
   private readonly inFlight = new Set<Promise<unknown>>();
@@ -63,7 +65,7 @@ export class CronManager {
       dependencies.send,
       dependencies.sessionManager,
     );
-    this.pipeline = dependencies.pipeline;
+    this.hooksBus = dependencies.hooksBus;
     this.sessionManager = dependencies.sessionManager;
 
     this.deps = { cronJobs, cronRuns, executor, scheduler };
@@ -74,7 +76,7 @@ export class CronManager {
       logger.warn('CronManager 已初始化 — 跳过');
       return;
     }
-    this.pipeline.hooksBus.register({
+    this.hooksBus.register({
       id: 'internal:cron',
       chain: 'pipeline:receive',
       priority: 200,
@@ -97,7 +99,7 @@ export class CronManager {
   }
 
   async destroy(): Promise<void> {
-    this.pipeline.hooksBus.unregister('internal:cron');
+    this.hooksBus.unregister('internal:cron');
     const deps = this.deps;
     deps.scheduler.clearAll();
     if (this.inFlight.size > 0) {

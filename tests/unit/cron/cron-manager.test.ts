@@ -4,8 +4,8 @@ import type {
   CronJobsRepository,
   CronRunsRepository,
 } from '../../../src/core/database/database-manager';
+import type { IHooksBus } from '../../../src/contracts/hook';
 import type { SessionManager } from '../../../src/session';
-
 import { CoreLifecycle, type CoreLifecycleDependencies } from '../../../src/core/core-lifecycle';
 import { CronManager } from '../../../src/cron/cron-manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
@@ -90,6 +90,8 @@ class FakeCronRunRepo implements CronRunsRepository {
     return [{ id: 'leftover' }];
   }
 
+  async findByJobId(): Promise<[]> { return []; }
+
   async markAbandoned(runIds: string[]): Promise<void> {
     if (this.abandonError) {
       throw this.abandonError;
@@ -137,11 +139,13 @@ function makeInitializeDeps(params: {
   pipeline?: ReturnType<typeof makePipeline>;
   send?: (sessionKey: SessionKey, message: Message) => Promise<void>;
   sessionManager?: SessionManager;
+  hooksBus?: IHooksBus;
   scheduler?: CronScheduler;
 }): ConstructorParameters<typeof CronManager>[0] {
   return {
     databaseManager: { cronJobs: params.jobs, cronRuns: params.runs },
     pipeline: params.pipeline ?? makePipeline(),
+    hooksBus: params.hooksBus ?? makeHooksBus(),
     sessionManager: params.sessionManager ?? makeSessionManager(),
     send: params.send ?? makeSend(),
     scheduler: params.scheduler,
@@ -266,7 +270,7 @@ describe('Cron', () => {
       makeInitializeDeps({
         jobs,
         runs,
-        pipeline: makePipeline('done', hooks),
+        hooksBus: hooks,
         sessionManager,
       }),
     );
@@ -305,10 +309,9 @@ describe('Cron', () => {
       makeInitializeDeps({
         jobs,
         runs,
-        pipeline: makePipeline('done', hooks),
+        hooksBus: hooks,
       }),
     );
-    await manager.initialize();
     await manager.destroy();
 
     expect(hooks.unregister).toHaveBeenCalledWith('internal:cron');
@@ -323,10 +326,9 @@ describe('Cron', () => {
       makeInitializeDeps({
         jobs,
         runs,
-        pipeline: makePipeline('done', hooks),
+        hooksBus: hooks,
       }),
     );
-
     await expect(manager.initialize()).rejects.toThrow('abandon failed');
 
     await expect(manager.destroy()).resolves.toBeUndefined();

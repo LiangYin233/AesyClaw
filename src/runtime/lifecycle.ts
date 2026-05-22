@@ -173,6 +173,7 @@ export class RuntimeLifecycle {
     const cronManager = new CronManager({
       databaseManager: this.resolvedDeps.databaseManager,
       pipeline: this.resolvedDeps.pipeline,
+      hooksBus: this.resolvedDeps.pipeline.hooksBus,
       sessionManager: this.resolvedDeps.sessionManager,
       send: async (sessionKey, message) => await em.channels.send(sessionKey, message),
     });

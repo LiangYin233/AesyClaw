@@ -8,7 +8,7 @@ import {
   type SessionKey,
 } from '@aesyclaw/core/types';
 import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
-import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { SessionManager } from '@aesyclaw/session';
 import { createPersistedAssistantMessage } from '@aesyclaw/agent/agent-types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -26,7 +26,7 @@ export type CronExecutionSessionKeys = {
 export class CronExecutor {
   constructor(
     private cronRuns: CronRunsRepository,
-    private pipeline: Pick<Pipeline, 'receiveWithSend'>,
+    private pipeline: MessageProcessor,
     private send: (sessionKey: SessionKey, message: Message) => Promise<void>,
     private sessionManager: SessionManager,
   ) {}

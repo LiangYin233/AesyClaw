@@ -22,6 +22,7 @@ import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import { createTimeInjectHook } from './hooks/time-inject';
 import { createAutoCompactHook } from './hooks/auto-compact';
 import type { StreamMessage } from '@aesyclaw/core/stream-types';
+import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 
 const logger = createScopedLogger('pipeline');
 
@@ -29,7 +30,7 @@ const busyMessage = (): Message => ({
   components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }],
 });
 
-export class Pipeline {
+export class Pipeline implements MessageProcessor {
   private deps: PipelineDependencies;
   readonly hooksBus: IHooksBus;
 

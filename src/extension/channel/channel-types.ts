@@ -3,7 +3,7 @@
 import type { CommandDefinition, Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
@@ -61,7 +61,7 @@ export type ChannelStatus = {
 /** ChannelManager 构造函数依赖项。 */
 export type ChannelManagerDependencies = {
   configManager: ConfigManager;
-  pipeline: Pipeline;
+  pipeline: MessageProcessor;
   channels?: ChannelPlugin[];
   paths: Readonly<ResolvedPaths>;
   toolRegistry: ToolRegistry;
