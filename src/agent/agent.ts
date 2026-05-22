@@ -40,8 +40,6 @@ export type AgentOptions = {
   registry: AgentRegistry;
 };
 
-
-
 type ProcessOptions = {
   ephemeral?: boolean;
   role?: RoleConfig;
