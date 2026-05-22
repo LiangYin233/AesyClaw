@@ -17,7 +17,7 @@ import type {
 } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { IHooksBus } from '@aesyclaw/hook';
-import type { AgentTool } from '@aesyclaw/agent/agent-types';
+import type { AgentTool } from '@aesyclaw/contracts/llm';
 import { toAgentTool } from './tool-adapter';
 
 const logger = createScopedLogger('tool-registry');

@@ -16,7 +16,7 @@ import {
   type TSchema,
 } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { AgentRegistry, AgentRunHandle } from '../agent-registry';
+import type { AgentRegistry, AgentRunHandle } from './agent-registry';
 import {
   assistantHasToolCalls,
   extractMessageText,
@@ -24,14 +24,14 @@ import {
   type AgentTool,
   type AgentToolResult,
   type ResolvedModel,
-} from '../agent-types';
+} from './agent-types';
 import {
   serializeSessionKey,
   type SessionKey,
   type StreamEventMeta,
   type StreamUsage,
 } from '@aesyclaw/core/types';
-import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from '../llm-cache-options';
+import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './llm-cache-options';
 
 const logger = createScopedLogger('agent-runner');
 

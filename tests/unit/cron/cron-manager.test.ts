@@ -6,7 +6,7 @@ import type {
 } from '../../../src/core/database/database-manager';
 import type { IHooksBus } from '../../../src/contracts/hook';
 import type { SessionManager } from '../../../src/session';
-import { CoreLifecycle, type CoreLifecycleDependencies } from '../../../src/core/core-lifecycle';
+import { RuntimeLifecycle, type RuntimeLifecycleDependencies } from '../../../src/runtime/lifecycle';
 import { CronManager } from '../../../src/cron/cron-manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
 import {
@@ -772,10 +772,10 @@ describe('Cron', () => {
   });
 });
 
-describe('CoreLifecycle shutdown', () => {
+describe('RuntimeLifecycle shutdown', () => {
   it('destroys cron before extension and MCP teardown', async () => {
     const order: string[] = [];
-    const lifecycle = new CoreLifecycle({
+    const lifecycle = new RuntimeLifecycle({
       configManager: { stopHotReload: () => order.push('config') },
       roleManager: { destroy: () => order.push('role') },
       mcpManager: {
@@ -785,7 +785,7 @@ describe('CoreLifecycle shutdown', () => {
       },
       pipeline: { destroy: () => order.push('pipeline') },
       databaseManager: { destroy: () => order.push('database') },
-    } as unknown as CoreLifecycleDependencies);
+    } as unknown as RuntimeLifecycleDependencies);
     Object.defineProperty(lifecycle, 'extensionManager', {
       value: {
         destroy: async () => {

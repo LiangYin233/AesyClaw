@@ -5,13 +5,13 @@ import {
 } from '@aesyclaw/core/types';
 import {
   assistantHasToolCalls,
-  createPersistedAssistantMessage,
   createUserMessage,
   extractMessageText,
   makeExtraBodyOnPayload,
   type AgentMessage,
   type ResolvedModel,
-} from '@aesyclaw/agent/agent-types';
+} from '@aesyclaw/contracts/llm';
+import { createPersistedAssistantMessage } from '@aesyclaw/agent/agent-types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import {
   withDefaultPromptCacheModel,

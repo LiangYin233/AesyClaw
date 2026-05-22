@@ -10,7 +10,7 @@
  * Runner 级工具结果预算处理属于 PiAgent afterToolCall，不属于这里的兼容层。
  */
 
-import type { AgentTool, AgentToolResult } from '@aesyclaw/agent/agent-types';
+import type { AgentTool, AgentToolResult } from '@aesyclaw/contracts/llm';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { IHooksBus, HookCtx } from '@aesyclaw/hook';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';

@@ -5,8 +5,8 @@ import { AgentRegistry } from '../../../src/agent/agent-registry';
 import {
   createProviderCacheKey,
   type AgentRunParams,
-} from '../../../src/agent/runner/agent-runner';
-import { runAgentTask } from '../../../src/agent/runner/agent-runner';
+} from '../../../src/agent/agent-runner';
+import { runAgentTask } from '../../../src/agent/agent-runner';
 
 const runnerMock = vi.hoisted(() => {
   function defer<T>() {

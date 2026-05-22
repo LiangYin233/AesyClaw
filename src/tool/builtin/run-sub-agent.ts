@@ -8,7 +8,7 @@ import type {
 import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner, SessionKey, Message, RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
-import type { AgentMessage } from '@aesyclaw/agent/agent-types';
+import type { AgentMessage } from '@aesyclaw/contracts/llm';
 
 const RUN_SUB_AGENT_SCHEMA = Type.Object({
   roleId: Type.String({ description: '要使用的角色 ID' }),

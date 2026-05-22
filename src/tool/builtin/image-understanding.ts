@@ -9,7 +9,7 @@ import {
   extractMessageText,
   makeExtraBodyOnPayload,
   type ResolvedModel,
-} from '@aesyclaw/agent/agent-types';
+} from '@aesyclaw/contracts/llm';
 import { completeSimple } from '@mariozechner/pi-ai';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
