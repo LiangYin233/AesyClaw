@@ -21,7 +21,6 @@ const logger = createScopedLogger('session-compactor');
 
 export type CompactorSession = {
   readonly sessionId: string;
-  readonly _messages: readonly AgentMessage[];
   get(): readonly AgentMessage[];
   bind(): Promise<void>;
 };
@@ -37,7 +36,6 @@ export async function compactSession(
     get(): readonly AgentMessage[];
     bind(): Promise<void>;
     db?: { messages: MessagesRepository; usage?: UsageRepository };
-    _messages?: readonly AgentMessage[];
   },
 ): Promise<string> {
   const model = llmAdapter.resolveModel(modelIdentifier);

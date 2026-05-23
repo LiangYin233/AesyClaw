@@ -90,12 +90,19 @@ export class SessionManager {
 
   /**
    * 清除指定会话的消息历史并从缓存中移除。
+   *
+   * 若会话正在被 Agent 处理（已锁定），则拒绝操作并抛出错误。
    * @param key - 会话键
+   * @throws 会话已锁定时抛出
    */
   async clear(key: SessionKey): Promise<void> {
     const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
     if (session) {
+      if (session.isLocked) {
+        logger.warn('无法清除已锁定的会话', { cacheKey });
+        throw new Error('会话正在处理中，无法清除历史');
+      }
       await session.clear();
       this.sessions.delete(cacheKey);
     }

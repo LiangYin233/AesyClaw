@@ -44,22 +44,32 @@ export async function getSessionMessages(
 /**
  * 清空指定会话的消息历史。
  *
+ * 先检查会话是否被锁定（正在被 Agent 处理），若锁定则拒绝。
+ *
  * @param deps - WebUI 管理器依赖项
  * @param sessionId - 会话 ID
- * @throws 会话未找到时抛出
+ * @throws 会话未找到或已锁定时抛出
  */
 export async function clearSessionHistory(
   deps: WebRuntimeDependencies,
   sessionId: string,
 ): Promise<void> {
-  const session = await deps.databaseManager.sessions.findById(sessionId);
-  if (!session) {
+  const sessionRecord = await deps.databaseManager.sessions.findById(sessionId);
+  if (!sessionRecord) {
     throw new Error('会话未找到');
   }
+
+  const sessionKey = {
+    channel: sessionRecord.channel,
+    type: sessionRecord.type,
+    chatId: sessionRecord.chatId,
+  };
+
+  // 先检查锁：会话正在被 Agent 处理时不允许清除
+  if (deps.sessionManager.isLocked(sessionKey)) {
+    throw new Error('会话正在处理中，无法清除历史');
+  }
+
   await deps.databaseManager.messages.clearHistory(sessionId);
-  await deps.sessionManager.clear({
-    channel: session.channel,
-    type: session.type,
-    chatId: session.chatId,
-  });
+  await deps.sessionManager.clear(sessionKey);
 }

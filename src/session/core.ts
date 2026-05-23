@@ -81,15 +81,15 @@ export class Session {
   }
 
   async syncFromAgent(agentMessages: AgentMessage[]): Promise<void> {
-    sanitizeGhostToolCalls(agentMessages);
-    for (const msg of agentMessages) {
+    const cleanedMessages = sanitizeGhostToolCalls(agentMessages);
+    for (const msg of cleanedMessages) {
       await this.add(msg);
       const persistedToolText = getPersistedAssistantTextFromToolResult(msg);
       if (persistedToolText) {
         await this.add(createPersistedAssistantMessage(persistedToolText));
       }
     }
-    await this.recordToolCallsFromMessages(agentMessages);
+    await this.recordToolCallsFromMessages(cleanedMessages);
   }
 
   async clear(): Promise<void> {
@@ -166,9 +166,9 @@ export class Session {
   }
 }
 
-function sanitizeGhostToolCalls(agentMessages: AgentMessage[]): void {
-  for (const message of agentMessages) {
-    if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
+function sanitizeGhostToolCalls(agentMessages: AgentMessage[]): AgentMessage[] {
+  return agentMessages.map((message) => {
+    if (message.role !== 'assistant' || !Array.isArray(message.content)) return message;
 
     const filtered = (message.content as Array<{ type?: string; name?: string }>).filter(
       (block) => {
@@ -179,10 +179,14 @@ function sanitizeGhostToolCalls(agentMessages: AgentMessage[]): void {
       },
     );
 
-    if (filtered.length < message.content.length) {
-      (message as unknown as Record<string, unknown>)['content'] = filtered;
-    }
-  }
+    if (filtered.length === message.content.length) return message;
+
+    // 创建新对象，避免变异原数组
+    return {
+      ...message,
+      content: filtered as typeof message.content,
+    };
+  });
 }
 
 function toPersistable(message: AgentMessage): PersistableMessage | null {
