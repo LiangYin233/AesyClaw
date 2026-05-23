@@ -9,7 +9,8 @@ marked.setOptions({
   gfm: true,
 });
 
-export function renderMarkdownSafe(source: string): string {
+export function renderMarkdownSafe(source: string | null | undefined): string {
+  if (!source) return '';
   const html = marked.parse(source) as string;
   return sanitizeHtml(html);
 }

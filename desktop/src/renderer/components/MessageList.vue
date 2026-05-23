@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUpdated, onBeforeUpdate } from 'vue';
+import { ref, watch, nextTick, onMounted } from 'vue';
 import { renderMarkdownSafe } from '../utils/renderContent';
 import type { DesktopUsage } from '../../preload/index';
 import type {
@@ -202,9 +202,6 @@ let copiedStateTimer: ReturnType<typeof setTimeout> | null = null;
 
 /* ── Scroll ────────────────────────────────── */
 
-/** 用户是否已接近底部（容差 80px），用于判断是否自动滚到底 */
-let wasNearBottom = false;
-
 function isNearBottom(): boolean {
   const el = messageListRef.value;
   if (!el) return true;
@@ -220,15 +217,13 @@ function scrollToBottom() {
 
 onMounted(scrollToBottom);
 
-// 在每次更新前记录用户位置
-onBeforeUpdate(() => {
-  wasNearBottom = isNearBottom();
-});
-
-// 只在用户原本就在底部附近时才自动滚动
-onUpdated(() => {
-  if (wasNearBottom) scrollToBottom();
-});
+// 监听消息数组变化，只在用户接近底部时才自动滚动（避免复制按钮等操作触发）
+watch(
+  () => props.messages.length,
+  () => {
+    if (isNearBottom()) scrollToBottom();
+  },
+);
 
 /* ── Copy menu ─────────────────────────────── */
 

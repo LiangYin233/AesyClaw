@@ -175,40 +175,27 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const selectedFiles = ref<File[]>([]);
 const isDragging = ref(false);
 // ─── 命令补全 ──────────────────────────────────────────────
-const filteredCommands = ref<Array<{ name: string; description: string }>>([]);
+
 const showMenu = ref(false);
 const menuIndex = ref(0);
 
-watch(inputText, (val) => {
-  if (props.streaming) {
-    showMenu.value = false;
-    return;
-  }
+// 纯 computed：只做数据转换，不做副作用
+const filteredCommands = computed(() => {
+  if (props.streaming || !inputText.value.startsWith('/')) return [];
+  return props.commands.filter((c) => c.name.startsWith(inputText.value.slice(1))).slice(0, 8);
+});
 
-  const slashIdx = val.lastIndexOf('/');
-  // 只触发：/ 在行首或空格之后，且不在换行后
-  // 用换行符分割检查最后一段，确保 / 不在换行之后
-  if (slashIdx < 0) {
-    showMenu.value = false;
-    return;
-  }
-  const lastNewline = val.lastIndexOf(String.fromCharCode(10));
-  if (lastNewline > slashIdx) {
-    showMenu.value = false;
-    return;
-  }
-  const partial = val.slice(slashIdx + 1);
-  const filtered = props.commands.filter((c) => c.name.startsWith(partial)).slice(0, 8);
-  filteredCommands.value = filtered;
-  showMenu.value = filtered.length > 0;
+// showMenu 由 filteredCommands 派生，同样无副作用
+watch(filteredCommands, (list) => {
+  showMenu.value = list.length > 0;
   menuIndex.value = 0;
 });
 
 function applyCompletion() {
   const cmd = filteredCommands.value[menuIndex.value];
   if (!cmd) return;
-  const slashIdx = inputText.value.lastIndexOf('/');
-  inputText.value = inputText.value.slice(0, slashIdx + 1) + cmd.name + ' ';
+  // / 一定在位置 0（watch 中已通过 startsWith 校验）
+  inputText.value = '/' + cmd.name + ' ';
   showMenu.value = false;
 }
 
