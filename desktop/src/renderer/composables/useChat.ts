@@ -88,6 +88,7 @@ export type AssistantMessage = {
   role: 'assistant';
   text: string;
   streaming: boolean;
+  isIntermediate?: boolean; // tool call 之间的片段文本，非最终回复
   usage?: DesktopUsage;
 };
 
@@ -223,9 +224,10 @@ function useChatImpl() {
         };
         session.pendingToolCalls.set(event.toolCallId, toolCall);
         session.messages.push({ role: 'tool', toolCall });
-        // 关闭前一条助理消息的流式状态，防止光标残留
+        // 标记为中间态并关闭流式状态
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
+          session.activeAssistantMessage.isIntermediate = true;
         }
         session.activeAssistantMessage = null;
         break;
@@ -237,9 +239,10 @@ function useChatImpl() {
           tc.isError = event.isError;
           tc.status = event.isError ? 'error' : 'done';
         }
-        // 关闭前一条助理消息的流式状态
+        // 标记为中间态并关闭流式状态
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
+          session.activeAssistantMessage.isIntermediate = true;
         }
         session.activeAssistantMessage = null;
         break;

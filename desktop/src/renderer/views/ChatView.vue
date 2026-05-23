@@ -112,47 +112,13 @@
                   {{ file.name }}
                 </span>
               </div>
-              <div class="message-footer">
-                <div v-if="msg.text?.trim()" class="message-actions" @click.stop>
-                  <button
-                    type="button"
-                    class="copy-btn"
-                    aria-haspopup="menu"
-                    :aria-expanded="activeCopyMenuIndex === i"
-                    @click="toggleCopyMenu(i)"
-                  >
-                    {{ copyButtonLabel(i) }}
-                  </button>
-                  <div v-if="activeCopyMenuIndex === i" class="copy-menu" role="menu">
-                    <button
-                      type="button"
-                      class="copy-menu-item"
-                      role="menuitem"
-                      @click="copyMessage(msg, i, 'rich')"
-                    >
-                      复制富文本
-                    </button>
-                    <button
-                      type="button"
-                      class="copy-menu-item"
-                      role="menuitem"
-                      @click="copyMessage(msg, i, 'raw')"
-                    >
-                      复制原文
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
-          </div>
+            </div>
 
           <!-- Assistant -->
           <div v-else-if="msg.role === 'assistant'" class="assistant-block">
             <!-- 中间态 Thinking 气泡：tool call 之间的片段文本 -->
-            <div
-              v-if="msg.text && !msg.streaming && activeSession()?.streaming"
-              class="assistant-bubble thinking"
-            >
+            <div v-if="msg.text && msg.isIntermediate" class="assistant-bubble thinking">
               <span class="thinking-dot">●</span>
               <span class="thinking-text">{{ msg.text }}</span>
             </div>
@@ -956,7 +922,7 @@ user-select: none;
 }
 
 .assistant-bubble .message-footer {
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .message-usage {
@@ -964,6 +930,7 @@ user-select: none;
   font-family: var(--font-heading);
   font-size: 11px;
   line-height: 1.5;
+  margin-right: auto;
 }
 
 .user-bubble .message-usage {
@@ -1283,9 +1250,6 @@ user-select: none;
   white-space: nowrap;
   font-style: italic;
 }
-.thinking-text::after {
-  content: '…';
-}
 @keyframes thinkingPulse {
   0%,
   100% {
@@ -1418,7 +1382,8 @@ user-select: none;
   background: rgba(20, 20, 19, 0.02);
   border-radius: 4px;
   padding: 8px;
-  margin: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
 .tool-section--result .tool-label {
   margin-bottom: 6px;
