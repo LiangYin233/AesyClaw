@@ -10,18 +10,43 @@
     >
       <span class="session-title">{{ session.title }}</span>
       <span v-if="session.streaming" class="session-badge">&hellip;</span>
+      <button
+        type="button"
+        class="session-delete-btn"
+        title="Delete conversation"
+        @click.stop="onDelete(session.id)"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path
+            d="M1 1l10 10M11 1L1 11"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
     </div>
     <div v-if="sessions.length === 0" class="empty-sessions">No conversations yet</div>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   sessions: { id: string; title: string; streaming?: boolean }[];
   activeSessionId: string | null;
   createSession: () => void;
   selectSession: (id: string) => void;
 }>();
+
+const emit = defineEmits<{
+  'delete-session': [id: string];
+}>();
+
+function onDelete(id: string) {
+  if (window.confirm('Delete this conversation? This cannot be undone.')) {
+    emit('delete-session', id);
+  }
+}
 </script>
 
 <style scoped>
@@ -86,6 +111,7 @@ defineProps<{
   white-space: nowrap;
 }
 
+min-width: 0;
 .session-badge {
   color: var(--color-primary);
   font-weight: 500;
@@ -97,5 +123,30 @@ defineProps<{
   font-style: italic;
   font-size: 13px;
   margin-top: 32px;
+}
+
+.session-delete-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-mid-gray);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.session-item:hover .session-delete-btn {
+  display: inline-flex;
+}
+
+.session-delete-btn:hover {
+  color: var(--color-danger);
+  background: rgba(196, 91, 91, 0.1);
 }
 </style>

@@ -4,6 +4,7 @@
       :sessions="sessions"
       :activeSessionId="activeSessionId"
       :createSession="createSession"
+      @delete-session="deleteSession"
       :selectSession="selectSession"
     />
 
@@ -33,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, nextTick, onMounted, onUnmounted } from 'vue';
 import { useChat } from '../composables/useChat';
 import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
 import SessionList from '../components/SessionList.vue';
@@ -119,6 +120,12 @@ function closeCopyMenu(): void {
 
 async function loadCommands(): Promise<void> {
   commands.value = await window.aesyclaw.getCommands();
+}
+
+async function deleteSession(sessionId: string) {
+  selectSession(sessionId);
+  await nextTick();
+  await sendMessage('/clear delete', [], []);
 }
 </script>
 
