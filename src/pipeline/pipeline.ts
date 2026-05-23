@@ -161,14 +161,7 @@ export class Pipeline implements MessageProcessor {
         const outbound = await agent.process(
           transformedMessage,
           async (msg) => {
-            await send({
-              kind: 'message',
-              session: session.key,
-              content: msg,
-              intermediate: true,
-              source: 'agent_send_message',
-            });
-            return true;
+            return await this.message(send, msg, session.key, 'agent_send_message', true);
           },
           undefined,
           onStream,
@@ -197,7 +190,8 @@ export class Pipeline implements MessageProcessor {
     outbound: Message,
     sessionKey: SessionKey,
     source?: 'agent_final' | 'command' | 'hook' | 'agent_send_message',
-  ): Promise<void> {
+    intermediate?: boolean,
+  ): Promise<boolean> {
     const sendCtx: HookCtx = {
       message: outbound,
       sessionKey: sessionKey,
@@ -205,7 +199,7 @@ export class Pipeline implements MessageProcessor {
     const sendResult = await this.hooksBus.dispatch('pipeline:send', sendCtx);
     if (sendResult.action === 'block') {
       logger.info('出站消息被 pipeline:send 链阻断');
-      return;
+      return false;
     }
 
     const finalOutbound: Message = sendResult.action === 'respond' ? sendResult.message : outbound;
@@ -214,7 +208,9 @@ export class Pipeline implements MessageProcessor {
       kind: 'message',
       session: sessionKey,
       content: finalOutbound,
+      intermediate,
       source,
     });
+    return true;
   }
 }

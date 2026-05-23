@@ -266,10 +266,12 @@ function useChatImpl() {
           tc.isError = event.isError;
           tc.status = event.isError ? 'error' : 'done';
         }
-        // 标记为中间态并关闭流式状态
+        // send_msg 输出的文本是完整消息，不是被工具调用打断的中间思考
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
-          session.activeAssistantMessage.isIntermediate = true;
+          if (event.toolName !== 'send_msg') {
+            session.activeAssistantMessage.isIntermediate = true;
+          }
         }
         session.activeAssistantMessage = null;
         break;
