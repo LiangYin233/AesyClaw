@@ -180,14 +180,23 @@ const showMenu = ref(false);
 const menuIndex = ref(0);
 
 watch(inputText, (val) => {
-  if (props.streaming) { showMenu.value = false; return; }
+  if (props.streaming) {
+    showMenu.value = false;
+    return;
+  }
 
   const slashIdx = val.lastIndexOf('/');
   // 只触发：/ 在行首或空格之后，且不在换行后
   // 用换行符分割检查最后一段，确保 / 不在换行之后
-  if (slashIdx < 0) { showMenu.value = false; return; }
+  if (slashIdx < 0) {
+    showMenu.value = false;
+    return;
+  }
   const lastNewline = val.lastIndexOf(String.fromCharCode(10));
-  if (lastNewline > slashIdx) { showMenu.value = false; return; }
+  if (lastNewline > slashIdx) {
+    showMenu.value = false;
+    return;
+  }
   const partial = val.slice(slashIdx + 1);
   const filtered = props.commands.filter((c) => c.name.startsWith(partial)).slice(0, 8);
   filteredCommands.value = filtered;
@@ -314,8 +323,6 @@ function handlePaste(event: ClipboardEvent) {
     );
   }
 }
-
-
 
 async function handleSend() {
   const text = inputText.value.trim();

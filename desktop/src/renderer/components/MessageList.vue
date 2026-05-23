@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue';
+import { ref, watch, nextTick, onMounted, onUpdated } from 'vue';
 import { renderMarkdownSafe } from '../utils/renderContent';
 import type { DesktopUsage } from '../../preload/index';
 import type {
