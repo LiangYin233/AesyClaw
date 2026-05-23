@@ -36,6 +36,14 @@ export class AgentRegistry {
   }
 
   /**
+   * 注销指定会话的 Agent 实例。
+   * @param sessionKey - 会话标识
+   */
+  unregisterAgent(sessionKey: SessionKey): void {
+    this.agents.delete(serializeSessionKey(sessionKey));
+  }
+
+  /**
    * 注册 Agent 运行，关联到指定的 runId 和会话。
    *
    * @param runId - 运行标识

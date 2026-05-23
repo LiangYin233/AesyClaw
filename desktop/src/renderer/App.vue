@@ -173,28 +173,34 @@
 
       <main class="main-content">
         <router-view />
-      </main>
-
-      <div v-if="isDisconnected" class="disconnect-overlay" role="alert" aria-live="assertive">
-        <div class="disconnect-card">
-          <span class="disconnect-icon" aria-hidden="true">!</span>
-          <div>
-            <h2>Disconnected</h2>
-            <p>Connection lost.</p>
+        <div
+          v-if="showDisconnectOverlay"
+          class="disconnect-overlay"
+          role="alert"
+          aria-live="assertive"
+        >
+          <div class="disconnect-card">
+            <span class="disconnect-icon" aria-hidden="true">!</span>
+            <div>
+              <h2>Disconnected</h2>
+              <p>Connection lost. Open Settings from the sidebar to update connection.</p>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRoute } from 'vue-router';
 import type { ConnectionStatus } from '../../preload/index';
 
 const status = ref<ConnectionStatus>({ chat: 'disconnected', admin: 'disconnected' });
 const isMaximized = ref(false);
 const sidebarCollapsed = ref(localStorage.getItem('desktop-sidebar-collapsed') === 'true');
+const route = useRoute();
 let unsubStatus: (() => void) | null = null;
 let unsubMaximize: (() => void) | null = null;
 
@@ -211,6 +217,7 @@ const statusLabel = computed(() => {
 });
 
 const isDisconnected = computed(() => status.value.chat === 'disconnected');
+const showDisconnectOverlay = computed(() => isDisconnected.value && route.name !== 'settings');
 
 onMounted(async () => {
   status.value = await window.aesyclaw.getStatus();
@@ -579,5 +586,6 @@ function toggleSidebar(): void {
   min-height: 0;
   overflow: auto;
   background: #faf7f4;
+  position: relative;
 }
 </style>

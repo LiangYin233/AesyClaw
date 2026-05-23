@@ -22,7 +22,7 @@ import { createSkillReloadCommand } from './skill-commands';
 export type BuiltinCommandDependencies = {
   roleManager: RoleManager;
   pluginManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
-  sessionManager: Pick<SessionManager, 'create' | 'clear' | 'get'>;
+  sessionManager: Pick<SessionManager, 'create' | 'clear' | 'delete' | 'get'>;
   llmAdapter: LlmAdapter;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
@@ -65,7 +65,7 @@ export function registerBuiltinCommands(
     ),
   );
   registry.register(createModelCommand(deps.llmAdapter, deps.agentRegistry));
-  registry.register(createClearCommand(deps.sessionManager));
+  registry.register(createClearCommand(deps.sessionManager, deps.agentRegistry));
   registry.register(
     createCompactCommand(
       deps.sessionManager,

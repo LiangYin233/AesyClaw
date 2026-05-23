@@ -11,6 +11,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   findOrCreateSession,
   findSessionByKey,
+  deleteSessionByKey,
 } from '../../../../src/core/database/repositories/session-repository';
 import {
   saveMessage,
@@ -157,6 +158,32 @@ describe('Database Layer', () => {
         chatId: 'nobody',
       });
       expect(result).toBeNull();
+    });
+
+    it('should delete a session, messages and role binding while preserving anonymous usage', async () => {
+      const key: SessionKey = { channel: 'test', type: 'private', chatId: 'delete-me' };
+      const session = await findOrCreateSession(db, key);
+      const messageId = await saveMessage(db, session.id, { role: 'assistant', content: 'bye' });
+      await setActiveRoleBinding(db, session.id, 'role-1');
+      await createUsageRecord(db, {
+        model: 'gpt-4o',
+        provider: 'openai',
+        api: 'openai-responses',
+        sessionId: session.id,
+        messageId,
+        usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3 },
+      });
+
+      await expect(deleteSessionByKey(db, key)).resolves.toBe(true);
+
+      await expect(findSessionByKey(db, key)).resolves.toBeNull();
+      await expect(loadMessageHistory(db, session.id)).resolves.toEqual([]);
+      await expect(getActiveRoleBinding(db, session.id)).resolves.toBeNull();
+      const usageRow = db.prepare('SELECT session_id, message_id FROM usage').get() as {
+        session_id: string | null;
+        message_id: number | null;
+      };
+      expect(usageRow).toEqual({ session_id: null, message_id: null });
     });
   });
 

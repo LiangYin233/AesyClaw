@@ -149,3 +149,26 @@ export async function findSessionById(db: DatabaseSync, id: string): Promise<Ses
     chatId: row.chat_id,
   };
 }
+
+/** 按复合键删除会话及其直接关联数据。返回是否删除了会话。 */
+export async function deleteSessionByKey(db: DatabaseSync, key: SessionKey): Promise<boolean> {
+  const row = db
+    .prepare('SELECT id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?')
+    .get(key.channel, key.type, key.chatId) as { id: string } | undefined;
+
+  if (!row) return false;
+
+  db.exec('BEGIN');
+  try {
+    db.prepare('UPDATE usage SET message_id = NULL WHERE session_id = ?').run(row.id);
+    db.prepare('UPDATE usage SET session_id = NULL WHERE session_id = ?').run(row.id);
+    db.prepare('DELETE FROM messages WHERE session_id = ?').run(row.id);
+    db.prepare('DELETE FROM role_bindings WHERE session_id = ?').run(row.id);
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(row.id);
+    db.exec('COMMIT');
+    return true;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}

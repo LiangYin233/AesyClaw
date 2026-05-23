@@ -108,6 +108,32 @@ export class SessionManager {
     }
   }
 
+  /**
+   * 删除指定会话的数据库记录、历史消息和本地缓存。
+   *
+   * 若会话正在被 Agent 处理（已锁定），则拒绝操作并抛出错误。
+   * @param key - 会话键
+   * @returns true 表示删除了持久化会话，false 表示会话不存在
+   */
+  async delete(key: SessionKey): Promise<boolean> {
+    const cacheKey = serializeSessionKey(key);
+    const pending = this.pendingSessions.get(cacheKey);
+    const session = this.sessions.get(cacheKey) ?? (pending ? await pending : undefined);
+    if (session?.isLocked) {
+      logger.warn('无法删除已锁定的会话', { cacheKey });
+      throw new Error('会话正在处理中，无法删除');
+    }
+
+    const deleted = await this.databaseManager.sessions.deleteByKey(key);
+    this.sessions.delete(cacheKey);
+    this.pendingSessions.delete(cacheKey);
+
+    if (deleted) {
+      logger.info('会话已删除', { cacheKey });
+    }
+    return deleted;
+  }
+
   private async createFromDb(key: SessionKey, cacheKey: string): Promise<Session> {
     const sessionRecord = await this.databaseManager.sessions.findOrCreate(key);
     const session = new Session(sessionRecord.id, key, {

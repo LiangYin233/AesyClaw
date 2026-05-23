@@ -108,6 +108,10 @@ function setupIpc(): void {
     return wsManager?.getStatus() ?? { chat: 'disconnected', admin: 'disconnected' };
   });
 
+  ipcMain.handle('commands:get', async () => {
+    return wsManager?.getCommands() ?? [];
+  });
+
   ipcMain.handle('connection:getConfig', async () => {
     return loadConnectionConfig();
   });

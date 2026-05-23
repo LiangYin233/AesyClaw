@@ -217,9 +217,16 @@ function scrollToBottom() {
 
 onMounted(scrollToBottom);
 
-// 监听消息数组变化，只在用户接近底部时才自动滚动（避免复制按钮等操作触发）
+// 监听消息数量和最后一条流式文本变化：用户仍在底部时自动跟随；用户向上查看历史时不打断。
 watch(
-  () => props.messages.length,
+  () => {
+    const lastMessage = props.messages[props.messages.length - 1];
+    return {
+      length: props.messages.length,
+      lastText: lastMessage?.role === 'assistant' ? lastMessage.text : '',
+      lastStreaming: lastMessage?.role === 'assistant' ? lastMessage.streaming : false,
+    };
+  },
   () => {
     if (isNearBottom()) scrollToBottom();
   },
@@ -433,6 +440,7 @@ function formatToolResult(result: unknown): string {
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.6;
+  white-space: pre-wrap;
   background: var(--color-primary);
   color: #fff;
 }

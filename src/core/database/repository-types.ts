@@ -12,6 +12,7 @@ import type {
   findAllSessions,
   findAllSessionSummaries,
   findSessionById,
+  deleteSessionByKey,
 } from './repositories/session-repository';
 import type {
   saveMessage,
@@ -55,6 +56,9 @@ export type SessionsRepository = {
   findAll: () => ReturnType<typeof findAllSessions>;
   findAllSummaries: () => ReturnType<typeof findAllSessionSummaries>;
   findById: (id: string) => ReturnType<typeof findSessionById>;
+  deleteByKey: (
+    key: Parameters<typeof deleteSessionByKey>[1],
+  ) => ReturnType<typeof deleteSessionByKey>;
 };
 
 /** 消息仓库 API 类型 */

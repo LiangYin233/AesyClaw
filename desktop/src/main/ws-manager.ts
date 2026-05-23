@@ -118,6 +118,10 @@ export class WebSocketManager extends EventEmitter {
     return { ...this.status };
   }
 
+  getCommands(): Array<{ name: string; description: string }> {
+    return [...this._commands];
+  }
+
   // ─── 聊天消息 ──────────────────────────────────────────────────
 
   async sendChatMessage(

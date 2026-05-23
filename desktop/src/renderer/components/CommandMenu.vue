@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="command-menu" @mouseleave="$emit('close')">
+  <div v-show="visible" class="command-menu" @mouseleave="$emit('close')">
     <div
       v-for="(item, i) in items"
       :key="item.name"

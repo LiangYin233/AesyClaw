@@ -116,10 +116,7 @@
           :items="filteredCommands"
           :selectedIndex="menuIndex"
           :visible="showMenu"
-          @select="
-            menuIndex = $event;
-            applyCompletion();
-          "
+          @select="onSelect"
           @highlight="menuIndex = $event"
           @close="showMenu = false"
         />
@@ -197,6 +194,11 @@ function applyCompletion() {
   // / 一定在位置 0（watch 中已通过 startsWith 校验）
   inputText.value = '/' + cmd.name + ' ';
   showMenu.value = false;
+}
+
+function onSelect(index: number) {
+  menuIndex.value = index;
+  applyCompletion();
 }
 
 function handleKeydown(e: KeyboardEvent) {

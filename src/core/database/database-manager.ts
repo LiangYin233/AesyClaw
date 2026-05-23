@@ -109,6 +109,7 @@ export class DatabaseManager {
       findAll: () => sessions.findAllSessions(db),
       findAllSummaries: () => sessions.findAllSessionSummaries(db),
       findById: (id) => sessions.findSessionById(db, id),
+      deleteByKey: (key) => sessions.deleteSessionByKey(db, key),
     };
 
     this.messages = {

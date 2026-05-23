@@ -71,6 +71,11 @@ export type ConnectionStatus = {
   admin: 'connected' | 'connecting' | 'disconnected';
 };
 
+export type DesktopCommand = {
+  name: string;
+  description: string;
+};
+
 export type { DesktopConnectionConfig };
 
 const api = {
@@ -93,6 +98,9 @@ const api = {
 
   /** 获取连接状态 */
   getStatus: () => ipcRenderer.invoke('status:get') as Promise<ConnectionStatus>,
+
+  /** 获取当前缓存的 Desktop 命令列表 */
+  getCommands: () => ipcRenderer.invoke('commands:get') as Promise<DesktopCommand[]>,
 
   /** 获取 Desktop 连接配置 */
   getConnectionConfig: () =>
@@ -127,13 +135,8 @@ const api = {
     };
   },
   /** 监听桌面频道下发的可用命令列表 */
-  onCommands: (
-    callback: (commands: Array<{ name: string; description: string }>) => void,
-  ): (() => void) => {
-    const handler = (
-      _event: unknown,
-      commands: Array<{ name: string; description: string }>,
-    ): void => {
+  onCommands: (callback: (commands: DesktopCommand[]) => void): (() => void) => {
+    const handler = (_event: unknown, commands: DesktopCommand[]): void => {
       callback(commands);
     };
     ipcRenderer.on('chat:commands', handler);

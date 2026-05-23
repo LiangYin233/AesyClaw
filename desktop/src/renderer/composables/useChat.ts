@@ -32,7 +32,7 @@ function parseAttachmentsFromText(content: string): {
   for (const line of lines) {
     // 格式: "- kind: filePath (fileName, mimeType)"
     const match = line.match(/\(([^)]+),\s*([^)]+)\)$/);
-    if (match) {
+    if (match?.[1] && match[2]) {
       attachments.push({
         name: match[1].trim(),
         mime: match[2].trim(),
@@ -106,6 +106,7 @@ function useChatImpl() {
   const sessions = ref<ChatSession[]>([]);
   const activeSessionId = ref<string | null>(null);
   const lastBackendSummaries = new Map<string, DesktopSessionSummary>();
+  const pendingDeletedSessions = new Map<string, { confirmed: boolean }>();
 
   const activeSession = (): ChatSession | null =>
     sessions.value.find((s) => s.id === activeSessionId.value) ?? null;
@@ -178,11 +179,11 @@ function useChatImpl() {
     session.activeAssistantMessage = null;
   }
 
-  function sendMessage(
+  async function sendMessage(
     text: string,
     files: DesktopUploadFile[] = [],
     attachments: ChatAttachment[] = files.map(({ name, mime, size }) => ({ name, mime, size })),
-  ): void {
+  ): Promise<void> {
     if (text.trim().length === 0 && files.length === 0) return;
 
     let sessionId = activeSessionId.value;
@@ -200,9 +201,34 @@ function useChatImpl() {
     session.streaming = true;
     session.pendingToolCalls = new Map();
     session.activeAssistantMessage = null;
+    if (isClearDeleteCommand(trimmedText)) {
+      pendingDeletedSessions.set(outboundSessionId, { confirmed: false });
+    }
 
-    // 发送
-    void window.aesyclaw.sendChat(outboundSessionId, text, files);
+    try {
+      const sent = await window.aesyclaw.sendChat(outboundSessionId, text, files);
+      if (!sent) {
+        markSendFailure(session, '消息发送失败：聊天连接未建立');
+        pendingDeletedSessions.delete(outboundSessionId);
+      }
+    } catch (error) {
+      markSendFailure(session, `消息发送失败：${formatErrorMessage(error)}`);
+      pendingDeletedSessions.delete(outboundSessionId);
+    }
+  }
+
+  function markSendFailure(session: ChatSession, message: string): void {
+    session.streaming = false;
+    session.pendingToolCalls = new Map();
+    if (session.activeAssistantMessage) {
+      session.activeAssistantMessage.streaming = false;
+    }
+    session.activeAssistantMessage = null;
+    session.messages.push({ role: 'system', text: message });
+  }
+
+  function formatErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   function handleStreamEvent(event: ChatMessageEvent): void {
@@ -212,6 +238,7 @@ function useChatImpl() {
     switch (event.type) {
       case 'chunk': {
         appendAssistantChunk(session, event.text);
+        markDeleteConfirmedIfNeeded(session, event.text);
         break;
       }
       case 'tool_call': {
@@ -255,6 +282,11 @@ function useChatImpl() {
         session.streaming = false;
         session.activeAssistantMessage = null;
         session.pendingToolCalls = new Map();
+        const pendingDelete = pendingDeletedSessions.get(session.id);
+        pendingDeletedSessions.delete(session.id);
+        if (pendingDelete?.confirmed) {
+          removeSessionLocally(session.id);
+        }
         break;
       }
       case 'error': {
@@ -294,6 +326,24 @@ function useChatImpl() {
 
   function shouldKeepLocalSession(session: ChatSession): boolean {
     return session.streaming || session.messages.length > 0 || session.id === activeSessionId.value;
+  }
+
+  function isClearDeleteCommand(text: string): boolean {
+    return /^\/clear\s+delete\s*$/i.test(text);
+  }
+
+  function markDeleteConfirmedIfNeeded(session: ChatSession, text: string): void {
+    const pendingDelete = pendingDeletedSessions.get(session.id);
+    if (pendingDelete && text.includes('当前会话已删除')) {
+      pendingDelete.confirmed = true;
+    }
+  }
+
+  function removeSessionLocally(sessionId: string): void {
+    sessions.value = sessions.value.filter((session) => session.id !== sessionId);
+    if (activeSessionId.value === sessionId) {
+      activeSessionId.value = sessions.value[0]?.id ?? null;
+    }
   }
 
   function findSessionForEvent(event: ChatMessageEvent): ChatSession | null {

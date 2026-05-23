@@ -53,6 +53,7 @@ describe('sessions service', () => {
     const deps = {
       sessionManager: {
         clear: vi.fn(async () => undefined),
+        isLocked: vi.fn(() => false),
       },
       databaseManager: {
         sessions: {

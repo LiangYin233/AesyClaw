@@ -74,6 +74,7 @@ onMounted(() => {
   unsubscribeCommands = window.aesyclaw.onCommands((cmds) => {
     commands.value = cmds;
   });
+  void loadCommands();
 
   document.addEventListener('click', closeCopyMenu);
 });
@@ -100,7 +101,7 @@ function onSend(
   files: DesktopUploadFile[],
   attachments: { name: string; mime: string; size: number }[],
 ) {
-  sendMessage(text, files, attachments);
+  void sendMessage(text, files, attachments);
 }
 
 function onCancel() {
@@ -114,6 +115,10 @@ function toggleCopyMenu(index: number): void {
 
 function closeCopyMenu(): void {
   activeCopyMenuIndex.value = null;
+}
+
+async function loadCommands(): Promise<void> {
+  commands.value = await window.aesyclaw.getCommands();
 }
 </script>
 
