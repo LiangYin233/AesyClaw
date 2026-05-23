@@ -25,7 +25,6 @@ const DEFAULT_CONFIG: DesktopChannelConfig = {
 
 let server: DesktopServer | null = null;
 
-
 export const channel: ChannelPlugin = {
   name: 'desktop',
   version: '0.1.0',

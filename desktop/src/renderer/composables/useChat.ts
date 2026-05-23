@@ -65,6 +65,8 @@ export type ChatSession = {
   pendingToolCalls: Map<string, ToolCallState>;
   /** 当前正在累积的 assistant 文本消息 */
   activeAssistantMessage: AssistantMessage | null;
+  /** 自上次 done 以来是否收到过 tool_call（用于过滤 send_msg 的 premature done） */
+  toolCallSinceLastDone: boolean;
 };
 
 export type ChatMessage =
@@ -310,6 +312,7 @@ function useChatImpl() {
       streaming: false,
       pendingToolCalls: new Map(),
       activeAssistantMessage: null,
+      toolCallSinceLastDone: false,
     };
   }
 
