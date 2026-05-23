@@ -155,8 +155,18 @@ export class Pipeline implements MessageProcessor {
 
         const outbound = await agent.process(
           transformedMessage,
+          // Agent 工具的中间消息（如 send_msg）→ 转为流式 chunk 输出，
+          // 避免通过 channel.send() 发送过早的 done 信号。
           async (msg) => {
-            return await this.deliver(send, msg, session.key);
+            const text = getMessageText(msg);
+            if (text) {
+              onStream({
+                components: [{ type: 'Plain', text }],
+                event: 'chunk',
+                chunkIndex: 0,
+              });
+            }
+            return true;
           },
           undefined,
           onStream,
