@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUpdated } from 'vue';
+import { ref, watch, nextTick, onMounted, onUpdated, onBeforeUpdate } from 'vue';
 import { renderMarkdownSafe } from '../utils/renderContent';
 import type { DesktopUsage } from '../../preload/index';
 import type {
@@ -202,6 +202,15 @@ let copiedStateTimer: ReturnType<typeof setTimeout> | null = null;
 
 /* ── Scroll ────────────────────────────────── */
 
+/** 用户是否已接近底部（容差 80px），用于判断是否自动滚到底 */
+let wasNearBottom = false;
+
+function isNearBottom(): boolean {
+  const el = messageListRef.value;
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+}
+
 function scrollToBottom() {
   nextTick(() => {
     const el = messageListRef.value;
@@ -210,7 +219,16 @@ function scrollToBottom() {
 }
 
 onMounted(scrollToBottom);
-onUpdated(scrollToBottom);
+
+// 在每次更新前记录用户位置
+onBeforeUpdate(() => {
+  wasNearBottom = isNearBottom();
+});
+
+// 只在用户原本就在底部附近时才自动滚动
+onUpdated(() => {
+  if (wasNearBottom) scrollToBottom();
+});
 
 /* ── Copy menu ─────────────────────────────── */
 
