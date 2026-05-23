@@ -24,6 +24,8 @@ const DEFAULT_CONFIG: DesktopChannelConfig = {
 // ─── 插件实例 ──────────────────────────────────────────────────────
 
 let server: DesktopServer | null = null;
+/** 正在流式输出的会话集合 — 非流式交付时跳过 done，避免 send_msg 过早结束流。 */
+const streamingSessions = new Set<string>();
 
 export const channel: ChannelPlugin = {
   name: 'desktop',
@@ -88,14 +90,18 @@ async function send(
   const streamEvent = message as unknown as StreamMessage;
 
   if (streamEvent.event) {
-    // 流式事件：转发到桌面客户端。
-    // done 事件会在渲染端固化已收到的 chunk；最终 Message 只是持久化结果，
-    // 不能再次发送，否则 desktop 会显示重复回复。
+    // 流式事件：track 活跃流状态。
+    if (streamEvent.event === 'chunk' || streamEvent.event === 'toolCall') {
+      streamingSessions.add(sessionId);
+    } else if (streamEvent.event === 'done') {
+      streamingSessions.delete(sessionId);
+    }
     server.forwardStreamEvent(sessionId, streamEvent);
     return;
   }
 
-  // 非流式路径（例如命令或 hook 直接响应）才发送最终文本。
+  // 非流式路径（命令 / hook / send_msg 中间投递）。
+  // 若当前 session 正在流式输出，跳过 done 避免中途结束流。
   const text = (message.components[0] as { text?: string })?.text ?? '';
   server.sendToSession(sessionId, {
     type: 'chunk',
@@ -103,10 +109,12 @@ async function send(
     text,
     index: 0,
   });
-  server.sendToSession(sessionId, {
-    type: 'done',
-    sessionId,
-  });
+  if (!streamingSessions.has(sessionId)) {
+    server.sendToSession(sessionId, {
+      type: 'done',
+      sessionId,
+    });
+  }
 }
 
 export default channel;

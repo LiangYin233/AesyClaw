@@ -15,6 +15,8 @@ let context: ChannelContext | null = null;
 let config: OneBotChannelConfig | null = null;
 let client: OneBotWebSocketClient | null = null;
 let destroyed = false;
+/** 流式输出缓冲区 — 按 chatId 累积 chunk 文本，收到 done 后一次性发送。 */
+const streamBuffers = new Map<string, string>();
 
 /**
  * OneBot 渠道插件。
@@ -48,7 +50,7 @@ export const channel: ChannelPlugin = {
     if (!client) {
       throw new Error('OneBot channel is not initialized');
     }
-    await sendOneBotMessage(sessionKey, message, client, context?.logger);
+    await handleOutbound(sessionKey, message);
   },
   receive: receiveMessage,
 };
@@ -109,6 +111,43 @@ async function handlePlatformPayload(payload: Record<string, unknown>): Promise<
   } catch (err) {
     context?.logger.error('Failed to process OneBot inbound message', err);
   }
+}
+
+/**
+ * 出站消息处理。流式事件缓冲后一次性发送，非流式消息直接发送。
+ */
+async function handleOutbound(sessionKey: SessionKey, message: Message): Promise<void> {
+  const chatId = sessionKey.chatId;
+
+  // 流式事件：缓冲 chunk，done 时一次性发送
+  if ('event' in message) {
+    const ev = (message as Record<string, unknown>)['event'] as string | undefined;
+    if (ev === 'chunk') {
+      const text = (message.components[0] as { text?: string } | undefined)?.text ?? '';
+      if (text) {
+        streamBuffers.set(chatId, (streamBuffers.get(chatId) ?? '') + text);
+      }
+      return;
+    }
+    if (ev === 'done') {
+      const accumulated = streamBuffers.get(chatId) ?? '';
+      streamBuffers.delete(chatId);
+      if (accumulated) {
+        await sendOneBotMessage(
+          sessionKey,
+          { components: [{ type: 'Plain', text: accumulated }] },
+          client!,
+          context?.logger,
+        );
+      }
+      return;
+    }
+    // toolCall / toolResult / error — onebot 不关心，忽略
+    return;
+  }
+
+  // 非流式消息（命令 / send_msg 中间投递）
+  await sendOneBotMessage(sessionKey, message, client!, context?.logger);
 }
 
 function isChatAllowed(sessionKey: SessionKey, config: OneBotChannelConfig | null): boolean {
