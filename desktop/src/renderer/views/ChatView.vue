@@ -17,7 +17,14 @@
     </div>
 
     <!-- Chat area -->
-    <div class="chat-area" v-if="activeSession()">
+    <div
+      class="chat-area"
+      v-if="activeSession()"
+      @dragover.prevent="handleDragOver"
+      @dragenter.prevent="handleDragEnter"
+      @dragleave="handleDragLeave"
+      @drop.prevent="handleDrop"
+    >
       <div class="message-list" ref="messageListRef">
         <div
           v-if="activeSession()!.messages.length === 0 && !activeSession()!.streaming"
@@ -43,11 +50,70 @@
                   :key="`${file.name}-${file.size}`"
                   class="attachment-chip"
                 >
-                  {{ attachmentIcon(file.mime) }} {{ file.name }}
+                  <svg
+                    class="attachment-icon"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    v-if="file.mime.startsWith('image/')"
+                  >
+                    <rect x="2" y="2" width="12" height="12" rx="1.5" />
+                    <circle cx="6" cy="6" r="1.5" />
+                    <path d="M2 11l3-3 2 2 4-4 3 3" />
+                  </svg>
+                  <svg
+                    class="attachment-icon"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    v-else-if="file.mime.startsWith('audio/')"
+                  >
+                    <path d="M5 2v10" />
+                    <path d="M5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                    <path d="M5 2l7 2v8" />
+                    <path d="M12 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                  </svg>
+                  <svg
+                    class="attachment-icon"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    v-else-if="file.mime.startsWith('video/')"
+                  >
+                    <rect x="1" y="3" width="14" height="10" rx="1.5" />
+                    <path d="M11 7l3-2v6l-3-2" />
+                  </svg>
+                  <svg
+                    class="attachment-icon"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    v-else
+                  >
+                    <path d="M5 1h4l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" />
+                    <path d="M9 1v4h4" />
+                  </svg>
+                  {{ file.name }}
                 </span>
               </div>
               <div class="message-footer">
-                <div class="message-actions" @click.stop>
+                <div v-if="msg.text?.trim()" class="message-actions" @click.stop>
                   <button
                     type="button"
                     class="copy-btn"
@@ -82,14 +148,31 @@
 
           <!-- Assistant -->
           <div v-else-if="msg.role === 'assistant'" class="assistant-block">
-            <div v-if="msg.text" class="assistant-bubble" :class="{ streaming: msg.streaming }">
+            <!-- 中间态 Thinking 气泡：tool call 之间的片段文本 -->
+            <div
+              v-if="msg.text && !msg.streaming && activeSession()?.streaming"
+              class="assistant-bubble thinking"
+            >
+              <span class="thinking-dot">●</span>
+              <span class="thinking-text">{{ msg.text }}</span>
+            </div>
+            <!-- 完整助理气泡：正在流式输出或已完成的消息 -->
+            <div
+              v-else-if="msg.text"
+              class="assistant-bubble"
+              :class="{ streaming: msg.streaming }"
+            >
               <div class="rendered-content" v-html="renderMarkdownSafe(msg.text)"></div>
               <span v-if="msg.streaming" class="cursor">|</span>
               <div class="message-footer">
                 <span v-if="shouldShowUsage(msg)" class="message-usage">{{
                   formatUsage(msg.usage)
                 }}</span>
-                <div class="message-actions" @click.stop>
+                <div
+                  v-if="!msg.streaming && !activeSession()?.streaming"
+                  class="message-actions"
+                  @click.stop
+                >
                   <button
                     type="button"
                     class="copy-btn"
@@ -134,13 +217,16 @@
                 <span class="tool-name">{{ msg.toolCall.toolName }}</span>
               </div>
               <div v-if="msg.toolCall.expanded" class="tool-card-body">
-                <div class="tool-section">
+                <div class="tool-section tool-section--result">
                   <span class="tool-label">Args</span>
                   <pre>{{ JSON.stringify(msg.toolCall.args, null, 2) }}</pre>
                 </div>
-                <div v-if="msg.toolCall.result !== undefined" class="tool-section">
+                <div
+                  v-if="msg.toolCall.result !== undefined"
+                  class="tool-section tool-section--result"
+                >
                   <span class="tool-label">Result</span>
-                  <pre>{{ JSON.stringify(msg.toolCall.result, null, 2) }}</pre>
+                  <pre>{{ formatToolResult(msg.toolCall.result) }}</pre>
                 </div>
               </div>
             </div>
@@ -160,6 +246,29 @@
         </div>
       </div>
 
+      <!-- Drag-and-drop overlay -->
+      <div v-if="isDragging" class="drag-overlay" aria-hidden="true">
+        <div class="drag-overlay-content">
+          <svg
+            class="drag-overlay-icon"
+            viewBox="0 0 48 48"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M24 18v14" />
+            <path d="M18 26l6 6 6-6" />
+            <path d="M30 10h.01" />
+            <path d="M28 4H12a2 2 0 0 0-2 2v28a2 2 0 0 0 2 2h24a2 2 0 0 0 2-2V14l-8-10z" />
+            <path d="M28 4v10h10" />
+          </svg>
+          <span class="drag-overlay-text">释放文件以附加到消息</span>
+        </div>
+      </div>
+
       <!-- Input -->
       <div class="input-area">
         <input
@@ -176,7 +285,66 @@
               :key="`${file.name}-${index}`"
               class="attachment-chip pending"
             >
-              {{ attachmentIcon(file.type) }} {{ file.name }}
+              <svg
+                class="attachment-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                v-if="file.type.startsWith('image/')"
+              >
+                <rect x="2" y="2" width="12" height="12" rx="1.5" />
+                <circle cx="6" cy="6" r="1.5" />
+                <path d="M2 11l3-3 2 2 4-4 3 3" />
+              </svg>
+              <svg
+                class="attachment-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                v-else-if="file.type.startsWith('audio/')"
+              >
+                <path d="M5 2v10" />
+                <path d="M5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                <path d="M5 2l7 2v8" />
+                <path d="M12 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+              </svg>
+              <svg
+                class="attachment-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                v-else-if="file.type.startsWith('video/')"
+              >
+                <rect x="1" y="3" width="14" height="10" rx="1.5" />
+                <path d="M11 7l3-2v6l-3-2" />
+              </svg>
+              <svg
+                class="attachment-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                v-else
+              >
+                <path d="M5 1h4l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" />
+                <path d="M9 1v4h4" />
+              </svg>
+              {{ file.name }}
               <button type="button" class="remove-file-btn" @click="removeSelectedFile(index)">
                 ×
               </button>
@@ -199,6 +367,7 @@
               rows="1"
               :disabled="activeSession()?.streaming"
               @keydown.enter="handleInputEnter"
+              @paste="handlePaste"
             ></textarea>
             <button v-if="activeSession()?.streaming" class="stop-btn" @click="handleCancel">
               Stop
@@ -238,6 +407,8 @@ const inputText = ref('');
 const messageListRef = ref<HTMLElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const selectedFiles = ref<File[]>([]);
+const isDragging = ref(false);
+let dragEnterCounter = 0;
 const canSend = computed(() => inputText.value.trim().length > 0 || selectedFiles.value.length > 0);
 let unsubscribeChat: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
@@ -325,6 +496,75 @@ function removeSelectedFile(index: number) {
   selectedFiles.value.splice(index, 1);
 }
 
+function handleDragEnter(event: DragEvent) {
+  if (activeSession()?.streaming) return;
+  // Use a counter to handle nested dragenter/dragleave
+  dragEnterCounter++;
+  isDragging.value = true;
+}
+
+function handleDragOver(event: DragEvent) {
+  if (activeSession()?.streaming) return;
+  // Must prevent default so drop works
+  event.dataTransfer!.dropEffect = 'copy';
+}
+
+function handleDragLeave(event: DragEvent) {
+  dragEnterCounter--;
+  if (dragEnterCounter <= 0) {
+    dragEnterCounter = 0;
+    isDragging.value = false;
+  }
+}
+
+function handleDrop(event: DragEvent) {
+  dragEnterCounter = 0;
+  isDragging.value = false;
+
+  if (activeSession()?.streaming) return;
+
+  const files = Array.from(event.dataTransfer?.files ?? []);
+  if (files.length > 0) {
+    selectedFiles.value = [...selectedFiles.value, ...files];
+  }
+}
+
+function handlePaste(event: ClipboardEvent) {
+  if (activeSession()?.streaming) {
+    event.preventDefault();
+    return;
+  }
+
+  // Check clipboard for files (e.g., screenshots)
+  const clipFiles = Array.from(event.clipboardData?.files ?? []);
+  if (clipFiles.length > 0) {
+    event.preventDefault();
+    selectedFiles.value = [...selectedFiles.value, ...clipFiles];
+    return;
+  }
+
+  // Check for image items in clipboard (some environments have items but no files)
+  if (!event.clipboardData) return;
+  const imageItems = Array.from(event.clipboardData.items).filter((item) =>
+    item.type.startsWith('image/'),
+  );
+  if (imageItems.length > 0) {
+    event.preventDefault();
+    void Promise.all(
+      imageItems.map(async (item) => {
+        const blob = item.getAsFile();
+        if (blob) {
+          const ext = item.type.split('/')[1] ?? 'png';
+          const file = new File([blob], `clipboard-${Date.now()}.${ext}`, {
+            type: item.type,
+          });
+          selectedFiles.value = [...selectedFiles.value, file];
+        }
+      }),
+    );
+  }
+}
+
 async function fileToUpload(file: File): Promise<DesktopUploadFile> {
   return {
     name: file.name,
@@ -332,13 +572,6 @@ async function fileToUpload(file: File): Promise<DesktopUploadFile> {
     size: file.size,
     data: await file.arrayBuffer(),
   };
-}
-
-function attachmentIcon(mime: string): string {
-  if (mime.startsWith('image/')) return '🖼️';
-  if (mime.startsWith('audio/')) return '🎵';
-  if (mime.startsWith('video/')) return '🎞️';
-  return '📎';
 }
 
 function shouldShowUsage(message: AssistantMessage): boolean {
@@ -351,6 +584,21 @@ function formatUsage(usage: DesktopUsage): string {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
+}
+
+function formatToolResult(result: unknown): string {
+  let text: string;
+  if (typeof result === 'string') {
+    // 字符串结果直接显示，不套 JSON 引号和转义
+    text = result;
+  } else {
+    text = JSON.stringify(result, null, 2);
+  }
+  // 截断过长的结果，避免撑爆视图
+  if (text.length > 5000) {
+    return text.slice(0, 5000) + '\n\n... (截断, 共 ' + text.length + ' 字符)';
+  }
+  return text;
 }
 
 function copyButtonLabel(messageIndex: number): string {
@@ -574,6 +822,15 @@ function scrollToBottom() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+user-select: none;
+-webkit-user-select: none;
+
+.attachment-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: currentColor;
+}
 .session-badge {
   color: var(--color-primary);
   font-weight: 500;
@@ -593,6 +850,51 @@ function scrollToBottom() {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+/* ── Drag overlay ────────────────────── */
+.chat-area {
+  position: relative;
+}
+
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(253, 251, 248, 0.85);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius);
+  margin: 8px;
+  pointer-events: none;
+}
+
+.drag-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.drag-overlay-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--color-primary);
+}
+
+.drag-overlay-text {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-primary);
 }
 
 .message-list {
@@ -951,6 +1253,48 @@ function scrollToBottom() {
 .assistant-bubble.streaming {
   border-left: 3px solid var(--color-primary);
 }
+
+.assistant-bubble.thinking {
+  max-width: 85%;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-mid-gray);
+  background: #f8f6f2;
+  border: 1px solid #eee9e0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.thinking-dot {
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--color-primary);
+  flex-shrink: 0;
+  animation: thinkingPulse 1.4s ease-in-out infinite;
+}
+.thinking-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+.thinking-text::after {
+  content: '…';
+}
+@keyframes thinkingPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
 .assistant-bubble.dim {
   color: var(--color-mid-gray);
   font-style: italic;
@@ -1008,6 +1352,8 @@ function scrollToBottom() {
   color: var(--color-mid-gray);
   transition: background var(--transition-fast);
 }
+user-select: none;
+-webkit-user-select: none;
 .tool-card-header:hover {
   background: rgba(20, 20, 19, 0.03);
 }
@@ -1066,6 +1412,27 @@ function scrollToBottom() {
   overflow-y: auto;
   margin: 0;
   line-height: 1.5;
+}
+
+.tool-section--result {
+  background: rgba(20, 20, 19, 0.02);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+}
+.tool-section--result .tool-label {
+  margin-bottom: 6px;
+}
+.tool-section--result pre {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  max-height: 240px;
+  color: #3d3a34;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 4px 0;
+  margin: 0;
 }
 
 /* ── Input ───────────────────────────── */

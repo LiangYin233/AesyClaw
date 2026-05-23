@@ -1,6 +1,6 @@
 {
   "name": "aesyclaw",
-  "version": "2026.5.19",
+  "version": "2026.5.23",
   "description": "An extensible AI Agent runtime platform",
   "private": true,
   "workspaces": [
@@ -24,7 +24,9 @@
     "format:check": "prettier . --check",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
     "@hono/node-server": "^2.0.2",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",

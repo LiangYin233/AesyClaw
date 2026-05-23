@@ -13,6 +13,40 @@ import type {
   DesktopUsage,
 } from '../../preload/index';
 
+/** 从后端历史消息的 content 文本中解析 [Attachments] 块，返回纯文本和结构化附件列表。 */
+function parseAttachmentsFromText(content: string): {
+  text: string;
+  attachments?: ChatAttachment[];
+} {
+  const ATTACHMENTS_HEADER = '[Attachments]';
+  const headerIndex = content.indexOf(ATTACHMENTS_HEADER);
+  if (headerIndex === -1) {
+    return { text: content };
+  }
+
+  const text = content.slice(0, headerIndex).trimEnd();
+  const block = content.slice(headerIndex + ATTACHMENTS_HEADER.length).trim();
+  const lines = block.split('\n').filter((l) => l.trim().startsWith('- '));
+
+  const attachments: ChatAttachment[] = [];
+  for (const line of lines) {
+    // 格式: "- kind: filePath (fileName, mimeType)"
+    const match = line.match(/\(([^)]+),\s*([^)]+)\)$/);
+    if (match) {
+      attachments.push({
+        name: match[1].trim(),
+        mime: match[2].trim(),
+        size: 0, // 历史消息不包含文件大小
+      });
+    }
+  }
+
+  return {
+    text,
+    attachments: attachments.length > 0 ? attachments : undefined,
+  };
+}
+
 export type ToolCallState = {
   toolCallId: string;
   toolName: string;
@@ -133,10 +167,11 @@ function useChatImpl() {
 
     session.messages = (response.data as DesktopHistoryMessage[]).map(
       (message): UserMessage | AssistantMessage => {
-        const text = stripInformationTags(message.content);
+        const { text, attachments } = parseAttachmentsFromText(message.content);
+        const cleanText = stripInformationTags(text);
         return message.role === 'assistant'
-          ? { role: 'assistant', text, streaming: false, usage: message.usage }
-          : { role: 'user', text };
+          ? { role: 'assistant', text: cleanText, streaming: false, usage: message.usage }
+          : { role: 'user', text: cleanText, attachments };
       },
     );
     session.activeAssistantMessage = null;
@@ -188,6 +223,10 @@ function useChatImpl() {
         };
         session.pendingToolCalls.set(event.toolCallId, toolCall);
         session.messages.push({ role: 'tool', toolCall });
+        // 关闭前一条助理消息的流式状态，防止光标残留
+        if (session.activeAssistantMessage) {
+          session.activeAssistantMessage.streaming = false;
+        }
         session.activeAssistantMessage = null;
         break;
       }
@@ -197,6 +236,10 @@ function useChatImpl() {
           tc.result = event.result;
           tc.isError = event.isError;
           tc.status = event.isError ? 'error' : 'done';
+        }
+        // 关闭前一条助理消息的流式状态
+        if (session.activeAssistantMessage) {
+          session.activeAssistantMessage.streaming = false;
         }
         session.activeAssistantMessage = null;
         break;
@@ -214,6 +257,10 @@ function useChatImpl() {
       case 'error': {
         session.messages.push({ role: 'system', text: `错误: ${event.message}` });
         session.streaming = false;
+        // 关闭前一条助理消息的流式状态
+        if (session.activeAssistantMessage) {
+          session.activeAssistantMessage.streaming = false;
+        }
         session.activeAssistantMessage = null;
         break;
       }
