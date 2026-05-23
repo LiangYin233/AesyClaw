@@ -112,6 +112,17 @@
             </button>
           </span>
         </div>
+        <CommandMenu
+          :items="filteredCommands"
+          :selectedIndex="menuIndex"
+          :visible="showMenu"
+          @select="
+            menuIndex = $event;
+            applyCompletion();
+          "
+          @highlight="menuIndex = $event"
+          @close="showMenu = false"
+        />
         <div class="input-row">
           <button
             type="button"
@@ -125,10 +136,10 @@
           <textarea
             v-model="inputText"
             class="chat-input"
-            placeholder="Type a message&hellip; (Enter to send, Shift+Enter for newline)"
+            placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
             rows="1"
             :disabled="streaming"
-            @keydown.enter="handleInputEnter"
+            @keydown="handleKeydown"
             @paste="handlePaste"
           ></textarea>
           <button v-if="streaming" class="stop-btn" @click="handleCancel">Stop</button>
@@ -140,9 +151,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { DesktopUploadFile } from '../../preload/index';
-
+import CommandMenu from './CommandMenu.vue';
 interface ChatAttachment {
   name: string;
   mime: string;
@@ -151,6 +162,7 @@ interface ChatAttachment {
 
 const props = defineProps<{
   streaming: boolean;
+  commands: Array<{ name: string; description: string }>;
 }>();
 
 const emit = defineEmits<{
@@ -162,6 +174,65 @@ const inputText = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const selectedFiles = ref<File[]>([]);
 const isDragging = ref(false);
+// ─── 命令补全 ──────────────────────────────────────────────
+const filteredCommands = ref<Array<{ name: string; description: string }>>([]);
+const showMenu = ref(false);
+const menuIndex = ref(0);
+
+watch(inputText, (val) => {
+  if (props.streaming) { showMenu.value = false; return; }
+
+  const slashIdx = val.lastIndexOf('/');
+  // 只触发：/ 在行首或空格之后，且不在换行后
+  // 用换行符分割检查最后一段，确保 / 不在换行之后
+  if (slashIdx < 0) { showMenu.value = false; return; }
+  const lastNewline = val.lastIndexOf(String.fromCharCode(10));
+  if (lastNewline > slashIdx) { showMenu.value = false; return; }
+  const partial = val.slice(slashIdx + 1);
+  const filtered = props.commands.filter((c) => c.name.startsWith(partial)).slice(0, 8);
+  filteredCommands.value = filtered;
+  showMenu.value = filtered.length > 0;
+  menuIndex.value = 0;
+});
+
+function applyCompletion() {
+  const cmd = filteredCommands.value[menuIndex.value];
+  if (!cmd) return;
+  const slashIdx = inputText.value.lastIndexOf('/');
+  inputText.value = inputText.value.slice(0, slashIdx + 1) + cmd.name + ' ';
+  showMenu.value = false;
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (showMenu.value) {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        menuIndex.value = Math.min(menuIndex.value + 1, filteredCommands.value.length - 1);
+        return;
+      case 'ArrowUp':
+        e.preventDefault();
+        menuIndex.value = Math.max(menuIndex.value - 1, 0);
+        return;
+      case 'Enter':
+      case 'Tab':
+        e.preventDefault();
+        applyCompletion();
+        return;
+      case 'Escape':
+        e.preventDefault();
+        showMenu.value = false;
+        return;
+    }
+  }
+
+  // 不显示菜单时，Enter 发送
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    handleSend();
+  }
+}
+
 let dragEnterCounter = 0;
 
 const canSend = computed(() => inputText.value.trim().length > 0 || selectedFiles.value.length > 0);
@@ -244,11 +315,7 @@ function handlePaste(event: ClipboardEvent) {
   }
 }
 
-function handleInputEnter(event: KeyboardEvent) {
-  if (event.shiftKey || event.isComposing) return;
-  event.preventDefault();
-  handleSend();
-}
+
 
 async function handleSend() {
   const text = inputText.value.trim();

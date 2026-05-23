@@ -110,6 +110,8 @@ export type DesktopErrorMessage = {
 export type DesktopAuthMessage = {
   type: 'auth';
   adminToken: string;
+  /** 可用命令列表，供客户端实现命令补全 */
+  commands?: Array<{ name: string; description: string }>;
 };
 
 /** 心跳请求 */

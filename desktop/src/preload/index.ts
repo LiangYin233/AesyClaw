@@ -126,6 +126,21 @@ const api = {
       ipcRenderer.removeListener('admin:message', handler);
     };
   },
+  /** 监听桌面频道下发的可用命令列表 */
+  onCommands: (
+    callback: (commands: Array<{ name: string; description: string }>) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: unknown,
+      commands: Array<{ name: string; description: string }>,
+    ): void => {
+      callback(commands);
+    };
+    ipcRenderer.on('chat:commands', handler);
+    return () => {
+      ipcRenderer.removeListener('chat:commands', handler);
+    };
+  },
 
   /** 监听连接状态变化 */
   onStatusChange: (callback: (status: ConnectionStatus) => void): (() => void) => {

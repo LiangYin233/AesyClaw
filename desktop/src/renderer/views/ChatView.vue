@@ -16,7 +16,12 @@
         @toggle-copy-menu="toggleCopyMenu"
         @close-copy-menu="closeCopyMenu"
       />
-      <ChatInput :streaming="!!activeSession()?.streaming" @send="onSend" @cancel="onCancel" />
+      <ChatInput
+        :commands="commands"
+        :streaming="!!activeSession()?.streaming"
+        @send="onSend"
+        @cancel="onCancel"
+      />
     </div>
 
     <!-- Empty -->
@@ -45,10 +50,11 @@ const {
   sendMessage,
   handleStreamEvent,
 } = useChat();
+const commands = ref<Array<{ name: string; description: string }>>([]);
 
 let unsubscribeChat: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
-
+let unsubscribeCommands: (() => void) | null = null;
 const activeCopyMenuIndex = ref<number | null>(null);
 
 onMounted(() => {
@@ -65,12 +71,17 @@ onMounted(() => {
     if (event.type === 'done') void syncSessionsFromBackend();
   });
 
+  unsubscribeCommands = window.aesyclaw.onCommands((cmds) => {
+    commands.value = cmds;
+  });
+
   document.addEventListener('click', closeCopyMenu);
 });
 
 onUnmounted(() => {
   unsubscribeChat?.();
   unsubscribeStatus?.();
+  unsubscribeCommands?.();
   document.removeEventListener('click', closeCopyMenu);
 });
 

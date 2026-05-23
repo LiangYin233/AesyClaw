@@ -163,6 +163,7 @@ void app.whenReady().then(() => {
   wsManager.on('chat-message', (msg) => mainWindow?.webContents.send('chat:message', msg));
   wsManager.on('admin-message', (msg) => mainWindow?.webContents.send('admin:message', msg));
   wsManager.on('status-change', (status) => mainWindow?.webContents.send('status:change', status));
+  wsManager.on('chat-commands', (cmds) => mainWindow?.webContents.send('chat:commands', cmds));
   wsManager.connect();
 });
 

@@ -40,7 +40,11 @@ export type ChatMessage =
   | { type: 'done'; sessionId: string; usage?: DesktopUsage }
   | { type: 'error'; sessionId: string; message: string };
 
-type ChatControlMessage = { type: 'auth'; adminToken: string };
+type ChatControlMessage = {
+  type: 'auth';
+  adminToken: string;
+  commands?: Array<{ name: string; description: string }>;
+};
 
 type ChatWsMessage = ChatMessage | ChatControlMessage;
 
@@ -72,6 +76,7 @@ export class WebSocketManager extends EventEmitter {
   private chatUrl: string;
   private adminUrl: string;
   private adminToken: string | null = null;
+  private _commands: Array<{ name: string; description: string }> = [];
   private status: ConnectionStatus = { chat: 'disconnected', admin: 'disconnected' };
   private adminRequests = new Map<string, (msg: AdminMessage) => void>();
   private reconnectEnabled = false;
@@ -252,6 +257,8 @@ export class WebSocketManager extends EventEmitter {
         const msg = JSON.parse(data.toString()) as ChatWsMessage;
         if (msg.type === 'auth') {
           this.adminToken = msg.adminToken;
+          this._commands = msg.commands ?? [];
+          this.emit('chat-commands', this._commands);
           this.connectAdmin();
           return;
         }
