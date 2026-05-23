@@ -336,7 +336,11 @@ describe('agent runner', () => {
     ]);
 
     await expect(turn).resolves.toMatchObject({ lastAssistant: 'usage done' });
-    expect(onEvent).toHaveBeenCalledWith({ type: 'done', usage });
+    expect(onEvent).toHaveBeenCalledWith({
+      kind: 'done',
+      usage,
+      session: { channel: 'test', type: 'private', chatId: 'runner' },
+    });
   });
 
   it('omits usage for intermediate assistant tool-call messages', async () => {
@@ -365,7 +369,11 @@ describe('agent runner', () => {
     ]);
 
     await expect(turn).resolves.toMatchObject({ lastAssistant: 'checking' });
-    expect(onEvent).toHaveBeenCalledWith({ type: 'done', usage: undefined });
+    expect(onEvent).toHaveBeenCalledWith({
+      kind: 'done',
+      usage: undefined,
+      session: { channel: 'test', type: 'private', chatId: 'runner' },
+    });
   });
 
   it('keeps OpenAI-compatible prompt cache defaults', async () => {

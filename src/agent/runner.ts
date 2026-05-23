@@ -21,7 +21,7 @@ import {
   type TSchema,
 } from '@mariozechner/pi-ai';
 import type { AgentMessage, AgentTool, AgentToolResult, ResolvedModel } from './types';
-import { serializeSessionKey, type SessionKey, type StreamEventMeta } from '@aesyclaw/core/types';
+import { serializeSessionKey, type OutboundSignal, type SessionKey } from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './llm/cache-options';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry, AgentRunHandle } from './registry';
@@ -49,8 +49,7 @@ export type AgentRunParams = {
   sessionKey: SessionKey;
   compressionThreshold: number;
   registry: AgentRegistry;
-  /** 流式事件回调。pi-agent-core 每产出一个中间事件则调用一次 */
-  onEvent?: (event: StreamEventMeta) => void;
+  onEvent?: (event: OutboundSignal) => void;
 };
 
 export type AgentRunResult = {
@@ -115,9 +114,9 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
   if (params.onEvent) {
     const onEvent = params.onEvent;
     agent.subscribe((event: AgentEvent) => {
-      const meta = convertAgentEvent(event, chunkIndex);
+      const meta = convertAgentEvent(event, chunkIndex, params.sessionKey);
       if (meta) {
-        if (meta.type === 'chunk') {
+        if (meta.kind === 'chunk') {
           chunkIndex++;
         }
         onEvent(meta);

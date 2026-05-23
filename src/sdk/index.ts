@@ -27,6 +27,7 @@ export type {
   UnknownComponent,
   MessageUsage,
   CommandDefinition,
+  OutboundSignal,
 } from '@aesyclaw/core/types';
 
 export { getMessageText } from '@aesyclaw/core/types';
@@ -41,12 +42,14 @@ export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-regi
 export type { HookCtx, HookResult, Middleware, HookRegistration } from '@aesyclaw/hook';
 
 export type {
-  StreamEventType,
-  StreamMessage,
-  OnStreamEvent,
-  StreamEventMeta,
-  StreamUsage,
-} from '@aesyclaw/core/types/stream';
+  OnOutboundSignal,
+  MessageSignal,
+  StreamChunkSignal,
+  StreamToolCallSignal,
+  StreamToolResultSignal,
+  StreamDoneSignal,
+  StreamErrorSignal,
+} from '@aesyclaw/core/types/signal';
 
 export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';

@@ -216,7 +216,7 @@ export class Application {
       pipeline: this.sub.pipeline,
       hooksBus: this.sub.pipeline.hooksBus,
       sessionManager: this.sub.sessionManager,
-      send: async (sk, msg) => await em.channels.send(sk, msg),
+      send: async (signal) => await em.channels.send(signal),
     });
     await this.cronManager.initialize();
 

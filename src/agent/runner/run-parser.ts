@@ -5,7 +5,7 @@
  */
 
 import type { AgentMessage } from '../types';
-import type { StreamUsage } from '@aesyclaw/core/types/stream';
+import type { MessageUsage } from '@aesyclaw/core/types';
 import { assistantHasToolCalls } from '@aesyclaw/contracts/llm';
 
 export function createAgentRunResult(newMessages: readonly AgentMessage[]): {
@@ -40,7 +40,9 @@ export function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record
   };
 }
 
-export function getFinalAssistantUsage(messages: readonly AgentMessage[]): StreamUsage | undefined {
+export function getFinalAssistantUsage(
+  messages: readonly AgentMessage[],
+): MessageUsage | undefined {
   const finalAssistant = findFinalAssistant(messages);
   if (!finalAssistant || assistantHasToolCalls(finalAssistant)) return undefined;
   const usage = (finalAssistant as unknown as { usage?: unknown }).usage;
@@ -61,7 +63,7 @@ export function getFinalAssistantUsage(messages: readonly AgentMessage[]): Strea
     return undefined;
   }
 
-  const result: StreamUsage = { input, output, cacheRead, cacheWrite, totalTokens };
+  const result: MessageUsage = { input, output, cacheRead, cacheWrite, totalTokens };
   const cost = usage['cost'];
   if (isPlainRecord(cost)) {
     const inputCost = numberField(cost, 'input');

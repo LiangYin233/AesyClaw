@@ -12,6 +12,7 @@ import type { IHooksBus, HookCtx } from '@aesyclaw/contracts/hook';
 import {
   getMessageText,
   type Message,
+  type OutboundSignal,
   type SessionKey,
   type SenderInfo,
   type SendFn,
@@ -21,7 +22,6 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import { createTimeInjectHook } from './time-inject';
 import { createAutoCompactHook } from './auto-compact';
-import type { StreamMessage } from '@aesyclaw/core/types/stream';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 
 const logger = createScopedLogger('pipeline');
@@ -83,7 +83,7 @@ export class Pipeline implements MessageProcessor {
       const receiveResult = await this.hooksBus.dispatch('pipeline:receive', receiveCtx);
       if (receiveResult.action !== 'next') {
         if (receiveResult.action === 'respond') {
-          await this.deliver(send, receiveResult.message, sessionKey);
+          await this.message(send, receiveResult.message, sessionKey, 'hook');
         }
         return;
       }
@@ -109,18 +109,23 @@ export class Pipeline implements MessageProcessor {
 
       if (resolved) {
         if (session.isLocked && !resolved.command.allowDuringAgentProcessing) {
-          await this.deliver(send, busyMessage(), session.key);
+          await this.message(send, busyMessage(), session.key);
           return;
         }
 
         const result = await this.deps.commandRegistry.executeResolved(resolved, { sessionKey });
-        await this.deliver(send, { components: [{ type: 'Plain', text: result }] }, session.key);
+        await this.message(
+          send,
+          { components: [{ type: 'Plain', text: result }] },
+          session.key,
+          'command',
+        );
         return;
       }
 
       // ── Step 5: 非命令锁定 ───────────────────────────────
       if (!session.lock()) {
-        await this.deliver(send, busyMessage(), session.key);
+        await this.message(send, busyMessage(), session.key);
         return;
       }
 
@@ -137,7 +142,7 @@ export class Pipeline implements MessageProcessor {
         const beforeResult = await this.hooksBus.dispatch('pipeline:beforeLLM', beforeCtx);
         if (beforeResult.action !== 'next') {
           if (beforeResult.action === 'respond') {
-            await this.deliver(send, beforeResult.message, session.key);
+            await this.message(send, beforeResult.message, session.key, 'hook');
           }
           return;
         }
@@ -146,9 +151,9 @@ export class Pipeline implements MessageProcessor {
 
         let streamed = false;
         // 流式事件回调：直接推送给 channel，不经过 pipeline:send 钩子链
-        const onStream = (streamEvent: StreamMessage): void => {
+        const onStream = (signal: OutboundSignal): void => {
           streamed = true;
-          void send(streamEvent).catch((err) => {
+          void send(signal).catch((err) => {
             logger.error('流式事件投递失败', err);
           });
         };
@@ -156,7 +161,14 @@ export class Pipeline implements MessageProcessor {
         const outbound = await agent.process(
           transformedMessage,
           async (msg) => {
-            return await this.deliver(send, msg, session.key);
+            await send({
+              kind: 'message',
+              session: session.key,
+              content: msg,
+              intermediate: true,
+              source: 'agent_send_message',
+            });
+            return true;
           },
           undefined,
           onStream,
@@ -166,7 +178,7 @@ export class Pipeline implements MessageProcessor {
         // 如果已走流式事件，最终 outbound 只用于持久化，不能再次投递给 channel，
         // 否则客户端会同时收到 chunk 流和最终完整文本，显示重复回复。
         if (session.isLocked && !streamed) {
-          await this.deliver(send, outbound, session.key);
+          await this.message(send, outbound, session.key, 'agent_final');
         }
       } finally {
         session.unlock();
@@ -178,28 +190,31 @@ export class Pipeline implements MessageProcessor {
   }
 
   /**
-   * 统一出站投递 — 运行 pipeline:send 链后调用 send。
-   *
-   * @returns true 表示成功投递，false 表示被阻断
+   * 发送 message 信号 — 运行 pipeline:send 链后包装为 OutboundSignal 投递。
    */
-  private async deliver(
+  private async message(
     send: SendFn,
     outbound: Message,
-    sessionKey?: SessionKey,
-  ): Promise<boolean> {
+    sessionKey: SessionKey,
+    source?: 'agent_final' | 'command' | 'hook' | 'agent_send_message',
+  ): Promise<void> {
     const sendCtx: HookCtx = {
       message: outbound,
-      sessionKey: sessionKey ?? { channel: '', type: '', chatId: '' },
+      sessionKey: sessionKey,
     };
     const sendResult = await this.hooksBus.dispatch('pipeline:send', sendCtx);
     if (sendResult.action === 'block') {
       logger.info('出站消息被 pipeline:send 链阻断');
-      return false;
+      return;
     }
 
     const finalOutbound: Message = sendResult.action === 'respond' ? sendResult.message : outbound;
 
-    await send(finalOutbound);
-    return true;
+    await send({
+      kind: 'message',
+      session: sessionKey,
+      content: finalOutbound,
+      source,
+    });
   }
 }

@@ -4,7 +4,7 @@
  * 桥接消息到 AesyClaw Pipeline 并转发流式事件。
  */
 
-import type { ChannelPlugin, ChannelContext, StreamMessage } from '@aesyclaw/sdk';
+import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
 import { DesktopServer } from './desktop-server';
 
 // ─── 配置类型 ──────────────────────────────────────────────────────
@@ -72,30 +72,37 @@ async function receive(): Promise<void> {
 }
 
 /**
- * 发送出站消息。
+ * 发送出站信号。
  *
- * 由 ChannelManager.send() 调用。消息可能是：
- * - 普通 Message：最终回复 → 作为 done 事件发送
- * - StreamMessage：流式事件 → 转发到对应桌面客户端
+ * 由 ChannelManager.send() 调用。
  */
-async function send(
-  sessionKey: { channel: string; type: string; chatId: string },
-  message: { components: unknown[] } & { event?: string },
-): Promise<void> {
+async function send(signal: OutboundSignal): Promise<void> {
   if (!server) return;
 
-  const sessionId = sessionKey.chatId;
-  const streamEvent = message as unknown as StreamMessage;
+  const sessionId = signal.session.chatId;
 
-  if (streamEvent.event) {
-    server.forwardStreamEvent(sessionId, streamEvent);
-    return;
+  switch (signal.kind) {
+    case 'chunk':
+    case 'toolCall':
+    case 'toolResult':
+    case 'done':
+    case 'error':
+      server.forwardStreamEvent(sessionId, signal);
+      return;
+
+    case 'message': {
+      const text = getMessageTextForDesktop(signal.content);
+      server.sendToSession(sessionId, { type: 'chunk', sessionId, text, index: 0 });
+      if (!signal.intermediate) {
+        server.sendToSession(sessionId, { type: 'done', sessionId });
+      }
+      return;
+    }
   }
+}
 
-  // 非流式路径（命令 / hook / send_msg 中间投递）。
-  const text = (message.components[0] as { text?: string })?.text ?? '';
-  server.sendToSession(sessionId, { type: 'chunk', sessionId, text, index: 0 });
-  server.sendToSession(sessionId, { type: 'done', sessionId });
+function getMessageTextForDesktop(msg: { components: unknown[] }): string {
+  return (msg.components[0] as { text?: string } | undefined)?.text ?? '';
 }
 
 export default channel;

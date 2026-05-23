@@ -65,8 +65,6 @@ export type ChatSession = {
   pendingToolCalls: Map<string, ToolCallState>;
   /** 当前正在累积的 assistant 文本消息 */
   activeAssistantMessage: AssistantMessage | null;
-  /** 自上次 done 以来是否收到过 tool_call（用于过滤 send_msg 的 premature done） */
-  toolCallSinceLastDone: boolean;
 };
 
 export type ChatMessage =
@@ -294,6 +292,7 @@ function useChatImpl() {
       case 'error': {
         session.messages.push({ role: 'system', text: `错误: ${event.message}` });
         session.streaming = false;
+        session.pendingToolCalls = new Map();
         // 关闭前一条助理消息的流式状态
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
@@ -312,7 +311,6 @@ function useChatImpl() {
       streaming: false,
       pendingToolCalls: new Map(),
       activeAssistantMessage: null,
-      toolCallSinceLastDone: false,
     };
   }
 

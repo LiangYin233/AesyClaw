@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Message, RoleConfig, SessionKey } from '../../../src/core/types';
+import type { OutboundSignal, RoleConfig, SessionKey } from '../../../src/core/types';
 import type { PipelineDependencies } from '../../../src/pipeline/types';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '../../../src/session';
 
@@ -123,7 +123,7 @@ describe('Pipeline', () => {
       },
     );
     const pipeline = await createPipeline(deps);
-    const send = vi.fn(async (_message: Message) => undefined);
+    const send = vi.fn(async (_signal: OutboundSignal) => undefined);
 
     await pipeline.receiveWithSend(
       { components: [{ type: 'Plain', text: 'hello' }] },
@@ -135,7 +135,9 @@ describe('Pipeline', () => {
     expect(beforeLLM).not.toHaveBeenCalled();
     expect(session.lock).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({
-      components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }],
+      kind: 'message',
+      session: sessionKey,
+      content: { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] },
     });
   });
 
@@ -156,7 +158,7 @@ describe('Pipeline', () => {
       },
     );
     const pipeline = await createPipeline(deps);
-    const send = vi.fn(async (_message: Message) => undefined);
+    const send = vi.fn(async (_signal: OutboundSignal) => undefined);
 
     await pipeline.receiveWithSend(
       { components: [{ type: 'Plain', text: 'hello' }] },
@@ -168,6 +170,11 @@ describe('Pipeline', () => {
     expect(session.lock).toHaveBeenCalledTimes(1);
     expect(session.unlock).toHaveBeenCalledTimes(1);
     expect(agentProcess).not.toHaveBeenCalled();
-    expect(send).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'hook response' }] });
+    expect(send).toHaveBeenCalledWith({
+      kind: 'message',
+      session: sessionKey,
+      content: { components: [{ type: 'Plain', text: 'hook response' }] },
+      source: 'hook',
+    });
   });
 });

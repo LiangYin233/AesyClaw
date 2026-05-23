@@ -7,7 +7,7 @@
 
 import type { RoleConfig, SessionKey, Message } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel } from '@aesyclaw/contracts/llm';
-import type { StreamMessage } from '@aesyclaw/core/types/stream';
+import type { OutboundSignal } from '@aesyclaw/core/types';
 import type { SessionRuntimeRef } from '@aesyclaw/contracts/session';
 
 /** callLLM 的返回结果 */
@@ -32,13 +32,13 @@ export type AgentRuntimeRef = {
     history: AgentMessage[],
     sessionKey: SessionKey,
     sendMessage?: (message: Message) => Promise<boolean>,
-    onStream?: (event: StreamMessage) => void,
+    onStream?: (event: OutboundSignal) => void,
   ): Promise<CallLLMResult>;
   /** 处理用户消息并返回回复 */
   process(
     message: Message,
     sendMessage?: (message: Message) => Promise<boolean>,
     options?: { ephemeral?: boolean; role?: RoleConfig },
-    onStream?: (event: StreamMessage) => void,
+    onStream?: (event: OutboundSignal) => void,
   ): Promise<Message>;
 };

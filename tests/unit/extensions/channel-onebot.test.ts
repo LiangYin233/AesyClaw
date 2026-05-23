@@ -572,7 +572,11 @@ describe('channel_onebot', () => {
       );
       expect(sessionKey).toEqual({ channel: 'onebot', type: 'private', chatId: '12345' });
       expect(sender).toEqual({ id: '12345', name: 'alice' });
-      await channel.send(sessionKey, { components: [{ type: 'Plain', text: 'pong' }] });
+      await channel.send({
+        kind: 'message',
+        session: sessionKey,
+        content: { components: [{ type: 'Plain', text: 'pong' }] },
+      });
     });
 
     await openTestChannel(channel, socket, {
@@ -874,7 +878,11 @@ describe('channel_onebot', () => {
     const { channel, socket } = createTestChannel();
     await openTestChannel(channel, socket);
 
-    const sendPromise = channel.send(groupSession('67890'), outbound('hello group'));
+    const sendPromise = channel.send({
+      kind: 'message',
+      session: groupSession('67890'),
+      content: outbound('hello group'),
+    });
     await flushMicrotasks();
 
     const sentAction = JSON.parse(socket.sent[0] ?? '{}') as {
@@ -900,7 +908,11 @@ describe('channel_onebot', () => {
     const { channel, socket } = createTestChannel();
     await openTestChannel(channel, socket);
 
-    const sendPromise = channel.send(groupSession('67890'), outbound('hello group'));
+    const sendPromise = channel.send({
+      kind: 'message',
+      session: groupSession('67890'),
+      content: outbound('hello group'),
+    });
     await flushMicrotasks();
 
     expect(socket.sent).toHaveLength(1);
@@ -991,7 +1003,11 @@ describe('channel_onebot', () => {
     firstSocket.dispatchOpen();
     await initPromise;
 
-    const firstSendPromise = channel.send(groupSession('67890'), outbound('hello group'));
+    const firstSendPromise = channel.send({
+      kind: 'message',
+      session: groupSession('67890'),
+      content: outbound('hello group'),
+    });
     await flushMicrotasks();
     expect(firstSocket.sent).toHaveLength(1);
 
@@ -1006,7 +1022,11 @@ describe('channel_onebot', () => {
     secondSocket.dispatchOpen();
     await flushMicrotasks();
 
-    const secondSendPromise = channel.send(groupSession('67890'), outbound('hello again'));
+    const secondSendPromise = channel.send({
+      kind: 'message',
+      session: groupSession('67890'),
+      content: outbound('hello again'),
+    });
     await flushMicrotasks();
 
     const sentAction = JSON.parse(secondSocket.sent[0] ?? '{}') as {

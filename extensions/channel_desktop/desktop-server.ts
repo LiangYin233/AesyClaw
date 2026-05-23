@@ -18,7 +18,7 @@ import type {
   DesktopFileBuffer,
   DesktopReceivedFile,
 } from './types';
-import type { ChannelContext, MessageComponent, StreamMessage } from '@aesyclaw/sdk';
+import type { ChannelContext, MessageComponent, OutboundSignal } from '@aesyclaw/sdk';
 
 export type DesktopServerOptions = {
   port: number;
@@ -66,54 +66,55 @@ export class DesktopServer {
     conn.sendJson(message);
   }
 
-  /** 处理来自 AesyClaw 内部的流式事件，转换为下行消息发送 */
-  forwardStreamEvent(sessionId: string, streamMsg: StreamMessage): void {
+  /** 处理来自 AesyClaw 内部的出站信号，转换为下行消息发送 */
+  forwardStreamEvent(sessionId: string, signal: OutboundSignal): void {
     const conn = this.sessions.getConnection(sessionId);
     if (!conn) return;
 
-    switch (streamMsg.event) {
-      case 'chunk': {
-        const text = (streamMsg.components[0] as { text?: string })?.text ?? '';
+    switch (signal.kind) {
+      case 'chunk':
         conn.sendJson({
           type: 'chunk',
           sessionId,
-          text,
-          index: streamMsg.chunkIndex ?? 0,
+          text: signal.text,
+          index: signal.index,
         } satisfies DesktopOutboundMessage);
         break;
-      }
       case 'toolCall':
         conn.sendJson({
           type: 'tool_call',
           sessionId,
-          toolCallId: streamMsg.toolCallId ?? '',
-          toolName: streamMsg.toolName ?? '',
-          args: streamMsg.args,
+          toolCallId: signal.toolCallId,
+          toolName: signal.toolName,
+          args: signal.args,
         } satisfies DesktopOutboundMessage);
         break;
       case 'toolResult':
         conn.sendJson({
           type: 'tool_result',
           sessionId,
-          toolCallId: streamMsg.toolCallId ?? '',
-          toolName: streamMsg.toolName ?? '',
-          result: streamMsg.result,
-          isError: streamMsg.isError ?? false,
+          toolCallId: signal.toolCallId,
+          toolName: signal.toolName,
+          result: signal.result,
+          isError: signal.isError,
         } satisfies DesktopOutboundMessage);
         break;
       case 'done':
         conn.sendJson({
           type: 'done',
           sessionId,
-          usage: streamMsg.usage,
+          usage: signal.usage,
         } satisfies DesktopOutboundMessage);
         break;
       case 'error':
         conn.sendJson({
           type: 'error',
           sessionId,
-          message: streamMsg.errorMessage ?? '未知错误',
+          message: signal.message,
         } satisfies DesktopOutboundMessage);
+        break;
+      case 'message':
+        // message 不在 forwardStreamEvent 中处理，由 index.ts 的 send() 直接处理
         break;
     }
   }

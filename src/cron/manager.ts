@@ -3,7 +3,7 @@
 import {
   parseSerializedSessionKey,
   type CronJobRecord,
-  type Message,
+  type OutboundSignal,
   type SessionKey,
 } from '@aesyclaw/core/types';
 import type {
@@ -26,7 +26,7 @@ export type CronManagerDependencies = {
   pipeline: MessageProcessor;
   hooksBus: IHooksBus;
   sessionManager: SessionManager;
-  send: (sessionKey: SessionKey, message: Message) => Promise<void>;
+  send: (signal: OutboundSignal) => Promise<void>;
   scheduler?: CronScheduler;
 };
 

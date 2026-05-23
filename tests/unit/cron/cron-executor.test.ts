@@ -4,7 +4,7 @@ import {
   createCronContextSessionKey,
   formatResult,
 } from '../../../src/cron/executor';
-import { parseSerializedSessionKey } from '../../../src/core/types';
+import { parseSerializedSessionKey, type OutboundSignal } from '../../../src/core/types';
 import type { CronJobRecord } from '../../../src/core/types';
 
 function makeJob(overrides: Partial<CronJobRecord> = {}): CronJobRecord {
@@ -96,9 +96,13 @@ describe('CronExecutor', () => {
             _msg: unknown,
             _sessionKey: unknown,
             _sender: unknown,
-            send: (m: unknown) => Promise<void>,
+            send: (signal: OutboundSignal) => Promise<void>,
           ) => {
-            await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
+            await send({
+              kind: 'message' as const,
+              session: { channel: 'test', type: 'private', chatId: '123' },
+              content: { components: [{ type: 'Plain', text: 'pipeline response' }] },
+            });
           },
         ),
     };
@@ -133,10 +137,11 @@ describe('CronExecutor', () => {
       expect(sessionKey).toEqual(createCronContextSessionKey('job-1'));
       expect(sender).toBeUndefined();
       expect(sendFn).toEqual(expect.any(Function));
-      expect(send).toHaveBeenCalledWith(
-        { channel: 'test', type: 'private', chatId: '123' },
-        { components: [{ type: 'Plain', text: 'pipeline response' }] },
-      );
+      expect(send).toHaveBeenCalledWith({
+        kind: 'message',
+        session: { channel: 'test', type: 'private', chatId: '123' },
+        content: { components: [{ type: 'Plain', text: 'pipeline response' }] },
+      });
       expect(sessionManager.create).toHaveBeenCalledWith({
         channel: 'test',
         type: 'private',
@@ -153,26 +158,34 @@ describe('CronExecutor', () => {
           _msg: unknown,
           _sessionKey: unknown,
           _sender: unknown,
-          send: (m: unknown) => Promise<void>,
+          send: (signal: OutboundSignal) => Promise<void>,
         ) => {
-          await send({ components: [{ type: 'Plain', text: 'first' }] });
-          await send({ components: [{ type: 'Plain', text: 'second' }] });
+          await send({
+            kind: 'message' as const,
+            session: { channel: 'test', type: 'private', chatId: '123' },
+            content: { components: [{ type: 'Plain', text: 'first' }] },
+          });
+          await send({
+            kind: 'message' as const,
+            session: { channel: 'test', type: 'private', chatId: '123' },
+            content: { components: [{ type: 'Plain', text: 'second' }] },
+          });
         },
       );
       const job = makeJob();
 
       await executor.execute(job);
 
-      expect(send).toHaveBeenNthCalledWith(
-        1,
-        { channel: 'test', type: 'private', chatId: '123' },
-        { components: [{ type: 'Plain', text: 'first' }] },
-      );
-      expect(send).toHaveBeenNthCalledWith(
-        2,
-        { channel: 'test', type: 'private', chatId: '123' },
-        { components: [{ type: 'Plain', text: 'second' }] },
-      );
+      expect(send).toHaveBeenNthCalledWith(1, {
+        kind: 'message',
+        session: { channel: 'test', type: 'private', chatId: '123' },
+        content: { components: [{ type: 'Plain', text: 'first' }] },
+      });
+      expect(send).toHaveBeenNthCalledWith(2, {
+        kind: 'message',
+        session: { channel: 'test', type: 'private', chatId: '123' },
+        content: { components: [{ type: 'Plain', text: 'second' }] },
+      });
       expect(sessionManager.create).toHaveBeenCalledWith({
         channel: 'test',
         type: 'private',

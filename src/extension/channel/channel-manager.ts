@@ -5,7 +5,7 @@
  * 本文件专注生命周期管理（start/stop/enable/disable）和消息路由。
  */
 
-import type { Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
+import type { Message, OutboundSignal, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import type {
@@ -212,12 +212,9 @@ export class ChannelManager {
 
   // ─── 运行时 ──────────────────────────────────────────────────────
 
-  /**
-   * 通过已加载的频道发送消息。
-   */
-  async send(sessionKey: SessionKey, message: Message): Promise<void> {
-    const loaded = this.requireLoaded(sessionKey.channel);
-    await loaded.definition.send(sessionKey, message);
+  async send(signal: OutboundSignal): Promise<void> {
+    const loaded = this.requireLoaded(signal.session.channel);
+    await loaded.definition.send(signal);
   }
 
   /**
@@ -230,8 +227,8 @@ export class ChannelManager {
     sender?: SenderInfo,
   ): Promise<void> {
     this.requireLoaded(channelName);
-    await this.deps.pipeline.receiveWithSend(inbound, sessionKey, sender, async (outbound) => {
-      await this.send(sessionKey, outbound);
+    await this.deps.pipeline.receiveWithSend(inbound, sessionKey, sender, async (signal) => {
+      await this.send(signal);
     });
   }
 

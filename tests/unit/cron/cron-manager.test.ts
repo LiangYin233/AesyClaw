@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CronJobRecord, Message, SessionKey } from '../../../src/core/types';
+import type { CronJobRecord, OutboundSignal, SessionKey } from '../../../src/core/types';
 import type {
   CronJobsRepository,
   CronRunsRepository,
@@ -118,7 +118,11 @@ function makePipeline(response = 'done', hooksBus = makeHooksBus()) {
   return {
     hooksBus,
     receiveWithSend: vi.fn(async (_message, _sessionKey, _sender, send) => {
-      await send({ components: [{ type: 'Plain', text: response }] });
+      await send({
+        kind: 'message' as const,
+        session: { channel: 'test', type: 'private', chatId: '1' },
+        content: { components: [{ type: 'Plain', text: response }] },
+      });
     }),
   } as unknown as ConstructorParameters<typeof CronManager>[0]['pipeline'];
 }
@@ -138,7 +142,7 @@ function makeInitializeDeps(params: {
   jobs: CronJobsRepository;
   runs: CronRunsRepository;
   pipeline?: ReturnType<typeof makePipeline>;
-  send?: (sessionKey: SessionKey, message: Message) => Promise<void>;
+  send?: (signal: OutboundSignal) => Promise<void>;
   sessionManager?: SessionManager;
   hooksBus?: IHooksBus;
   scheduler?: CronScheduler;
@@ -225,10 +229,11 @@ describe('Cron', () => {
       undefined,
       expect.any(Function),
     );
-    expect(send).toHaveBeenCalledWith(
-      { channel: 'test', type: 'private', chatId: '1' },
-      { components: [{ type: 'Plain', text: 'cron response' }] },
-    );
+    expect(send).toHaveBeenCalledWith({
+      kind: 'message',
+      session: { channel: 'test', type: 'private', chatId: '1' },
+      content: { components: [{ type: 'Plain', text: 'cron response' }] },
+    });
 
     expect(await manager.deleteJob(jobId)).toBe(true);
     await manager.destroy();
@@ -678,7 +683,11 @@ describe('Cron', () => {
         await new Promise<void>((resolve) => {
           unblockPipeline = resolve;
         });
-        await send({ components: [{ type: 'Plain', text: 'cron response' }] });
+        await send({
+          kind: 'message' as const,
+          session: { channel: 'test', type: 'private', chatId: '1' },
+          content: { components: [{ type: 'Plain', text: 'cron response' }] },
+        });
       }),
     };
     const scheduler = new CronScheduler();

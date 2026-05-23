@@ -2,7 +2,7 @@ import { Type } from '@sinclair/typebox';
 import { describe, expect, it, vi } from 'vitest';
 import { ChannelManager } from '../../../src/extension/channel/channel-manager';
 import type { ChannelContext, ChannelPlugin } from '../../../src/extension/channel/channel-types';
-import type { Message, SessionKey, SenderInfo } from '../../../src/core/types';
+import type { Message, OutboundSignal, SessionKey, SenderInfo } from '../../../src/core/types';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 
@@ -56,11 +56,15 @@ function makePipeline() {
     receiveWithSend: vi.fn(
       async (
         _message: Message,
-        _sessionKey: SessionKey,
+        sessionKey: SessionKey,
         _sender: SenderInfo | undefined,
-        send: (m: Message) => Promise<void>,
+        send: (signal: OutboundSignal) => Promise<void>,
       ) => {
-        await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
+        await send({
+          kind: 'message' as const,
+          session: sessionKey,
+          content: { components: [{ type: 'Plain', text: 'pipeline response' }] },
+        });
       },
     ),
   };
@@ -122,10 +126,11 @@ describe('ChannelManager', () => {
 
     expect(channel.init).toHaveBeenCalledOnce();
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
-    expect(channel.send).toHaveBeenCalledWith(
-      { channel: 'test', type: 'private', chatId: '1' },
-      { components: [{ type: 'Plain', text: 'pipeline response' }] },
-    );
+    expect(channel.send).toHaveBeenCalledWith({
+      kind: 'message',
+      session: { channel: 'test', type: 'private', chatId: '1' },
+      content: { components: [{ type: 'Plain', text: 'pipeline response' }] },
+    });
     expect(manager.getLoaded('test')).toBeDefined();
   });
 
@@ -157,10 +162,11 @@ describe('ChannelManager', () => {
     );
 
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
-    expect(channel.send).toHaveBeenCalledWith(
-      { channel: 'test', type: 'private', chatId: '1' },
-      { components: [{ type: 'Plain', text: 'pipeline response' }] },
-    );
+    expect(channel.send).toHaveBeenCalledWith({
+      kind: 'message',
+      session: { channel: 'test', type: 'private', chatId: '1' },
+      content: { components: [{ type: 'Plain', text: 'pipeline response' }] },
+    });
   });
 
   it('errors when receiving for an unloaded channel', async () => {
@@ -258,16 +264,18 @@ describe('ChannelManager', () => {
     });
 
     await manager.start('test');
-    await manager.send(
-      { channel: 'test', type: 'private', chatId: '1' },
-      { components: [{ type: 'Plain', text: 'hello' }] },
-    );
+    await manager.send({
+      kind: 'message',
+      session: { channel: 'test', type: 'private', chatId: '1' },
+      content: { components: [{ type: 'Plain', text: 'hello' }] },
+    });
     await manager.stopAll();
 
-    expect(channel.send).toHaveBeenCalledWith(
-      { channel: 'test', type: 'private', chatId: '1' },
-      { components: [{ type: 'Plain', text: 'hello' }] },
-    );
+    expect(channel.send).toHaveBeenCalledWith({
+      kind: 'message',
+      session: { channel: 'test', type: 'private', chatId: '1' },
+      content: { components: [{ type: 'Plain', text: 'hello' }] },
+    });
     expect(channel.destroy).toHaveBeenCalledOnce();
     expect(manager.getLoaded('test')).toBeUndefined();
   });

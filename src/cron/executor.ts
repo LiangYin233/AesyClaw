@@ -5,6 +5,7 @@ import {
   parseSerializedSessionKey,
   type CronJobRecord,
   type Message,
+  type OutboundSignal,
   type SessionKey,
 } from '@aesyclaw/core/types';
 import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
@@ -27,7 +28,7 @@ export class CronExecutor {
   constructor(
     private cronRuns: CronRunsRepository,
     private pipeline: MessageProcessor,
-    private send: (sessionKey: SessionKey, message: Message) => Promise<void>,
+    private send: (signal: OutboundSignal) => Promise<void>,
     private sessionManager: SessionManager,
   ) {}
 
@@ -51,15 +52,12 @@ export class CronExecutor {
         components: [{ type: 'Plain', text: job.prompt }],
       };
 
-      await this.pipeline.receiveWithSend(
-        inbound,
-        contextSessionKey,
-        undefined,
-        async (message) => {
-          await this.send(targetSessionKey, message);
-          outboundMessages.push(message);
-        },
-      );
+      await this.pipeline.receiveWithSend(inbound, contextSessionKey, undefined, async (signal) => {
+        await this.send(signal);
+        if (signal.kind === 'message') {
+          outboundMessages.push(signal.content);
+        }
+      });
 
       if (outboundMessages.length > 0) {
         const session = await this.sessionManager.create(targetSessionKey);

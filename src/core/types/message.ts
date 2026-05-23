@@ -1,5 +1,6 @@
 /** 消息类型 — 纯消息载荷、组件及持久化协议。 */
 import { isRecord } from '../utils';
+import type { OutboundSignal } from './signal';
 
 // ─── 发送者 ─────────────────────────────────────────────────
 
@@ -62,8 +63,8 @@ export function getMessageText(message: Pick<Message, 'components'>): string {
     .join('');
 }
 
-/** 通过频道发送传出消息的函数 */
-export type SendFn = (message: Message) => Promise<void>;
+/** 出站信号投递函数，由 pipeline 内部使用 */
+export type SendFn = (signal: OutboundSignal) => Promise<void>;
 
 // ─── 持久化 ────────────────────────────────────────────────────────
 

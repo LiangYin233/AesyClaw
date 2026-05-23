@@ -4,7 +4,7 @@ import {
   type Message,
   type RoleConfig,
   type SessionKey,
-  type StreamEventMeta,
+  type OutboundSignal,
 } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentMessage, ResolvedModel } from './types';
@@ -22,7 +22,6 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry } from './registry';
 import { runAgentTask, type AgentRunResult } from './runner';
 import { buildPrompt as buildPromptFromBuilder, type BuildPromptResult } from './prompt/builder';
-import type { StreamMessage } from '@aesyclaw/core/types/stream';
 
 const logger = createScopedLogger('agent');
 
@@ -167,7 +166,7 @@ export class Agent {
     message: Message,
     sendMessage?: (message: Message) => Promise<boolean>,
     options?: ProcessOptions,
-    onStream?: (event: StreamMessage) => void,
+    onStream?: (event: OutboundSignal) => void,
   ): Promise<Message> {
     const context = this.createProcessContext(options);
     if (!context) {
@@ -232,7 +231,7 @@ export class Agent {
     history: AgentMessage[],
     sessionKey: SessionKey,
     sendMessage?: (message: Message) => Promise<boolean>,
-    onStream?: (event: StreamMessage) => void,
+    onStream?: (event: OutboundSignal) => void,
   ): Promise<AgentRunResult> {
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
@@ -255,11 +254,7 @@ export class Agent {
       sessionKey,
       compressionThreshold: this.compressionThreshold,
       registry: this.registry,
-      onEvent: onStream
-        ? (meta: StreamEventMeta) => {
-            onStream(streamEventMetaToMessage(meta));
-          }
-        : undefined,
+      onEvent: onStream,
     });
   }
 
@@ -351,41 +346,5 @@ export class Agent {
     }
     logger.warn('Agent 未生成助手文本回复', { role: roleId });
     return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
-  }
-}
-
-// ─── StreamEventMeta → StreamMessage 转换 ────────────────────────
-
-function streamEventMetaToMessage(meta: StreamEventMeta): StreamMessage {
-  switch (meta.type) {
-    case 'chunk':
-      return {
-        components: [{ type: 'Plain', text: meta.text ?? '' }],
-        event: 'chunk',
-        chunkIndex: meta.chunkIndex,
-      };
-    case 'toolCall':
-      return {
-        components: [],
-        event: 'toolCall',
-        toolCallId: meta.toolCallId,
-        toolName: meta.toolName,
-        args: meta.args,
-      };
-    case 'toolResult':
-      return {
-        components: [],
-        event: 'toolResult',
-        toolCallId: meta.toolCallId,
-        toolName: meta.toolName,
-        result: meta.result,
-        isError: meta.isError,
-      };
-    case 'done':
-      return {
-        components: [],
-        event: 'done',
-        usage: meta.usage,
-      };
   }
 }

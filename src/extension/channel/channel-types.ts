@@ -1,6 +1,12 @@
 /** 频道接口定义。 */
 
-import type { CommandDefinition, Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
+import type {
+  CommandDefinition,
+  Message,
+  OutboundSignal,
+  SessionKey,
+  SenderInfo,
+} from '@aesyclaw/core/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
@@ -35,7 +41,7 @@ export type ChannelPlugin = {
   init(ctx: ChannelContext): Promise<void>;
   destroy?(): Promise<void>;
   receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
-  send(sessionKey: SessionKey, message: Message): Promise<void>;
+  send(signal: OutboundSignal): Promise<void>;
 };
 
 /** 内存中已加载频道的运行时表示。 */

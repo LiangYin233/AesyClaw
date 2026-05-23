@@ -109,12 +109,14 @@ export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
 
-// ─── 流式事件 ───────────────────────────────────────────────────────
-
+// ─── 出站信号 ───────────────────────────────────────────────────────
 export type {
-  StreamEventType,
-  StreamMessage,
-  OnStreamEvent,
-  StreamEventMeta,
-  StreamUsage,
-} from './types/stream';
+  OutboundSignal,
+  OnOutboundSignal,
+  MessageSignal,
+  StreamChunkSignal,
+  StreamToolCallSignal,
+  StreamToolResultSignal,
+  StreamDoneSignal,
+  StreamErrorSignal,
+} from './types/signal';
