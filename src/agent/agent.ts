@@ -319,7 +319,7 @@ export class Agent {
     logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: role.id });
     const followUpResult = await this.callLLM(
       role,
-      '请根据以上工具调用结果生成回复文本，不要调用工具。',
+      'You must generate a text response. If you already called tools, summarize their results. Do not call tools again unless absolutely necessary.',
       followUpHistory,
       this.session.key,
       sendMessage,

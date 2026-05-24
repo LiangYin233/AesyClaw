@@ -5,6 +5,7 @@
  */
 
 import type { AgentTool, AgentToolResult, AgentMessage } from '../types';
+import { extractMessageText } from '../types';
 import type { AfterToolCallContext, AfterToolCallResult } from '@mariozechner/pi-agent-core';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
@@ -72,24 +73,6 @@ export function calculateToolResultBudget(
     maxToolResultTokens,
     maxToolResultChars: Math.floor(maxToolResultTokens * 3.5),
   };
-}
-
-function extractMessageText(message: AgentMessage): string {
-  if (message.role === 'user') {
-    return typeof message.content === 'string'
-      ? message.content
-      : message.content
-          .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-          .map((c) => c.text)
-          .join('');
-  }
-  if (message.role === 'assistant' || message.role === 'toolResult') {
-    return message.content
-      .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-      .map((c) => c.text)
-      .join('');
-  }
-  return '';
 }
 
 export function limitToolResultContent<T extends AgentToolResult>(
