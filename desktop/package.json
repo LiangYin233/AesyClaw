@@ -1,5 +1,6 @@
 {
   "name": "aesyclaw-desktop",
+  "author": "AesyClaw",
   "version": "2026.5.24",
   "description": "AesyClaw Desktop — Electron 桌面客户端",
   "private": true,
@@ -27,6 +28,7 @@
     "vite": "^6.0.0"
   },
   "build": {
+    "electronVersion": "42.1.0",
     "appId": "com.aesyclaw.desktop",
     "productName": "AesyClaw Desktop",
     "directories": {
