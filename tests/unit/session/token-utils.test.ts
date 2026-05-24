@@ -7,9 +7,7 @@ describe('estimateApproximateTokens', () => {
   });
 
   it('estimates tokens for user text messages', () => {
-    const messages = [
-      { role: 'user' as const, content: 'Hello world', timestamp: Date.now() },
-    ];
+    const messages = [{ role: 'user' as const, content: 'Hello world', timestamp: Date.now() }];
     // 'Hello world' = 11 chars / 4 = 2.75 → 3
     expect(estimateApproximateTokens(messages)).toBe(3);
   });
@@ -18,7 +16,9 @@ describe('estimateApproximateTokens', () => {
     const messages = [
       {
         role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: 'This is a longer assistant response with more content.' }],
+        content: [
+          { type: 'text' as const, text: 'This is a longer assistant response with more content.' },
+        ],
         timestamp: Date.now(),
       },
     ];
@@ -29,7 +29,11 @@ describe('estimateApproximateTokens', () => {
   it('aggregates tokens across multiple messages', () => {
     const messages = [
       { role: 'user' as const, content: 'Hello', timestamp: Date.now() },
-      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Hi there!' }], timestamp: Date.now() },
+      {
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: 'Hi there!' }],
+        timestamp: Date.now(),
+      },
       { role: 'user' as const, content: 'How are you?', timestamp: Date.now() },
     ];
     // 'Hello' (5) + 'Hi there!' (9) + 'How are you?' (11) = 25 / 4 = 6.25 → 7

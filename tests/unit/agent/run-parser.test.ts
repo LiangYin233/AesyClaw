@@ -14,7 +14,10 @@ function toolCallContent(toolName: string) {
   return [{ type: 'toolCall' as const, id: 'tc-1', name: toolName, arguments: '{}' }];
 }
 
-function makeAssistant(content: ReturnType<typeof textContent> | ReturnType<typeof toolCallContent>, extra: Record<string, unknown> = {}) {
+function makeAssistant(
+  content: ReturnType<typeof textContent> | ReturnType<typeof toolCallContent>,
+  extra: Record<string, unknown> = {},
+) {
   return { role: 'assistant' as const, content, timestamp: Date.now(), ...extra };
 }
 
@@ -24,9 +27,7 @@ function makeUser(content: string) {
 
 describe('createAgentRunResult', () => {
   it('extracts last assistant text', () => {
-    const messages = [
-      makeAssistant(textContent('Final answer')),
-    ];
+    const messages = [makeAssistant(textContent('Final answer'))];
     const result = createAgentRunResult(messages);
     expect(result.lastAssistant).toBe('Final answer');
     expect(result.cancelled).toBe(false);
@@ -40,9 +41,7 @@ describe('createAgentRunResult', () => {
   });
 
   it('returns null lastAssistant when last assistant has only tool calls', () => {
-    const messages = [
-      makeAssistant(toolCallContent('search')),
-    ];
+    const messages = [makeAssistant(toolCallContent('search'))];
     const result = createAgentRunResult(messages);
     expect(result.lastAssistant).toBeNull();
   });
@@ -67,9 +66,7 @@ describe('createAgentRunResult', () => {
   });
 
   it('returns default error message when errorMessage is missing', () => {
-    const messages = [
-      makeAssistant(textContent(''), { stopReason: 'error' }),
-    ];
+    const messages = [makeAssistant(textContent(''), { stopReason: 'error' })];
     const result = createAgentRunResult(messages);
     expect(result.lastAssistant).toBe('[模型错误: 模型调用失败但未返回错误详情]');
   });
@@ -86,9 +83,7 @@ describe('createCancelledRunResult', () => {
 
 describe('getFinalAssistantMeta', () => {
   it('returns metadata for the final assistant message', () => {
-    const messages = [
-      makeAssistant(textContent('Final'), { stopReason: 'stop' }),
-    ];
+    const messages = [makeAssistant(textContent('Final'), { stopReason: 'stop' })];
     const meta = getFinalAssistantMeta(messages);
     expect(meta.lastAssistantRole).toBe('assistant');
     expect(meta.lastAssistantStopReason).toBe('stop');
@@ -116,7 +111,11 @@ describe('getFinalAssistantUsage', () => {
     const messages = [makeAssistant(textContent('Done'), { usage: fullUsage })];
     const usage = getFinalAssistantUsage(messages);
     expect(usage).toEqual({
-      input: 100, output: 50, cacheRead: 10, cacheWrite: 5, totalTokens: 165,
+      input: 100,
+      output: 50,
+      cacheRead: 10,
+      cacheWrite: 5,
+      totalTokens: 165,
       cost: { input: 0.001, output: 0.002, cacheRead: 0, cacheWrite: 0, total: 0.003 },
     });
   });
@@ -137,18 +136,28 @@ describe('getFinalAssistantUsage', () => {
   });
 
   it('returns usage without cost when cost is missing', () => {
-    const messages = [makeAssistant(textContent('Hi'), {
-      usage: { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150 },
-    })];
+    const messages = [
+      makeAssistant(textContent('Hi'), {
+        usage: { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150 },
+      }),
+    ];
     const usage = getFinalAssistantUsage(messages);
-    expect(usage).toEqual({ input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150 });
+    expect(usage).toEqual({
+      input: 100,
+      output: 50,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 150,
+    });
     expect(usage?.cost).toBeUndefined();
   });
 
   it('handles NaN values gracefully', () => {
-    const messages = [makeAssistant(textContent('Hi'), {
-      usage: { input: NaN, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150 },
-    })];
+    const messages = [
+      makeAssistant(textContent('Hi'), {
+        usage: { input: NaN, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150 },
+      }),
+    ];
     const usage = getFinalAssistantUsage(messages);
     // NaN is not a finite number → input is undefined → overall undefined
     expect(usage).toBeUndefined();

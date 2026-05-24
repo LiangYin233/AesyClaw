@@ -23,7 +23,9 @@ describe('calculateToolResultBudget', () => {
   });
 
   it('reduces budget with long history', () => {
-    const longHistory = [{ role: 'user' as const, content: 'x'.repeat(100_000), timestamp: Date.now() }];
+    const longHistory = [
+      { role: 'user' as const, content: 'x'.repeat(100_000), timestamp: Date.now() },
+    ];
     const budget = calculateToolResultBudget(model, compressionThreshold, longHistory, '');
     // used ~= 100000 / 3.5 ≈ 28571
     // remaining = 64000 - 28571 ≈ 35429
@@ -41,7 +43,12 @@ describe('calculateToolResultBudget', () => {
 
   it('accounts for current content', () => {
     const emptyHistory: { role: 'user'; content: string; timestamp: number }[] = [];
-    const budgetWithContent = calculateToolResultBudget(model, compressionThreshold, emptyHistory, 'test');
+    const budgetWithContent = calculateToolResultBudget(
+      model,
+      compressionThreshold,
+      emptyHistory,
+      'test',
+    );
     const budgetWithout = calculateToolResultBudget(model, compressionThreshold, emptyHistory, '');
     expect(budgetWithContent.maxToolResultTokens).toBeLessThan(budgetWithout.maxToolResultTokens);
   });
@@ -49,13 +56,23 @@ describe('calculateToolResultBudget', () => {
 
 describe('limitToolResultContent', () => {
   it('returns result unchanged when within budget', () => {
-    const result = { content: [textContent('short')], details: {}, isError: false, terminate: false };
+    const result = {
+      content: [textContent('short')],
+      details: {},
+      isError: false,
+      terminate: false,
+    };
     const budget = { maxToolResultTokens: 100, maxToolResultChars: 1000 };
     expect(limitToolResultContent(result, budget)).toBe(result);
   });
 
   it('truncates content when over budget', () => {
-    const result = { content: [textContent('a'.repeat(1000))], details: {}, isError: false, terminate: false };
+    const result = {
+      content: [textContent('a'.repeat(1000))],
+      details: {},
+      isError: false,
+      terminate: false,
+    };
     const budget = { maxToolResultTokens: 10, maxToolResultChars: 20 };
     const limited = limitToolResultContent(result, budget);
     expect(limited.content[0].text.length).toBe(20);
@@ -78,7 +95,12 @@ describe('limitToolResultContent', () => {
   });
 
   it('preserves isError and terminate flags', () => {
-    const result = { content: [textContent('a'.repeat(100))], details: {}, isError: true, terminate: true };
+    const result = {
+      content: [textContent('a'.repeat(100))],
+      details: {},
+      isError: true,
+      terminate: true,
+    };
     const budget = { maxToolResultTokens: 10, maxToolResultChars: 10 };
     const limited = limitToolResultContent(result, budget);
     expect(limited.isError).toBe(true);
@@ -86,7 +108,12 @@ describe('limitToolResultContent', () => {
   });
 
   it('adds truncation info to existing details', () => {
-    const result = { content: [textContent('a'.repeat(100))], details: { source: 'api' }, isError: false, terminate: false };
+    const result = {
+      content: [textContent('a'.repeat(100))],
+      details: { source: 'api' },
+      isError: false,
+      terminate: false,
+    };
     const budget = { maxToolResultTokens: 10, maxToolResultChars: 10 };
     const limited = limitToolResultContent(result, budget);
     expect((limited.details as Record<string, unknown>).source).toBe('api');

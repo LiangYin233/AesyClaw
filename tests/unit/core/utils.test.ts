@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { errorMessage, isRecord, mergeDefaults, parseModelIdentifier } from '../../../src/core/utils';
+import {
+  errorMessage,
+  isRecord,
+  mergeDefaults,
+  parseModelIdentifier,
+} from '../../../src/core/utils';
 
 describe('errorMessage', () => {
   it('extracts message from Error instances', () => {

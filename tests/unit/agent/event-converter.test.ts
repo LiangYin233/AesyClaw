@@ -7,7 +7,16 @@ describe('convertAgentEvent', () => {
   it('converts text_delta to chunk signal', () => {
     const event = {
       type: 'message_update',
-      message: { role: 'assistant', content: [], api: 'openai-responses', provider: 'test', model: 'test', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: 'stop', timestamp: Date.now() },
+      message: {
+        role: 'assistant',
+        content: [],
+        api: 'openai-responses',
+        provider: 'test',
+        model: 'test',
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
       assistantMessageEvent: { type: 'text_delta', delta: 'Hello' },
     } as never;
     const result = convertAgentEvent(event, 0, SESSION);
@@ -17,7 +26,16 @@ describe('convertAgentEvent', () => {
   it('returns null for empty text delta', () => {
     const event = {
       type: 'message_update',
-      message: { role: 'assistant', content: [], api: 'openai-responses', provider: 'test', model: 'test', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: 'stop', timestamp: Date.now() },
+      message: {
+        role: 'assistant',
+        content: [],
+        api: 'openai-responses',
+        provider: 'test',
+        model: 'test',
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
       assistantMessageEvent: { type: 'text_delta', delta: '' },
     } as never;
     expect(convertAgentEvent(event, 0, SESSION)).toBeNull();
@@ -26,7 +44,16 @@ describe('convertAgentEvent', () => {
   it('returns null for non-text_delta message_update', () => {
     const event = {
       type: 'message_update',
-      message: { role: 'assistant', content: [], api: 'openai-responses', provider: 'test', model: 'test', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: 'stop', timestamp: Date.now() },
+      message: {
+        role: 'assistant',
+        content: [],
+        api: 'openai-responses',
+        provider: 'test',
+        model: 'test',
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
       assistantMessageEvent: { type: 'tool_call_start', toolCallId: 'tc-1' },
     } as never;
     expect(convertAgentEvent(event, 0, SESSION)).toBeNull();
@@ -72,7 +99,16 @@ describe('convertAgentEvent', () => {
     const event = {
       type: 'agent_end',
       messages: [
-        { role: 'assistant', content: [{ type: 'text', text: 'Final answer' }], api: 'openai-responses', provider: 'test', model: 'test', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: 'stop', timestamp: Date.now() },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Final answer' }],
+          api: 'openai-responses',
+          provider: 'test',
+          model: 'test',
+          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        },
       ],
     } as never;
     const result = convertAgentEvent(event, 0, SESSION);
@@ -87,7 +123,16 @@ describe('convertAgentEvent', () => {
   it('passes through chunk index from caller', () => {
     const event = {
       type: 'message_update',
-      message: { role: 'assistant', content: [], api: 'openai-responses', provider: 'test', model: 'test', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: 'stop', timestamp: Date.now() },
+      message: {
+        role: 'assistant',
+        content: [],
+        api: 'openai-responses',
+        provider: 'test',
+        model: 'test',
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      },
       assistantMessageEvent: { type: 'text_delta', delta: 'Hi' },
     } as never;
     const result = convertAgentEvent(event, 5, SESSION);
