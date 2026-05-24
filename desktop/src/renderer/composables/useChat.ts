@@ -108,8 +108,8 @@ function useChatImpl() {
   const lastBackendSummaries = new Map<string, DesktopSessionSummary>();
   const pendingDeletedSessions = new Map<string, { confirmed: boolean }>();
 
-  const activeSession = computed((): ChatSession | null =>
-    sessions.value.find((s) => s.id === activeSessionId.value) ?? null
+  const activeSession = computed(
+    (): ChatSession | null => sessions.value.find((s) => s.id === activeSessionId.value) ?? null,
   );
 
   function createSession(): string {
