@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRunSubAgentTool, createRunTempSubAgentTool } from '../../../src/tool/builtin/run-sub-agent';
+import {
+  createRunSubAgentTool,
+  createRunTempSubAgentTool,
+} from '../../../src/tool/builtin/run-sub-agent';
 
 const SESSION_KEY = { channel: 'desktop' as const, type: 'private' as const, chatId: 'test' };
 const CTX = { sessionKey: SESSION_KEY } as never;
@@ -7,14 +10,23 @@ const CTX = { sessionKey: SESSION_KEY } as never;
 describe('createRunSubAgentTool', () => {
   it('runs sub-agent and returns result', async () => {
     const callLLM = vi.fn(async () => ({
-      newMessages: [{ role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Task done' }] }],
+      newMessages: [
+        { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Task done' }] },
+      ],
       lastAssistant: 'Task done',
     }));
     const tool = createRunSubAgentTool({
-      roleManager: { getRole: vi.fn(() => ({
-        id: 'helper', description: '', systemPrompt: 'You help.', model: 'openai/gpt-4o-mini',
-        toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true,
-      })) },
+      roleManager: {
+        getRole: vi.fn(() => ({
+          id: 'helper',
+          description: '',
+          systemPrompt: 'You help.',
+          model: 'openai/gpt-4o-mini',
+          toolPermission: { mode: 'denylist', list: [] },
+          skills: [],
+          enabled: true,
+        })),
+      },
       callLLM,
     });
     const result = await tool.execute({ roleId: 'helper', prompt: 'Do something' }, CTX);
@@ -37,10 +49,17 @@ describe('createRunSubAgentTool', () => {
       lastAssistant: null,
     }));
     const tool = createRunSubAgentTool({
-      roleManager: { getRole: vi.fn(() => ({
-        id: 'helper', description: '', systemPrompt: 'You help.', model: 'openai/gpt-4o-mini',
-        toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true,
-      })) },
+      roleManager: {
+        getRole: vi.fn(() => ({
+          id: 'helper',
+          description: '',
+          systemPrompt: 'You help.',
+          model: 'openai/gpt-4o-mini',
+          toolPermission: { mode: 'denylist', list: [] },
+          skills: [],
+          enabled: true,
+        })),
+      },
       callLLM,
     });
     const result = await tool.execute({ roleId: 'helper', prompt: 'test', enableTools: true }, CTX);
@@ -51,11 +70,23 @@ describe('createRunSubAgentTool', () => {
 describe('createRunTempSubAgentTool', () => {
   it('runs temp sub-agent with inline system prompt', async () => {
     const callLLM = vi.fn(async () => ({
-      newMessages: [{ role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Done' }] }],
+      newMessages: [
+        { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Done' }] },
+      ],
       lastAssistant: 'Done',
     }));
     const tool = createRunTempSubAgentTool({
-      roleManager: { getDefaultRole: vi.fn(() => ({ id: 'temp', description: '', systemPrompt: 'Temp', model: 'openai/gpt-4o-mini', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true })) },
+      roleManager: {
+        getDefaultRole: vi.fn(() => ({
+          id: 'temp',
+          description: '',
+          systemPrompt: 'Temp',
+          model: 'openai/gpt-4o-mini',
+          toolPermission: { mode: 'denylist', list: [] },
+          skills: [],
+          enabled: true,
+        })),
+      },
       callLLM,
     });
     const result = await tool.execute(

@@ -27,7 +27,13 @@ describe('createHelpCommand', () => {
 
   it('uses namespace:name format when namespace is present', async () => {
     const cmd = createHelpCommand(() => [
-      { name: 'cmd', namespace: 'plugin', description: 'Plugin command', scope: 'system', execute: vi.fn() },
+      {
+        name: 'cmd',
+        namespace: 'plugin',
+        description: 'Plugin command',
+        scope: 'system',
+        execute: vi.fn(),
+      },
     ]);
     const result = await cmd.execute([], { sessionKey: KEY });
     expect(result).toContain('/plugin cmd');

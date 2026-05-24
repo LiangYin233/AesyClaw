@@ -23,7 +23,11 @@ describe('createModelCommand', () => {
 
   it('returns resolveModel error message on failure', async () => {
     const cmd = createModelCommand(
-      { resolveModel: vi.fn(() => { throw new Error('Unknown provider'); }) } as never,
+      {
+        resolveModel: vi.fn(() => {
+          throw new Error('Unknown provider');
+        }),
+      } as never,
       {} as never,
     );
     const result = await cmd.execute(['invalid/model'], { sessionKey: KEY });

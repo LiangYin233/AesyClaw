@@ -15,7 +15,10 @@ describe('createClearCommand', () => {
   it('deletes session with delete arg', async () => {
     const del = vi.fn(async () => true);
     const unregister = vi.fn();
-    const cmd = createClearCommand({ clear: vi.fn(), delete: del }, { unregisterAgent: unregister });
+    const cmd = createClearCommand(
+      { clear: vi.fn(), delete: del },
+      { unregisterAgent: unregister },
+    );
     const result = await cmd.execute(['delete'], { sessionKey: KEY });
     expect(result).toBe('当前会话已删除。');
     expect(del).toHaveBeenCalledWith(KEY);

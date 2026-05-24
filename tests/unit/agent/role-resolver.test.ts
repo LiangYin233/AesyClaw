@@ -9,7 +9,10 @@ describe('createRoleResolver', () => {
     const result = await resolver.resolveActiveRoleId(
       { sessionKey: KEY },
       {
-        databaseManager: { sessions: { findByKey: vi.fn() }, roleBindings: { getActiveRole: vi.fn() } } as never,
+        databaseManager: {
+          sessions: { findByKey: vi.fn() },
+          roleBindings: { getActiveRole: vi.fn() },
+        } as never,
         agentRegistry: { getAgent: vi.fn(() => ({ roleId: 'custom-role' })) } as never,
       },
     );
@@ -21,7 +24,10 @@ describe('createRoleResolver', () => {
     const result = await resolver.resolveActiveRoleId(
       { sessionKey: KEY },
       {
-        databaseManager: { sessions: { findByKey: vi.fn(async () => null) }, roleBindings: { getActiveRole: vi.fn() } } as never,
+        databaseManager: {
+          sessions: { findByKey: vi.fn(async () => null) },
+          roleBindings: { getActiveRole: vi.fn() },
+        } as never,
         agentRegistry: { getAgent: vi.fn(() => null) } as never,
       },
     );
