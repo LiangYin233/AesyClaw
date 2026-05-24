@@ -5,9 +5,13 @@
  * Session 只保留状态管理与持久化。
  */
 
-import type { AgentMessage, ResolvedModel } from '@aesyclaw/contracts/llm';
-import { extractMessageText, makeExtraBodyOnPayload } from '@aesyclaw/contracts/llm';
-import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
+import {
+  extractMessageText,
+  makeExtraBodyOnPayload,
+  type AgentMessage,
+  type ModelResolver,
+  type ResolvedModel,
+} from '@aesyclaw/contracts/llm';
 import {
   withDefaultPromptCacheModel,
   withDefaultPromptCacheOptions,
@@ -29,7 +33,7 @@ export type CompactorSession = {
  * 使用 LLM 压缩会话历史。
  */
 export async function compactSession(
-  llmAdapter: LlmAdapter,
+  llmResolver: ModelResolver,
   modelIdentifier: string,
   session: {
     sessionId: string;
@@ -38,7 +42,7 @@ export async function compactSession(
     db?: { messages: MessagesRepository; usage?: UsageRepository };
   },
 ): Promise<string> {
-  const model = llmAdapter.resolveModel(modelIdentifier);
+  const model = llmResolver.resolveModel(modelIdentifier);
   const messages = session.get() as AgentMessage[];
   logger.info('正在压缩会话历史', {
     sessionId: session.sessionId,

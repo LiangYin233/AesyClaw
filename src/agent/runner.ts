@@ -20,7 +20,7 @@ import {
   type SimpleStreamOptions,
   type TSchema,
 } from '@mariozechner/pi-ai';
-import type { AgentMessage, AgentTool, AgentToolResult, ResolvedModel } from './types';
+import type { AgentMessage, AgentTool, ResolvedModel } from './types';
 import { serializeSessionKey, type OutboundSignal, type SessionKey } from '@aesyclaw/core/types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './llm/cache-options';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -154,19 +154,15 @@ function throwIfCancelled(signal: AbortSignal): void {
     throw signal.reason instanceof Error ? signal.reason : new AgentRunCancelledError();
   }
 }
-
 function createStreamFn(apiKey: string, extraBody?: Record<string, unknown>): StreamFn {
   const hasExtra = extraBody !== undefined && Object.keys(extraBody).length > 0;
-  if (!hasExtra) {
-    return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) => {
-      const cacheModel = withDefaultPromptCacheModel(m);
-      return streamSimple(
-        cacheModel,
-        ctx,
-        withDefaultPromptCacheOptions(cacheModel, { ...opts, apiKey }),
-      );
-    };
-  }
+  const onPayload = hasExtra
+    ? (p: unknown): unknown =>
+        typeof p === 'object' && p !== null
+          ? { ...(p as Record<string, unknown>), ...extraBody }
+          : p
+    : undefined;
+
   return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) => {
     const cacheModel = withDefaultPromptCacheModel(m);
     return streamSimple(
@@ -175,10 +171,7 @@ function createStreamFn(apiKey: string, extraBody?: Record<string, unknown>): St
       withDefaultPromptCacheOptions(cacheModel, {
         ...opts,
         apiKey,
-        onPayload: (p: unknown): unknown =>
-          typeof p === 'object' && p !== null
-            ? { ...(p as Record<string, unknown>), ...extraBody }
-            : p,
+        ...(onPayload ? { onPayload } : {}),
       }),
     );
   };

@@ -8,9 +8,9 @@ import {
   createUserMessage,
   extractMessageText,
   type AgentMessage,
+  type ModelResolver,
 } from '@aesyclaw/contracts/llm';
 import { createPersistedAssistantMessage } from '@aesyclaw/agent/types';
-import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type {
   MessagesRepository,
   UsageRepository,
@@ -98,8 +98,8 @@ export class Session {
     logger.info('会话历史已清除', { sessionId: this.sessionId });
   }
 
-  async compact(llmAdapter: LlmAdapter, modelIdentifier: string): Promise<string> {
-    return await compactSession(llmAdapter, modelIdentifier, {
+  async compact(llmResolver: ModelResolver, modelIdentifier: string): Promise<string> {
+    return await compactSession(llmResolver, modelIdentifier, {
       sessionId: this.sessionId,
       get: () => this.get(),
       bind: () => this.bind(),

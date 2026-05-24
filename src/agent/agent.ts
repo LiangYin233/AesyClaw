@@ -329,7 +329,7 @@ export class Agent {
     return {
       newMessages: result.newMessages.concat(followUpAssistantMessages),
       lastAssistant: followUpResult.lastAssistant,
-      cancelled: false,
+      cancelled: followUpResult.cancelled,
     };
   }
 
