@@ -175,7 +175,7 @@ import {
   ChartBarSquareIcon,
   ChartBarIcon,
 } from '@heroicons/vue/24/outline';
-import type { ChannelStatus, UsageSummary } from '@/types/api';
+import type { ChannelStatus, StatusResponse, UsageSummary } from '@/types/api';
 
 const ws = useWebSocket();
 
@@ -216,14 +216,14 @@ async function loadUsage() {
 
 async function load() {
   try {
-    const statusData = (await ws.send('get_status')) as Record<string, unknown>;
-    uptime.value = (statusData['uptime'] as number) ?? 0;
-    channels.value = (statusData['channels'] as ChannelStatus[]) ?? [];
-    const db = statusData['database'] as Record<string, number> | undefined;
+    const statusData = (await ws.send('get_status')) as StatusResponse;
+    uptime.value = statusData.uptime;
+    channels.value = statusData.channels ?? [];
+    const db = statusData.database;
     stats.value = {
-      sessions: (db?.['sessions'] as number) ?? 0,
-      messages: (db?.['messages'] as number) ?? 0,
-      cronJobs: (db?.['cronJobs'] as number) ?? 0,
+      sessions: db?.sessions ?? 0,
+      messages: db?.messages ?? 0,
+      cronJobs: db?.cronJobs ?? 0,
     };
     await loadUsage();
   } catch (err) {

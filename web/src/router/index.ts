@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import { useAuth } from '@/composables/useAuth';
+import { token } from '@/composables/useAuth';
 import { useWebSocket } from '@/composables/useWebSocket';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -77,7 +77,6 @@ const router = createRouter({
 });
 
 router.beforeEach((to, _from, next) => {
-  const { token } = useAuth();
   const isPublic = to.meta['public'] === true;
   if (!isPublic && (token.value ?? null) === null) {
     next('/login');

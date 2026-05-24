@@ -82,3 +82,14 @@ export interface LogEntry {
   message: string;
   details: string | null;
 }
+
+export interface StatusResponse {
+  version?: string;
+  uptime: number;
+  channels: ChannelStatus[];
+  database: {
+    sessions: number;
+    messages: number;
+    cronJobs: number;
+  };
+}

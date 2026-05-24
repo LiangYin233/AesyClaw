@@ -279,7 +279,7 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 function messageKey(message: PersistableMessage, index: number): string {
-  return `${message.timestamp}:${message.role}:${index}`;
+  return `${message.timestamp}:${message.role}:${message.content.slice(0, 30)}`;
 }
 
 onMounted(loadSessions);

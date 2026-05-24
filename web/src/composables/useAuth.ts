@@ -19,7 +19,7 @@ function removeCookie(name: string): void {
 }
 
 const initialToken = sessionStorage.getItem(TOKEN_KEY) ?? getCookie(TOKEN_KEY);
-const token = ref<string | null>(initialToken);
+export const token = ref<string | null>(initialToken);
 
 function login(newToken: string): void {
   token.value = newToken;
@@ -37,24 +37,22 @@ function logout(): void {
   ws.disconnect();
 }
 
-if (token.value) {
-  const ws = useWebSocket();
-  ws.connect(token.value);
-}
+// 惰性初始化：首次调用 useAuth() 时若有 token 则自动连接 WS
+let initialized = false;
 
-watch(token, (newToken) => {
-  const ws = useWebSocket();
-  if (!newToken) {
-    ws.disconnect();
-  }
-});
-
-/**
- * 认证管理 composable。
- * token 持久化到 sessionStorage 和 cookie，登录/登出时同步管理 WebSocket 连接。
- *
- * @returns token ref 和 login、logout 方法
- */
 export function useAuth() {
+  if (!initialized) {
+    initialized = true;
+    if (token.value) {
+      const ws = useWebSocket();
+      ws.connect(token.value);
+    }
+    watch(token, (newToken) => {
+      const ws = useWebSocket();
+      if (!newToken) {
+        ws.disconnect();
+      }
+    });
+  }
   return { token, login, logout };
 }

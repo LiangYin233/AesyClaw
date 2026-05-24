@@ -293,35 +293,26 @@ export function useConfigEditor() {
     getExtraBodyError,
     getExtraBodyText,
   };
-
   function setExtraBodyDraft(providerKey: string, modelKey: string, value: string): void {
-    extraBodyDrafts.value = {
-      ...extraBodyDrafts.value,
-      [configEditor.getExtraBodyErrorKey(providerKey, modelKey)]: value,
-    };
+    extraBodyDrafts.value[configEditor.getExtraBodyErrorKey(providerKey, modelKey)] = value;
   }
 
   function setExtraBodyError(providerKey: string, modelKey: string, message: string): void {
-    extraBodyErrors.value = {
-      ...extraBodyErrors.value,
-      [configEditor.getExtraBodyErrorKey(providerKey, modelKey)]: message,
-    };
+    extraBodyErrors.value[configEditor.getExtraBodyErrorKey(providerKey, modelKey)] = message;
   }
 
   function clearExtraBodyError(providerKey: string, modelKey: string): void {
     const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
-    if (!Object.hasOwn(extraBodyErrors.value, key)) return;
-    const next = { ...extraBodyErrors.value };
-    delete next[key];
-    extraBodyErrors.value = next;
+    if (Object.hasOwn(extraBodyErrors.value, key)) {
+      delete extraBodyErrors.value[key];
+    }
   }
 
   function clearExtraBodyDraft(providerKey: string, modelKey: string): void {
     const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
-    if (!Object.hasOwn(extraBodyDrafts.value, key)) return;
-    const next = { ...extraBodyDrafts.value };
-    delete next[key];
-    extraBodyDrafts.value = next;
+    if (Object.hasOwn(extraBodyDrafts.value, key)) {
+      delete extraBodyDrafts.value[key];
+    }
   }
 
   function clearExtraBodyState(providerKey: string, modelKey: string): void {
@@ -331,12 +322,12 @@ export function useConfigEditor() {
 
   function clearProviderExtraBodyErrors(providerKey: string): void {
     const prefix = `${providerKey}:`;
-    extraBodyErrors.value = Object.fromEntries(
-      Object.entries(extraBodyErrors.value).filter(([key]) => !key.startsWith(prefix)),
-    );
-    extraBodyDrafts.value = Object.fromEntries(
-      Object.entries(extraBodyDrafts.value).filter(([key]) => !key.startsWith(prefix)),
-    );
+    for (const key of Object.keys(extraBodyErrors.value)) {
+      if (key.startsWith(prefix)) delete extraBodyErrors.value[key];
+    }
+    for (const key of Object.keys(extraBodyDrafts.value)) {
+      if (key.startsWith(prefix)) delete extraBodyDrafts.value[key];
+    }
   }
 
   function renameExtraBodyState(
@@ -346,13 +337,13 @@ export function useConfigEditor() {
   ): void {
     const oldKey = configEditor.getExtraBodyErrorKey(providerKey, oldModelKey);
     const newKey = configEditor.getExtraBodyErrorKey(providerKey, newModelKey);
-    if (extraBodyErrors.value[oldKey]) {
-      extraBodyErrors.value = { ...extraBodyErrors.value, [newKey]: extraBodyErrors.value[oldKey] };
-      clearExtraBodyError(providerKey, oldModelKey);
+    if (extraBodyErrors.value[oldKey] !== undefined) {
+      extraBodyErrors.value[newKey] = extraBodyErrors.value[oldKey];
+      delete extraBodyErrors.value[oldKey];
     }
-    if (extraBodyDrafts.value[oldKey]) {
-      extraBodyDrafts.value = { ...extraBodyDrafts.value, [newKey]: extraBodyDrafts.value[oldKey] };
-      clearExtraBodyDraft(providerKey, oldModelKey);
+    if (extraBodyDrafts.value[oldKey] !== undefined) {
+      extraBodyDrafts.value[newKey] = extraBodyDrafts.value[oldKey];
+      delete extraBodyDrafts.value[oldKey];
     }
   }
 
