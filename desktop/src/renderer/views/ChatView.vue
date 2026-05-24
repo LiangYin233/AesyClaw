@@ -9,17 +9,17 @@
     />
 
     <!-- Chat area -->
-    <div class="chat-area" v-if="activeSession()">
+    <div class="chat-area" v-if="activeSession">
       <MessageList
-        :messages="activeSession()!.messages"
-        :activeSession="activeSession()"
+        :messages="activeSession.messages ?? []"
+        :activeSession="activeSession"
         :activeCopyMenuIndex="activeCopyMenuIndex"
         @toggle-copy-menu="toggleCopyMenu"
         @close-copy-menu="closeCopyMenu"
       />
       <ChatInput
         :commands="commands"
-        :streaming="!!activeSession()?.streaming"
+        :streaming="!!activeSession?.streaming"
         @send="onSend"
         @cancel="onCancel"
       />
@@ -106,7 +106,7 @@ function onSend(
 }
 
 function onCancel() {
-  const session = activeSession();
+  const session = activeSession.value;
   if (session) window.aesyclaw.cancelChat(session.id);
 }
 

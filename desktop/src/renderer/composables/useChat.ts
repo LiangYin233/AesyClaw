@@ -3,7 +3,7 @@
  * 管理会话、消息流、流式文本拼接、工具调用历史。
  */
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { makeSessionTitle, stripInformationTags } from '../utils/title';
 import type {
   ChatMessageEvent,
@@ -108,8 +108,9 @@ function useChatImpl() {
   const lastBackendSummaries = new Map<string, DesktopSessionSummary>();
   const pendingDeletedSessions = new Map<string, { confirmed: boolean }>();
 
-  const activeSession = (): ChatSession | null =>
-    sessions.value.find((s) => s.id === activeSessionId.value) ?? null;
+  const activeSession = computed((): ChatSession | null =>
+    sessions.value.find((s) => s.id === activeSessionId.value) ?? null
+  );
 
   function createSession(): string {
     const id = `desktop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

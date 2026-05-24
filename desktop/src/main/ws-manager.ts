@@ -199,20 +199,15 @@ export class WebSocketManager extends EventEmitter {
         return;
       }
 
-      this.adminRequests.set(request.requestId, resolve);
-
       const timeout = setTimeout(() => {
         this.adminRequests.delete(request.requestId);
         resolve({ type: request.type, ok: false, error: '请求超时' });
       }, 10000);
 
-      // 包装 resolve 以清除超时
-      const originalResolve = resolve;
       this.adminRequests.set(request.requestId, (msg) => {
         clearTimeout(timeout);
-        originalResolve(msg);
+        resolve(msg);
       });
-
       this.adminWs.send(
         JSON.stringify({
           type: request.type,
