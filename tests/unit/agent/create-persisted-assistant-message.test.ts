@@ -22,14 +22,27 @@ describe('createPersistedAssistantMessage', () => {
   });
 
   it('accepts custom usage', () => {
-    const usage = { input: 10, output: 20, cacheRead: 0, cacheWrite: 0, totalTokens: 30, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+    const usage = {
+      input: 10,
+      output: 20,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 30,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    };
     const msg = createPersistedAssistantMessage('Hello', 1000, usage);
     expect(msg.usage).toEqual(usage);
   });
 
   it('uses zero usage when not provided', () => {
     const msg = createPersistedAssistantMessage('Hello');
-    expect(msg.usage).toMatchObject({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 });
+    expect(msg.usage).toMatchObject({
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+    });
     expect(msg.usage!.cost).toBeDefined();
   });
 

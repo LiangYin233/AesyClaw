@@ -95,7 +95,10 @@ describe('extractMessageText', () => {
   it('extracts text from user array content message', () => {
     const msg = {
       role: 'user' as const,
-      content: [{ type: 'text' as const, text: 'hello' }, { type: 'text' as const, text: ' world' }],
+      content: [
+        { type: 'text' as const, text: 'hello' },
+        { type: 'text' as const, text: ' world' },
+      ],
       timestamp: Date.now(),
     };
     expect(extractMessageText(msg)).toBe('hello world');

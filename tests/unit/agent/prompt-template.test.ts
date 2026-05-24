@@ -20,7 +20,15 @@ const makeSkill = (name: string) => ({
 describe('buildAgentPrompt', () => {
   it('includes system prompt', () => {
     const result = buildAgentPrompt({
-      role: { id: 'test', description: '', systemPrompt: 'You are a helpful assistant.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true },
+      role: {
+        id: 'test',
+        description: '',
+        systemPrompt: 'You are a helpful assistant.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: [],
+        enabled: true,
+      },
       availableTools: [],
       skills: [],
       allRoles: [],
@@ -33,7 +41,15 @@ describe('buildAgentPrompt', () => {
 
   it('includes tool section when tools are available', () => {
     const result = buildAgentPrompt({
-      role: { id: 'test', description: '', systemPrompt: 'You are a bot.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true },
+      role: {
+        id: 'test',
+        description: '',
+        systemPrompt: 'You are a bot.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: [],
+        enabled: true,
+      },
       availableTools: [makeTool('search', 'Search the web')],
       skills: [],
       allRoles: [],
@@ -48,7 +64,15 @@ describe('buildAgentPrompt', () => {
 
   it('includes skill section when skills are present', () => {
     const result = buildAgentPrompt({
-      role: { id: 'test', description: '', systemPrompt: 'You are a bot.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: ['skill-a'], enabled: true },
+      role: {
+        id: 'test',
+        description: '',
+        systemPrompt: 'You are a bot.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: ['skill-a'],
+        enabled: true,
+      },
       availableTools: [],
       skills: [makeSkill('skill-a')],
       allRoles: [],
@@ -61,7 +85,15 @@ describe('buildAgentPrompt', () => {
 
   it('includes user communication section for normal agents', () => {
     const result = buildAgentPrompt({
-      role: { id: 'test', description: '', systemPrompt: 'Be helpful.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true },
+      role: {
+        id: 'test',
+        description: '',
+        systemPrompt: 'Be helpful.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: [],
+        enabled: true,
+      },
       availableTools: [makeTool('send_msg', 'Send message to user')],
       skills: [],
       allRoles: [],
@@ -75,7 +107,15 @@ describe('buildAgentPrompt', () => {
 
   it('omits user communication section for sub-agents', () => {
     const result = buildAgentPrompt({
-      role: { id: 'test', description: '', systemPrompt: 'Be helpful.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true },
+      role: {
+        id: 'test',
+        description: '',
+        systemPrompt: 'Be helpful.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: [],
+        enabled: true,
+      },
       availableTools: [makeTool('search', 'Search')],
       skills: [],
       allRoles: [],
@@ -88,7 +128,15 @@ describe('buildAgentPrompt', () => {
 
   it('omits user communication section for cron jobs', () => {
     const result = buildAgentPrompt({
-      role: { id: 'test', description: '', systemPrompt: 'Be helpful.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true },
+      role: {
+        id: 'test',
+        description: '',
+        systemPrompt: 'Be helpful.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: [],
+        enabled: true,
+      },
       availableTools: [makeTool('search', 'Search')],
       skills: [],
       allRoles: [],
@@ -101,10 +149,28 @@ describe('buildAgentPrompt', () => {
 
   it('includes role section when other roles exist', () => {
     const result = buildAgentPrompt({
-      role: { id: 'main', description: '', systemPrompt: 'You are main.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true },
+      role: {
+        id: 'main',
+        description: '',
+        systemPrompt: 'You are main.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: [],
+        enabled: true,
+      },
       availableTools: [],
       skills: [],
-      allRoles: [{ id: 'helper', description: 'Helper role', systemPrompt: 'You help.', model: 'gpt-4o-mini', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true }],
+      allRoles: [
+        {
+          id: 'helper',
+          description: 'Helper role',
+          systemPrompt: 'You help.',
+          model: 'gpt-4o-mini',
+          toolPermission: { mode: 'denylist', list: [] },
+          skills: [],
+          enabled: true,
+        },
+      ],
       skillDirs: {},
       isSubAgent: false,
       isCron: false,
@@ -115,7 +181,15 @@ describe('buildAgentPrompt', () => {
 
   it('replaces template variables', () => {
     const result = buildAgentPrompt({
-      role: { id: 'test', description: '', systemPrompt: 'Running on {{os}} with {{systemLang}}.', model: 'gpt-4o', toolPermission: { mode: 'denylist', list: [] }, skills: [], enabled: true },
+      role: {
+        id: 'test',
+        description: '',
+        systemPrompt: 'Running on {{os}} with {{systemLang}}.',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist', list: [] },
+        skills: [],
+        enabled: true,
+      },
       availableTools: [],
       skills: [],
       allRoles: [],

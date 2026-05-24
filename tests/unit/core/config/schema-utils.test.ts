@@ -9,12 +9,20 @@ describe('validateWithSchema', () => {
   });
 
   it('validates and returns value when valid', () => {
-    const result = validateWithSchema<{ name: string; count: number }>(TestSchema, { name: 'test', count: 42 }, '测试');
+    const result = validateWithSchema<{ name: string; count: number }>(
+      TestSchema,
+      { name: 'test', count: 42 },
+      '测试',
+    );
     expect(result).toEqual({ name: 'test', count: 42 });
   });
 
   it('applies default values', () => {
-    const result = validateWithSchema<{ name: string; count: number }>(TestSchema, { name: 'test' }, '测试');
+    const result = validateWithSchema<{ name: string; count: number }>(
+      TestSchema,
+      { name: 'test' },
+      '测试',
+    );
     expect(result).toEqual({ name: 'test', count: 0 });
   });
 
