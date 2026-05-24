@@ -24,6 +24,7 @@ let wsManager: WebSocketManager | null = null;
 // ─── 配置 ──────────────────────────────────────────────────────────
 
 function createWindow(): void {
+  const iconPath = join(__dirname, '..', '..', 'assets', 'icon.png');
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -36,6 +37,7 @@ function createWindow(): void {
     closable: true,
     resizable: true,
     title: 'AesyClaw Desktop',
+    icon: iconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

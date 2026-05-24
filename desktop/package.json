@@ -25,5 +25,35 @@
     "electron-vite": "^2.3.0",
     "typescript": "^6.0.3",
     "vite": "^6.0.0"
+  },
+  "build": {
+    "appId": "com.aesyclaw.desktop",
+    "productName": "AesyClaw Desktop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "assets/icon.png"
+    ],
+    "icon": "assets/icon.png",
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "target": [
+        "dmg"
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }
