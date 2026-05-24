@@ -6,7 +6,7 @@ describe('desktop useChat send_msg stream handling', () => {
   it('handles the normal send_msg flow: tool_call -> chunk -> tool_result -> done', () => {
     const chat = useChat();
     const sessionId = chat.createSession();
-    const session = chat.activeSession();
+    const session = chat.activeSession.value;
     if (session) session.streaming = true;
 
     chat.handleStreamEvent({
@@ -19,7 +19,7 @@ describe('desktop useChat send_msg stream handling', () => {
 
     chat.handleStreamEvent({ type: 'chunk', sessionId, text: '处理中', index: 0 });
 
-    const afterToolCall = chat.activeSession();
+    const afterToolCall = chat.activeSession.value;
     expect(afterToolCall?.pendingToolCalls.get('call-1')?.status).toBe('running');
     expect(afterToolCall?.streaming).toBe(true);
 
@@ -32,13 +32,13 @@ describe('desktop useChat send_msg stream handling', () => {
       isError: false,
     });
 
-    const afterToolResult = chat.activeSession();
+    const afterToolResult = chat.activeSession.value;
     expect(afterToolResult?.pendingToolCalls.get('call-1')?.status).toBe('done');
     expect(afterToolResult?.streaming).toBe(true);
 
     chat.handleStreamEvent({ type: 'done', sessionId });
 
-    const afterFinalDone = chat.activeSession();
+    const afterFinalDone = chat.activeSession.value;
     expect(afterFinalDone?.streaming).toBe(false);
     expect(afterFinalDone?.pendingToolCalls.size).toBe(0);
   });

@@ -53,7 +53,7 @@ describe('desktop useChat history usage', () => {
       await chat.syncSessionsFromBackend();
       await chat.loadSessionMessages('desktop-chat-id');
 
-      expect(chat.activeSession()?.messages).toEqual([
+      expect(chat.activeSession.value?.messages).toEqual([
         { role: 'user', text: 'hello' },
         { role: 'assistant', text: 'hi', streaming: false, usage },
       ]);
