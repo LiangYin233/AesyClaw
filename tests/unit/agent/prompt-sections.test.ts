@@ -3,7 +3,17 @@ import { buildRoleSection, buildSkillSection } from '../../../src/agent/prompt/s
 
 describe('buildRoleSection', () => {
   it('builds section with one role', () => {
-    const roles = [{ id: 'helper', description: 'Helpful assistant', systemPrompt: '', model: 'gpt-4o', toolPermission: { mode: 'denylist' as const, list: [] }, skills: [], enabled: true }];
+    const roles = [
+      {
+        id: 'helper',
+        description: 'Helpful assistant',
+        systemPrompt: '',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist' as const, list: [] },
+        skills: [],
+        enabled: true,
+      },
+    ];
     const result = buildRoleSection(roles);
     expect(result).toContain('## 角色');
     expect(result).toContain('**helper**');
@@ -13,8 +23,24 @@ describe('buildRoleSection', () => {
 
   it('builds section with multiple roles', () => {
     const roles = [
-      { id: 'coder', description: 'Writes code', systemPrompt: '', model: 'gpt-4o', toolPermission: { mode: 'denylist' as const, list: [] }, skills: [], enabled: true },
-      { id: 'writer', description: 'Writes prose', systemPrompt: '', model: 'gpt-4o-mini', toolPermission: { mode: 'denylist' as const, list: [] }, skills: [], enabled: true },
+      {
+        id: 'coder',
+        description: 'Writes code',
+        systemPrompt: '',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist' as const, list: [] },
+        skills: [],
+        enabled: true,
+      },
+      {
+        id: 'writer',
+        description: 'Writes prose',
+        systemPrompt: '',
+        model: 'gpt-4o-mini',
+        toolPermission: { mode: 'denylist' as const, list: [] },
+        skills: [],
+        enabled: true,
+      },
     ];
     const result = buildRoleSection(roles);
     expect(result).toContain('**coder**');
@@ -36,7 +62,11 @@ describe('buildRoleSection', () => {
 
 describe('buildSkillSection', () => {
   const makeSkill = (name: string, description: string) => ({
-    name, description, content: 'content', isSystem: true, filePath: `/skills/${name}.md`,
+    name,
+    description,
+    content: 'content',
+    isSystem: true,
+    filePath: `/skills/${name}.md`,
   });
 
   it('builds section with one skill', () => {
@@ -54,10 +84,10 @@ describe('buildSkillSection', () => {
   });
 
   it('includes path section when skillDirs are provided', () => {
-    const result = buildSkillSection(
-      [makeSkill('research', 'Research')],
-      { systemDir: '/skills/system', userDir: '/skills/user' },
-    );
+    const result = buildSkillSection([makeSkill('research', 'Research')], {
+      systemDir: '/skills/system',
+      userDir: '/skills/user',
+    });
     expect(result).toContain('6. **路径**');
     expect(result).toContain('系统技能');
     expect(result).toContain('`/skills/system`');
@@ -66,10 +96,7 @@ describe('buildSkillSection', () => {
   });
 
   it('includes only systemDir when userDir is absent', () => {
-    const result = buildSkillSection(
-      [makeSkill('test', 'Test')],
-      { systemDir: '/skills/system' },
-    );
+    const result = buildSkillSection([makeSkill('test', 'Test')], { systemDir: '/skills/system' });
     expect(result).toContain('6. **路径**');
     expect(result).toContain('系统技能');
     expect(result).not.toContain('用户技能');
