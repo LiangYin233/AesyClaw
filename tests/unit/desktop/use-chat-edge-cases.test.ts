@@ -84,7 +84,11 @@ describe('desktop useChat edge cases', () => {
     expect(session.activeAssistantMessage?.text).toBe('Hello');
     expect(session.activeAssistantMessage?.streaming).toBe(true);
     expect(session.messages.length).toBe(1);
-    expect(session.messages[0]).toMatchObject({ role: 'assistant', text: 'Hello', streaming: true });
+    expect(session.messages[0]).toMatchObject({
+      role: 'assistant',
+      text: 'Hello',
+      streaming: true,
+    });
   });
 
   it('multiple chunks are concatenated', () => {

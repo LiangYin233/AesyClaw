@@ -60,9 +60,9 @@ describe('normalizeConnectionConfig', () => {
   });
 
   it('throws for invalid host in strict mode', () => {
-    expect(() =>
-      normalizeConnectionConfig({ host: 'http://evil' }, { strict: true }),
-    ).toThrow('Host must be a hostname');
+    expect(() => normalizeConnectionConfig({ host: 'http://evil' }, { strict: true })).toThrow(
+      'Host must be a hostname',
+    );
   });
 
   it('normalizes ports', () => {
@@ -96,7 +96,12 @@ describe('normalizeConnectionConfig', () => {
   });
 
   it('accepts custom fallback', () => {
-    const customFallback = { host: '10.0.0.1', desktopPort: 9999, adminPort: 8888, token: 'custom' };
+    const customFallback = {
+      host: '10.0.0.1',
+      desktopPort: 9999,
+      adminPort: 8888,
+      token: 'custom',
+    };
     const result = normalizeConnectionConfig({}, { fallback: customFallback });
     expect(result).toEqual(customFallback);
   });
