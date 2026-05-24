@@ -8,8 +8,8 @@ describe('estimateApproximateTokens', () => {
 
   it('estimates tokens for user text messages', () => {
     const messages = [{ role: 'user' as const, content: 'Hello world', timestamp: Date.now() }];
-    // 'Hello world' = 11 chars / 4 = 2.75 → 3
-    expect(estimateApproximateTokens(messages)).toBe(3);
+    // 'Hello world' = 11 chars / 3.5 = 3.14 → 4
+    expect(estimateApproximateTokens(messages)).toBe(4);
   });
 
   it('estimates tokens for assistant text messages', () => {
@@ -36,8 +36,8 @@ describe('estimateApproximateTokens', () => {
       },
       { role: 'user' as const, content: 'How are you?', timestamp: Date.now() },
     ];
-    // 'Hello' (5) + 'Hi there!' (9) + 'How are you?' (11) = 25 / 4 = 6.25 → 7
-    expect(estimateApproximateTokens(messages)).toBe(7);
+    // 'Hello' (5) + 'Hi there!' (9) + 'How are you?' (11) = 25 / 3.5 = 7.14 → 8
+    expect(estimateApproximateTokens(messages)).toBe(8);
   });
 
   it('handles assistant messages with empty text content', () => {

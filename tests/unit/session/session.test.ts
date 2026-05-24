@@ -67,7 +67,7 @@ describe('Session.syncFromAgent', () => {
     await session.compact(llmAdapter as never, 'openai/gpt-4o');
 
     const compactLog = getRecentLogEntries().find((entry) => entry.message === '正在压缩会话历史');
-    expect(compactLog?.details).toContain("totalTokens: '5/128000'");
+    expect(compactLog?.details).toContain("totalTokens: '6/128000'");
   });
 
   it('restores persisted assistant usage when binding history', async () => {

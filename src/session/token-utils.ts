@@ -15,6 +15,6 @@ export function estimateApproximateTokens(messages: readonly AgentMessage[]): nu
     (total, message) => total + extractMessageText(message).length,
     0,
   );
-  // Using 4 as divisor produces more predictable results than 3.5
-  return Math.ceil(textLength / 4);
+  // 与 tool-runtime.ts 保持一致的经验系数
+  return Math.ceil(textLength / 3.5);
 }
