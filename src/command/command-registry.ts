@@ -58,8 +58,9 @@ export class CommandRegistry {
     if (this.commands.has(key)) {
       throw new Error(`命令 "${key}" 已注册`);
     }
-    this.commands.set(key, command);
-    logger.debug(`已注册命令: ${key} (作用域: ${command.scope})`);
+    const cmd: CommandDefinition = command;
+    this.commands.set(key, cmd);
+    logger.debug(`已注册命令: ${key} (作用域: ${cmd.scope})`);
   }
 
   /**

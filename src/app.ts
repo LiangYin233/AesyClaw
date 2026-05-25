@@ -153,7 +153,6 @@ export class Application {
       () => this.sub.databaseManager.destroy(),
     ];
 
-
     for (const step of steps) {
       try {
         await step();

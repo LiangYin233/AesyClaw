@@ -10,7 +10,7 @@ describe('aesEcbPaddedSize', () => {
   it('小数据对齐到 16 字节', () => {
     expect(aesEcbPaddedSize(1)).toBe(16);
     expect(aesEcbPaddedSize(15)).toBe(16);
-    expect(aesEcbPaddedSize(16)).toBe(32);  // 增加一个完整 padding block
+    expect(aesEcbPaddedSize(16)).toBe(32); // 增加一个完整 padding block
   });
 
   it('边界值', () => {
@@ -66,7 +66,7 @@ describe('encryptAesEcb', () => {
     // 验证 aes_key 编码链路：
     // aeskey (hex) → Buffer.from(hex) → base64 → 客户端解析
     const rawKey = crypto.randomBytes(16);
-    const keyHex = rawKey.toString('hex');       // 32 hex chars
+    const keyHex = rawKey.toString('hex'); // 32 hex chars
 
     // 服务端发送的 aes_key
     const aesKeyInMessage = Buffer.from(keyHex).toString('base64');

@@ -67,7 +67,7 @@ export const channel: ChannelPlugin = {
     ctx.registerCommand({
       name: 'weixin_login',
       description: '微信扫码登录',
-      scope: 'system',
+
       allowDuringAgentProcessing: false,
       execute: async () => {
         try {
