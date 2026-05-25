@@ -140,8 +140,7 @@
                 {{ item.name || item.kind }}
               </span>
             </div>
-          </div>
-          </div>
+        </div>
           <span v-if="msg.streaming" class="cursor">|</span>
           <div class="message-footer">
             <span v-if="shouldShowUsage(msg)" class="message-usage">{{
