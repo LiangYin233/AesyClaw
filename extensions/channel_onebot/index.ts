@@ -142,12 +142,11 @@ async function handleOutbound(signal: OutboundSignal): Promise<void> {
       const accumulated = streamBuffers.get(key) ?? '';
       streamBuffers.delete(key);
       if (accumulated) {
-        await sendOneBotMessage(
-          signal.session,
-          { components: [{ type: 'Plain', text: accumulated }] },
-          client,
-          context?.logger,
-        );
+        const message: Message = { components: [{ type: 'Plain', text: accumulated }] };
+        const processed = context?.processOutbound
+          ? await context.processOutbound(message)
+          : message;
+        await sendOneBotMessage(signal.session, processed, client, context?.logger);
       }
       return;
     }

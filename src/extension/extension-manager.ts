@@ -42,6 +42,7 @@ export class ExtensionManager {
     this.channelManager = new ChannelManager({
       configManager: deps.configManager,
       pipeline: deps.pipeline,
+      hooksBus: deps.hooksBus,
       paths: deps.paths,
       toolRegistry: deps.toolRegistry,
       commandRegistry: deps.commandRegistry,

@@ -1,3 +1,4 @@
+import type { IHooksBus } from '@aesyclaw/hook';
 /** 频道接口定义。 */
 
 import type {
@@ -30,6 +31,8 @@ export type ChannelContext = {
   registerCommand(command: CommandDefinition): void;
   getCommands(): RegisteredCommandInfo[];
   logger: Logger;
+  /** 将消息通过 pipeline:send 钩子处理后返回 */
+  processOutbound(message: Message): Promise<Message>;
 };
 
 /** 频道插件必须导出的定义结构。 */
@@ -68,6 +71,7 @@ export type ChannelStatus = {
 export type ChannelManagerDependencies = {
   configManager: ConfigManager;
   pipeline: MessageProcessor;
+  hooksBus: IHooksBus;
   channels?: ChannelPlugin[];
   paths: Readonly<ResolvedPaths>;
   toolRegistry: ToolRegistry;

@@ -107,7 +107,7 @@
                 v-for="(item, mi) in msg.media.filter((m) => m.kind !== 'image')"
                 :key="'chip-' + mi"
                 class="attachment-chip"
-              :class="{ clickable: item.kind === 'file' && (item.base64 || item.localPath) }"
+                :class="{ clickable: item.kind === 'file' && (item.base64 || item.localPath) }"
                 @click="openMediaFile(item)"
               >
                 <svg

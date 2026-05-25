@@ -303,6 +303,15 @@ export class ChannelManager {
           .map(({ execute: _execute, ...command }) => command);
       },
       logger: createScopedLogger(`channel:${channelName}`),
+      processOutbound: async (message) => {
+        const sendCtx = {
+          message,
+          sessionKey: { channel: channelName, type: '' as const, chatId: '' },
+        };
+        const result = await this.deps.hooksBus.dispatch('pipeline:send', sendCtx);
+        if (result.action === 'respond') return result.message;
+        return message;
+      },
     };
   }
 
