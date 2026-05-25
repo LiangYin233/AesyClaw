@@ -99,10 +99,13 @@
               />
               <a
                 v-else-if="item.kind === 'file' && item.base64"
-                :href="'data:' + (item.mimeType || 'application/octet-stream') + ';base64,' + item.base64"
+                :href="
+                  'data:' + (item.mimeType || 'application/octet-stream') + ';base64,' + item.base64
+                "
                 :download="item.name || 'file'"
                 class="media-file-link"
-              >{{ item.name || '下载文件' }}</a>
+                >{{ item.name || '下载文件' }}</a
+              >
               <audio
                 v-else-if="item.kind === 'audio' && item.base64"
                 :src="'data:' + (item.mimeType || 'audio/mpeg') + ';base64,' + item.base64"

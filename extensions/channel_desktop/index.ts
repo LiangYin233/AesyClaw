@@ -4,7 +4,9 @@
  * 桥接消息到 AesyClaw Pipeline 并转发流式事件。
  */
 
+import fs from 'node:fs/promises';
 import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
+import type { DesktopMediaItem, DesktopOutboundMessage } from './types';
 import { DesktopServer } from './desktop-server';
 
 // ─── 配置类型 ──────────────────────────────────────────────────────
@@ -62,20 +64,10 @@ export const channel: ChannelPlugin = {
   send,
 };
 
-/**
- * 接收入站消息（由 ChannelContext.receive 回调触发）。
- * Pipeline 处理完成后，ChannelManager 会调用 send() 投递结果。
- */
 async function receive(): Promise<void> {
   // 入站消息由 DesktopServer.handleChatMessage 直接调用 context.receive()
-  // 此函数预留，当前通过 context.receive 路径处理
 }
 
-/**
- * 发送出站信号。
- *
- * 由 ChannelManager.send() 调用。
- */
 async function send(signal: OutboundSignal): Promise<void> {
   if (!server) return;
 
@@ -91,7 +83,9 @@ async function send(signal: OutboundSignal): Promise<void> {
       return;
 
     case 'message': {
-      const { text, media } = extractMessageContent(signal.content as { components: unknown[] });
+      const { text, media } = await extractMessageContent(
+        signal.content as { components: unknown[] },
+      );
 
       if (media.length > 0) {
         server.sendToSession(sessionId, {
@@ -112,32 +106,73 @@ async function send(signal: OutboundSignal): Promise<void> {
   }
 }
 
-import type { DesktopMediaItem, DesktopOutboundMessage } from './types';
+// ─── 媒体处理 ──────────────────────────────────────────────────────
 
-type Component = { type: string; text?: string; base64?: string; mimeType?: string; name?: string; url?: string; path?: string };
+const MEDIA_KIND_MAP: Record<string, DesktopMediaItem['kind']> = {
+  Image: 'image',
+  Record: 'audio',
+  Video: 'video',
+  File: 'file',
+};
 
-function extractMessageContent(msg: { components: unknown[] }): {
-  text: string;
-  media: DesktopMediaItem[];
-} {
+type Component = {
+  type: string;
+  text?: string;
+  base64?: string;
+  mimeType?: string;
+  name?: string;
+  url?: string;
+  path?: string;
+};
+
+async function extractMessageContent(
+  msg: { components: unknown[] },
+): Promise<{ text: string; media: DesktopMediaItem[] }> {
   const textParts: string[] = [];
   const media: DesktopMediaItem[] = [];
 
   for (const comp of msg.components as Component[]) {
     if (comp.type === 'Plain' && comp.text) {
       textParts.push(comp.text);
-    } else if (comp.type === 'Image') {
-      media.push({ kind: 'image', base64: comp.base64, mimeType: comp.mimeType });
-    } else if (comp.type === 'Record') {
-      media.push({ kind: 'audio', base64: comp.base64, mimeType: comp.mimeType });
-    } else if (comp.type === 'Video') {
-      media.push({ kind: 'video', base64: comp.base64, mimeType: comp.mimeType });
-    } else if (comp.type === 'File') {
-      media.push({ kind: 'file', base64: comp.base64, mimeType: comp.mimeType, name: comp.name });
+      continue;
+    }
+
+    const kind = MEDIA_KIND_MAP[comp.type];
+    if (!kind) continue;
+
+    if (comp.base64) {
+      media.push({ kind, base64: comp.base64, mimeType: comp.mimeType, name: comp.name });
+    } else if (comp.path) {
+      try {
+        const data = await fs.readFile(comp.path);
+        const pathParts = comp.path.split(/[/\\]+/);
+        media.push({
+          kind,
+          base64: Buffer.from(data).toString('base64'),
+          mimeType: comp.mimeType ?? guessMime(comp.path),
+          name: comp.name ?? pathParts[pathParts.length - 1],
+        });
+      } catch {
+        textParts.push(`[无法读取文件: ${comp.path}]`);
+      }
     }
   }
 
   return { text: textParts.join('\n'), media };
+}
+
+function guessMime(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+    mp4: 'video/mp4', mov: 'video/quicktime',
+    pdf: 'application/pdf', txt: 'text/plain',
+    json: 'application/json', md: 'text/markdown',
+  };
+  const mime = (ext ? map[ext] : undefined) as string | undefined;
+  return mime ?? 'application/octet-stream';
 }
 
 export default channel;
