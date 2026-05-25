@@ -209,6 +209,12 @@ export class ChannelManager {
         await loaded.definition.destroy();
       }
     } finally {
+      // 清理该频道的所有 chunk 缓冲区
+      for (const key of this.chunkBuffers.keys()) {
+        if (key.startsWith(`${channelName}:`)) {
+          this.chunkBuffers.delete(key);
+        }
+      }
       this.cleanupRuntimeOwner(channelName);
       this.registry.loadedChannels.delete(channelName);
       this.registry.failedChannels.delete(channelName);
@@ -350,15 +356,6 @@ export class ChannelManager {
           .map(({ execute: _execute, ...command }) => command);
       },
       logger: createScopedLogger(`channel:${channelName}`),
-      processOutbound: async (message) => {
-        const sendCtx = {
-          message,
-          sessionKey: { channel: channelName, type: '' as const, chatId: '' },
-        };
-        const result = await this.deps.hooksBus.dispatch('pipeline:send', sendCtx);
-        if (result.action === 'respond') return result.message;
-        return message;
-      },
     };
   }
 

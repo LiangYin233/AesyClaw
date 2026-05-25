@@ -31,8 +31,6 @@ export type ChannelContext = {
   registerCommand(command: CommandDefinition): void;
   getCommands(): RegisteredCommandInfo[];
   logger: Logger;
-  /** 将消息通过 pipeline:send 钩子处理后返回 */
-  processOutbound(message: Message): Promise<Message>;
 };
 
 export type ChannelPlugin = {
