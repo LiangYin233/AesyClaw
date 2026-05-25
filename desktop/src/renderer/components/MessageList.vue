@@ -289,19 +289,19 @@ watch(
 
 /* ── Media file ────────────────────────────── */
 
-async function openMediaFile(item: MediaItem): void {
-  if (item.kind !== 'file') return;
-  if (!item.base64) {
-    console.warn('openMediaFile: item has no base64 data', item.name);
-    return;
-  }
+function openMediaFile(item: MediaItem): void {
+  if (item.kind !== 'file' || !item.base64) return;
   try {
-    const filePath = await window.aesyclaw.saveFile(item.name ?? 'file', item.base64);
-    if (!filePath) {
-      console.warn('openMediaFile: saveFile returned empty path');
-      return;
-    }
-    await window.aesyclaw.openFolder(filePath);
+    const binary = atob(item.base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: item.mimeType || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = item.name || 'file';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (err) {
     console.warn('openMediaFile failed:', err);
   }
