@@ -108,14 +108,14 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
   setupLoaderMock(module);
 
   const manager = new PluginManager({
-      configManager: config,
-      toolRegistry,
-      commandRegistry,
-      hooksBus,
-      channelManager: channelManager as unknown as ChannelManager,
-      paths: fakePaths,
-      llmAdapter: { resolveModel: vi.fn() },
-    });
+    configManager: config,
+    toolRegistry,
+    commandRegistry,
+    hooksBus,
+    channelManager: channelManager as unknown as ChannelManager,
+    paths: fakePaths,
+    llmAdapter: { resolveModel: vi.fn() },
+  });
   return { manager, config, toolRegistry, commandRegistry, hooksBus, channelManager };
 }
 

@@ -7,7 +7,10 @@ import type * as PiAiModule from '@mariozechner/pi-ai';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { createSendMsgTool } from '../../../src/tool/builtin/send-msg';
 import { createLoadSkillTool } from '../../../src/tool/builtin/load-skill';
-import { createRunSubAgentTool, createRunTempSubAgentTool } from '../../../src/tool/builtin/run-sub-agent';
+import {
+  createRunSubAgentTool,
+  createRunTempSubAgentTool,
+} from '../../../src/tool/builtin/run-sub-agent';
 import { registerBuiltinTools } from '../../../src/tool/builtin';
 import type { Skill } from '../../../src/core/types';
 
@@ -540,5 +543,4 @@ describe('built-in tools', () => {
       SESSION_KEY,
     );
   });
-
-})
+});

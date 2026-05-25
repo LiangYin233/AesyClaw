@@ -1,0 +1,8 @@
+{
+  "name": "plugin-multimodal",
+  "version": "0.1.0",
+  "description": "Provides image_understanding and speech_to_text tools using configured LLM providers.",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts"
+}

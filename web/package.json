@@ -1,6 +1,6 @@
 {
   "name": "aesyclaw-webui",
-  "version": "2026.5.19",
+  "version": "2026.5.25",
   "private": true,
   "type": "module",
   "scripts": {
