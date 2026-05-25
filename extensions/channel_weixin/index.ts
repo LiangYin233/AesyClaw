@@ -145,22 +145,24 @@ export const channel: ChannelPlugin = {
         } catch {}
       }
     }
-
     async function sendOneItem(item: Record<string, unknown>): Promise<void> {
-      await sendMessage({
-        baseUrl,
-        token,
-        body: {
-          msg: {
-            to_user_id: signal.session.chatId,
-            message_type: 2,
-            message_state: 2,
-            item_list: [item],
-          },
+      const body = {
+        msg: {
+          to_user_id: signal.session.chatId,
+          message_type: 2,
+          message_state: 2,
+          item_list: [item],
         },
-      });
+      };
+      console.log('[weixin] send body:', JSON.stringify(body).slice(0, 300), 'baseUrl:', baseUrl);
+      try {
+        await sendMessage({ baseUrl, token, body });
+        console.log('[weixin] send OK');
+      } catch (err) {
+        console.log('[weixin] send FAILED:', err);
+        throw err;
+      }
     }
-
     async function handleMediaItem(media: Component, chatId: string): Promise<void> {
       let fileBuffer: Buffer | undefined;
       if (media.base64) {
