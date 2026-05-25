@@ -56,7 +56,15 @@ export type QRCodeResponse = {
 };
 
 export type QRStatusResponse = {
-  status: 'wait' | 'scaned' | 'confirmed' | 'expired' | 'need_verifycode' | 'verify_code_blocked' | 'scaned_but_redirect' | 'binded_redirect';
+  status:
+    | 'wait'
+    | 'scaned'
+    | 'confirmed'
+    | 'expired'
+    | 'need_verifycode'
+    | 'verify_code_blocked'
+    | 'scaned_but_redirect'
+    | 'binded_redirect';
   bot_token?: string;
   ilink_bot_id?: string;
   baseurl?: string;
@@ -77,7 +85,7 @@ function buildHeaders(token?: string): Record<string, string> {
     AuthorizationType: 'ilink_bot_token',
     'X-WECHAT-UIN': randomWechatUin(),
   };
-  if (token?.trim()) h["Authorization"] = `Bearer ${token.trim()}`;
+  if (token?.trim()) h['Authorization'] = `Bearer ${token.trim()}`;
   return h;
 }
 
@@ -117,7 +125,11 @@ export async function notifyStart(opts: WeixinApiOptions): Promise<void> {
 
 /** 长轮询获取消息 */
 export async function getUpdates(
-  opts: WeixinApiOptions & { get_updates_buf?: string; timeoutMs?: number; abortSignal?: AbortSignal },
+  opts: WeixinApiOptions & {
+    get_updates_buf?: string;
+    timeoutMs?: number;
+    abortSignal?: AbortSignal;
+  },
 ): Promise<GetUpdatesResp> {
   try {
     const text = await apiPost(
@@ -130,7 +142,8 @@ export async function getUpdates(
     return JSON.parse(text) as GetUpdatesResp;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      if (opts.abortSignal?.aborted) return { ret: 0, msgs: [], get_updates_buf: opts.get_updates_buf };
+      if (opts.abortSignal?.aborted)
+        return { ret: 0, msgs: [], get_updates_buf: opts.get_updates_buf };
       return { ret: 0, msgs: [], get_updates_buf: opts.get_updates_buf };
     }
     throw err;
@@ -141,18 +154,35 @@ export async function getUpdates(
 export async function sendMessage(
   opts: WeixinApiOptions & { body: Record<string, unknown> },
 ): Promise<void> {
-  await apiPost(opts.baseUrl, 'ilink/bot/sendmessage', opts.body, opts.token, DEFAULT_API_TIMEOUT_MS);
+  await apiPost(
+    opts.baseUrl,
+    'ilink/bot/sendmessage',
+    opts.body,
+    opts.token,
+    DEFAULT_API_TIMEOUT_MS,
+  );
 }
 
 /** 获取 CDN 上传预签名 URL */
 export async function getUploadUrl(
   opts: WeixinApiOptions & {
-    filekey: string; media_type: number; to_user_id: string;
-    rawsize: number; rawfilemd5: string; filesize: number;
-    aeskey: string; no_need_thumb?: boolean;
+    filekey: string;
+    media_type: number;
+    to_user_id: string;
+    rawsize: number;
+    rawfilemd5: string;
+    filesize: number;
+    aeskey: string;
+    no_need_thumb?: boolean;
   },
 ): Promise<{ upload_param?: string; upload_full_url?: string }> {
-  const text = await apiPost(opts.baseUrl, 'ilink/bot/getuploadurl', opts, opts.token, DEFAULT_API_TIMEOUT_MS);
+  const text = await apiPost(
+    opts.baseUrl,
+    'ilink/bot/getuploadurl',
+    opts,
+    opts.token,
+    DEFAULT_API_TIMEOUT_MS,
+  );
   return JSON.parse(text);
 }
 
@@ -161,9 +191,11 @@ export async function getConfig(
   opts: WeixinApiOptions & { ilink_user_id: string; context_token?: string },
 ): Promise<{ ret?: number; typing_ticket?: string }> {
   const text = await apiPost(
-    opts.baseUrl, 'ilink/bot/getconfig',
+    opts.baseUrl,
+    'ilink/bot/getconfig',
     { ilink_user_id: opts.ilink_user_id, context_token: opts.context_token, base_info: {} },
-    opts.token, DEFAULT_API_TIMEOUT_MS,
+    opts.token,
+    DEFAULT_API_TIMEOUT_MS,
   );
   return JSON.parse(text);
 }

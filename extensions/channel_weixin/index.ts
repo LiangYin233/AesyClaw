@@ -1,19 +1,42 @@
 /** channel_weixin — 微信频道插件（iLink 协议） */
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
-import { prepareQR, pollLogin, type LoginResult } from './login';
+import { prepareQR, pollLogin } from './login';
 import { startMonitor } from './monitor';
 import { sendMessage, notifyStart, notifyStop } from './api';
 
 // ─── 模块状态 ───────────────────────────────────────────────────────
 
-let context: ChannelContext | null = null;
 let token = '';
 let baseUrl = '';
 let monitor: ReturnType<typeof startMonitor> | null = null;
 let destroyed = false;
 
-const CREDENTIALS_PATH = 'channels.weixin';
+// ─── 凭据文件 ───────────────────────────────────────────────────────
+
+const CRED_FILE = 'weixin-credentials.json';
+
+type Credentials = { token: string; baseUrl: string; updatesBuf?: string };
+
+function credPath(ctx: ChannelContext): string {
+  return path.join(ctx.paths.dataDir, CRED_FILE);
+}
+
+async function loadCreds(ctx: ChannelContext): Promise<Credentials | null> {
+  try {
+    const data = await fs.readFile(credPath(ctx), 'utf-8');
+    return JSON.parse(data) as Credentials;
+  } catch {
+    return null;
+  }
+}
+
+async function saveCreds(ctx: ChannelContext, c: Credentials): Promise<void> {
+  await fs.mkdir(ctx.paths.dataDir, { recursive: true });
+  await fs.writeFile(credPath(ctx), JSON.stringify(c, null, 2), 'utf-8');
+}
 
 // ─── 插件定义 ──────────────────────────────────────────────────────
 
@@ -25,28 +48,19 @@ export const channel: ChannelPlugin = {
   defaultConfig: { enabled: false },
 
   async init(ctx: ChannelContext) {
-    context = ctx;
     destroyed = false;
 
-    // 恢复已保存的凭据
-    const cfg = ctx.config as Record<string, unknown>;
-    const savedToken = cfg['token'] as string | undefined;
-    const savedBaseUrl = cfg['baseUrl'] as string | undefined;
-    const updatesBuf = cfg['updatesBuf'] as string | undefined;
+    const creds = await loadCreds(ctx);
+    if (creds?.token && creds?.baseUrl) {
+      token = creds.token;
+      baseUrl = creds.baseUrl;
+      ctx.logger.info('微信频道: 已加载凭据');
 
-    if (savedToken && savedBaseUrl) {
-      token = savedToken;
-      baseUrl = savedBaseUrl;
-      ctx.logger.info('微信频道: 已加载保存的凭据');
+      try { await notifyStart({ baseUrl, token }); } catch { /* 忽略 */ }
 
-      try {
-        await notifyStart({ baseUrl, token });
-      } catch { /* 通知失败不影响启动 */ }
-
-      startWeixinMonitor(updatesBuf, ctx);
+      startWeixinMonitor(creds.updatesBuf, ctx);
     }
 
-    // 注册命令
     ctx.registerCommand({
       name: 'weixin_login',
       description: '微信扫码登录',
@@ -56,19 +70,13 @@ export const channel: ChannelPlugin = {
         try {
           const qr = await prepareQR(ctx.paths.mediaDir);
 
-          // 后台启动轮询
           void pollLogin(qr.qrCode, 480_000, (status) => {
             ctx.logger.info(`微信扫码状态: ${status}`);
-            if (status === 'confirmed') {
-              ctx.logger.info('微信扫码确认，正在保存凭据');
-            }
           }).then(async (result) => {
             if (result.success && result.token && result.baseUrl) {
               token = result.token;
               baseUrl = result.baseUrl;
-              await ctx.configManager.set(CREDENTIALS_PATH, {
-                token, baseUrl, enabled: true, updatesBuf: '',
-              });
+              await saveCreds(ctx, { token, baseUrl });
               ctx.logger.info('微信凭据已保存');
               try { await notifyStart({ baseUrl, token }); } catch {}
               startWeixinMonitor('', ctx);
@@ -89,21 +97,15 @@ export const channel: ChannelPlugin = {
 
   async destroy() {
     destroyed = true;
-    if (monitor) {
-      monitor.stop();
-      monitor = null;
-    }
+    if (monitor) { monitor.stop(); monitor = null; }
     if (token && baseUrl) {
       try { await notifyStop({ baseUrl, token }); } catch {}
     }
-    context = null;
     token = '';
     baseUrl = '';
   },
 
-  async receive() {
-    // 入站消息由 monitor 处理，此函数预留
-  },
+  async receive() {},
 
   async send(signal: OutboundSignal) {
     if (!token || !baseUrl || destroyed) return;
@@ -111,8 +113,7 @@ export const channel: ChannelPlugin = {
       const text = extractPlainText(signal.content);
       if (text) {
         await sendMessage({
-          baseUrl,
-          token,
+          baseUrl, token,
           body: {
             msg: {
               to_user_id: signal.session.chatId,
@@ -134,16 +135,14 @@ function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext)
   monitor = startMonitor(
     { baseUrl, token },
     {
-      onMessage: (fromUserId, content, msg) => {
+      onMessage: (fromUserId, content) => {
         ctx.receive(
           { components: [{ type: 'Plain', text: content }] },
           { channel: 'weixin', type: 'private', chatId: fromUserId },
           { id: fromUserId, name: fromUserId },
         );
       },
-      onError: (err) => {
-        ctx.logger.error(`微信监控错误: ${err}`);
-      },
+      onError: (err) => { ctx.logger.error(`微信监控错误: ${err}`); },
     },
     ctx.logger,
     updatesBuf,

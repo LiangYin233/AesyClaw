@@ -4,8 +4,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fetchQRCode, pollQRStatus } from './api';
 
-
-
 export type LoginResult = {
   success: boolean;
   message: string;
@@ -46,7 +44,11 @@ export async function prepareQR(mediaDir: string): Promise<{
     await fs.writeFile(qrFilePath.replace('.png', '.url.txt'), qrResp.qrcode_img_content);
   }
 
-  return { qrCode: qrResp.qrcode, qrImagePath: qrFilePath, message: `请扫描二维码完成登录：文件路径: ${qrFilePath}` };
+  return {
+    qrCode: qrResp.qrcode,
+    qrImagePath: qrFilePath,
+    message: `请扫描二维码完成登录：文件路径: ${qrFilePath}`,
+  };
 }
 
 /**
@@ -81,11 +83,17 @@ export async function pollLogin(
         };
 
       case 'binded_redirect':
-        return { success: true, message: '该微信已绑定到此账号，无需重复登录', token: '', baseUrl: '' };
+        return {
+          success: true,
+          message: '该微信已绑定到此账号，无需重复登录',
+          token: '',
+          baseUrl: '',
+        };
 
       case 'expired': {
         qrRefreshCount++;
-        if (qrRefreshCount > MAX_QR_REFRESH) return { success: false, message: '二维码多次过期，请重试' };
+        if (qrRefreshCount > MAX_QR_REFRESH)
+          return { success: false, message: '二维码多次过期，请重试' };
         const qr = await fetchQRCode('3');
         qrCode = qr.qrcode;
         await sleep(1000);

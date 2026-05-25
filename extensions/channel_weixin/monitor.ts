@@ -72,7 +72,9 @@ export function startMonitor(
   void loop();
 
   return {
-    stop: () => { aborted = true; },
+    stop: () => {
+      aborted = true;
+    },
     getUpdatesBuf: () => buf,
   };
 }
