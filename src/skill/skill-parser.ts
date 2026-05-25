@@ -68,7 +68,8 @@ export function parseSkillContent(content: string): ParsedSkill | null {
   let parsed: FrontMatterResult<Record<string, unknown>>;
   try {
     parsed = fm<Record<string, unknown>>(content);
-  } catch {
+  } catch (err) {
+    logger.warn('Frontmatter 解析失败', err);
     return null;
   }
 

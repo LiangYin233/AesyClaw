@@ -219,7 +219,8 @@ export class McpManager {
   private getConfigs(): McpServerConfig[] {
     try {
       return (this.configManager.get('mcp') as McpServerConfig[]).map((c) => structuredClone(c));
-    } catch {
+    } catch (err) {
+      logger.error('读取 MCP 配置失败', err);
       return [];
     }
   }

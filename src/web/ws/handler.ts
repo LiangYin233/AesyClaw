@@ -44,6 +44,7 @@ function validateWsToken(requestUrl: string | undefined, configManager: ConfigMa
     }
     return safeTokenEqual(token, authToken);
   } catch {
+    logger.debug('WebSocket 鉴权 URL 解析失败');
     return false;
   }
 }

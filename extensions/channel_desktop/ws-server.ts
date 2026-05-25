@@ -93,7 +93,7 @@ export class WsServer {
       sessions: new Set(),
       fileBuffers: new Map(),
       completedFiles: new Map(),
-      commands: this.getCommands(),
+
       sendJson(data: unknown): void {
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(data));
       },

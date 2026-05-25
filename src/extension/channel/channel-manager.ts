@@ -369,6 +369,7 @@ export class ChannelManager {
       const config = this.deps.configManager.get(`channels.${channelName}`);
       return isRecord(config) ? config : {};
     } catch {
+      logger.debug('读取频道配置失败，使用空配置', { channelName });
       return {};
     }
   }
@@ -401,6 +402,7 @@ export class ChannelManager {
       const config = this.deps.configManager.get('channels');
       return isRecord(config) ? { ...config } : {};
     } catch {
+      logger.debug('读取全部频道配置失败，使用空配置');
       return {};
     }
   }

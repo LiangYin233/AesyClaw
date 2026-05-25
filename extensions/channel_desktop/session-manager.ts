@@ -22,8 +22,6 @@ export type DesktopConnection = {
   fileBuffers: Map<string, DesktopFileBuffer>;
   /** 已完成并等待随聊天消息消费的文件 */
   completedFiles: Map<string, DesktopReceivedFile>;
-  /** 可用命令列表（连接时下发，用于客户端命令补全） */
-  commands: Array<{ name: string; description: string }>;
 };
 
 export class DesktopSessionManager {

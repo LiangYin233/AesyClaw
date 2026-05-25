@@ -113,6 +113,7 @@ export function parseMessageUsageJson(value: string): MessageUsage | undefined {
     if (!isMessageUsage(parsed)) return undefined;
     return parsed;
   } catch {
+    // JSON 解析失败，返回 undefined
     return undefined;
   }
 }

@@ -32,12 +32,15 @@ const emit = defineEmits<{
 
 const menuRef = ref<HTMLElement | null>(null);
 
-watch(() => props.selectedIndex, () => {
-  void nextTick(() => {
-    const el = menuRef.value?.querySelector('.command-item.selected');
-    el?.scrollIntoView({ block: 'nearest' });
-  });
-});
+watch(
+  () => props.selectedIndex,
+  () => {
+    void nextTick(() => {
+      const el = menuRef.value?.querySelector('.command-item.selected');
+      el?.scrollIntoView({ block: 'nearest' });
+    });
+  },
+);
 </script>
 
 <style scoped>

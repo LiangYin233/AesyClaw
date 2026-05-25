@@ -313,7 +313,8 @@ export class PluginManager implements ExtensionLifecycle {
   private getConfigEntries(): ReadonlyArray<Readonly<PluginConfigEntry>> {
     try {
       return this.deps.configManager.get('plugins') as ReadonlyArray<Readonly<PluginConfigEntry>>;
-    } catch {
+    } catch (err) {
+      logger.error('读取插件配置失败', err);
       return [];
     }
   }
