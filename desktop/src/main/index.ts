@@ -140,7 +140,7 @@ function setupIpc(): void {
   );
 
   ipcMain.handle('file:openFolder', async (_event, filePath: string) => {
-    await shell.openPath(dirname(filePath));
+    shell.showItemInFolder(filePath);
   });
 }
 
