@@ -116,6 +116,7 @@ export const channel: ChannelPlugin = {
   async receive() {},
 
   async send(signal: OutboundSignal) {
+    console.log('[weixin] send called', signal.kind, signal.session.chatId);
     if (!token || !baseUrl || destroyed) {
       console.log('[weixin] send skipped: token or baseUrl missing');
       return;
@@ -136,14 +137,19 @@ export const channel: ChannelPlugin = {
     }
 
     for (const task of tasks) {
-      try { await task(); } catch (err) {
-        try { await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } }); } catch {}
+      try {
+        await task();
+      } catch (err) {
+        try {
+          await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } });
+        } catch {}
       }
     }
 
     async function sendOneItem(item: Record<string, unknown>): Promise<void> {
       await sendMessage({
-        baseUrl, token,
+        baseUrl,
+        token,
         body: {
           msg: {
             to_user_id: signal.session.chatId,
@@ -175,11 +181,24 @@ export const channel: ChannelPlugin = {
       };
 
       if (mediaType === 1) {
-        await sendOneItem({ type: 2, image_item: { media: cdnRef, mid_size: uploaded.fileSizeCiphertext } });
+        await sendOneItem({
+          type: 2,
+          image_item: { media: cdnRef, mid_size: uploaded.fileSizeCiphertext },
+        });
       } else if (mediaType === 2) {
-        await sendOneItem({ type: 5, video_item: { media: cdnRef, video_size: uploaded.fileSizeCiphertext } });
+        await sendOneItem({
+          type: 5,
+          video_item: { media: cdnRef, video_size: uploaded.fileSizeCiphertext },
+        });
       } else {
-        await sendOneItem({ type: 4, file_item: { media: cdnRef, file_name: media.name || 'file', len: String(uploaded.fileSize) } });
+        await sendOneItem({
+          type: 4,
+          file_item: {
+            media: cdnRef,
+            file_name: media.name || 'file',
+            len: String(uploaded.fileSize),
+          },
+        });
       }
     }
   },
