@@ -6,7 +6,7 @@
  * - IPC 桥接：暴露 API 给渲染进程
  */
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { WebSocketManager, type DesktopUploadFile } from './ws-manager';
@@ -125,6 +125,22 @@ function setupIpc(): void {
     wsManager?.updateUrls(buildDesktopWsUrl(normalized), buildAdminWsUrl(normalized));
     wsManager?.connect();
     return normalized;
+  });
+
+  // 文件操作
+  ipcMain.handle(
+    'file:saveTemp',
+    async (_event, payload: { name: string; data: string }): Promise<string> => {
+      const tempDir = join(app.getPath('temp'), 'aesyclaw-desktop');
+      mkdirSync(tempDir, { recursive: true });
+      const filePath = join(tempDir, payload.name);
+      writeFileSync(filePath, Buffer.from(payload.data, 'base64'));
+      return filePath;
+    },
+  );
+
+  ipcMain.handle('file:openFolder', async (_event, filePath: string) => {
+    await shell.openPath(dirname(filePath));
   });
 }
 

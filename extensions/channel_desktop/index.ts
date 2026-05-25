@@ -125,9 +125,9 @@ type Component = {
   path?: string;
 };
 
-async function extractMessageContent(
-  msg: { components: unknown[] },
-): Promise<{ text: string; media: DesktopMediaItem[] }> {
+async function extractMessageContent(msg: {
+  components: unknown[];
+}): Promise<{ text: string; media: DesktopMediaItem[] }> {
   const textParts: string[] = [];
   const media: DesktopMediaItem[] = [];
 
@@ -164,12 +164,21 @@ async function extractMessageContent(
 function guessMime(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
   const map: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
-    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
-    mp4: 'video/mp4', mov: 'video/quicktime',
-    pdf: 'application/pdf', txt: 'text/plain',
-    json: 'application/json', md: 'text/markdown',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    json: 'application/json',
+    md: 'text/markdown',
   };
   const mime = (ext ? map[ext] : undefined) as string | undefined;
   return mime ?? 'application/octet-stream';

@@ -89,30 +89,61 @@
         </div>
         <div v-else class="assistant-bubble" :class="{ streaming: msg.streaming }">
           <div v-if="msg.text" class="rendered-content" v-html="renderMarkdownSafe(msg.text)"></div>
-          <div v-if="msg.media?.length" class="assistant-media">
-            <div v-for="(item, mi) in msg.media" :key="mi" class="media-item">
-              <img
-                v-if="item.kind === 'image' && item.base64"
-                :src="'data:' + (item.mimeType || 'image/png') + ';base64,' + item.base64"
-                class="media-image"
-                alt=""
-              />
-              <a
-                v-else-if="item.kind === 'file' && item.base64"
-                :href="
-                  'data:' + (item.mimeType || 'application/octet-stream') + ';base64,' + item.base64
-                "
-                :download="item.name || 'file'"
-                class="media-file-link"
-                >{{ item.name || '下载文件' }}</a
+          <div v-if="msg.media?.length" class="message-attachments">
+            <span
+              v-for="(item, mi) in msg.media"
+              :key="mi"
+              class="attachment-chip"
+              :class="{ clickable: item.kind === 'file' && item.base64 }"
+              @click="openMediaFile(item)"
+            >
+              <svg
+                class="attachment-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                v-if="item.kind === 'image'"
               >
-              <audio
-                v-else-if="item.kind === 'audio' && item.base64"
-                :src="'data:' + (item.mimeType || 'audio/mpeg') + ';base64,' + item.base64"
-                controls
-                class="media-audio"
-              ></audio>
-            </div>
+                <rect x="2" y="2" width="12" height="12" rx="1.5" />
+                <circle cx="6" cy="6" r="1.5" />
+                <path d="M2 11l3-3 2 2 4-4 3 3" />
+              </svg>
+              <svg
+                class="attachment-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                v-else-if="item.kind === 'audio'"
+              >
+                <path d="M5 2v10" />
+                <path d="M5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                <path d="M5 2l7 2v8" />
+                <path d="M12 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+              </svg>
+              <svg
+                class="attachment-icon"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                v-else
+              >
+                <path d="M5 1h4l4 4v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" />
+                <path d="M9 1v4h4" />
+              </svg>
+              {{ item.name || item.kind }}
+            </span>
           </div>
           <span v-if="msg.streaming" class="cursor">|</span>
           <div class="message-footer">
@@ -203,9 +234,9 @@ import type {
   ChatMessage,
   AssistantMessage,
   UserMessage,
+  MediaItem,
   ChatSession,
 } from '../composables/useChat';
-
 const props = defineProps<{
   messages: ChatMessage[];
   activeSession: ChatSession | null;
@@ -256,6 +287,18 @@ watch(
     if (isNearBottom()) scrollToBottom();
   },
 );
+
+/* ── Media file ────────────────────────────── */
+
+async function openMediaFile(item: MediaItem): void {
+  if (item.kind !== 'file' || !item.base64) return;
+  try {
+    const filePath = await window.aesyclaw.saveFile(item.name ?? 'file', item.base64);
+    await window.aesyclaw.openFolder(filePath);
+  } catch {
+    // 静默失败
+  }
+}
 
 /* ── Copy menu ─────────────────────────────── */
 
@@ -895,6 +938,14 @@ function formatToolResult(result: unknown): string {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
+}
+
+.attachment-chip.clickable {
+  cursor: pointer;
+}
+
+.attachment-chip.clickable:hover {
+  background: #e2dfd6;
 }
 
 .attachment-chip {

@@ -174,8 +174,12 @@ const api = {
     ipcRenderer.on('window:maximizeChange', handler);
     return () => ipcRenderer.removeListener('window:maximizeChange', handler);
   },
+  /** 保存 base64 文件到临时目录，返回本地路径 */
+  saveFile: (name: string, data: string) =>
+    ipcRenderer.invoke('file:saveTemp', { name, data }) as Promise<string>,
+  /** 打开文件所在文件夹 */
+  openFolder: (filePath: string) => ipcRenderer.invoke('file:openFolder', filePath),
 };
-
 contextBridge.exposeInMainWorld('aesyclaw', api);
 
 export type AesyClawApi = typeof api;
