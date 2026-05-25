@@ -29,6 +29,8 @@ export class PluginManager implements ExtensionLifecycle {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   readonly failedPlugins = new Map<string, string>();
   private readonly discovery: PluginDiscovery;
+  /** 可热更新的配置引用：pluginName → { current } */
+  private readonly configRefs = new Map<string, { current: Record<string, unknown> }>();
 
   constructor(private readonly deps: PluginManagerDependencies) {
     this.discovery = new PluginDiscovery(
@@ -84,7 +86,9 @@ export class PluginManager implements ExtensionLifecycle {
     }
 
     const owner = pluginOwner(pluginName);
-    const context = this.createPluginContext(pluginName, mergedConfig);
+    const ref: { current: Record<string, unknown> } = { current: mergedConfig };
+    this.configRefs.set(pluginName, ref);
+    const context = this.createPluginContext(pluginName, ref);
 
     try {
       await module.definition.init(context);
@@ -97,6 +101,7 @@ export class PluginManager implements ExtensionLifecycle {
         }
       }
     } catch (err) {
+      this.configRefs.delete(pluginName);
       await this.cleanupOwner(pluginName);
       this.failedPlugins.set(pluginName, errorMessage(err));
       throw err;
@@ -107,7 +112,7 @@ export class PluginManager implements ExtensionLifecycle {
       directory: module.directory,
       directoryName: module.directoryName,
       owner,
-      config: mergedConfig,
+      config: ref.current,
       loadedAt: new Date(),
     };
     this.loadedPlugins.set(pluginName, loaded);
@@ -167,11 +172,50 @@ export class PluginManager implements ExtensionLifecycle {
     await this.setPluginEnabled(pluginName, false);
   }
 
-  /** 卸载全部插件并重新加载（配置热重载）。 */
+  /** 增量热重载：更新已加载插件的配置，加载新增插件，卸载禁用的插件。 */
   async handleConfigReload(): Promise<void> {
-    await this.unloadAll();
-    this.discovery.clearCache();
-    await this.setup();
+    const entries = this.getConfigEntries();
+
+    // 已加载的插件：更新配置引用
+    for (const [pluginName, loaded] of [...this.loadedPlugins]) {
+      const entry = entries.find(
+        (e) => e.name === pluginName || e.name === loaded.directoryName,
+      );
+      const enabled = entry?.enabled ?? true;
+
+      if (!enabled) {
+        await this.unload(pluginName);
+        continue;
+      }
+
+      const freshOptions = optionsToRecord(entry?.options);
+      const freshConfig = getManagedPluginOptions(
+        loaded.definition.defaultConfig,
+        freshOptions,
+      );
+
+      const ref = this.configRefs.get(pluginName);
+      if (ref) {
+        ref.current = freshConfig;
+        loaded.config = freshConfig;
+        logger.debug(`插件 "${pluginName}" 配置已热更新`);
+      }
+    }
+
+    // 新增/启用的插件：加载
+    for (const entry of entries) {
+      if (!entry.enabled) continue;
+      if (this.loadedPlugins.has(entry.name)) continue;
+
+      const match = await this.discovery.findPlugin(entry.name, this.loadedPlugins);
+      if (match) {
+        try {
+          await this.load(match.directory);
+        } catch (err) {
+          logger.error(`热重载时加载插件 "${entry.name}" 失败`, err);
+        }
+      }
+    }
   }
 
   // ─── 查询 ────────────────────────────────────────────────────────
@@ -236,17 +280,21 @@ export class PluginManager implements ExtensionLifecycle {
         await loaded.definition.destroy();
       }
     } finally {
+      this.configRefs.delete(actualName);
       await this.cleanupOwner(actualName);
       this.loadedPlugins.delete(actualName);
       logger.info('插件已卸载', { pluginName: actualName });
     }
   }
 
-  private createPluginContext(pluginName: string, config: Record<string, unknown>): PluginContext {
+  private createPluginContext(
+    pluginName: string,
+    ref: { current: Record<string, unknown> },
+  ): PluginContext {
     const owner = pluginOwner(pluginName);
     const deps = this.deps;
     return {
-      config,
+      get config() { return ref.current; },
       paths: deps.paths,
       registerTool: (tool: AesyClawTool): void => {
         deps.toolRegistry.register({ ...tool, owner });

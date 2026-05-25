@@ -38,7 +38,7 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
           } else if (cmd.scope?.startsWith('channel:')) {
             key = cmd.scope.slice(8); // 'channel:weixin' → 'weixin'
           } else if (cmd.scope?.startsWith('plugin:')) {
-            key = cmd.scope.slice(7);  // 'plugin:example' → 'example'
+            key = cmd.scope.slice(7); // 'plugin:example' → 'example'
           } else {
             key = cmd.scope ?? '其他';
           }

@@ -31,6 +31,7 @@ export type ExtensionManagerDependencies = {
  * 负责编排 PluginManager 与 ChannelManager 的初始化、销毁及配置热重载。
  */
 export class ExtensionManager {
+  private readonly deps: ExtensionManagerDependencies;
   private readonly pluginManager: PluginManager;
   private readonly channelManager: ChannelManager;
 
@@ -38,6 +39,7 @@ export class ExtensionManager {
    * @param deps - 扩展管理器所需的所有依赖项
    */
   constructor(deps: ExtensionManagerDependencies) {
+    this.deps = deps;
     // ChannelManager 先于 PluginManager（PluginManager 可选依赖 ChannelManager）
     this.channelManager = new ChannelManager({
       configManager: deps.configManager,
@@ -73,6 +75,17 @@ export class ExtensionManager {
     // 先加载插件（插件 init 期间可能注册频道），再注册磁盘频道并启动全部
     await this.pluginManager.setup();
     await this.channelManager.setup();
+
+    // 配置文件变更后自动热重载插件和频道配置
+    this.deps.configManager.onConfigReloaded = () => {
+      void this.pluginManager.handleConfigReload().catch((err) => {
+        logger.error('插件配置热重载失败', err);
+      });
+      void this.channelManager.handleConfigReload().catch((err) => {
+        logger.error('频道配置热重载失败', err);
+      });
+    };
+
     logger.info('ExtensionManager 已就绪');
   }
 

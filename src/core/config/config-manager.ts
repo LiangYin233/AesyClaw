@@ -18,6 +18,8 @@ export class ConfigManager {
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private readonly configStore: Conf<Record<string, unknown>>;
   private readonly fileWatcher: ConfigFileWatcher;
+  /** 配置重载后的回调（由 ExtensionManager 注册） */
+  onConfigReloaded?: () => void;
 
   /**
    * 创建配置管理器实例。
@@ -184,6 +186,7 @@ export class ConfigManager {
       }
       this.lastKnownConfig = structuredClone(newConfig);
       logger.info('已从文件重新加载配置缓存');
+      this.onConfigReloaded?.();
     } catch (err) {
       logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
     }
