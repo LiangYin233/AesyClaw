@@ -27,6 +27,7 @@ type MediaParam = {
   path?: string;
   base64?: string;
   mimeType?: string;
+  name?: string;
 };
 
 const SEND_MSG_SCHEMA = Type.Object({
@@ -67,6 +68,38 @@ function toMediaComponent(media: MediaParam[]): MediaComponent[] {
   });
 }
 
+
+const MEDIA_KIND_NAMES: Record<string, string> = {
+  image: 'image',
+  audio: 'audio',
+  video: 'video',
+  file: 'file',
+};
+
+function buildAttachmentText(media: MediaParam[]): string | undefined {
+  const first = media[0];
+  if (!first) return undefined;
+  const kind = MEDIA_KIND_NAMES[first.type] as string;
+  const path = first.path ?? first.url ?? 'inline';
+  const name = first.name ?? path.split(/[/\\]+/).pop() ?? 'attachment';
+  const mime = first.mimeType ?? guessMime(name);
+  return `[Attachments]\n- ${kind}: ${path} (${name}, ${mime})`;
+}
+
+function guessMime(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+    mp4: 'video/mp4', mov: 'video/quicktime',
+    pdf: 'application/pdf', txt: 'text/plain',
+    json: 'application/json', md: 'text/markdown',
+  };
+  const mime = (ext ? map[ext] : undefined) as string | undefined;
+  return mime ?? 'application/octet-stream';
+}
+
 /**
  * 创建 send_msg 工具定义。
  *
@@ -102,10 +135,12 @@ export function createSendMsgTool(): AesyClawTool {
             isError: true,
           };
         }
+        const attachmentText = buildAttachmentText(media ?? []);
+        const persistText = attachmentText ? text + '\n\n' + attachmentText : text;
 
         return {
           content: `消息已发送: "${text}"`,
-          details: { persistAsAssistantText: text },
+          details: { persistAsAssistantText: persistText },
         };
       } catch (err) {
         return { content: errorMessage(err), isError: true };

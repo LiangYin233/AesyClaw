@@ -75,7 +75,14 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({
       content: '消息已发送: "hello"',
-      details: { persistAsAssistantText: 'hello' },
+      details: {
+        persistAsAssistantText: [
+          'hello',
+          '',
+          '[Attachments]',
+          '- image: https://example.com/image.png (image.png, image/png)',
+        ].join('\n'),
+      },
     });
 
     expect(sendMessage).toHaveBeenCalledWith({
