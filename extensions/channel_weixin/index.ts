@@ -56,11 +56,7 @@ export const channel: ChannelPlugin = {
       baseUrl = creds.baseUrl;
       ctx.logger.info('微信频道: 已加载凭据');
 
-      try {
-        await notifyStart({ baseUrl, token });
-      } catch {
-        /* 忽略 */
-      }
+      try { await notifyStart({ baseUrl, token }); } catch { /* 忽略 */ }
 
       startWeixinMonitor(creds.updatesBuf, ctx);
     }
@@ -82,9 +78,7 @@ export const channel: ChannelPlugin = {
               baseUrl = result.baseUrl;
               await saveCreds(ctx, { token, baseUrl });
               ctx.logger.info('微信凭据已保存');
-              try {
-                await notifyStart({ baseUrl, token });
-              } catch {}
+              try { await notifyStart({ baseUrl, token }); } catch {}
               startWeixinMonitor('', ctx);
             } else if (!result.success) {
               ctx.logger.error(`微信登录失败: ${result.message}`);
@@ -103,14 +97,9 @@ export const channel: ChannelPlugin = {
 
   async destroy() {
     destroyed = true;
-    if (monitor) {
-      monitor.stop();
-      monitor = null;
-    }
+    if (monitor) { monitor.stop(); monitor = null; }
     if (token && baseUrl) {
-      try {
-        await notifyStop({ baseUrl, token });
-      } catch {}
+      try { await notifyStop({ baseUrl, token }); } catch {}
     }
     token = '';
     baseUrl = '';
@@ -121,17 +110,21 @@ export const channel: ChannelPlugin = {
   async send(signal: OutboundSignal) {
     if (!token || !baseUrl || destroyed) return;
     if (signal.kind === 'message') {
-      const text = extractPlainText(signal.content);
-      if (text) {
+      const parts = extractMessageParts(signal.content as { components: unknown[] });
+      const text = parts.text;
+      const mediaDesc = parts.media.length > 0
+        ? '\n\n[附件]\n' + parts.media.map((m) => `- ${m.name || m.kind}`).join('\n')
+        : '';
+      const finalText = text + mediaDesc;
+      if (finalText) {
         await sendMessage({
-          baseUrl,
-          token,
+          baseUrl, token,
           body: {
             msg: {
               to_user_id: signal.session.chatId,
               message_type: 2,
               message_state: 2,
-              item_list: [{ type: 1, text_item: { text } }],
+              item_list: [{ type: 1, text_item: { text: finalText } }],
             },
           },
         });
@@ -141,6 +134,21 @@ export const channel: ChannelPlugin = {
 };
 
 // ─── 内部函数 ──────────────────────────────────────────────────────
+
+type Component = { type: string; text?: string; name?: string; kind?: string };
+
+function extractMessageParts(msg: { components: unknown[] }): { text: string; media: Component[] } {
+  const texts: string[] = [];
+  const media: Component[] = [];
+  for (const comp of msg.components as Component[]) {
+    if (comp.type === 'Plain' && comp.text) {
+      texts.push(comp.text);
+    } else if (comp.type === 'Image' || comp.type === 'File' || comp.type === 'Record' || comp.type === 'Video') {
+      media.push(comp);
+    }
+  }
+  return { text: texts.join('\n'), media };
+}
 
 function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext) {
   if (monitor) monitor.stop();
@@ -154,20 +162,11 @@ function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext)
           { id: fromUserId, name: fromUserId },
         );
       },
-      onError: (err) => {
-        ctx.logger.error(`微信监控错误: ${err}`);
-      },
+      onError: (err) => { ctx.logger.error(`微信监控错误: ${err}`); },
     },
     ctx.logger,
     updatesBuf,
   );
-}
-
-function extractPlainText(message: { components: unknown[] }): string {
-  for (const comp of message.components as Array<{ type?: string; text?: string }>) {
-    if (comp.type === 'Plain' && comp.text) return comp.text;
-  }
-  return '';
 }
 
 export default channel;
