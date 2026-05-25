@@ -35,12 +35,14 @@
     "conf": "^15.1.0",
     "front-matter": "^4.0.2",
     "hono": "^4.12.18",
+    "qrcode": "^1.5.4",
     "tsx": "^4.21.0",
     "ws": "^8.20.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.6.2",
+    "@types/qrcode": "^1",
     "@types/ws": "^8.18.1",
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",

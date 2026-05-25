@@ -56,7 +56,11 @@ export const channel: ChannelPlugin = {
       baseUrl = creds.baseUrl;
       ctx.logger.info('微信频道: 已加载凭据');
 
-      try { await notifyStart({ baseUrl, token }); } catch { /* 忽略 */ }
+      try {
+        await notifyStart({ baseUrl, token });
+      } catch {
+        /* 忽略 */
+      }
 
       startWeixinMonitor(creds.updatesBuf, ctx);
     }
@@ -78,7 +82,9 @@ export const channel: ChannelPlugin = {
               baseUrl = result.baseUrl;
               await saveCreds(ctx, { token, baseUrl });
               ctx.logger.info('微信凭据已保存');
-              try { await notifyStart({ baseUrl, token }); } catch {}
+              try {
+                await notifyStart({ baseUrl, token });
+              } catch {}
               startWeixinMonitor('', ctx);
             } else if (!result.success) {
               ctx.logger.error(`微信登录失败: ${result.message}`);
@@ -97,9 +103,14 @@ export const channel: ChannelPlugin = {
 
   async destroy() {
     destroyed = true;
-    if (monitor) { monitor.stop(); monitor = null; }
+    if (monitor) {
+      monitor.stop();
+      monitor = null;
+    }
     if (token && baseUrl) {
-      try { await notifyStop({ baseUrl, token }); } catch {}
+      try {
+        await notifyStop({ baseUrl, token });
+      } catch {}
     }
     token = '';
     baseUrl = '';
@@ -113,7 +124,8 @@ export const channel: ChannelPlugin = {
       const text = extractPlainText(signal.content);
       if (text) {
         await sendMessage({
-          baseUrl, token,
+          baseUrl,
+          token,
           body: {
             msg: {
               to_user_id: signal.session.chatId,
@@ -142,7 +154,9 @@ function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext)
           { id: fromUserId, name: fromUserId },
         );
       },
-      onError: (err) => { ctx.logger.error(`微信监控错误: ${err}`); },
+      onError: (err) => {
+        ctx.logger.error(`微信监控错误: ${err}`);
+      },
     },
     ctx.logger,
     updatesBuf,
