@@ -53,6 +53,7 @@ export async function uploadToCdn(
     no_need_thumb: true,
     aeskey: aeskey.toString('hex'),
   });
+  console.log('[cdn] getUploadUrl response', JSON.stringify(uploadResp).slice(0, 500));
 
   const uploadFullUrl = uploadResp.upload_full_url?.trim();
   const uploadParam = uploadResp.upload_param;
@@ -63,9 +64,11 @@ export async function uploadToCdn(
   const cdnUrl =
     uploadFullUrl ||
     `${opts.baseUrl}/upload?encrypted_query_param=${encodeURIComponent(uploadParam!)}&filekey=${encodeURIComponent(filekey)}`;
+  console.log('[cdn] using URL:', cdnUrl.slice(0, 200));
 
   // AES-128-ECB 加密
   const ciphertext = encryptAesEcb(fileBuffer, aeskey);
+  console.log('[cdn] plaintext size:', rawsize, 'ciphertext size:', ciphertext.length);
 
   // PUT 到 CDN
   const res = await fetch(cdnUrl, {
@@ -73,6 +76,10 @@ export async function uploadToCdn(
     headers: { 'Content-Type': 'application/octet-stream' },
     body: new Uint8Array(ciphertext),
   });
+  console.log('[cdn] CDN response status:', res.status);
+  const respHeaders: Record<string, string> = {};
+  res.headers.forEach((v, k) => { respHeaders[k] = v; });
+  console.log('[cdn] CDN response headers:', JSON.stringify(respHeaders));
 
   if (!res.ok) {
     throw new Error(`CDN 上传失败 (${res.status}): ${await res.text().catch(() => '')}`);
@@ -82,6 +89,7 @@ export async function uploadToCdn(
   if (!downloadParam) {
     throw new Error('CDN 响应缺少 x-encrypted-param header');
   }
+  console.log('[cdn] download param length:', downloadParam.length);
 
   return {
     filekey,
