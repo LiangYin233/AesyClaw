@@ -18,16 +18,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     memory: {
       compressionThreshold: DEFAULTS.compressionThreshold,
     },
-    multimodal: {
-      speechToText: {
-        provider: 'openai',
-        model: 'whisper-1',
-      },
-      imageUnderstanding: {
-        provider: 'openai',
-        model: 'gpt-4o',
-      },
-    },
   },
   mcp: [
     {

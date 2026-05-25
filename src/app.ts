@@ -181,6 +181,7 @@ export class Application {
       hooksBus: this.sub.pipeline.hooksBus,
       pipeline: this.sub.pipeline,
       paths: this.paths,
+      llmAdapter: this.sub.llmAdapter,
     });
 
     registerBuiltinCommands(this.sub.commandRegistry, {
@@ -223,10 +224,7 @@ export class Application {
     registerBuiltinTools(this.sub.toolRegistry, {
       cronManager: this.cronManager,
       roleManager: this.sub.roleManager,
-      llmAdapter: this.sub.llmAdapter,
-      configManager: this.sub.configManager,
       skillManager: this.sub.skillManager,
-      usageRepository: this.sub.databaseManager.usage,
       agentRegistry: this.sub.agentRegistry,
     });
 

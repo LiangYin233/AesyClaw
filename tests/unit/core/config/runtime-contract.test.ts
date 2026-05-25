@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentConfigSchema, MemoryConfigSchema } from '../../../../src/core/config/schema';
 
 const runtimeConsumedConfigKeys: Record<string, string[]> = {
-  agent: ['memory', 'multimodal'],
+  agent: ['memory'],
   memory: ['compressionThreshold'],
 };
 

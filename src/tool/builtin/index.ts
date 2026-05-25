@@ -1,20 +1,13 @@
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { CronManager } from '@aesyclaw/cron/manager';
 import type { RoleManager } from '@aesyclaw/role/manager';
-import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { SkillManager } from '@aesyclaw/skill/manager';
-import type { UsageRecord } from '@aesyclaw/core/database/database-types';
 import type { AgentRegistry } from '@aesyclaw/agent/registry';
 import type { Agent } from '@aesyclaw/agent/agent';
 import { createSendMsgTool } from './send-msg';
 import { createCreateCronTool, createListCronTool, createDeleteCronTool } from './cron-tools';
 import { createRunSubAgentTool, createRunTempSubAgentTool } from './run-sub-agent';
-import { createSpeechToTextTool } from './speech-to-text';
-import { createImageUnderstandingTool } from './image-understanding';
 import { createLoadSkillTool } from './load-skill';
-
-export { createSpeechToTextTool, createImageUnderstandingTool };
 
 /**
  * 注册内置工具所需的依赖项。
@@ -24,10 +17,7 @@ export { createSpeechToTextTool, createImageUnderstandingTool };
 export type BuiltinToolDependencies = {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
-  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
-  configManager: Pick<ConfigManager, 'get'>;
   skillManager: Pick<SkillManager, 'getSkill'>;
-  usageRepository?: { create: (record: UsageRecord) => Promise<number> };
   agentRegistry: AgentRegistry;
 };
 
@@ -65,6 +55,4 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
     createRunTempSubAgentTool({ roleManager: deps.roleManager, callLLM: lookupCallLLM }),
   );
   registry.register(createLoadSkillTool({ skillManager: deps.skillManager }));
-  registry.register(createSpeechToTextTool(deps));
-  registry.register(createImageUnderstandingTool(deps));
 }

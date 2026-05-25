@@ -7,6 +7,7 @@ import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import { PluginManager } from './plugin/plugin-manager';
 import type { PluginStatus } from './plugin/plugin-types';
 import { ChannelManager } from './channel/channel-manager';
@@ -21,6 +22,7 @@ export type ExtensionManagerDependencies = {
   hooksBus: IHooksBus;
   pipeline: Pipeline;
   paths: Readonly<ResolvedPaths>;
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 };
 
 /**
@@ -51,6 +53,7 @@ export class ExtensionManager {
       hooksBus: deps.hooksBus,
       channelManager: this.channelManager,
       paths: deps.paths,
+      llmAdapter: deps.llmAdapter,
     });
   }
 

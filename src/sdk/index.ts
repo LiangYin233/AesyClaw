@@ -37,7 +37,7 @@ export { isRecord, errorMessage } from '@aesyclaw/core/utils';
 export { createScopedLogger } from '@aesyclaw/core/logger';
 export type { Logger, LogLevel } from '@aesyclaw/core/logger';
 
-export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+export type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
 export type { HookCtx, HookResult, Middleware, HookRegistration } from '@aesyclaw/hook';
 
@@ -53,3 +53,5 @@ export type {
 
 export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';
+
+export type { ResolvedModel } from '@aesyclaw/contracts/llm';

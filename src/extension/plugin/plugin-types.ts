@@ -6,20 +6,19 @@
  */
 
 import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { IHooksBus, HookRegistration } from '@aesyclaw/hook';
-
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
-
 import type { Logger } from '@aesyclaw/core/logger';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
 import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import type { ResolvedModel } from '@aesyclaw/contracts/llm';
 import { isRecord } from '@aesyclaw/core/utils';
 import { validateExtension } from '@aesyclaw/extension/extension-utils';
-
 /** 插件初始化时接收的受限上下文。 */
 export type PluginContext = {
   config: Record<string, unknown>;
@@ -29,8 +28,9 @@ export type PluginContext = {
   registerCommand(command: CommandDefinition): void;
   registerChannel(channel: ChannelPlugin): void;
   logger: Logger;
+  /** 根据 "provider/model" 标识符解析完整的模型配置（含 API 密钥、baseUrl 等） */
+  resolveModel(providerModel: string): ResolvedModel;
 };
-
 /** 插件模块必须导出的定义结构。 */
 export type PluginDefinition = {
   name: string;
@@ -80,6 +80,7 @@ export type PluginManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
   hooksBus: IHooksBus;
   channelManager?: ChannelManager;
   paths: Readonly<ResolvedPaths>;

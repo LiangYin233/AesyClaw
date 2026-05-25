@@ -72,8 +72,9 @@ function makeModule(overrides: Partial<PluginModule> = {}): PluginModule {
           name: 'alpha_tool',
           description: 'An example tool',
           parameters: Type.Object({}),
+          owner: 'test',
           execute: async () => ({ content: 'ok' }),
-        } as AesyClawTool);
+        } as unknown as AesyClawTool);
         ctx.registerCommand({
           name: 'alpha_cmd',
           description: 'Example command',
@@ -107,13 +108,14 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
   setupLoaderMock(module);
 
   const manager = new PluginManager({
-    configManager: config,
-    toolRegistry,
-    commandRegistry,
-    hooksBus,
-    channelManager: channelManager as unknown as ChannelManager,
-    paths: fakePaths,
-  });
+      configManager: config,
+      toolRegistry,
+      commandRegistry,
+      hooksBus,
+      channelManager: channelManager as unknown as ChannelManager,
+      paths: fakePaths,
+      llmAdapter: { resolveModel: vi.fn() },
+    });
   return { manager, config, toolRegistry, commandRegistry, hooksBus, channelManager };
 }
 
@@ -268,6 +270,7 @@ describe('PluginManager', () => {
       commandRegistry: new CommandRegistry(),
       hooksBus: new HooksBus(),
       paths: fakePaths,
+      llmAdapter: { resolveModel: vi.fn() },
     });
 
     const unloadAll = vi.spyOn(manager, 'unloadAll').mockResolvedValue(undefined);

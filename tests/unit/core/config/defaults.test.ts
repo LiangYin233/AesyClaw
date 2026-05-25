@@ -18,13 +18,6 @@ describe('DEFAULT_CONFIG', () => {
     expect(DEFAULT_CONFIG.agent.memory.compressionThreshold).toBeLessThanOrEqual(1);
   });
 
-  it('has multimodal config with STT and image understanding', () => {
-    expect(DEFAULT_CONFIG.agent.multimodal.speechToText.provider).toBe('openai');
-    expect(DEFAULT_CONFIG.agent.multimodal.speechToText.model).toBe('whisper-1');
-    expect(DEFAULT_CONFIG.agent.multimodal.imageUnderstanding.provider).toBe('openai');
-    expect(DEFAULT_CONFIG.agent.multimodal.imageUnderstanding.model).toBe('gpt-4o');
-  });
-
   it('has empty plugins array', () => {
     expect(DEFAULT_CONFIG.plugins).toEqual([]);
   });

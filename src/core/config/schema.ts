@@ -51,20 +51,8 @@ const MemoryConfigSchema = Type.Object({
   compressionThreshold: Type.Number({ default: DEFAULTS.compressionThreshold }),
 });
 
-const MultimodalConfigSchema = Type.Object({
-  speechToText: Type.Object({
-    provider: Type.String(),
-    model: Type.String(),
-  }),
-  imageUnderstanding: Type.Object({
-    provider: Type.String(),
-    model: Type.String(),
-  }),
-});
-
 const AgentConfigSchema = Type.Object({
   memory: MemoryConfigSchema,
-  multimodal: MultimodalConfigSchema,
 });
 
 // ─── MCP ─────────────────────────────────────────────────────────
@@ -121,11 +109,10 @@ export {
   /** 服务器配置模式 */
   ServerConfigSchema,
   /** 代理配置模式 */
+  /** 代理配置模式 */
   AgentConfigSchema,
   /** 记忆压缩配置模式 */
   MemoryConfigSchema,
-  /** 多模态配置模式（语音转文本 / 图像理解） */
-  MultimodalConfigSchema,
   /** MCP 服务器配置模式 */
   McpServerConfigSchema,
   /** 插件配置条目模式 */

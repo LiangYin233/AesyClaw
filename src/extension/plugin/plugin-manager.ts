@@ -274,6 +274,7 @@ export class PluginManager implements ExtensionLifecycle {
         deps.channelManager.register(channel, owner);
       },
       logger: createScopedLogger(owner),
+      resolveModel: (providerModel) => deps.llmAdapter.resolveModel(providerModel),
     };
   }
 

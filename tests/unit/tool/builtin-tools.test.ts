@@ -1,21 +1,14 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { completeSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { createSendMsgTool } from '../../../src/tool/builtin/send-msg';
-import {
-  createRunSubAgentTool,
-  createRunTempSubAgentTool,
-} from '../../../src/tool/builtin/run-sub-agent';
 import { createLoadSkillTool } from '../../../src/tool/builtin/load-skill';
-import {
-  registerBuiltinTools,
-  createSpeechToTextTool,
-  createImageUnderstandingTool,
-} from '../../../src/tool/builtin';
+import { createRunSubAgentTool, createRunTempSubAgentTool } from '../../../src/tool/builtin/run-sub-agent';
+import { registerBuiltinTools } from '../../../src/tool/builtin';
 import type { Skill } from '../../../src/core/types';
 
 vi.mock('@mariozechner/pi-ai', async () => {
@@ -32,27 +25,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.mocked(completeSimple).mockReset();
 });
-
-function makeConfigManager() {
-  return {
-    get: vi.fn().mockImplementation((key: string) => {
-      if (key === 'agent.multimodal') {
-        return {
-          speechToText: { provider: 'openai', model: 'whisper-1' },
-          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-        };
-      }
-      return undefined;
-    }),
-  };
-}
-
-async function createTempFile(name: string, content: Uint8Array): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-tool-test-'));
-  const filePath = path.join(dir, name);
-  await fs.writeFile(filePath, content);
-  return filePath;
-}
 
 function makeSkillManager(skills: Skill[] = []) {
   const skillMap = new Map(skills.map((skill) => [skill.name, skill]));
@@ -130,7 +102,7 @@ describe('built-in tools', () => {
     });
   });
 
-  it('registers sub-agent and multimodal tools in the default built-in set', () => {
+  it('registers all built-in tools', () => {
     const registry = new ToolRegistry();
 
     registerBuiltinTools(registry, {
@@ -139,18 +111,11 @@ describe('built-in tools', () => {
         listJobs: vi.fn(),
         deleteJob: vi.fn(),
       },
-      agentEngine: {
-        createAgent: vi.fn(),
-        process: vi.fn(),
-      },
+      agentRegistry: {} as never,
       roleManager: {
         getRole: vi.fn(),
         getDefaultRole: vi.fn(),
       },
-      llmAdapter: {
-        resolveModel: vi.fn(),
-      },
-      configManager: makeConfigManager(),
       skillManager: makeSkillManager(),
     });
 
@@ -160,9 +125,6 @@ describe('built-in tools', () => {
     expect(registry.has('delete_cron')).toBe(true);
     expect(registry.has('run_sub_agent')).toBe(true);
     expect(registry.has('run_temp_sub_agent')).toBe(true);
-    expect(registry.has('load_skill')).toBe(true);
-    expect(registry.has('speech_to_text')).toBe(true);
-    expect(registry.has('image_understanding')).toBe(true);
   });
 
   it('load_skill reads text content from a skill directory', async () => {
@@ -579,139 +541,4 @@ describe('built-in tools', () => {
     );
   });
 
-  it('speech_to_text loads local audio and returns a transcription', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ text: 'transcribed words' }),
-        text: vi.fn().mockResolvedValue(''),
-      }),
-    );
-    const filePath = await createTempFile('sample.wav', new Uint8Array([82, 73, 70, 70]));
-    const llmAdapter = {
-      resolveModel: vi.fn().mockReturnValue({
-        provider: 'openai',
-        modelId: 'whisper-1',
-        apiKey: 'sk-test-key',
-        apiType: 'openai-responses',
-        baseUrl: 'https://api.openai.com/v1/',
-      }),
-    };
-    const tool = createSpeechToTextTool({
-      configManager: makeConfigManager(),
-      llmAdapter,
-    });
-
-    await expect(
-      tool.execute(
-        { source: filePath },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
-    ).resolves.toEqual({ content: 'transcribed words' });
-
-    expect(llmAdapter.resolveModel).toHaveBeenCalledWith('openai/whisper-1');
-  });
-
-  it('speech_to_text returns structured errors for unsupported providers', async () => {
-    const filePath = await createTempFile('sample.wav', new Uint8Array([82, 73, 70, 70]));
-    const tool = createSpeechToTextTool({
-      configManager: makeConfigManager(),
-      llmAdapter: {
-        resolveModel: vi.fn().mockReturnValue({
-          provider: 'openai',
-          modelId: 'whisper-1',
-          apiKey: 'sk-test-key',
-          apiType: 'anthropic-messages',
-          baseUrl: 'https://api.anthropic.com',
-        }),
-      },
-    });
-
-    await expect(
-      tool.execute(
-        { source: filePath },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
-    ).resolves.toEqual({
-      content: '语音转文本失败: 提供者 API 类型 "anthropic-messages" 不支持语音转文本',
-      isError: true,
-    });
-  });
-
-  it('image_understanding loads local images and returns analysis text', async () => {
-    vi.mocked(completeSimple).mockResolvedValue({
-      role: 'assistant',
-      content: [{ type: 'text', text: 'A tiny PNG image.' }],
-      api: 'openai-responses',
-      provider: 'openai',
-      model: 'gpt-4o',
-      usage: {
-        input: 10,
-        output: 5,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 15,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
-      stopReason: 'stop',
-      timestamp: Date.now(),
-    });
-    const filePath = await createTempFile('sample.png', new Uint8Array([137, 80, 78, 71]));
-    const llmAdapter = {
-      resolveModel: vi.fn().mockReturnValue({
-        provider: 'openai',
-        modelId: 'gpt-4o',
-        apiKey: 'sk-test-key',
-        apiType: 'openai-responses',
-        input: ['text', 'image'],
-      }),
-    };
-    const tool = createImageUnderstandingTool({
-      configManager: makeConfigManager(),
-      llmAdapter,
-    });
-
-    await expect(
-      tool.execute(
-        { source: filePath, question: 'What is shown?' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
-    ).resolves.toEqual({ content: 'A tiny PNG image.' });
-
-    expect(llmAdapter.resolveModel).toHaveBeenCalledWith('openai/gpt-4o');
-  });
-
-  it('image_understanding returns structured tool errors for source failures', async () => {
-    const tool = createImageUnderstandingTool({
-      configManager: makeConfigManager(),
-      llmAdapter: {
-        resolveModel: vi.fn(),
-      },
-    });
-
-    const result = await tool.execute(
-      { source: 'missing-image.png' },
-      {
-        sessionKey: SESSION_KEY,
-        agentEngine: null,
-        cronManager: null,
-      },
-    );
-
-    expect(result.isError).toBe(true);
-    expect(result.content).toContain('图片理解失败:');
-  });
-});
+})
