@@ -116,9 +116,11 @@ export const channel: ChannelPlugin = {
   async receive() {},
 
   async send(signal: OutboundSignal) {
-    if (!token || !baseUrl || destroyed) return;
+    if (!token || !baseUrl || destroyed) {
+      console.log('[weixin] send skipped: token or baseUrl missing');
+      return;
+    }
     if (signal.kind !== 'message') return;
-
     const parts = extractMessageParts(signal.content as { components: unknown[] });
     const items: Array<Record<string, unknown>> = [];
 
