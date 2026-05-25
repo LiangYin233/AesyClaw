@@ -28,7 +28,7 @@ export type ChannelContext = {
   receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
-  registerCommand(command: CommandDefinition): void;
+  registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
   getCommands(): RegisteredCommandInfo[];
   logger: Logger;
 };

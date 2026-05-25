@@ -25,7 +25,7 @@ export type PluginContext = {
   paths: Readonly<ResolvedPaths>;
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
-  registerCommand(command: CommandDefinition): void;
+  registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
   registerChannel(channel: ChannelPlugin): void;
   logger: Logger;
   /** 根据 "provider/model" 标识符解析完整的模型配置（含 API 密钥、baseUrl 等） */

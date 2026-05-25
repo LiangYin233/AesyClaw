@@ -96,8 +96,8 @@ export type CommandDefinition = {
   description: string;
   usage?: string;
   allowDuringAgentProcessing?: boolean;
-  /** 用于清理的所属子系统作用域；未指定时由注册方自动设置。 */
-  scope?: ToolOwnerType;
+  /** 用于清理的所属子系统作用域 */
+  scope: ToolOwnerType;
   execute: CommandExecuteFn;
 };
 

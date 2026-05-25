@@ -43,7 +43,7 @@ const plugin: PluginDefinition = {
       name: 'example',
       description: 'Run the example plugin command.',
       usage: '/example',
-      scope: 'plugin:example',
+
       execute: async () => ({ components: [{ type: 'Plain', text: 'Example plugin is active.' }] }),
     });
 
