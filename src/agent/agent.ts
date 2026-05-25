@@ -8,6 +8,7 @@ import {
 } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentMessage, ResolvedModel } from './types';
+import { createUserMessage } from '@aesyclaw/contracts/llm';
 import type {
   AesyClawTool,
   ToolExecutionContext,
@@ -210,6 +211,12 @@ export class Agent {
 
     if (!ephemeral) {
       await this.session.syncFromAgent(finalResult.newMessages);
+      // 若 Agent 被 /stop 中止，用户的输入消息只存在于 PiAgent
+      // 内部状态中（被丢弃了），没有通过 syncFromAgent 持久化。
+      // 这里单独将其追加到会话，确保后续消息能看见前文。
+      if (finalResult.cancelled) {
+        await this.session.add(createUserMessage(content));
+      }
     }
 
     return this.toMessage(effectiveRole.id, finalResult);
