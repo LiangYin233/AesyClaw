@@ -121,81 +121,67 @@ export const channel: ChannelPlugin = {
       return;
     }
     if (signal.kind !== 'message') return;
-    const parts = extractMessageParts(signal.content as { components: unknown[] });
-    const items: Array<Record<string, unknown>> = [];
 
-    // 文本
+    const parts = extractMessageParts(signal.content as { components: unknown[] });
+
+    // 每项单独发送（iLink 协议要求 item_list 每次只有一个元素）
+    const tasks: Array<() => Promise<void>> = [];
+
     if (parts.text) {
-      items.push({ type: 1, text_item: { text: parts.text } });
+      tasks.push(() => sendOneItem({ type: 1, text_item: { text: parts.text } }));
     }
 
-    // 媒体 — 逐件上传 CDN 后发送
     for (const media of parts.media) {
+      tasks.push(() => handleMediaItem(media, signal.session.chatId));
+    }
+
+    for (const task of tasks) {
+      try { await task(); } catch (err) {
+        try { await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } }); } catch {}
+      }
+    }
+
+    async function sendOneItem(item: Record<string, unknown>): Promise<void> {
+      await sendMessage({
+        baseUrl, token,
+        body: {
+          msg: {
+            to_user_id: signal.session.chatId,
+            message_type: 2,
+            message_state: 2,
+            item_list: [item],
+          },
+        },
+      });
+    }
+
+    async function handleMediaItem(media: Component, chatId: string): Promise<void> {
       let fileBuffer: Buffer | undefined;
       if (media.base64) {
         fileBuffer = Buffer.from(media.base64, 'base64');
       } else if (media.path) {
-        try {
-          fileBuffer = await fs.readFile(media.path);
-        } catch {
-          continue;
-        }
+        fileBuffer = await fs.readFile(media.path);
       }
-      if (!fileBuffer) continue;
+      if (!fileBuffer) return;
 
       const mime = media.mimeType || guessMime(media.name || media.path || '');
       const mediaType = mime.startsWith('image/') ? 1 : mime.startsWith('video/') ? 2 : 3;
+      const uploaded = await uploadToCdn(fileBuffer, chatId, mediaType, { baseUrl, token });
+      const aesKeyBase64 = Buffer.from(uploaded.aeskey, 'hex').toString('base64');
+      const cdnRef = {
+        encrypt_query_param: uploaded.downloadEncryptedQueryParam,
+        aes_key: aesKeyBase64,
+        encrypt_type: 1,
+      };
 
-      try {
-        const uploaded = await uploadToCdn(fileBuffer, signal.session.chatId, mediaType, {
-          baseUrl,
-          token,
-        });
-        const aesKeyBase64 = Buffer.from(uploaded.aeskey, 'hex').toString('base64');
-        const cdnRef = {
-          encrypt_query_param: uploaded.downloadEncryptedQueryParam,
-          aes_key: aesKeyBase64,
-          encrypt_type: 1,
-        };
-
-        if (mediaType === 1) {
-          items.push({
-            type: 2,
-            image_item: { media: cdnRef, mid_size: uploaded.fileSizeCiphertext },
-          });
-        } else if (mediaType === 2) {
-          items.push({
-            type: 5,
-            video_item: { media: cdnRef, video_size: uploaded.fileSizeCiphertext },
-          });
-        } else {
-          items.push({
-            type: 4,
-            file_item: {
-              media: cdnRef,
-              file_name: media.name || 'file',
-              len: String(uploaded.fileSize),
-            },
-          });
-        }
-      } catch (err) {
-        items.push({ type: 1, text_item: { text: `[媒体上传失败: ${err}]` } });
+      if (mediaType === 1) {
+        await sendOneItem({ type: 2, image_item: { media: cdnRef, mid_size: uploaded.fileSizeCiphertext } });
+      } else if (mediaType === 2) {
+        await sendOneItem({ type: 5, video_item: { media: cdnRef, video_size: uploaded.fileSizeCiphertext } });
+      } else {
+        await sendOneItem({ type: 4, file_item: { media: cdnRef, file_name: media.name || 'file', len: String(uploaded.fileSize) } });
       }
     }
-
-    if (items.length === 0) return;
-    await sendMessage({
-      baseUrl,
-      token,
-      body: {
-        msg: {
-          to_user_id: signal.session.chatId,
-          message_type: 2,
-          message_state: 2,
-          item_list: items,
-        },
-      },
-    });
   },
 };
 
