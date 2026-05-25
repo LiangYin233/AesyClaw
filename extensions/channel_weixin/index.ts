@@ -68,7 +68,7 @@ export const channel: ChannelPlugin = {
       name: 'weixin_login',
       description: '微信扫码登录',
 
-      allowDuringAgentProcessing: false,
+      allowDuringAgentProcessing: true,
       execute: async () => {
         try {
           const qr = await prepareQR(ctx.paths.mediaDir);

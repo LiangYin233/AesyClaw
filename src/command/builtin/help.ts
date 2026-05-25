@@ -18,6 +18,7 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
     name: 'help',
     description: '列出所有可用命令',
     scope: 'system',
+    allowDuringAgentProcessing: true,
     execute: async (_args: string[], _context: CommandContext): Promise<Message> => {
       const commands = getAllCommands();
 
