@@ -11,14 +11,15 @@ describe('createModelCommand', () => {
       { getAgent: vi.fn(() => ({ setModel })) } as never,
     );
     const result = await cmd.execute(['openai/gpt-4o'], { sessionKey: KEY });
-    expect(result).toBe('模型已切换为 openai/gpt-4o');
+    expect(result).toEqual({ components: [{ type: 'Plain', text: '模型已切换为 openai/gpt-4o' }] });
     expect(setModel).toHaveBeenCalledWith('openai/gpt-4o');
   });
 
   it('shows usage when no identifier provided', async () => {
     const cmd = createModelCommand({} as never, {} as never);
     const result = await cmd.execute([], { sessionKey: KEY });
-    expect(result).toContain('用法: /model');
+    const text = 'text' in result.components[0] ? (result.components[0] as { text: string }).text : '';
+    expect(text).toContain('用法: /model');
   });
 
   it('returns resolveModel error message on failure', async () => {
@@ -31,8 +32,9 @@ describe('createModelCommand', () => {
       {} as never,
     );
     const result = await cmd.execute(['invalid/model'], { sessionKey: KEY });
-    expect(result).toContain('模型切换失败');
-    expect(result).toContain('Unknown provider');
+    const text = 'text' in result.components[0] ? (result.components[0] as { text: string }).text : '';
+    expect(text).toContain('模型切换失败');
+    expect(text).toContain('Unknown provider');
   });
 
   it('handles no active agent gracefully', async () => {
@@ -41,6 +43,6 @@ describe('createModelCommand', () => {
       { getAgent: vi.fn(() => null) } as never,
     );
     const result = await cmd.execute(['openai/gpt-4o'], { sessionKey: KEY });
-    expect(result).toBe('当前没有活跃的 Agent，无法切换模型。请先发送一条消息。');
+    expect(result).toEqual({ components: [{ type: 'Plain', text: '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。' }] });
   });
 });

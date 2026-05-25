@@ -11,7 +11,7 @@ describe('createStopCommand', () => {
       { cancel: vi.fn(() => true) } as never,
     );
     const result = await cmd.execute([], { sessionKey: KEY });
-    expect(result).toBe('Agent 处理已中止。');
+    expect(result).toEqual({ components: [{ type: 'Plain', text: 'Agent 处理已中止。' }] });
     expect(unlock).toHaveBeenCalled();
   });
 
@@ -21,7 +21,7 @@ describe('createStopCommand', () => {
       { cancel: vi.fn() } as never,
     );
     const result = await cmd.execute([], { sessionKey: KEY });
-    expect(result).toBe('没有找到活跃会话。');
+    expect(result).toEqual({ components: [{ type: 'Plain', text: '没有找到活跃会话。' }] });
   });
 
   it('handles no processing to cancel', async () => {
@@ -30,6 +30,6 @@ describe('createStopCommand', () => {
       { cancel: vi.fn(() => false) } as never,
     );
     const result = await cmd.execute([], { sessionKey: KEY });
-    expect(result).toBe('没有正在进行的处理。');
+    expect(result).toEqual({ components: [{ type: 'Plain', text: '没有正在进行的处理。' }] });
   });
 });

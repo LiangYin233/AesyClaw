@@ -5,7 +5,7 @@
  *
  */
 
-import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
 
 /**
  * 创建 help 命令定义。
@@ -18,11 +18,11 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
     name: 'help',
     description: '列出所有可用命令',
     scope: 'system',
-    execute: async (_args: string[], _context: CommandContext): Promise<string> => {
+    execute: async (_args: string[], _context: CommandContext): Promise<Message> => {
       const commands = getAllCommands();
 
       if (commands.length === 0) {
-        return '没有注册任何命令。';
+        return { components: [{ type: 'Plain', text: '没有注册任何命令。' }] };
       }
 
       const lines = commands
@@ -37,7 +37,7 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
           return `  ${commandText}  ${cmd.description}`;
         });
 
-      return `可用命令：\n${lines.join('\n')}`;
+      return { components: [{ type: 'Plain', text: '可用命令：\n' + lines.join('\n') }] };
     },
   };
 }

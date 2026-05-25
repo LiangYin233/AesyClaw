@@ -22,7 +22,7 @@ function makeCommand(overrides: Partial<CommandDefinition> = {}): CommandDefinit
     name: 'test',
     description: 'A test command',
     scope: 'system',
-    execute: async () => 'test output',
+    execute: async () => ({ components: [{ type: 'Plain', text: 'test output' }] }),
     ...overrides,
   };
 }
@@ -121,12 +121,12 @@ describe('CommandRegistry', () => {
       registry.register(
         makeCommand({
           name: 'greet',
-          execute: async () => 'Hello!',
+          execute: async () => ({ components: [{ type: 'Plain', text: 'Hello!' }] }),
         }),
       );
 
       const result = await registry.execute('/greet', makeContext());
-      expect(result).toBe('Hello!');
+      expect(result).toEqual({ components: [{ type: 'Plain', text: 'Hello!' }] });
     });
 
     it('should return null for non-command input', async () => {
@@ -146,13 +146,13 @@ describe('CommandRegistry', () => {
           name: 'echo',
           execute: async (args) => {
             receivedArgs = args;
-            return args.join(' ');
+            return { components: [{ type: 'Plain', text: args.join(' ') }] };
           },
         }),
       );
 
       const result = await registry.execute('/echo hello world', makeContext());
-      expect(result).toBe('hello world');
+      expect(result).toEqual({ components: [{ type: 'Plain', text: 'hello world' }] });
       expect(receivedArgs).toEqual(['hello', 'world']);
     });
 
@@ -161,12 +161,12 @@ describe('CommandRegistry', () => {
         makeCommand({
           name: 'list',
           namespace: 'role',
-          execute: async () => 'role list',
+          execute: async () => ({ components: [{ type: 'Plain', text: 'role list' }] }),
         }),
       );
 
       const result = await registry.execute('/role list', makeContext());
-      expect(result).toBe('role list');
+      expect(result).toEqual({ components: [{ type: 'Plain', text: 'role list' }] });
     });
 
     it('should handle command errors gracefully', async () => {
@@ -179,21 +179,21 @@ describe('CommandRegistry', () => {
         }),
       );
 
-      const result = await registry.execute('/fail', makeContext());
-      expect(result).toContain('执行命令时出错');
-      expect(result).toContain('Command failed');
+      const result = await registry.execute('/fail', makeContext()); const text = result.components[0].type === 'Plain' ? result.components[0].text : '';
+      expect(text).toContain('执行命令时出错');
+      expect(text).toContain('Command failed');
     });
 
     it('should trim whitespace from input', async () => {
       registry.register(
         makeCommand({
           name: 'test',
-          execute: async () => 'ok',
+          execute: async () => ({ components: [{ type: 'Plain', text: 'ok' }] }),
         }),
       );
 
       const result = await registry.execute('  /test  ', makeContext());
-      expect(result).toBe('ok');
+      expect(result).toEqual({ components: [{ type: 'Plain', text: 'ok' }] });
     });
   });
 
@@ -221,7 +221,7 @@ describe('CommandRegistry', () => {
     });
 
     it('should execute a resolved command', async () => {
-      registry.register(makeCommand({ name: 'echo', execute: async (args) => args.join(' ') }));
+      registry.register(makeCommand({ name: 'echo', execute: async (args) => ({ components: [{ type: 'Plain', text: args.join(' ') }] }) }));
       const resolved = registry.resolve('/echo hello world');
 
       expect(resolved).not.toBeNull();
@@ -229,7 +229,7 @@ describe('CommandRegistry', () => {
         throw new Error('Expected /echo to resolve');
       }
 
-      await expect(registry.executeResolved(resolved, makeContext())).resolves.toBe('hello world');
+      await expect(registry.executeResolved(resolved, makeContext())).resolves.toEqual({ components: [{ type: 'Plain', text: 'hello world' }] });
     });
   });
 

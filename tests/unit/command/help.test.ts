@@ -11,18 +11,19 @@ describe('createHelpCommand', () => {
       { name: 'help', description: 'Show help', scope: 'system', execute: vi.fn() },
     ]);
     const result = await cmd.execute([], { sessionKey: KEY });
-    expect(result).toContain('可用命令');
-    expect(result.indexOf('/clear')).toBeLessThan(result.indexOf('/help'));
-    expect(result.indexOf('/help')).toBeLessThan(result.indexOf('/stop'));
-    expect(result).toContain('Clear history');
-    expect(result).toContain('Show help');
-    expect(result).toContain('Stop processing');
+    const text = result.components[0].type === 'Plain' ? result.components[0].text : '';
+    expect(text).toContain('可用命令');
+    expect(text.indexOf('/clear')).toBeLessThan(text.indexOf('/help'));
+    expect(text.indexOf('/help')).toBeLessThan(text.indexOf('/stop'));
+    expect(text).toContain('Clear history');
+    expect(text).toContain('Show help');
+    expect(text).toContain('Stop processing');
   });
 
   it('returns empty message when no commands', async () => {
     const cmd = createHelpCommand(() => []);
     const result = await cmd.execute([], { sessionKey: KEY });
-    expect(result).toBe('没有注册任何命令。');
+    expect(result).toEqual({ components: [{ type: 'Plain', text: '没有注册任何命令。' }] });
   });
 
   it('uses namespace:name format when namespace is present', async () => {
@@ -36,6 +37,7 @@ describe('createHelpCommand', () => {
       },
     ]);
     const result = await cmd.execute([], { sessionKey: KEY });
-    expect(result).toContain('/plugin cmd');
+    const text = result.components[0].type === 'Plain' ? result.components[0].text : '';
+    expect(text).toContain('/plugin cmd');
   });
 });

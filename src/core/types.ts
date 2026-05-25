@@ -83,6 +83,8 @@ export type Skill = {
 };
 
 /** 提供给命令执行函数的上下文 */
+import type { Message } from './types/message';
+
 export type CommandContext = {
   sessionKey: SessionKey;
 };
@@ -100,8 +102,7 @@ export type CommandDefinition = {
 };
 
 /** 命令执行函数签名 */
-export type CommandExecuteFn = (args: string[], context: CommandContext) => Promise<string>;
-
+export type CommandExecuteFn = (args: string[], context: CommandContext) => Promise<Message>;
 // ─── 实用类型 ──────────────────────────────────────────────────────
 
 /** 递归地将类型 T 的所有属性设为可选 */

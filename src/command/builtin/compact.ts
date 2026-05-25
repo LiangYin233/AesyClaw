@@ -1,4 +1,4 @@
-import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { RoleManager } from '@aesyclaw/role/manager';
@@ -26,10 +26,10 @@ export function createCompactCommand(
     name: 'compact',
     description: '压缩当前会话历史以减少上下文长度',
     scope: 'system',
-    execute: async (_args: string[], context: CommandContext): Promise<string> => {
+    execute: async (_args: string[], context: CommandContext): Promise<Message> => {
       const session = sessionManager.get(context.sessionKey);
       if (!session) {
-        return '没有找到活跃会话。';
+        return { components: [{ type: 'Plain', text: '没有找到活跃会话。' }] };
       }
 
       const activeRoleId = await Agent.resolveActiveRoleId(context, {
@@ -39,7 +39,7 @@ export function createCompactCommand(
       const role = activeRoleId ? roleManager.getRole(activeRoleId) : roleManager.getDefaultRole();
 
       const summary = await session.compact(llmAdapter, role.model);
-      return `会话已压缩完成。\n${summary}`;
+      return { components: [{ type: 'Plain', text: `会话已压缩完成。\n${summary}` }] };
     },
   };
 }

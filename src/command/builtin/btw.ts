@@ -8,6 +8,7 @@ import {
   getMessageText,
   type CommandContext,
   type CommandDefinition,
+  type Message,
   type RoleConfig,
 } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
@@ -50,10 +51,10 @@ export function createBtwCommand(
     usage: '/btw <message>',
     scope: 'system',
     allowDuringAgentProcessing: true,
-    execute: async (args: string[], context: CommandContext): Promise<string> => {
+    execute: async (args: string[], context: CommandContext): Promise<Message> => {
       const content = args.join(' ').trim();
       if (!content) {
-        return '用法：/btw <message>';
+        return { components: [{ type: 'Plain', text: '用法：/btw <message>' }] };
       }
 
       const session = await sessionManager.create(context.sessionKey);
@@ -80,7 +81,7 @@ export function createBtwCommand(
         { ephemeral: true, role },
       );
 
-      return getMessageText(outbound);
+      return { components: [{ type: 'Plain', text: getMessageText(outbound) }] };
     },
   };
 }

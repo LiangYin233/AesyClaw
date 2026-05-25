@@ -6,7 +6,7 @@
  *
  */
 
-import type { ToolOwner, CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { ToolOwner, CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('command-registry');
@@ -106,12 +106,11 @@ export class CommandRegistry {
    * @param context - 命令执行上下文
    * @returns 命令输出字符串，如果不是有效命令则返回 null
    */
-  async execute(input: string, context: CommandContext): Promise<string | null> {
+  async execute(input: string, context: CommandContext): Promise<Message | null> {
     const resolved = this.resolve(input);
     if (!resolved) {
       return null;
     }
-
     return await this.executeResolved(resolved, context);
   }
 
@@ -122,13 +121,13 @@ export class CommandRegistry {
    * @param context - 命令执行上下文
    * @returns 命令输出字符串
    */
-  async executeResolved(resolved: ResolvedCommand, context: CommandContext): Promise<string> {
+  async executeResolved(resolved: ResolvedCommand, context: CommandContext): Promise<Message> {
     try {
       return await resolved.command.execute(resolved.args, context);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`命令 "${resolved.registryKey}" 执行失败: ${message}`);
-      return `执行命令时出错: ${message}`;
+      return { components: [{ type: 'Plain', text: `执行命令时出错: ${message}` }] };
     }
   }
 

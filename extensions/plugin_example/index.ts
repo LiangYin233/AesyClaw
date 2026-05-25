@@ -44,7 +44,7 @@ const plugin: PluginDefinition = {
       description: 'Run the example plugin command.',
       usage: '/example',
       scope: 'plugin:example',
-      execute: async () => 'Example plugin is active.',
+      execute: async () => ({ components: [{ type: 'Plain', text: 'Example plugin is active.' }] }),
     });
 
     ctx.logger.info('Example plugin initialized');

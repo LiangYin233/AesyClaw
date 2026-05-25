@@ -1,4 +1,4 @@
-import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
@@ -18,11 +18,11 @@ export function createSkillReloadCommand(
     description: '重新加载所有技能文件',
     usage: '/skill reload',
     scope: 'system',
-    execute: async (_args: string[], context: CommandContext): Promise<string> => {
+    execute: async (_args: string[], context: CommandContext): Promise<Message> => {
       await skillManager.reload();
       agentRegistry.invalidatePromptCache(context.sessionKey);
       const count = skillManager.getAllSkills().length;
-      return `技能已重新加载。当前共有 ${count} 个技能。`;
+      return { components: [{ type: 'Plain', text: `技能已重新加载。当前共有 ${count} 个技能。` }] };
     },
   };
 }

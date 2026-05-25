@@ -1,4 +1,4 @@
-import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
@@ -17,27 +17,27 @@ export function createModelCommand(
     description: '切换模型 (用法: /model <provider/modelId>)',
     scope: 'system',
     allowDuringAgentProcessing: true,
-    execute: async (args: string[], context: CommandContext): Promise<string> => {
+    execute: async (args: string[], context: CommandContext): Promise<Message> => {
       const modelIdentifier = args[0];
 
       if (!modelIdentifier) {
-        return '用法: /model <provider/modelId> (例如 /model openai/gpt-4o)';
+        return { components: [{ type: 'Plain', text: '用法: /model <provider/modelId> (例如 /model openai/gpt-4o)' }] };
       }
 
       try {
         llmAdapter.resolveModel(modelIdentifier);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        return `模型切换失败: ${message}`;
+        return { components: [{ type: 'Plain', text: `模型切换失败: ${message}` }] };
       }
 
       const agent = agentRegistry.getAgent(context.sessionKey);
       if (!agent) {
-        return '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。';
+        return { components: [{ type: 'Plain', text: '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。' }] };
       }
 
       agent.setModel(modelIdentifier);
-      return `模型已切换为 ${modelIdentifier}`;
+      return { components: [{ type: 'Plain', text: `模型已切换为 ${modelIdentifier}` }] };
     },
   };
 }

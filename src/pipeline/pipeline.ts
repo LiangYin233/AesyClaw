@@ -114,12 +114,7 @@ export class Pipeline implements MessageProcessor {
         }
 
         const result = await this.deps.commandRegistry.executeResolved(resolved, { sessionKey });
-        await this.message(
-          send,
-          { components: [{ type: 'Plain', text: result }] },
-          session.key,
-          'command',
-        );
+        await this.message(send, result, session.key, 'command');
         return;
       }
 

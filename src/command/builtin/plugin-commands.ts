@@ -8,7 +8,7 @@
  *
  */
 
-import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 
 export type PluginCommandDeps = {
@@ -37,10 +37,10 @@ export function createPluginListCommand(deps: PluginCommandDeps): CommandDefinit
     description: '列出已加载的插件',
     usage: '/plugin list',
     scope: 'system',
-    execute: async (_args: string[], _context: CommandContext): Promise<string> => {
+    execute: async (_args: string[], _context: CommandContext): Promise<Message> => {
       const plugins = await deps.extensionManager.listPlugins();
       if (plugins.length === 0) {
-        return '当前没有发现插件。';
+        return { components: [{ type: 'Plain', text: '当前没有发现插件。' }] };
       }
 
       const lines = plugins.map((plugin) => {
@@ -49,7 +49,7 @@ export function createPluginListCommand(deps: PluginCommandDeps): CommandDefinit
         return `- ${plugin.name}${version} [${plugin.state}]${plugin.enabled ? '' : '（已禁用）'}${error}`;
       });
 
-      return `插件列表：\n${lines.join('\n')}`;
+      return { components: [{ type: 'Plain', text: '插件列表：\n' + lines.join('\n') }] };
     },
   };
 }
@@ -67,23 +67,23 @@ export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefin
     description: '启用指定插件',
     usage: '/plugin enable <name>',
     scope: 'system',
-    execute: async (args: string[], _context: CommandContext): Promise<string> => {
+    execute: async (args: string[], _context: CommandContext): Promise<Message> => {
       if (args.length === 0) {
-        return '用法：/plugin enable <name>';
+        return { components: [{ type: 'Plain', text: '用法：/plugin enable <name>' }] };
       }
 
       const name = args[0];
       if (!name) {
-        return `未找到插件：${args[0] ?? ''}`;
+        return { components: [{ type: 'Plain', text: '用法：/plugin enable <name>' }] };
       }
 
       const pluginName = await resolvePluginName(deps, name);
       if (!pluginName) {
-        return `未找到插件：${name}`;
+        return { components: [{ type: 'Plain', text: `未找到插件：${name}` }] };
       }
 
       await deps.extensionManager.enablePlugin(pluginName);
-      return `插件已启用：${pluginName}`;
+      return { components: [{ type: 'Plain', text: `插件已启用：${pluginName}` }] };
     },
   };
 }
@@ -101,23 +101,23 @@ export function createPluginDisableCommand(deps: PluginCommandDeps): CommandDefi
     description: '禁用指定插件',
     usage: '/plugin disable <name>',
     scope: 'system',
-    execute: async (args: string[], _context: CommandContext): Promise<string> => {
+    execute: async (args: string[], _context: CommandContext): Promise<Message> => {
       if (args.length === 0) {
-        return '用法：/plugin disable <name>';
+        return { components: [{ type: 'Plain', text: '用法：/plugin disable <name>' }] };
       }
 
       const name = args[0];
       if (!name) {
-        return `未找到插件：${args[0] ?? ''}`;
+        return { components: [{ type: 'Plain', text: '用法：/plugin disable <name>' }] };
       }
 
       const pluginName = await resolvePluginName(deps, name);
       if (!pluginName) {
-        return `未找到插件：${name}`;
+        return { components: [{ type: 'Plain', text: `未找到插件：${name}` }] };
       }
 
       await deps.extensionManager.disablePlugin(pluginName);
-      return `插件已禁用：${pluginName}`;
+      return { components: [{ type: 'Plain', text: `插件已禁用：${pluginName}` }] };
     },
   };
 }
