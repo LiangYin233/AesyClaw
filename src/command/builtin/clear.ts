@@ -20,7 +20,11 @@ export function createClearCommand(
       if (args[0]?.toLowerCase() === 'delete') {
         const deleted = await sessionManager.delete(context.sessionKey);
         agentRegistry.unregisterAgent(context.sessionKey);
-        return { components: [{ type: 'Plain', text: deleted ? '当前会话已删除。' : '当前会话不存在或已被删除。' }] };
+        return {
+          components: [
+            { type: 'Plain', text: deleted ? '当前会话已删除。' : '当前会话不存在或已被删除。' },
+          ],
+        };
       }
 
       await sessionManager.clear(context.sessionKey);

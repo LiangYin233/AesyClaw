@@ -97,7 +97,16 @@ export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition 
         return { components: [{ type: 'Plain', text: '当前没有活跃角色。' }] };
       }
       const role = deps.roleManager.getRole(activeRoleId);
-      return { components: [{ type: 'Plain', text: [`当前角色：${role.id}`, `描述：${role.description}`, `模型：${role.model}`].join('\n') }] };
+      return {
+        components: [
+          {
+            type: 'Plain',
+            text: [`当前角色：${role.id}`, `描述：${role.description}`, `模型：${role.model}`].join(
+              '\n',
+            ),
+          },
+        ],
+      };
     },
   };
 }

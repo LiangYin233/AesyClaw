@@ -18,7 +18,8 @@ describe('createModelCommand', () => {
   it('shows usage when no identifier provided', async () => {
     const cmd = createModelCommand({} as never, {} as never);
     const result = await cmd.execute([], { sessionKey: KEY });
-    const text = 'text' in result.components[0] ? (result.components[0] as { text: string }).text : '';
+    const text =
+      'text' in result.components[0] ? (result.components[0] as { text: string }).text : '';
     expect(text).toContain('用法: /model');
   });
 
@@ -32,7 +33,8 @@ describe('createModelCommand', () => {
       {} as never,
     );
     const result = await cmd.execute(['invalid/model'], { sessionKey: KEY });
-    const text = 'text' in result.components[0] ? (result.components[0] as { text: string }).text : '';
+    const text =
+      'text' in result.components[0] ? (result.components[0] as { text: string }).text : '';
     expect(text).toContain('模型切换失败');
     expect(text).toContain('Unknown provider');
   });
@@ -43,6 +45,10 @@ describe('createModelCommand', () => {
       { getAgent: vi.fn(() => null) } as never,
     );
     const result = await cmd.execute(['openai/gpt-4o'], { sessionKey: KEY });
-    expect(result).toEqual({ components: [{ type: 'Plain', text: '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。' }] });
+    expect(result).toEqual({
+      components: [
+        { type: 'Plain', text: '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。' },
+      ],
+    });
   });
 });
