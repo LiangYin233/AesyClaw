@@ -157,7 +157,7 @@ export async function sendMessage(
   await apiPost(
     opts.baseUrl,
     'ilink/bot/sendmessage',
-    opts.body,
+    { ...opts.body, base_info: {} },
     opts.token,
     DEFAULT_API_TIMEOUT_MS,
   );

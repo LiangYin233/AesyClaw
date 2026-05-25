@@ -17,8 +17,8 @@ export function aesEcbPaddedSize(plaintextSize: number): number {
 export type UploadedFileInfo = {
   filekey: string;
   downloadEncryptedQueryParam: string;
-  aeskey: string;       // hex
-  fileSize: number;      // 明文大小
+  aeskey: string; // hex
+  fileSize: number; // 明文大小
   fileSizeCiphertext: number; // 密文大小
 };
 
@@ -59,7 +59,9 @@ export async function uploadToCdn(
     throw new Error('getUploadUrl 未返回上传 URL');
   }
 
-  const cdnUrl = uploadFullUrl || `${opts.baseUrl}/upload?encrypted_query_param=${encodeURIComponent(uploadParam!)}&filekey=${encodeURIComponent(filekey)}`;
+  const cdnUrl =
+    uploadFullUrl ||
+    `${opts.baseUrl}/upload?encrypted_query_param=${encodeURIComponent(uploadParam!)}&filekey=${encodeURIComponent(filekey)}`;
 
   // AES-128-ECB 加密
   const ciphertext = encryptAesEcb(fileBuffer, aeskey);
