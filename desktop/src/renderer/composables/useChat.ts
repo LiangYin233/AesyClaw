@@ -47,6 +47,22 @@ function parseAttachmentsFromText(content: string): {
   };
 }
 
+function attachmentsToMedia(attachments: ChatAttachment[] | undefined): MediaItem[] | undefined {
+  if (!attachments || attachments.length === 0) return undefined;
+  return attachments.map((a) => ({
+    kind: mimeKind(a.mime),
+    name: a.name,
+    mimeType: a.mime,
+  }));
+}
+
+function mimeKind(mime: string): string {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('video/')) return 'video';
+  return 'file';
+}
+
 export type ToolCallState = {
   toolCallId: string;
   toolName: string;
@@ -180,7 +196,13 @@ function useChatImpl() {
         const { text, attachments } = parseAttachmentsFromText(message.content);
         const cleanText = stripInformationTags(text);
         return message.role === 'assistant'
-          ? { role: 'assistant', text: cleanText, streaming: false, usage: message.usage }
+          ? {
+              role: 'assistant',
+              text: cleanText,
+              streaming: false,
+              usage: message.usage,
+              media: attachmentsToMedia(attachments),
+            }
           : { role: 'user', text: cleanText, attachments };
       },
     );
