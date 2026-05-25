@@ -68,7 +68,6 @@ function toMediaComponent(media: MediaParam[]): MediaComponent[] {
   });
 }
 
-
 const MEDIA_KIND_NAMES: Record<string, string> = {
   image: 'image',
   audio: 'audio',
@@ -89,12 +88,21 @@ function buildAttachmentText(media: MediaParam[]): string | undefined {
 function guessMime(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase();
   const map: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
-    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
-    mp4: 'video/mp4', mov: 'video/quicktime',
-    pdf: 'application/pdf', txt: 'text/plain',
-    json: 'application/json', md: 'text/markdown',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    json: 'application/json',
+    md: 'text/markdown',
   };
   const mime = (ext ? map[ext] : undefined) as string | undefined;
   return mime ?? 'application/octet-stream';
