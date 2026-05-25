@@ -25,12 +25,14 @@ export function buildAgentPrompt(input: BuildAgentPromptInput): string {
   }
 
   if (!isSubAgent && !isCron) {
-    sections.push([
-      '## 用户沟通',
-      '',
-      '1. **主动通报** — 使用 `send_msg` 主动向用户通报当前进展。',
-      '2. **禁止询问** — `send_msg` 仅用于单向通知，不要提问或征求确认。',
-    ].join('\n'));
+    sections.push(
+      [
+        '## 用户沟通',
+        '',
+        '1. **主动通报** — 使用 `send_msg` 主动向用户通报当前进展。',
+        '2. **禁止询问** — `send_msg` 仅用于单向通知，不要提问或征求确认。',
+      ].join('\n'),
+    );
   }
 
   if (allRoles.length > 0 && !isSubAgent) {

@@ -966,6 +966,15 @@ function formatToolResult(result: unknown): string {
   -webkit-user-select: none;
 }
 
+.assistant-bubble .attachment-chip {
+  background: #eae7de;
+  color: #5a4e3a;
+}
+
+.assistant-bubble .attachment-chip.clickable:hover {
+  background: #ddd9ce;
+}
+
 .attachment-icon {
   width: 14px;
   height: 14px;
