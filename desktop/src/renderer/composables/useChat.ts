@@ -30,13 +30,14 @@ function parseAttachmentsFromText(content: string): {
 
   const attachments: ChatAttachment[] = [];
   for (const line of lines) {
-    // 格式: "- kind: filePath (fileName, mimeType)"
-    const match = line.match(/\(([^)]+),\s*([^)]+)\)$/);
-    if (match?.[1] && match[2]) {
+    // 格式: "- kind: path (name, mimeType)"
+    const match = line.match(/^- \w+:\s+(.+)\s+\(([^)]+),\s*([^)]+)\)$/);
+    if (match?.[1] && match[2] && match[3]) {
       attachments.push({
-        name: match[1].trim(),
-        mime: match[2].trim(),
-        size: 0, // 历史消息不包含文件大小
+        name: match[2].trim(),
+        mime: match[3].trim(),
+        size: 0,
+        path: match[1].trim(),
       });
     }
   }
@@ -53,6 +54,7 @@ function attachmentsToMedia(attachments: ChatAttachment[] | undefined): MediaIte
     kind: mimeKind(a.mime),
     name: a.name,
     mimeType: a.mime,
+    localPath: a.path,
   }));
 }
 
@@ -99,18 +101,20 @@ export type ChatAttachment = {
   name: string;
   mime: string;
   size: number;
+  path?: string;
 };
 export type MediaItem = {
   kind: string;
   base64?: string;
   mimeType?: string;
   name?: string;
+  localPath?: string;
 };
 export type AssistantMessage = {
   role: 'assistant';
   text: string;
   streaming: boolean;
-  isIntermediate?: boolean;
+  isIntermediate?: boolean; // tool call 之间的片段文本，非最终回复
   usage?: DesktopUsage;
   media?: MediaItem[];
 };
@@ -272,11 +276,9 @@ function useChatImpl() {
         break;
       }
       case 'media': {
-        // 使用媒体文本追加到助理消息
         if (event.text) {
           appendAssistantChunk(session, event.text);
         }
-        // 确保有一条 assistant 消息来挂载媒体
         if (!session.activeAssistantMessage) {
           session.activeAssistantMessage = {
             role: 'assistant',
@@ -298,7 +300,6 @@ function useChatImpl() {
         };
         session.pendingToolCalls.set(event.toolCallId, toolCall);
         session.messages.push({ role: 'tool', toolCall });
-        // 标记为中间态并关闭流式状态
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
           session.activeAssistantMessage.isIntermediate = true;
@@ -313,7 +314,6 @@ function useChatImpl() {
           tc.isError = event.isError;
           tc.status = event.isError ? 'error' : 'done';
         }
-        // send_msg 输出的文本是完整消息，不是被工具调用打断的中间思考
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
           if (event.toolName !== 'send_msg') {
@@ -342,7 +342,6 @@ function useChatImpl() {
         session.messages.push({ role: 'system', text: `错误: ${event.message}` });
         session.streaming = false;
         session.pendingToolCalls = new Map();
-        // 关闭前一条助理消息的流式状态
         if (session.activeAssistantMessage) {
           session.activeAssistantMessage.streaming = false;
         }

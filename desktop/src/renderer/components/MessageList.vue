@@ -107,7 +107,7 @@
                 v-for="(item, mi) in msg.media.filter((m) => m.kind !== 'image')"
                 :key="'chip-' + mi"
                 class="attachment-chip"
-                :class="{ clickable: item.kind === 'file' && item.base64 }"
+              :class="{ clickable: item.kind === 'file' && (item.base64 || item.localPath) }"
                 @click="openMediaFile(item)"
               >
                 <svg
@@ -290,20 +290,28 @@ watch(
 /* ── Media file ────────────────────────────── */
 
 function openMediaFile(item: MediaItem): void {
-  if (item.kind !== 'file' || !item.base64) return;
-  try {
-    const binary = atob(item.base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const blob = new Blob([bytes], { type: item.mimeType || 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = item.name || 'file';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (err) {
-    console.warn('openMediaFile failed:', err);
+  if (item.kind !== 'file') return;
+  // 有 base64（实时消息）→ Blob 下载
+  if (item.base64) {
+    try {
+      const binary = atob(item.base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: item.mimeType || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.name || 'file';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.warn('openMediaFile base64 download failed:', err);
+    }
+    return;
+  }
+  // 有 localPath（历史消息）→ 打开所在文件夹
+  if (item.localPath) {
+    window.aesyclaw.openFolder(item.localPath).catch(() => {});
   }
 }
 
