@@ -135,16 +135,24 @@ export class Application {
     logger.info('正在关闭 AesyClaw...');
 
     const steps: Array<() => Promise<void> | void> = [
+      // 1. 停止配置热重载
       () => this.sub.configManager.stopHotReload(),
       () => this.sub.roleStore.stopHotReload(),
+      // 2. 停止外围运行时（依赖 pipeline 的子系统）
       () => this.webUiManager?.destroy(),
       () => this.cronManager?.destroy(),
       () => this.sub.roleManager.destroy(),
+      // 3. 停止扩展（频道+插件）：此时 pipeline/hooksBus 仍可用，
+      //    但频道 destroy 中不应有出站消息发送
       () => this.extensionManager?.destroy(),
+      // 4. 断开 MCP（MCP 工具已不再被调用）
       () => this.sub.mcpManager.disconnectAll(),
+      // 5. 销毁 pipeline（清空 hooksBus）
       () => this.sub.pipeline.destroy(),
+      // 6. 关闭数据库
       () => this.sub.databaseManager.destroy(),
     ];
+
 
     for (const step of steps) {
       try {
