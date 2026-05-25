@@ -31,6 +31,7 @@ export const channel: ChannelPlugin = {
   name: 'onebot',
   version: '0.1.0',
   description: 'Connects to a remote OneBot/NapCat WebSocket server and routes messages.',
+  streaming: false,
   defaultConfig: DEFAULT_CONFIG,
   async init(ctx) {
     context = ctx;

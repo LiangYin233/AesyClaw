@@ -40,8 +40,7 @@ export type ChannelPlugin = {
   version: string;
   description?: string;
   defaultConfig?: Record<string, unknown>;
-  /** 是否支持流式输出（逐 chunk 转发到客户端）。非流式频道的 chunk 由 ChannelManager 缓存后在 done 时一次性发送。 */
-  streaming?: boolean;
+  streaming: boolean;
   init(ctx: ChannelContext): Promise<void>;
   destroy?(): Promise<void>;
   receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;

@@ -34,7 +34,6 @@ export const channel: ChannelPlugin = {
   streaming: true,
   defaultConfig: DEFAULT_CONFIG as unknown as Record<string, unknown>,
 
-
   async init(ctx: ChannelContext): Promise<void> {
     const config = ctx.config as unknown as DesktopChannelConfig;
     const authToken = config.authToken;

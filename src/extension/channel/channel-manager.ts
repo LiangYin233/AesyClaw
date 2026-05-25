@@ -5,7 +5,13 @@
  * 本文件专注生命周期管理（start/stop/enable/disable）和消息路由。
  */
 
-import { serializeSessionKey, type Message, type OutboundSignal, type SessionKey, type SenderInfo } from '@aesyclaw/core/types';
+import {
+  serializeSessionKey,
+  type Message,
+  type OutboundSignal,
+  type SessionKey,
+  type SenderInfo,
+} from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import type {
