@@ -26,7 +26,6 @@ export type DesktopServerOptions = {
   authToken: string;
   adminToken: string;
   context: ChannelContext;
-
 };
 
 export class DesktopServer {

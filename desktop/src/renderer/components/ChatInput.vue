@@ -179,7 +179,7 @@ const menuIndex = ref(0);
 // 纯 computed：只做数据转换，不做副作用
 const filteredCommands = computed(() => {
   if (props.streaming || !inputText.value.startsWith('/')) return [];
-  return props.commands.filter((c) => c.name.startsWith(inputText.value.slice(1))).slice(0, 8);
+  return props.commands.filter((c) => c.name.startsWith(inputText.value.slice(1))).slice(0, 20);
 });
 
 // showMenu 由 filteredCommands 派生，同样无副作用

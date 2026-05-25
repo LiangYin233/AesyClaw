@@ -39,7 +39,6 @@ export const channel: ChannelPlugin = {
     const authToken = config.authToken;
     const adminToken = (ctx.configManager.get('server.authToken') as string | undefined) ?? '';
 
-
     server = new DesktopServer({
       port: config.port ?? 9730,
       host: config.host ?? '127.0.0.1',

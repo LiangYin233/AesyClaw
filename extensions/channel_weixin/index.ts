@@ -116,9 +116,7 @@ export const channel: ChannelPlugin = {
   async receive() {},
 
   async send(signal: OutboundSignal) {
-
     if (!token || !baseUrl || destroyed) {
-
       return;
     }
     if (signal.kind !== 'message') return;
@@ -139,7 +137,6 @@ export const channel: ChannelPlugin = {
       try {
         await task();
       } catch (err) {
-
         try {
           await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } });
         } catch {}
@@ -160,7 +157,6 @@ export const channel: ChannelPlugin = {
       };
 
       await sendMessage({ baseUrl, token, body });
-
     }
 
     async function handleMediaItem(media: Component, cid: string): Promise<void> {
