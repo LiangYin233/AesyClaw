@@ -21,6 +21,12 @@ export type DesktopUsage = {
 
 export type ChatMessageEvent =
   | { type: 'chunk'; sessionId: string; text: string; index: number }
+  | {
+      type: 'media';
+      sessionId: string;
+      text: string;
+      items: Array<{ kind: string; base64?: string; mimeType?: string; name?: string }>;
+    }
   | { type: 'tool_call'; sessionId: string; toolCallId: string; toolName: string; args: unknown }
   | {
       type: 'tool_result';
@@ -32,7 +38,6 @@ export type ChatMessageEvent =
     }
   | { type: 'done'; sessionId: string; usage?: DesktopUsage }
   | { type: 'error'; sessionId: string; message: string };
-
 export type DesktopSessionSummary = {
   id: string;
   channel: string;

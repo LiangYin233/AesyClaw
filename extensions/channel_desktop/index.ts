@@ -91,8 +91,19 @@ async function send(signal: OutboundSignal): Promise<void> {
       return;
 
     case 'message': {
-      const text = getMessageTextForDesktop(signal.content);
-      server.sendToSession(sessionId, { type: 'chunk', sessionId, text, index: 0 });
+      const { text, media } = extractMessageContent(signal.content as { components: unknown[] });
+
+      if (media.length > 0) {
+        server.sendToSession(sessionId, {
+          type: 'media',
+          sessionId,
+          text,
+          items: media,
+        } satisfies DesktopOutboundMessage);
+      } else {
+        server.sendToSession(sessionId, { type: 'chunk', sessionId, text, index: 0 });
+      }
+
       if (!signal.intermediate) {
         server.sendToSession(sessionId, { type: 'done', sessionId });
       }
@@ -101,8 +112,32 @@ async function send(signal: OutboundSignal): Promise<void> {
   }
 }
 
-function getMessageTextForDesktop(msg: { components: unknown[] }): string {
-  return (msg.components[0] as { text?: string } | undefined)?.text ?? '';
+import type { DesktopMediaItem, DesktopOutboundMessage } from './types';
+
+type Component = { type: string; text?: string; base64?: string; mimeType?: string; name?: string; url?: string; path?: string };
+
+function extractMessageContent(msg: { components: unknown[] }): {
+  text: string;
+  media: DesktopMediaItem[];
+} {
+  const textParts: string[] = [];
+  const media: DesktopMediaItem[] = [];
+
+  for (const comp of msg.components as Component[]) {
+    if (comp.type === 'Plain' && comp.text) {
+      textParts.push(comp.text);
+    } else if (comp.type === 'Image') {
+      media.push({ kind: 'image', base64: comp.base64, mimeType: comp.mimeType });
+    } else if (comp.type === 'Record') {
+      media.push({ kind: 'audio', base64: comp.base64, mimeType: comp.mimeType });
+    } else if (comp.type === 'Video') {
+      media.push({ kind: 'video', base64: comp.base64, mimeType: comp.mimeType });
+    } else if (comp.type === 'File') {
+      media.push({ kind: 'file', base64: comp.base64, mimeType: comp.mimeType, name: comp.name });
+    }
+  }
+
+  return { text: textParts.join('\n'), media };
 }
 
 export default channel;

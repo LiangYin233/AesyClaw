@@ -28,6 +28,12 @@ export type DesktopUsage = {
 
 export type ChatMessage =
   | { type: 'chunk'; sessionId: string; text: string; index: number }
+  | {
+      type: 'media';
+      sessionId: string;
+      text: string;
+      items: Array<{ kind: string; base64?: string; mimeType?: string; name?: string }>;
+    }
   | { type: 'tool_call'; sessionId: string; toolCallId: string; toolName: string; args: unknown }
   | {
       type: 'tool_result';
@@ -39,7 +45,6 @@ export type ChatMessage =
     }
   | { type: 'done'; sessionId: string; usage?: DesktopUsage }
   | { type: 'error'; sessionId: string; message: string };
-
 type ChatControlMessage = {
   type: 'auth';
   adminToken: string;

@@ -87,8 +87,30 @@
           <span class="thinking-dot">&#9679;</span>
           <span class="thinking-text">{{ msg.text }}</span>
         </div>
-        <div v-else-if="msg.text" class="assistant-bubble" :class="{ streaming: msg.streaming }">
-          <div class="rendered-content" v-html="renderMarkdownSafe(msg.text)"></div>
+        <div v-else class="assistant-bubble" :class="{ streaming: msg.streaming }">
+          <div v-if="msg.text" class="rendered-content" v-html="renderMarkdownSafe(msg.text)"></div>
+          <div v-if="msg.media?.length" class="assistant-media">
+            <div v-for="(item, mi) in msg.media" :key="mi" class="media-item">
+              <img
+                v-if="item.kind === 'image' && item.base64"
+                :src="'data:' + (item.mimeType || 'image/png') + ';base64,' + item.base64"
+                class="media-image"
+                alt=""
+              />
+              <a
+                v-else-if="item.kind === 'file' && item.base64"
+                :href="'data:' + (item.mimeType || 'application/octet-stream') + ';base64,' + item.base64"
+                :download="item.name || 'file'"
+                class="media-file-link"
+              >{{ item.name || '下载文件' }}</a>
+              <audio
+                v-else-if="item.kind === 'audio' && item.base64"
+                :src="'data:' + (item.mimeType || 'audio/mpeg') + ';base64,' + item.base64"
+                controls
+                class="media-audio"
+              ></audio>
+            </div>
+          </div>
           <span v-if="msg.streaming" class="cursor">|</span>
           <div class="message-footer">
             <span v-if="shouldShowUsage(msg)" class="message-usage">{{
@@ -455,6 +477,43 @@ function formatToolResult(result: unknown): string {
 
 .assistant-bubble .message-footer {
   justify-content: flex-end;
+}
+
+.assistant-media {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.media-item {
+  max-width: 100%;
+}
+
+.media-image {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.media-file-link {
+  display: inline-block;
+  padding: 6px 12px;
+  background: #f0eee8;
+  border-radius: 6px;
+  color: #5a4e3a;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.media-file-link:hover {
+  background: #e2dfd6;
+}
+
+.media-audio {
+  max-width: 100%;
+  height: 40px;
 }
 
 .message-usage {

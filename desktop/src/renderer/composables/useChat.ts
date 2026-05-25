@@ -84,12 +84,19 @@ export type ChatAttachment = {
   mime: string;
   size: number;
 };
+export type MediaItem = {
+  kind: string;
+  base64?: string;
+  mimeType?: string;
+  name?: string;
+};
 export type AssistantMessage = {
   role: 'assistant';
   text: string;
   streaming: boolean;
-  isIntermediate?: boolean; // tool call 之间的片段文本，非最终回复
+  isIntermediate?: boolean;
   usage?: DesktopUsage;
+  media?: MediaItem[];
 };
 
 export type ToolMessage = {
@@ -240,6 +247,23 @@ function useChatImpl() {
       case 'chunk': {
         appendAssistantChunk(session, event.text);
         markDeleteConfirmedIfNeeded(session, event.text);
+        break;
+      }
+      case 'media': {
+        // 使用媒体文本追加到助理消息
+        if (event.text) {
+          appendAssistantChunk(session, event.text);
+        }
+        // 确保有一条 assistant 消息来挂载媒体
+        if (!session.activeAssistantMessage) {
+          session.activeAssistantMessage = {
+            role: 'assistant',
+            text: '',
+            streaming: true,
+          };
+          session.messages.push(session.activeAssistantMessage);
+        }
+        session.activeAssistantMessage.media = event.items as MediaItem[];
         break;
       }
       case 'tool_call': {

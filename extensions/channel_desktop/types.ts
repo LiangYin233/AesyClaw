@@ -56,6 +56,7 @@ export type DesktopPongMessage = {
 
 export type DesktopOutboundMessage =
   | DesktopChunkMessage
+  | DesktopMediaMessage
   | DesktopToolCallMessage
   | DesktopToolResultMessage
   | DesktopDoneMessage
@@ -71,6 +72,21 @@ export type DesktopChunkMessage = {
   sessionId: string;
   text: string;
   index: number;
+};
+
+/** 助理消息（含文本 + 媒体附件） */
+export type DesktopMediaMessage = {
+  type: 'media';
+  sessionId: string;
+  text: string;
+  items: DesktopMediaItem[];
+};
+
+export type DesktopMediaItem = {
+  kind: 'image' | 'audio' | 'video' | 'file';
+  base64?: string;
+  mimeType?: string;
+  name?: string;
 };
 
 /** 工具调用开始 */
