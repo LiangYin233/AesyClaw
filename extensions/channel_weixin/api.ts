@@ -176,13 +176,17 @@ export async function getUploadUrl(
     no_need_thumb?: boolean;
   },
 ): Promise<{ upload_param?: string; upload_full_url?: string }> {
-  const text = await apiPost(
-    opts.baseUrl,
-    'ilink/bot/getuploadurl',
-    opts,
-    opts.token,
-    DEFAULT_API_TIMEOUT_MS,
-  );
+  const text = await apiPost(opts.baseUrl, 'ilink/bot/getuploadurl', {
+    filekey: opts.filekey,
+    media_type: opts.media_type,
+    to_user_id: opts.to_user_id,
+    rawsize: opts.rawsize,
+    rawfilemd5: opts.rawfilemd5,
+    filesize: opts.filesize,
+    no_need_thumb: opts.no_need_thumb,
+    aeskey: opts.aeskey,
+    base_info: {},
+  }, opts.token, DEFAULT_API_TIMEOUT_MS);
   return JSON.parse(text);
 }
 
