@@ -25,8 +25,8 @@ export type DesktopServerOptions = {
   host?: string;
   authToken: string;
   adminToken: string;
-  commands: Array<{ name: string; description: string }>;
   context: ChannelContext;
+
 };
 
 export class DesktopServer {
@@ -41,7 +41,12 @@ export class DesktopServer {
       host: options.host,
       authToken: options.authToken,
       adminToken: options.adminToken,
-      commands: options.commands,
+      getCommands: () => {
+        return options.context.getCommands().map((cmd) => ({
+          name: cmd.namespace ? `${cmd.namespace} ${cmd.name}` : cmd.name,
+          description: cmd.description ?? '',
+        }));
+      },
       onJsonMessage: (cid, raw) => this.handleJsonMessage(cid, raw),
       onBinaryFrame: (cid, data) => this.handleBinaryFrame(cid, data),
     });

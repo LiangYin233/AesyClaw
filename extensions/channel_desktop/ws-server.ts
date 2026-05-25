@@ -19,7 +19,7 @@ export type WsServerOptions = {
   host?: string;
   authToken: string;
   adminToken: string;
-  commands: Array<{ name: string; description: string }>;
+  getCommands: () => Array<{ name: string; description: string }>;
   onJsonMessage(connectionId: string, raw: string): void;
   onBinaryFrame(connectionId: string, data: Buffer): void;
 };
@@ -29,11 +29,11 @@ export class WsServer {
   readonly sessions = new DesktopSessionManager();
   private logger = createScopedLogger('channel:desktop:ws');
   readonly adminToken: string;
-  readonly commands: Array<{ name: string; description: string }>;
+  readonly getCommands: () => Array<{ name: string; description: string }>;
 
   constructor(private options: WsServerOptions) {
     this.adminToken = options.adminToken;
-    this.commands = options.commands;
+    this.getCommands = options.getCommands;
   }
 
   async start(): Promise<void> {
@@ -77,7 +77,7 @@ export class WsServer {
     connection.sendJson({
       type: 'auth',
       adminToken: this.adminToken,
-      commands: this.commands,
+      commands: this.getCommands(),
     });
 
     this.setupConnectionLifetime(connectionId, connection, ws);
@@ -93,7 +93,7 @@ export class WsServer {
       sessions: new Set(),
       fileBuffers: new Map(),
       completedFiles: new Map(),
-      commands: this.commands,
+      commands: this.getCommands(),
       sendJson(data: unknown): void {
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(data));
       },

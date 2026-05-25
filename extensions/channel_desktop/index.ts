@@ -38,17 +38,14 @@ export const channel: ChannelPlugin = {
     const config = ctx.config as unknown as DesktopChannelConfig;
     const authToken = config.authToken;
     const adminToken = (ctx.configManager.get('server.authToken') as string | undefined) ?? '';
-    const commands = ctx.getCommands().map((cmd) => ({
-      name: cmd.namespace ? `${cmd.namespace} ${cmd.name}` : cmd.name,
-      description: cmd.description ?? '',
-    }));
+
 
     server = new DesktopServer({
       port: config.port ?? 9730,
       host: config.host ?? '127.0.0.1',
       authToken,
       adminToken,
-      commands,
+
       context: ctx,
     });
 
