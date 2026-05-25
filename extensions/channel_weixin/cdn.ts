@@ -42,7 +42,8 @@ export async function uploadToCdn(
   const aeskey = crypto.randomBytes(16);
 
   const uploadResp = await getUploadUrl({
-    ...opts,
+    baseUrl: opts.baseUrl,
+    token: opts.token,
     filekey,
     media_type: mediaType,
     to_user_id: toUserId,

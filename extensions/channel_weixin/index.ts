@@ -56,7 +56,11 @@ export const channel: ChannelPlugin = {
       token = creds.token;
       baseUrl = creds.baseUrl;
       ctx.logger.info('微信频道: 已加载凭据');
-      try { await notifyStart({ baseUrl, token }); } catch { /* 忽略 */ }
+      try {
+        await notifyStart({ baseUrl, token });
+      } catch {
+        /* 忽略 */
+      }
       startWeixinMonitor(creds.updatesBuf, ctx);
     }
 
@@ -76,7 +80,9 @@ export const channel: ChannelPlugin = {
               baseUrl = result.baseUrl;
               await saveCreds(ctx, { token, baseUrl });
               ctx.logger.info('微信凭据已保存');
-              try { await notifyStart({ baseUrl, token }); } catch {}
+              try {
+                await notifyStart({ baseUrl, token });
+              } catch {}
               startWeixinMonitor('', ctx);
             } else if (!result.success) {
               ctx.logger.error(`微信登录失败: ${result.message}`);
@@ -93,9 +99,14 @@ export const channel: ChannelPlugin = {
 
   async destroy() {
     destroyed = true;
-    if (monitor) { monitor.stop(); monitor = null; }
+    if (monitor) {
+      monitor.stop();
+      monitor = null;
+    }
     if (token && baseUrl) {
-      try { await notifyStop({ baseUrl, token }); } catch {}
+      try {
+        await notifyStop({ baseUrl, token });
+      } catch {}
     }
     token = '';
     baseUrl = '';
@@ -125,9 +136,13 @@ export const channel: ChannelPlugin = {
     }
 
     for (const task of tasks) {
-      try { await task(); } catch (err) {
+      try {
+        await task();
+      } catch (err) {
         console.log('[weixin] task failed:', err);
-        try { await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } }); } catch {}
+        try {
+          await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } });
+        } catch {}
       }
     }
 
@@ -158,14 +173,31 @@ export const channel: ChannelPlugin = {
       const mediaType = mime.startsWith('image/') ? 1 : mime.startsWith('video/') ? 2 : 3;
       const uploaded = await uploadToCdn(fileBuffer, cid, mediaType, { baseUrl, token });
       const aesKeyBase64 = Buffer.from(uploaded.aeskey, 'hex').toString('base64');
-      const cdnRef = { encrypt_query_param: uploaded.downloadEncryptedQueryParam, aes_key: aesKeyBase64, encrypt_type: 1 };
+      const cdnRef = {
+        encrypt_query_param: uploaded.downloadEncryptedQueryParam,
+        aes_key: aesKeyBase64,
+        encrypt_type: 1,
+      };
 
       if (mediaType === 1) {
-        await sendOneItem({ type: 2, image_item: { media: cdnRef, mid_size: uploaded.fileSizeCiphertext } });
+        await sendOneItem({
+          type: 2,
+          image_item: { media: cdnRef, mid_size: uploaded.fileSizeCiphertext },
+        });
       } else if (mediaType === 2) {
-        await sendOneItem({ type: 5, video_item: { media: cdnRef, video_size: uploaded.fileSizeCiphertext } });
+        await sendOneItem({
+          type: 5,
+          video_item: { media: cdnRef, video_size: uploaded.fileSizeCiphertext },
+        });
       } else {
-        await sendOneItem({ type: 4, file_item: { media: cdnRef, file_name: media.name || 'file', len: String(uploaded.fileSize) } });
+        await sendOneItem({
+          type: 4,
+          file_item: {
+            media: cdnRef,
+            file_name: media.name || (media.path ? media.path.split(/[/\\]+/).pop() : 'file') || 'file',
+            len: String(uploaded.fileSize),
+          },
+        });
       }
     }
   },
@@ -173,7 +205,14 @@ export const channel: ChannelPlugin = {
 
 // ─── 内部函数 ──────────────────────────────────────────────────────
 
-type Component = { type: string; text?: string; base64?: string; path?: string; name?: string; mimeType?: string };
+type Component = {
+  type: string;
+  text?: string;
+  base64?: string;
+  path?: string;
+  name?: string;
+  mimeType?: string;
+};
 
 function extractMessageParts(msg: { components: unknown[] }): { text: string; media: Component[] } {
   const texts: string[] = [];
@@ -188,12 +227,21 @@ function extractMessageParts(msg: { components: unknown[] }): { text: string; me
 function guessMime(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase();
   const map: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-    webp: 'image/webp', bmp: 'image/bmp',
-    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
-    mp4: 'video/mp4', mov: 'video/quicktime',
-    pdf: 'application/pdf', txt: 'text/plain',
-    json: 'application/json', md: 'text/markdown',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    json: 'application/json',
+    md: 'text/markdown',
   };
   return (ext ? map[ext] : undefined) ?? 'application/octet-stream';
 }
@@ -211,7 +259,9 @@ function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext)
           { id: fromUserId, name: fromUserId },
         );
       },
-      onError: (err) => { ctx.logger.error(`微信监控错误: ${err}`); },
+      onError: (err) => {
+        ctx.logger.error(`微信监控错误: ${err}`);
+      },
     },
     ctx.logger,
     updatesBuf,
