@@ -290,12 +290,20 @@ watch(
 /* ── Media file ────────────────────────────── */
 
 async function openMediaFile(item: MediaItem): void {
-  if (item.kind !== 'file' || !item.base64) return;
+  if (item.kind !== 'file') return;
+  if (!item.base64) {
+    console.warn('openMediaFile: item has no base64 data', item.name);
+    return;
+  }
   try {
     const filePath = await window.aesyclaw.saveFile(item.name ?? 'file', item.base64);
+    if (!filePath) {
+      console.warn('openMediaFile: saveFile returned empty path');
+      return;
+    }
     await window.aesyclaw.openFolder(filePath);
-  } catch {
-    console.warn('openMediaFile failed');
+  } catch (err) {
+    console.warn('openMediaFile failed:', err);
   }
 }
 
