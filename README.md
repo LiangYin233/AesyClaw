@@ -19,11 +19,11 @@ AesyClaw 是一个可扩展的 AI Agent 运行时平台。它通过统一的 Pip
 - 🧠 多模型支持 — 兼容 OpenAI / Anthropic 等多 LLM 提供商，统一 API 抽象
 - 🔌 插件系统 — Hooks 生命周期钩子，轻松扩展 Agent 行为
 - 🔧 MCP 集成 — 接入外部工具服务器，自动注册工具
-- 💬 多通道消息 — 支持 OneBot (QQ) 和自定义消息通道
+- 💬 多通道消息 — 支持 OneBot (QQ)、微信、Desktop 等多种消息通道
 - 📋 技能系统 — Markdown 定义的 AI 行为模板
 - 🔀 子代理支持 — 角色隔离的子代理，独立工具与技能权限
 - ⏰ 定时任务 — Cron 驱动的自动化 Agent 任务
-- 🖥️ Web 仪表盘 — 实时监控会话、用量、角色配置
+- 🖥️ Web 仪表盘 + Desktop 客户端 — 实时监控会话、用量、角色配置
 
 ## 快速开始
 
@@ -86,15 +86,16 @@ src/
 ├── session/      # 会话管理与历史压缩
 ├── skill/        # 技能解析与加载
 ├── extension/    # 插件 & 通道管理器
-├── mcp/          # MCP 客户端集成
+├── tool/         # 工具注册 + MCP 客户端集成
 ├── cron/         # 定时任务调度
-├── tool/         # 工具注册与适配
 ├── command/      # 内置斜杠命令
 ├── role/         # 角色配置与热加载
-├── web/          # Hono 服务 + WebSocket
+├── web/          # Hono HTTP 服务 + WebSocket
+├── contracts/    # 跨模块类型 & Hook 接口
 └── sdk/          # 公共 API 导出
-extensions/       # 插件 & 通道扩展
+extensions/       # 插件 & 通道扩展（plugin_* / channel_*）
 web/              # Vue 3 管理前端
+desktop/          # Electron 桌面客户端
 ```
 
 ## 许可证
