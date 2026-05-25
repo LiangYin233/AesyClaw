@@ -68,38 +68,14 @@ yarn test       # 运行测试
 
 更多配置项参见启动后 Web 仪表盘的配置面板。
 
-## 插件开发
+## 扩展开发
 
-插件分为**功能插件**和**渠道插件**，均存放在 `extensions/` 目录。
+插件和消息频道的开发指南：
 
-### 功能插件
+- **[插件开发](documents/plugin-development.md)** — Hooks 系统、工具注册、Pipeline 生命周期
+- **[频道开发](documents/channel-development.md)** — 消息收发、流式输出、协议适配
 
-可见 extensions/plugin_example/ 下的示例代码。
-
-**可用 Hooks：** `onReceive` → `beforeLLM` → `beforeToolCall` / `afterToolCall` → `onSend`
-
-### 渠道插件
-
-渠道插件连接消息平台，实现消息收发：
-
-```ts
-// extensions/channel_myplatform/index.ts
-import type { ChannelPlugin } from '@aesyclaw/sdk';
-
-export default {
-  name: 'myplatform',
-  version: '0.1.0',
-
-  async init(ctx) {
-    // 连接平台，收到消息时调用 ctx.receive(message, sessionKey, sender)
-  },
-  async send(sessionKey, message) {
-    // 向平台发送消息
-  },
-} satisfies ChannelPlugin;
-```
-
-更多示例参见 `extensions/` 目录。
+所有公共 API 通过 `@aesyclaw/sdk` 导入。示例源码见 `extensions/` 目录。
 
 ## 项目结构
 
