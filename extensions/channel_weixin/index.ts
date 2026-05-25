@@ -116,9 +116,9 @@ export const channel: ChannelPlugin = {
   async receive() {},
 
   async send(signal: OutboundSignal) {
-    console.log('[weixin] send called', signal.kind, signal.session.chatId);
+
     if (!token || !baseUrl || destroyed) {
-      console.log('[weixin] send skipped: token or baseUrl missing');
+
       return;
     }
     if (signal.kind !== 'message') return;
@@ -139,7 +139,7 @@ export const channel: ChannelPlugin = {
       try {
         await task();
       } catch (err) {
-        console.log('[weixin] task failed:', err);
+
         try {
           await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } });
         } catch {}
@@ -158,9 +158,9 @@ export const channel: ChannelPlugin = {
           ...(ctxToken ? { context_token: ctxToken } : {}),
         },
       };
-      console.log('[weixin] send body:', JSON.stringify(body).slice(0, 400));
+
       await sendMessage({ baseUrl, token, body });
-      console.log('[weixin] send OK');
+
     }
 
     async function handleMediaItem(media: Component, cid: string): Promise<void> {
@@ -172,7 +172,7 @@ export const channel: ChannelPlugin = {
       const mime = media.mimeType || guessMime(media.name || media.path || '');
       const mediaType = mime.startsWith('image/') ? 1 : mime.startsWith('video/') ? 2 : 3;
       const uploaded = await uploadToCdn(fileBuffer, cid, mediaType, { baseUrl, token });
-      const aesKeyBase64 = Buffer.from(uploaded.aeskey, 'hex').toString('base64');
+      const aesKeyBase64 = Buffer.from(uploaded.aeskey).toString('base64');
       const cdnRef = {
         encrypt_query_param: uploaded.downloadEncryptedQueryParam,
         aes_key: aesKeyBase64,
