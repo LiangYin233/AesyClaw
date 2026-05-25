@@ -5,7 +5,7 @@
  * 本文件专注生命周期管理（start/stop/enable/disable）和消息路由。
  */
 
-import type { Message, OutboundSignal, SessionKey, SenderInfo } from '@aesyclaw/core/types';
+import { serializeSessionKey, type Message, type OutboundSignal, type SessionKey, type SenderInfo } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import type {
@@ -212,9 +212,50 @@ export class ChannelManager {
 
   // ─── 运行时 ──────────────────────────────────────────────────────
 
+  /** 非流式频道的 chunk 缓冲区 — channel:session → 累积文本 */
+  private readonly chunkBuffers = new Map<string, string>();
+
   async send(signal: OutboundSignal): Promise<void> {
     const loaded = this.requireLoaded(signal.session.channel);
-    await loaded.definition.send(signal);
+
+    if (loaded.definition.streaming) {
+      await loaded.definition.send(signal);
+      return;
+    }
+
+    // 非流式频道：缓存 chunk，done 时组装+过钩子后一次性发送
+    const key = `${signal.session.channel}:${serializeSessionKey(signal.session)}`;
+
+    switch (signal.kind) {
+      case 'chunk':
+        if (signal.text.length > 0) {
+          this.chunkBuffers.set(key, (this.chunkBuffers.get(key) ?? '') + signal.text);
+        }
+        return;
+
+      case 'done': {
+        const accumulated = this.chunkBuffers.get(key) ?? '';
+        this.chunkBuffers.delete(key);
+        if (accumulated) {
+          const message: Message = { components: [{ type: 'Plain', text: accumulated }] };
+          const sendCtx = { message, sessionKey: signal.session };
+          const result = await this.deps.hooksBus.dispatch('pipeline:send', sendCtx);
+          const processed: Message = result.action === 'respond' ? result.message : message;
+          await loaded.definition.send({
+            kind: 'message',
+            session: signal.session,
+            content: processed,
+            intermediate: false,
+          });
+        }
+        return;
+      }
+
+      default:
+        // message / toolCall / toolResult / error — 直接转发（message 已在 pipeline 中过钩子）
+        await loaded.definition.send(signal);
+        return;
+    }
   }
 
   /**

@@ -35,12 +35,13 @@ export type ChannelContext = {
   processOutbound(message: Message): Promise<Message>;
 };
 
-/** 频道插件必须导出的定义结构。 */
 export type ChannelPlugin = {
   name: string;
   version: string;
   description?: string;
   defaultConfig?: Record<string, unknown>;
+  /** 是否支持流式输出（逐 chunk 转发到客户端）。非流式频道的 chunk 由 ChannelManager 缓存后在 done 时一次性发送。 */
+  streaming?: boolean;
   init(ctx: ChannelContext): Promise<void>;
   destroy?(): Promise<void>;
   receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;

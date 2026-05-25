@@ -22,12 +22,6 @@ let context: ChannelContext | null = null;
 let config: OneBotChannelConfig | null = null;
 let client: OneBotWebSocketClient | null = null;
 let destroyed = false;
-/** 流式输出缓冲区 — 按 channel:type:chatId 累积 chunk 文本，收到 done 后一次性发送。 */
-const streamBuffers = new Map<string, string>();
-
-function streamBufferKey(sessionKey: SessionKey): string {
-  return `${sessionKey.channel}:${sessionKey.type}:${sessionKey.chatId}`;
-}
 
 /**
  * OneBot 渠道插件。
@@ -124,42 +118,11 @@ async function handlePlatformPayload(payload: Record<string, unknown>): Promise<
   }
 }
 
-/**
- * 出站信号处理。流式事件缓冲后一次性发送，message 直接发送。
- */
+/** 出站信号处理。非流式频道的 chunk/done 由 ChannelManager 统一缓存+过钩子后转为 message 发送。 */
 async function handleOutbound(signal: OutboundSignal): Promise<void> {
   if (!client) return;
-  const key = streamBufferKey(signal.session);
-
-  switch (signal.kind) {
-    case 'chunk':
-      if (signal.text.length > 0) {
-        streamBuffers.set(key, (streamBuffers.get(key) ?? '') + signal.text);
-      }
-      return;
-
-    case 'done': {
-      const accumulated = streamBuffers.get(key) ?? '';
-      streamBuffers.delete(key);
-      if (accumulated) {
-        const message: Message = { components: [{ type: 'Plain', text: accumulated }] };
-        const processed = context?.processOutbound
-          ? await context.processOutbound(message)
-          : message;
-        await sendOneBotMessage(signal.session, processed, client, context?.logger);
-      }
-      return;
-    }
-
-    case 'message':
-      await sendOneBotMessage(signal.session, signal.content, client, context?.logger);
-      return;
-
-    // toolCall / toolResult / error — onebot 不关心，忽略
-    case 'toolCall':
-    case 'toolResult':
-    case 'error':
-      return;
+  if (signal.kind === 'message') {
+    await sendOneBotMessage(signal.session, signal.content, client, context?.logger);
   }
 }
 

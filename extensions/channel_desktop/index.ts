@@ -31,7 +31,9 @@ export const channel: ChannelPlugin = {
   name: 'desktop',
   version: '0.1.0',
   description: 'AesyClaw Desktop — Electron 桌面客户端频道',
+  streaming: true,
   defaultConfig: DEFAULT_CONFIG as unknown as Record<string, unknown>,
+
 
   async init(ctx: ChannelContext): Promise<void> {
     const config = ctx.config as unknown as DesktopChannelConfig;
