@@ -6,6 +6,7 @@ import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sd
 import { prepareQR, pollLogin } from './login';
 import { startMonitor } from './monitor';
 import { sendMessage, notifyStart, notifyStop } from './api';
+import { uploadToCdn } from './cdn';
 
 // ─── 模块状态 ───────────────────────────────────────────────────────
 
@@ -55,9 +56,7 @@ export const channel: ChannelPlugin = {
       token = creds.token;
       baseUrl = creds.baseUrl;
       ctx.logger.info('微信频道: 已加载凭据');
-
       try { await notifyStart({ baseUrl, token }); } catch { /* 忽略 */ }
-
       startWeixinMonitor(creds.updatesBuf, ctx);
     }
 
@@ -69,7 +68,6 @@ export const channel: ChannelPlugin = {
       execute: async () => {
         try {
           const qr = await prepareQR(ctx.paths.mediaDir);
-
           void pollLogin(qr.qrCode, 480_000, (status) => {
             ctx.logger.info(`微信扫码状态: ${status}`);
           }).then(async (result) => {
@@ -84,7 +82,6 @@ export const channel: ChannelPlugin = {
               ctx.logger.error(`微信登录失败: ${result.message}`);
             }
           });
-
           return { components: [{ type: 'Plain', text: qr.message }] };
         } catch (err) {
           return { components: [{ type: 'Plain', text: `微信登录失败: ${err}` }] };
@@ -109,33 +106,64 @@ export const channel: ChannelPlugin = {
 
   async send(signal: OutboundSignal) {
     if (!token || !baseUrl || destroyed) return;
-    if (signal.kind === 'message') {
-      const parts = extractMessageParts(signal.content as { components: unknown[] });
-      const text = parts.text;
-      const mediaDesc = parts.media.length > 0
-        ? '\n\n[附件]\n' + parts.media.map((m) => `- ${m.name || m.kind}`).join('\n')
-        : '';
-      const finalText = text + mediaDesc;
-      if (finalText) {
-        await sendMessage({
-          baseUrl, token,
-          body: {
-            msg: {
-              to_user_id: signal.session.chatId,
-              message_type: 2,
-              message_state: 2,
-              item_list: [{ type: 1, text_item: { text: finalText } }],
-            },
-          },
-        });
+    if (signal.kind !== 'message') return;
+
+    const parts = extractMessageParts(signal.content as { components: unknown[] });
+    const items: Array<Record<string, unknown>> = [];
+
+    // 文本
+    if (parts.text) {
+      items.push({ type: 1, text_item: { text: parts.text } });
+    }
+
+    // 媒体 — 逐件上传 CDN 后发送
+    for (const media of parts.media) {
+      let fileBuffer: Buffer | undefined;
+      if (media.base64) {
+        fileBuffer = Buffer.from(media.base64, 'base64');
+      } else if (media.path) {
+        try { fileBuffer = await fs.readFile(media.path); } catch { continue; }
+      }
+      if (!fileBuffer) continue;
+
+      const mime = media.mimeType || guessMime(media.name || media.path || '');
+      const mediaType = mime.startsWith('image/') ? 1 : mime.startsWith('video/') ? 2 : 3;
+
+      try {
+        const uploaded = await uploadToCdn(fileBuffer, signal.session.chatId, mediaType, { baseUrl, token });
+        const aesKeyBase64 = Buffer.from(uploaded.aeskey, 'hex').toString('base64');
+        const cdnRef = { encrypt_query_param: uploaded.downloadEncryptedQueryParam, aes_key: aesKeyBase64, encrypt_type: 1 };
+
+        if (mediaType === 1) {
+          items.push({ type: 2, image_item: { media: cdnRef, mid_size: uploaded.fileSizeCiphertext } });
+        } else if (mediaType === 2) {
+          items.push({ type: 5, video_item: { media: cdnRef, video_size: uploaded.fileSizeCiphertext } });
+        } else {
+          items.push({ type: 4, file_item: { media: cdnRef, file_name: media.name || 'file', len: String(uploaded.fileSize) } });
+        }
+      } catch (err) {
+        items.push({ type: 1, text_item: { text: `[媒体上传失败: ${err}]` } });
       }
     }
+
+    if (items.length === 0) return;
+    await sendMessage({
+      baseUrl, token,
+      body: {
+        msg: {
+          to_user_id: signal.session.chatId,
+          message_type: 2,
+          message_state: 2,
+          item_list: items,
+        },
+      },
+    });
   },
 };
 
 // ─── 内部函数 ──────────────────────────────────────────────────────
 
-type Component = { type: string; text?: string; name?: string; kind?: string };
+type Component = { type: string; text?: string; base64?: string; path?: string; name?: string; mimeType?: string };
 
 function extractMessageParts(msg: { components: unknown[] }): { text: string; media: Component[] } {
   const texts: string[] = [];
@@ -143,11 +171,25 @@ function extractMessageParts(msg: { components: unknown[] }): { text: string; me
   for (const comp of msg.components as Component[]) {
     if (comp.type === 'Plain' && comp.text) {
       texts.push(comp.text);
-    } else if (comp.type === 'Image' || comp.type === 'File' || comp.type === 'Record' || comp.type === 'Video') {
+    } else if (['Image', 'Record', 'Video', 'File'].includes(comp.type)) {
       media.push(comp);
     }
   }
   return { text: texts.join('\n'), media };
+}
+
+function guessMime(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+    webp: 'image/webp', bmp: 'image/bmp',
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+    mp4: 'video/mp4', mov: 'video/quicktime',
+    pdf: 'application/pdf', txt: 'text/plain',
+    json: 'application/json', md: 'text/markdown',
+  };
+  const mime = (ext ? map[ext] : undefined) as string | undefined;
+  return mime ?? 'application/octet-stream';
 }
 
 function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext) {
