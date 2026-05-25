@@ -92,16 +92,19 @@
           <div v-if="msg.media?.length">
             <!-- 图片直接显示 -->
             <img
-              v-for="(item, mi) in msg.media.filter(m => m.kind === 'image' && m.base64)"
+              v-for="(item, mi) in msg.media.filter((m) => m.kind === 'image' && m.base64)"
               :key="'img-' + mi"
               :src="'data:' + (item.mimeType || 'image/png') + ';base64,' + item.base64"
               class="media-image-inline"
               alt=""
             />
             <!-- 其他附件用 badge -->
-            <div v-if="msg.media.filter(m => m.kind !== 'image').length" class="message-attachments">
+            <div
+              v-if="msg.media.filter((m) => m.kind !== 'image').length"
+              class="message-attachments"
+            >
               <span
-                v-for="(item, mi) in msg.media.filter(m => m.kind !== 'image')"
+                v-for="(item, mi) in msg.media.filter((m) => m.kind !== 'image')"
                 :key="'chip-' + mi"
                 class="attachment-chip"
                 :class="{ clickable: item.kind === 'file' && item.base64 }"
@@ -140,7 +143,7 @@
                 {{ item.name || item.kind }}
               </span>
             </div>
-        </div>
+          </div>
           <span v-if="msg.streaming" class="cursor">|</span>
           <div class="message-footer">
             <span v-if="shouldShowUsage(msg)" class="message-usage">{{
@@ -292,7 +295,7 @@ async function openMediaFile(item: MediaItem): void {
     const filePath = await window.aesyclaw.saveFile(item.name ?? 'file', item.base64);
     await window.aesyclaw.openFolder(filePath);
   } catch {
-    // 静默失败
+    console.warn('openMediaFile failed');
   }
 }
 
