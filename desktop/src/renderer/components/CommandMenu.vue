@@ -1,5 +1,5 @@
 <template>
-  <div v-show="visible" class="command-menu" @mouseleave="$emit('close')">
+  <div ref="menuRef" v-show="visible" class="command-menu" @mouseleave="$emit('close')">
     <div
       v-for="(item, i) in items"
       :key="item.name"
@@ -16,17 +16,28 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { watch, nextTick, ref } from 'vue';
+
+const props = defineProps<{
   items: Array<{ name: string; description: string }>;
   selectedIndex: number;
   visible: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   select: [index: number];
   highlight: [index: number];
   close: [];
 }>();
+
+const menuRef = ref<HTMLElement | null>(null);
+
+watch(() => props.selectedIndex, () => {
+  void nextTick(() => {
+    const el = menuRef.value?.querySelector('.command-item.selected');
+    el?.scrollIntoView({ block: 'nearest' });
+  });
+});
 </script>
 
 <style scoped>
