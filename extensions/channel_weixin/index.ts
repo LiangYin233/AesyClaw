@@ -65,7 +65,7 @@ export const channel: ChannelPlugin = {
       try {
         await notifyStart({ baseUrl, token });
       } catch {
-        /* 忽略 */
+        // 通知 iLink 服务器启动失败不影响后续流程
       }
       startWeixinMonitor(creds.updatesBuf, ctx);
     }
@@ -88,7 +88,9 @@ export const channel: ChannelPlugin = {
               ctx.logger.info('微信凭据已保存');
               try {
                 await notifyStart({ baseUrl, token });
-              } catch {}
+              } catch {
+                // 通知 iLink 服务器失败——静默忽略
+              }
               startWeixinMonitor('', ctx);
             } else if (!result.success) {
               ctx.logger.error(`微信登录失败: ${result.message}`);
@@ -112,7 +114,9 @@ export const channel: ChannelPlugin = {
     if (token && baseUrl) {
       try {
         await notifyStop({ baseUrl, token });
-      } catch {}
+      } catch {
+        // 通知 iLink 服务器停止失败不影响频道关闭
+      }
     }
     token = '';
     baseUrl = '';
@@ -129,7 +133,7 @@ export const channel: ChannelPlugin = {
 
     const parts = extractMessageParts(signal.content as { components: unknown[] });
     const chatId = signal.session.chatId;
-    const ctxToken = contextTokens.get(chatId) || undefined;
+    const ctxToken = contextTokens.get(chatId) ?? undefined;
 
     const tasks: Array<() => Promise<void>> = [];
     if (parts.text) {
@@ -145,7 +149,9 @@ export const channel: ChannelPlugin = {
       } catch (err) {
         try {
           await sendOneItem({ type: 1, text_item: { text: `[发送失败: ${err}]` } });
-        } catch {}
+        } catch {
+          // 发送错误通知失败——静默忽略
+        }
       }
     }
 
@@ -171,7 +177,7 @@ export const channel: ChannelPlugin = {
       else if (media.path) fileBuffer = await fs.readFile(media.path);
       if (!fileBuffer) return;
 
-      const mime = media.mimeType || guessMime(media.name || media.path || '');
+      const mime = media.mimeType ?? guessMime(media.name ?? media.path ?? '');
       const mediaType = mime.startsWith('image/') ? 1 : mime.startsWith('video/') ? 2 : 3;
       const uploaded = await uploadToCdn(fileBuffer, cid, mediaType, { baseUrl, token });
       const aesKeyBase64 = Buffer.from(uploaded.aeskey).toString('base64');
@@ -197,7 +203,8 @@ export const channel: ChannelPlugin = {
           file_item: {
             media: cdnRef,
             file_name:
-              media.name || (media.path ? media.path.split(/[/\\]+/).pop() : 'file') || 'file',
+              media.name ??
+              (media.path ? media.path.split(/[/\\]+/).pop() : 'file') ?? 'file',
             len: String(uploaded.fileSize),
           },
         });
@@ -249,14 +256,14 @@ function guessMime(fileName: string): string {
   return (ext ? map[ext] : undefined) ?? 'application/octet-stream';
 }
 
-function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext) {
+function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext): void {
   if (monitor) monitor.stop();
   monitor = startMonitor(
     { baseUrl, token },
     {
       onMessage: (fromUserId, content, msg) => {
         if (msg.context_token) contextTokens.set(fromUserId, msg.context_token);
-        ctx.receive(
+        void ctx.receive(
           { components: [{ type: 'Plain', text: content }] },
           { channel: 'weixin', type: 'private', chatId: fromUserId },
           { id: fromUserId, name: fromUserId },
