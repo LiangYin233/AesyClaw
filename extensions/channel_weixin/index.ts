@@ -203,8 +203,7 @@ export const channel: ChannelPlugin = {
           file_item: {
             media: cdnRef,
             file_name:
-              media.name ??
-              (media.path ? media.path.split(/[/\\]+/).pop() : 'file') ?? 'file',
+              media.name ?? (media.path ? media.path.split(/[/\\]+/).pop() : 'file') ?? 'file',
             len: String(uploaded.fileSize),
           },
         });

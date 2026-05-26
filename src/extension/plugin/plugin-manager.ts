@@ -172,11 +172,11 @@ export class PluginManager implements ExtensionLifecycle {
     await this.setPluginEnabled(pluginName, false);
   }
 
-  /** 增量热重载：更新已加载插件的配置，加载新增插件，卸载禁用的插件。 */
+  /** 热重载：配置变更时重启对应插件，加载新增插件，卸载禁用的插件。 */
   async handleConfigReload(): Promise<void> {
     const entries = this.getConfigEntries();
 
-    // 已加载的插件：更新配置引用
+    // 已加载的插件：配置变更时重启（destroy + init），配置未变则跳过
     for (const [pluginName, loaded] of [...this.loadedPlugins]) {
       const entry = entries.find((e) => e.name === pluginName || e.name === loaded.directoryName);
       const enabled = entry?.enabled ?? true;
@@ -189,11 +189,17 @@ export class PluginManager implements ExtensionLifecycle {
       const freshOptions = optionsToRecord(entry?.options);
       const freshConfig = getManagedPluginOptions(loaded.definition.defaultConfig, freshOptions);
 
-      const ref = this.configRefs.get(pluginName);
-      if (ref) {
-        ref.current = freshConfig;
-        loaded.config = freshConfig;
-        logger.debug(`插件 "${pluginName}" 配置已热更新`);
+      // 配置未变更 → 跳过
+      if (JSON.stringify(loaded.config) === JSON.stringify(freshConfig)) continue;
+
+      // 配置变更 → 重启插件：unload（destroy + 清理）→ load（init + 注册）
+      const directory = loaded.directory;
+      logger.info(`插件 "${pluginName}" 配置已变更，正在重启`);
+      await this.unload(pluginName);
+      try {
+        await this.load(directory);
+      } catch (err) {
+        logger.error(`热重载时重启插件 "${pluginName}" 失败`, err);
       }
     }
 
@@ -212,6 +218,7 @@ export class PluginManager implements ExtensionLifecycle {
       }
     }
   }
+
 
   // ─── 查询 ────────────────────────────────────────────────────────
 
