@@ -1,11 +1,11 @@
 /**
- * channel-context — 频道的上下文工厂。
+ * context — 频道的上下文工厂。
  *
  * 从 ChannelManager 中提取，构建频道 init 时接收的 ChannelContext。
  */
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { ChannelContext, ChannelManagerDependencies } from './channel-types';
+import type { ChannelContext, ChannelManagerDependencies } from './types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 
 export function createContext(

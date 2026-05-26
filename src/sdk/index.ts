@@ -8,13 +8,13 @@
  * 所有外部扩展代码无需修改。
  */
 
-export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin/plugin-types';
+export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin/types';
 
 export type {
   ChannelContext,
   ChannelPlugin,
   RegisteredCommandInfo,
-} from '@aesyclaw/extension/channel/channel-types';
+} from '@aesyclaw/extension/channel/types';
 
 export type {
   Message,

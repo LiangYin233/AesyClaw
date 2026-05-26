@@ -21,7 +21,7 @@ import { ToolRegistry } from './tool/tool-registry';
 import { registerBuiltinCommands } from './command/builtin';
 import { registerBuiltinTools } from './tool/builtin';
 import { CronManager } from './cron/manager';
-import { ExtensionManager } from './extension/extension-manager';
+import { ExtensionManager } from './extension/manager';
 import { WebUiManager } from './web/webui-manager';
 import { createAgentFactory } from './agent/factory';
 import { createRoleResolver } from './agent/role-resolver';

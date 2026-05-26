@@ -8,11 +8,11 @@ import type { IHooksBus } from '@aesyclaw/hook';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
-import { PluginManager } from './plugin/plugin-manager';
-import type { PluginStatus } from './plugin/plugin-types';
-import { ChannelManager } from './channel/channel-manager';
+import { PluginManager } from './plugin/manager';
+import type { PluginStatus } from './plugin/types';
+import { ChannelManager } from './channel/manager';
 
-const logger = createScopedLogger('extension-manager');
+const logger = createScopedLogger('manager');
 
 /** ExtensionManager 的依赖项集合。 */
 export type ExtensionManagerDependencies = {

@@ -4,9 +4,9 @@ import path from 'node:path';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
-import * as loader from './plugin-loader';
-import * as pluginConfig from './plugin-config';
-import { createPluginContext } from './plugin-context';
+import * as loader from './loader';
+import * as pluginConfig from './config';
+import { createPluginContext } from './context';
 
 import { loadExtensionModule, type ExtensionLifecycle } from '@aesyclaw/extension/extension-loader';
 import {
@@ -18,9 +18,9 @@ import {
   type PluginManagerDependencies,
   type PluginModule,
   type PluginStatus,
-} from './plugin-types';
+} from './types';
 
-const logger = createScopedLogger('plugin-manager');
+const logger = createScopedLogger('manager');
 
 /**
  * 插件管理器 — 负责插件的发现、加载、卸载、启用/禁用及配置热重载。

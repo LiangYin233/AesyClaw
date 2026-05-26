@@ -5,7 +5,7 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';
-import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
+import type { ExtensionManager } from '@aesyclaw/extension/manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/registry';
 import { createHelpCommand } from './help';

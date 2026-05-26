@@ -9,7 +9,7 @@
  */
 
 import type { CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
-import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
+import type { ExtensionManager } from '@aesyclaw/extension/manager';
 
 export type PluginCommandDeps = {
   extensionManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;

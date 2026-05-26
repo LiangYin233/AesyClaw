@@ -1,11 +1,11 @@
 /**
- * plugin-context — 插件的上下文工厂。
+ * context — 插件的上下文工厂。
  *
  * 从 PluginManager 中提取，构建插件 init 时接收的 PluginContext。
  */
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { pluginOwner, type PluginContext, type PluginManagerDependencies } from './plugin-types';
+import { pluginOwner, type PluginContext, type PluginManagerDependencies } from './types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 
 export function createPluginContext(

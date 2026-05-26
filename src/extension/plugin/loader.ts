@@ -1,5 +1,5 @@
 /**
- * plugin-loader — 插件的磁盘发现和模块加载逻辑。
+ * loader — 插件的磁盘发现和模块加载逻辑。
  *
  * 从 PluginManager 中提取，专注目录扫描、模块导入和按名称查找。
  */
@@ -8,7 +8,7 @@ import path from 'node:path';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage } from '@aesyclaw/core/utils';
 import { loadExtensionModule, discoverExtensionDirs } from '@aesyclaw/extension/extension-loader';
-import { discoverPluginDefinition, type PluginModule } from './plugin-types';
+import { discoverPluginDefinition, type PluginModule } from './types';
 
 const logger = createScopedLogger('plugin-loader');
 

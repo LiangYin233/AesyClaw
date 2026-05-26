@@ -10,11 +10,11 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { IHooksBus, HookRegistration } from '@aesyclaw/hook';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
+import type { ChannelManager } from '@aesyclaw/extension/channel/manager';
 import type { Logger } from '@aesyclaw/core/logger';
 
 import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
+import type { ChannelPlugin } from '@aesyclaw/extension/channel/types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
 import { discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils';

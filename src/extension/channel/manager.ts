@@ -20,17 +20,17 @@ import type {
   ChannelPlugin,
   ChannelStatus,
   LoadedChannel,
-} from './channel-types';
+} from './types';
 import {
   isChannelEnabled,
   discoverChannelDefinition,
   type ChannelLifecycleState,
-} from './channel-types';
-import * as router from './channel-router';
-import * as channelConfig from './channel-config';
-import * as ctxFactory from './channel-context';
+} from './types';
+import * as router from './router';
+import * as channelConfig from './config';
+import * as ctxFactory from './context';
 
-const logger = createScopedLogger('channel-manager');
+const logger = createScopedLogger('manager');
 
 /**
  * 频道管理器 — 注册、启动、停止频道适配器，并将入站消息桥接到管道。

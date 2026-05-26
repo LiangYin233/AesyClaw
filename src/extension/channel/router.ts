@@ -1,5 +1,5 @@
 /**
- * channel-router — 频道的消息路由逻辑。
+ * router — 频道的消息路由逻辑。
  *
  * 从 ChannelManager 中提取，专注入站接收和出站发送的消息流转。
  */
@@ -13,7 +13,7 @@ import {
 } from '@aesyclaw/core/types';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
-import type { LoadedChannel } from './channel-types';
+import type { LoadedChannel } from './types';
 
 /** 非流式频道的 chunk 缓冲区 — channel:session → 累积文本 */
 export type ChunkBuffers = Map<string, string>;

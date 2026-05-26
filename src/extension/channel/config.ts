@@ -1,12 +1,12 @@
 /**
- * channel-config — 频道的配置读取/写入逻辑。
+ * config — 频道的配置读取/写入逻辑。
  *
  * 从 ChannelManager 中提取，专注 channels 段的配置操作。
  */
 import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import { isChannelEnabled, type ChannelPlugin } from './channel-types';
+import { isChannelEnabled, type ChannelPlugin } from './types';
 
 export function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
   return { enabled: false, ...stripEnabledField(channel.defaultConfig ?? {}) };

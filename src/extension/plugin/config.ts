@@ -1,10 +1,10 @@
 /**
- * plugin-config — 插件的配置读取/写入逻辑。
+ * config — 插件的配置读取/写入逻辑。
  */
 import { isRecord } from '@aesyclaw/core/utils';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { PluginModule } from './plugin-types';
+import type { PluginModule } from './types';
 
 export function getPluginConfig(
   definitions: Record<string, unknown>,
