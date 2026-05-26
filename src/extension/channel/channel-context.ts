@@ -39,9 +39,7 @@ export function createContext(
       deps.commandRegistry.register({ ...command, scope: owner });
     },
     getCommands: () =>
-      deps.commandRegistry
-        .getAll()
-        .map(({ execute: _execute, ...command }) => command),
+      deps.commandRegistry.getAll().map(({ execute: _execute, ...command }) => command),
     logger: createScopedLogger(`channel:${channelName}`),
   };
 }

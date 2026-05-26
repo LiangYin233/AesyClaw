@@ -16,7 +16,10 @@ export type ConfigDeps = {
   configManager: ConfigManager;
 };
 
-export function getMergedConfig(deps: ConfigDeps, definition: ChannelPlugin): Record<string, unknown> {
+export function getMergedConfig(
+  deps: ConfigDeps,
+  definition: ChannelPlugin,
+): Record<string, unknown> {
   const channelConfig = getConfigRecord(deps, definition.name);
   return mergeDefaults(getManagedChannelDefaults(definition), channelConfig);
 }
@@ -30,7 +33,11 @@ export function getConfigRecord(deps: ConfigDeps, channelName: string): Record<s
   }
 }
 
-export function isEnabled(deps: ConfigDeps, definitions: Map<string, ChannelPlugin>, channelName: string): boolean {
+export function isEnabled(
+  deps: ConfigDeps,
+  definitions: Map<string, ChannelPlugin>,
+  channelName: string,
+): boolean {
   const definition = definitions.get(channelName);
   const config = definition
     ? getMergedConfig(deps, definition)
