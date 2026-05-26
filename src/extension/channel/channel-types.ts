@@ -14,8 +14,8 @@ import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import { isRecord } from '@aesyclaw/core/utils';
-import { validateExtension } from '@aesyclaw/extension/extension-utils';
+
+import { validateExtension, discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils';
 
 export type RegisteredCommandInfo = Omit<CommandDefinition, 'execute'>;
 
@@ -111,11 +111,7 @@ export function isChannelPlugin(value: unknown): value is ChannelPlugin {
  * 支持静态 `default` 或 `channel` 导出。
  */
 export function discoverChannelDefinition(imported: unknown): ChannelPlugin | null {
-  if (!isRecord(imported)) {
-    return null;
-  }
-
-  const candidate = (imported['default'] ?? imported['channel']) as unknown;
-  if (candidate === null) return null;
-  return isChannelPlugin(candidate) ? candidate : null;
+  const base = discoverExtensionDefinition(imported, 'channel');
+  if (!base) return null;
+  return isChannelPlugin(base) ? base : null;
 }

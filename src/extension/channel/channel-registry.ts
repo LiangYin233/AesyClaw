@@ -21,7 +21,7 @@ import {
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
-import { mergeDefaults } from '@aesyclaw/core/utils';
+import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 const logger = createScopedLogger('channel-registry');
 
 export type ChannelRegistryDeps = {
@@ -203,8 +203,6 @@ export function getManagedChannelDefaults(channel: ChannelPlugin): Record<string
   return { enabled: false, ...stripEnabledField(channel.defaultConfig ?? {}) };
 }
 
-
-
 function resolveChannelState(
   error: string | undefined,
   loaded: boolean,
@@ -216,6 +214,4 @@ function resolveChannelState(
   return 'disabled';
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+

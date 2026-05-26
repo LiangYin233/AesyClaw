@@ -410,8 +410,6 @@ function createPluginOptionsProperty(defaults: Record<string, unknown> | undefin
   return Object.keys(options).length === 0 ? {} : { options };
 }
 
-
-
 function optionsToRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }

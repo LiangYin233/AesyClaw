@@ -17,8 +17,7 @@ import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
-import { isRecord } from '@aesyclaw/core/utils';
-import { validateExtension } from '@aesyclaw/extension/extension-utils';
+import { discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils';
 /** 插件初始化时接收的受限上下文。 */
 export type PluginContext = {
   config: Record<string, unknown>;
@@ -111,13 +110,6 @@ export function pluginOwner(pluginName: string): ToolOwner {
  * 支持 default 或 plugin 命名导出。
  */
 export function discoverPluginDefinition(imported: unknown): PluginDefinition | null {
-  if (!isRecord(imported)) {
-    return null;
-  }
-
-  const candidate = (imported['default'] ?? imported['plugin']) as unknown;
-  if (candidate === null || candidate === undefined) return null;
-
-  const result = validateExtension<PluginDefinition>(candidate);
-  return result === false ? null : result;
+  const result = discoverExtensionDefinition(imported, 'plugin');
+  return result as PluginDefinition | null;
 }
