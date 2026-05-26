@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
 import { validateWithSchema } from '@aesyclaw/sdk';
+import { prepareQR, pollLogin } from './login';
 import { WeixinChannelConfigSchema, type WeixinChannelConfig } from './config-schema';
 import { startMonitor } from './monitor';
 import { sendMessage, notifyStart, notifyStop } from './api';
