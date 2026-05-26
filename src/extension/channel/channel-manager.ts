@@ -28,6 +28,7 @@ import {
   type ChannelLifecycleState,
 } from './channel-types';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
+import * as router from './channel-router';
 
 const logger = createScopedLogger('channel-manager');
 
@@ -150,10 +151,7 @@ export class ChannelManager {
   /** 启用指定频道（写入配置并启动）。 */
   async enable(channelName: string): Promise<void> {
     await this.setChannelEnabled(channelName, true);
-    if (
-      this.definitions.has(channelName) &&
-      !this.loadedChannels.has(channelName)
-    ) {
+    if (this.definitions.has(channelName) && !this.loadedChannels.has(channelName)) {
       try {
         await this.start(channelName);
       } catch (err) {
@@ -238,11 +236,7 @@ export class ChannelManager {
       }
     } finally {
       // 清理该频道的所有 chunk 缓冲区
-      for (const key of this.chunkBuffers.keys()) {
-        if (key.startsWith(`${channelName}:`)) {
-          this.chunkBuffers.delete(key);
-        }
-      }
+      router.cleanupChunkBuffers(this.chunkBuffers, channelName);
       this.cleanupRuntimeOwner(channelName);
       this.loadedChannels.delete(channelName);
       this.failedChannels.delete(channelName);
@@ -307,10 +301,7 @@ export class ChannelManager {
     sessionKey: SessionKey,
     sender?: SenderInfo,
   ): Promise<void> {
-    this.requireLoaded(channelName);
-    await this.deps.pipeline.receiveWithSend(inbound, sessionKey, sender, async (signal) => {
-      await this.send(signal);
-    });
+    await router.receive(this.deps as unknown as router.RouterDeps, this.chunkBuffers, channelName, inbound, sessionKey, sender);
   }
 
   /** 增量热重载：仅重启配置变更的频道，加载新增频道，卸载禁用的频道。 */
