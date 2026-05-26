@@ -408,8 +408,6 @@ export class ChannelManager {
     return this.registry.getAllConfigRecords();
   }
 
-
-
   private async setChannelEnabled(channelName: string, enabled: boolean): Promise<void> {
     const definition = this.registry.definitions.get(channelName);
     const current = this.getConfigRecord(channelName);
@@ -424,7 +422,6 @@ export class ChannelManager {
     };
     await this.deps.configManager.set('channels', channels);
   }
-
 
   private requireLoaded(channelName: string): LoadedChannel {
     const loaded = this.registry.loadedChannels.get(channelName);
@@ -455,4 +452,3 @@ export class ChannelManager {
 function channelRuntimeOwner(channelName: string): `channel:${string}` {
   return `channel:${channelName}`;
 }
-

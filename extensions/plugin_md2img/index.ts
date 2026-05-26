@@ -4,9 +4,10 @@ import type { Browser } from 'playwright';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateWithSchema, getMessageText } from '@aesyclaw/sdk';
 import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
 import type { HookCtx, HookResult } from '@aesyclaw/sdk';
-import { getMessageText } from '@aesyclaw/sdk';
+import { Md2ImgPluginConfigSchema, type Md2ImgPluginConfig } from './config-schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');
@@ -243,8 +244,13 @@ const plugin: PluginDefinition = {
     },
   ],
   async init(ctx) {
+    const validated = validateWithSchema<Md2ImgPluginConfig>(
+      Md2ImgPluginConfigSchema,
+      ctx.config,
+      `插件配置(md2img)`,
+    );
     logger = ctx.logger;
-    pluginConfig = ctx.config as Record<string, unknown>;
+    pluginConfig = validated as unknown as Record<string, unknown>;
 
     try {
       htmlTemplate = await readFile(TEMPLATE_PATH, 'utf-8');

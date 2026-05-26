@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
+import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { CommandDefinition } from '@aesyclaw/core/types';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
@@ -399,20 +400,17 @@ function getManagedPluginOptions(
   defaults: Record<string, unknown> | undefined,
   overrides: Record<string, unknown>,
 ): Record<string, unknown> {
-  return omitManagedPluginKeys(mergeDefaults(omitManagedPluginKeys(defaults ?? {}), overrides));
+  return stripEnabledField(mergeDefaults(stripEnabledField(defaults ?? {}), overrides));
 }
 
 function createPluginOptionsProperty(defaults: Record<string, unknown> | undefined): {
   options?: Record<string, unknown>;
 } {
-  const options = omitManagedPluginKeys(defaults ?? {});
+  const options = stripEnabledField(defaults ?? {});
   return Object.keys(options).length === 0 ? {} : { options };
 }
 
-function omitManagedPluginKeys(value: Record<string, unknown>): Record<string, unknown> {
-  const { enabled: _enabled, ...rest } = value;
-  return rest;
-}
+
 
 function optionsToRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};

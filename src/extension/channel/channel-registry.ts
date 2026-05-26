@@ -20,8 +20,8 @@ import {
 } from './channel-types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import { mergeDefaults } from '@aesyclaw/core/utils';
-
 const logger = createScopedLogger('channel-registry');
 
 export type ChannelRegistryDeps = {
@@ -195,19 +195,15 @@ export class ChannelRegistry {
       return {};
     }
   }
-
 }
 
 // ─── 模块级工具函数 ─────────────────────────────────────────────
 
 export function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
-  return { enabled: false, ...omitManagedChannelKeys(channel.defaultConfig ?? {}) };
+  return { enabled: false, ...stripEnabledField(channel.defaultConfig ?? {}) };
 }
 
-function omitManagedChannelKeys(value: Record<string, unknown>): Record<string, unknown> {
-  const { enabled: _enabled, ...rest } = value;
-  return rest;
-}
+
 
 function resolveChannelState(
   error: string | undefined,

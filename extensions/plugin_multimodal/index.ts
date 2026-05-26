@@ -6,7 +6,9 @@
  * API 密钥和 baseUrl 通过 ctx.resolveModel() 从核心 config 的 providers 段解析。
  */
 
+import { validateWithSchema } from '@aesyclaw/sdk';
 import type { PluginDefinition } from '@aesyclaw/sdk';
+import { MultimodalPluginConfigSchema, type MultimodalPluginConfig } from './config-schema';
 import { createImageUnderstandingTool } from './image-understanding';
 import { createSpeechToTextTool } from './speech-to-text';
 
@@ -26,8 +28,13 @@ const plugin: PluginDefinition = {
   },
 
   async init(ctx) {
-    const imgCfg = ctx.config['imageUnderstanding'] as Record<string, string> | undefined;
-    const sttCfg = ctx.config['speechToText'] as Record<string, string> | undefined;
+    const validated = validateWithSchema<MultimodalPluginConfig>(
+      MultimodalPluginConfigSchema,
+      ctx.config,
+      `插件配置(multimodal)`,
+    );
+    const imgCfg = validated.imageUnderstanding;
+    const sttCfg = validated.speechToText;
 
     if (imgCfg) {
       ctx.registerTool(

@@ -29,3 +29,19 @@ export function validateExtension<T>(value: unknown): T | false {
 
   return value as T;
 }
+
+/**
+ * 从记录对象中剥离 `enabled` 字段。
+ *
+ * 频道和插件都会在 defaultConfig 中定义 `enabled` 作为开关，
+ * 但该字段由管理器统一管理，不应混入扩展自定义配置中。
+ *
+ * @param value - 可能包含 enabled 的记录
+ * @returns 移除了 enabled 字段的记录
+ */
+export function stripEnabledField<T extends Record<string, unknown>>(
+  value: T,
+): Omit<T, 'enabled'> {
+  const { enabled: _enabled, ...rest } = value;
+  return rest;
+}
