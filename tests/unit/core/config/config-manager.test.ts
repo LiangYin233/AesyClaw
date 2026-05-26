@@ -19,7 +19,7 @@ function makeConfig(overrides: Record<string, unknown> = {}): Record<string, unk
       },
     },
     mcp: [],
-    plugins: [],
+    plugins: {},
     ...overrides,
   };
 }
@@ -142,7 +142,7 @@ describe('ConfigManager', () => {
           },
         },
         mcp: [{ name: 'local', transport: 'stdio' }],
-        plugins: [{ name: 'example-plugin' }],
+        plugins: { 'example-plugin': { enabled: true } },
       });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(partialConfig, null, 2));
@@ -151,9 +151,9 @@ describe('ConfigManager', () => {
       manager = new ConfigManager(testRoot);
 
       const mcp = manager.get('mcp') as Array<{ enabled?: boolean }>;
-      const plugins = manager.get('plugins') as Array<{ enabled?: boolean }>;
+      const plugins = manager.get('plugins') as Record<string, { enabled?: boolean }>;
       expect(mcp[0]?.enabled).toBe(true);
-      expect(plugins[0]?.enabled).toBe(true);
+      expect(plugins['example-plugin']?.enabled).toBe(true);
     });
   });
 
@@ -188,14 +188,14 @@ describe('ConfigManager', () => {
     });
 
     it('should replace array values as whole paths', async () => {
-      await manager.set('plugins', [{ name: 'example-plugin', enabled: false }]);
+      await manager.set('plugins', { 'example-plugin': { enabled: false } });
 
-      expect(manager.get('plugins')).toEqual([{ name: 'example-plugin', enabled: false }]);
+      expect(manager.get('plugins')).toEqual({ 'example-plugin': { enabled: false } });
     });
 
     it('should reject array element paths', async () => {
       expect(() => manager.get('mcp.0.enabled')).toThrow(/数组路径/);
-      await expect(manager.set('plugins.0.enabled', false)).rejects.toThrow(/数组路径/);
+      await expect(manager.set('mcp.0.enabled', false)).rejects.toThrow(/数组路径/);
     });
 
     it('should reject invalid set values before persisting', async () => {

@@ -7,7 +7,7 @@ import {
 } from '../../../extensions/channel_desktop/attachments';
 import { validateDesktopToken } from '../../../extensions/channel_desktop/auth';
 import { DesktopServer } from '../../../extensions/channel_desktop/desktop-server';
-import type { ChannelContext } from '../../../src/extension/channel/channel-types';
+import type { ChannelContext } from '../../../src/extension/channel/types';
 
 function makeLogger() {
   return {

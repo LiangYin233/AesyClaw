@@ -18,8 +18,8 @@ describe('DEFAULT_CONFIG', () => {
     expect(DEFAULT_CONFIG.agent.memory.compressionThreshold).toBeLessThanOrEqual(1);
   });
 
-  it('has empty plugins array', () => {
-    expect(DEFAULT_CONFIG.plugins).toEqual([]);
+  it('has empty plugins record', () => {
+    expect(DEFAULT_CONFIG.plugins).toEqual({});
   });
 
   it('has disabled example MCP server', () => {
