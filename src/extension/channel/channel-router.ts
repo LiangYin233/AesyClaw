@@ -4,7 +4,13 @@
  * 从 ChannelManager 中提取，专注入站接收和出站发送的消息流转。
  */
 
-import { serializeSessionKey, type Message, type OutboundSignal, type SessionKey, type SenderInfo } from '@aesyclaw/core/types';
+import {
+  serializeSessionKey,
+  type Message,
+  type OutboundSignal,
+  type SessionKey,
+  type SenderInfo,
+} from '@aesyclaw/core/types';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { LoadedChannel } from './channel-types';

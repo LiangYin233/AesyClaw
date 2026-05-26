@@ -25,7 +25,10 @@ export async function discoverPluginDirs(extensionsDir: string): Promise<string[
 }
 
 /** 安全加载插件模块（无缓存，每次都重新导入）。 */
-export async function safeLoadModule(pluginDir: string, failedPlugins: Map<string, string>): Promise<PluginModule | null> {
+export async function safeLoadModule(
+  pluginDir: string,
+  failedPlugins: Map<string, string>,
+): Promise<PluginModule | null> {
   try {
     return await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
   } catch (err) {

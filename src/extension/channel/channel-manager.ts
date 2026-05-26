@@ -14,7 +14,7 @@ import {
   type SenderInfo,
 } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   ChannelContext,
   ChannelManagerDependencies,
@@ -27,8 +27,9 @@ import {
   discoverChannelDefinition,
   type ChannelLifecycleState,
 } from './channel-types';
-import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import * as router from './channel-router';
+import * as channelConfig from './channel-config';
+import * as ctxFactory from './channel-context';
 
 const logger = createScopedLogger('channel-manager');
 
@@ -91,7 +92,7 @@ export class ChannelManager {
     this.definitions.set(channel.name, channel);
     this.deps.configManager.registerDefaults(
       `channels.${channel.name}`,
-      getManagedChannelDefaults(channel),
+      channelConfig.getManagedChannelDefaults(channel),
     );
     if (owner) {
       this.channelOwners.set(channel.name, owner);
@@ -301,7 +302,14 @@ export class ChannelManager {
     sessionKey: SessionKey,
     sender?: SenderInfo,
   ): Promise<void> {
-    await router.receive(this.deps as unknown as router.RouterDeps, this.chunkBuffers, channelName, inbound, sessionKey, sender);
+    await router.receive(
+      this.deps as unknown as router.RouterDeps,
+      this.chunkBuffers,
+      channelName,
+      inbound,
+      sessionKey,
+      sender,
+    );
   }
 
   /** 增量热重载：仅重启配置变更的频道，加载新增频道，卸载禁用的频道。 */
@@ -386,93 +394,29 @@ export class ChannelManager {
   // ─── 内部方法 ────────────────────────────────────────────────────
 
   private createContext(channelName: string, config: Record<string, unknown>): ChannelContext {
-    return {
-      name: channelName,
-      config,
-      configManager: this.deps.configManager,
-      paths: this.deps.paths,
-      receive: async (
-        message: Message,
-        sessionKey: SessionKey,
-        sender?: SenderInfo,
-      ): Promise<void> => {
-        await this.receive(channelName, message, sessionKey, sender);
-      },
-      registerTool: (tool): void => {
-        this.deps.toolRegistry.register({ ...tool, owner: channelRuntimeOwner(channelName) });
-      },
-      unregisterTool: (name): void => {
-        const existing = this.deps.toolRegistry.get(name);
-        if (!existing) {
-          return;
-        }
-        const owner = channelRuntimeOwner(channelName);
-        if (existing.owner !== owner) {
-          logger.warn('频道尝试注销一个不属于自己的工具', {
-            channelName,
-            toolName: name,
-            owner: existing.owner,
-          });
-          return;
-        }
-        this.deps.toolRegistry.unregister(name);
-      },
-      registerCommand: (command): void => {
-        this.deps.commandRegistry.register({ ...command, scope: channelRuntimeOwner(channelName) });
-      },
-      getCommands: (): ReturnType<ChannelContext['getCommands']> => {
-        return this.deps.commandRegistry
-          .getAll()
-          .map(({ execute: _execute, ...command }) => command);
-      },
-      logger: createScopedLogger(`channel:${channelName}`),
-    };
+    return ctxFactory.createContext(this.deps, this.deps.paths, channelName, config, async (msg, sk, sender) => {
+      await this.receive(channelName, msg, sk, sender);
+    });
   }
 
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
-    const channelConfig = this.getConfigRecord(definition.name);
-    return mergeDefaults(getManagedChannelDefaults(definition), channelConfig);
+    return channelConfig.getMergedConfig(this.deps, definition);
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
-    try {
-      const config = this.deps.configManager.get(`channels.${channelName}`);
-      return isRecord(config) ? config : {};
-    } catch {
-      return {};
-    }
+    return channelConfig.getConfigRecord(this.deps, channelName);
   }
 
   private isEnabled(channelName: string): boolean {
-    const definition = this.definitions.get(channelName);
-    const config = definition
-      ? this.getMergedConfig(definition)
-      : this.getConfigRecord(channelName);
-    return isChannelEnabled(config);
+    return channelConfig.isEnabled(this.deps, this.definitions, channelName);
   }
 
   private getAllConfigRecords(): Record<string, unknown> {
-    try {
-      const config = this.deps.configManager.get('channels');
-      return isRecord(config) ? { ...config } : {};
-    } catch {
-      return {};
-    }
+    return channelConfig.getAllConfigRecords(this.deps);
   }
 
   private async setChannelEnabled(channelName: string, enabled: boolean): Promise<void> {
-    const definition = this.definitions.get(channelName);
-    const current = this.getConfigRecord(channelName);
-    const channels = this.getAllConfigRecords();
-    const { enabled: _enabled, ...defaults } = definition
-      ? getManagedChannelDefaults(definition)
-      : {};
-    channels[channelName] = {
-      ...defaults,
-      ...current,
-      enabled,
-    };
-    await this.deps.configManager.set('channels', channels);
+    await channelConfig.setChannelEnabled(this.deps, this.definitions, channelName, enabled);
   }
 
   private requireLoaded(channelName: string): LoadedChannel {
@@ -516,6 +460,4 @@ function resolveChannelState(
   return 'disabled';
 }
 
-export function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
-  return { enabled: false, ...stripEnabledField(channel.defaultConfig ?? {}) };
-}
+

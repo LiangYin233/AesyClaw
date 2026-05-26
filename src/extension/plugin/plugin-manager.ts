@@ -5,13 +5,10 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import * as loader from './plugin-loader';
-import type { CommandDefinition } from '@aesyclaw/core/types';
+import * as pluginConfig from './plugin-config';
+import { createPluginContext } from './plugin-context';
 
-import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import {
-  loadExtensionModule,
-  type ExtensionLifecycle,
-} from '@aesyclaw/extension/extension-loader';
+import { loadExtensionModule, type ExtensionLifecycle } from '@aesyclaw/extension/extension-loader';
 import {
   discoverPluginDefinition,
   pluginOwner,
@@ -151,7 +148,12 @@ export class PluginManager implements ExtensionLifecycle {
 
   async enable(pluginName: string): Promise<void> {
     await this.setPluginEnabled(pluginName, true);
-    const match = await loader.findPlugin(pluginName, this.loadedPlugins, this.deps.paths.extensionsDir, this.failedPlugins);
+    const match = await loader.findPlugin(
+      pluginName,
+      this.loadedPlugins,
+      this.deps.paths.extensionsDir,
+      this.failedPlugins,
+    );
     if (match && !this.loadedPlugins.has(match.definition.name)) {
       try {
         await this.load(match.directory);
@@ -201,7 +203,12 @@ export class PluginManager implements ExtensionLifecycle {
       if (!isRecord(raw) || raw['enabled'] === false) continue;
       if (this.loadedPlugins.has(name)) continue;
 
-      const match = await loader.findPlugin(name, this.loadedPlugins, this.deps.paths.extensionsDir, this.failedPlugins);
+      const match = await loader.findPlugin(
+        name,
+        this.loadedPlugins,
+        this.deps.paths.extensionsDir,
+        this.failedPlugins,
+      );
       if (match) {
         try {
           await this.load(match.directory);
@@ -292,41 +299,7 @@ export class PluginManager implements ExtensionLifecycle {
     pluginName: string,
     ref: { current: Record<string, unknown> },
   ): PluginContext {
-    const owner = pluginOwner(pluginName);
-    const deps = this.deps;
-    return {
-      get config() {
-        return ref.current;
-      },
-      paths: deps.paths,
-      registerTool: (tool: AesyClawTool): void => {
-        deps.toolRegistry.register({ ...tool, owner });
-      },
-      unregisterTool: (name: string): void => {
-        const existing = deps.toolRegistry.get(name);
-        if (!existing) return;
-        if (existing.owner !== owner) {
-          logger.warn('插件尝试注销一个不属于自己的工具', {
-            pluginName,
-            toolName: name,
-            owner: existing.owner,
-          });
-          return;
-        }
-        deps.toolRegistry.unregister(name);
-      },
-      registerCommand: (command: CommandDefinition): void => {
-        deps.commandRegistry.register({ ...command, scope: owner });
-      },
-      registerChannel: (channel): void => {
-        if (!deps.channelManager) {
-          throw new Error('ChannelManager 对插件不可用');
-        }
-        deps.channelManager.register(channel, owner);
-      },
-      logger: createScopedLogger(owner),
-      resolveModel: (providerModel) => deps.llmAdapter.resolveModel(providerModel),
-    };
+    return createPluginContext(this.deps, this.deps.paths, pluginName, ref);
   }
 
   private async cleanupOwner(pluginName: string): Promise<void> {
@@ -344,20 +317,11 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   private getPluginConfig(module: PluginModule): PluginConfigLookup {
-    const plugins = this.getPluginRecord();
-    const raw = plugins[module.definition.name] ?? plugins[module.directoryName];
-    const entry = isRecord(raw) ? raw : null;
-    return {
-      exists: entry !== null,
-      enabled: entry?.['enabled'] !== false,
-      config: entry ? stripEnabledField(entry) : {},
-    };
+    return pluginConfig.getPluginConfig(this.deps, this.getPluginRecord(), module);
   }
 
   private isDirectoryEnabled(directoryName: string): boolean {
-    const raw = this.getPluginRecord()[directoryName];
-    const entry = isRecord(raw) ? raw : null;
-    return entry?.['enabled'] !== false;
+    return pluginConfig.isDirectoryEnabled(this.deps, directoryName);
   }
 
   private getPluginRecord(): Record<string, unknown> {
@@ -371,7 +335,12 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   private async setPluginEnabled(pluginName: string, enabled: boolean): Promise<void> {
-    const match = await loader.findPlugin(pluginName, this.loadedPlugins, this.deps.paths.extensionsDir, this.failedPlugins);
+    const match = await loader.findPlugin(
+      pluginName,
+      this.loadedPlugins,
+      this.deps.paths.extensionsDir,
+      this.failedPlugins,
+    );
     const canonicalName = match?.definition.name ?? pluginName;
     const plugins = this.getPluginRecord();
 
@@ -389,7 +358,6 @@ export class PluginManager implements ExtensionLifecycle {
   // ─── 磁盘发现 ────────────────────────────────────────────────
 
   /** 扫描磁盘插件目录。 */
-
 }
 
 // ─── 工具函数 ────────────────────────────────────────────────────────
