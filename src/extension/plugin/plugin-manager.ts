@@ -256,7 +256,14 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   /** 获取所有已发现插件的定义信息 */
-  async getPluginDefinitions() {
+  async getPluginDefinitions(): Promise<
+    Array<{
+      name: string;
+      version?: string;
+      description?: string;
+      defaultConfig?: Record<string, unknown>;
+    }>
+  > {
     return await this.discovery.getPluginDefinitions();
   }
 
@@ -370,8 +377,8 @@ export class PluginManager implements ExtensionLifecycle {
     const canonicalName = match?.definition.name ?? pluginName;
     const plugins = this.getPluginRecord();
 
-    const existing: Record<string, unknown> | undefined =
-      (plugins[canonicalName] ?? plugins[match?.directoryName ?? '']) as Record<string, unknown> | undefined;
+    const existing: Record<string, unknown> | undefined = (plugins[canonicalName] ??
+      plugins[match?.directoryName ?? '']) as Record<string, unknown> | undefined;
     if (existing) {
       existing['enabled'] = enabled;
     } else {
@@ -390,8 +397,6 @@ function getManagedPluginOptions(
 ): Record<string, unknown> {
   return stripEnabledField(mergeDefaults(stripEnabledField(defaults ?? {}), overrides));
 }
-
-
 
 /** 根据错误状态和启用状态解析插件状态字符串 */
 function resolvePluginState(error: string | undefined, enabled: boolean): PluginLifecycleState {

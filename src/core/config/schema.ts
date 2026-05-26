@@ -72,8 +72,6 @@ const McpServerConfigSchema = Type.Object(
 
 type McpServerConfig = Static<typeof McpServerConfigSchema>;
 
-// ─── Plugin ──────────────────────────────────────────────────────
-
 
 // ─── Top-level AppConfig ─────────────────────────────────────────
 
