@@ -7,7 +7,11 @@ import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { CommandDefinition } from '@aesyclaw/core/types';
 
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import { loadExtensionModule, discoverExtensionDirs, type ExtensionLifecycle } from '@aesyclaw/extension/extension-loader';
+import {
+  loadExtensionModule,
+  discoverExtensionDirs,
+  type ExtensionLifecycle,
+} from '@aesyclaw/extension/extension-loader';
 import {
   discoverPluginDefinition,
   pluginOwner,
@@ -19,7 +23,6 @@ import {
   type PluginModule,
   type PluginStatus,
 } from './plugin-types';
-
 
 const logger = createScopedLogger('plugin-manager');
 
@@ -439,7 +442,6 @@ export class PluginManager implements ExtensionLifecycle {
     }
     return null;
   }
-
 }
 
 // ─── 工具函数 ────────────────────────────────────────────────────────
