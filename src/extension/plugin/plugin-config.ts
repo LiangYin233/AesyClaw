@@ -42,8 +42,8 @@ export async function setPluginEnabled(
   enabled: boolean,
 ): Promise<void> {
   const plugins = getPluginRecord(configManager);
-  const existing: Record<string, unknown> | undefined =
-    (plugins[canonicalName] ?? plugins[directoryName]) as Record<string, unknown> | undefined;
+  const existing: Record<string, unknown> | undefined = (plugins[canonicalName] ??
+    plugins[directoryName]) as Record<string, unknown> | undefined;
   if (existing) {
     existing['enabled'] = enabled;
   } else {

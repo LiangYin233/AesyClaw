@@ -20,7 +20,10 @@ export function getMergedConfig(
   return mergeDefaults(getManagedChannelDefaults(definition), channelConfig);
 }
 
-export function getConfigRecord(configManager: ConfigManager, channelName: string): Record<string, unknown> {
+export function getConfigRecord(
+  configManager: ConfigManager,
+  channelName: string,
+): Record<string, unknown> {
   try {
     const config = configManager.get(`channels.${channelName}`);
     return isRecord(config) ? config : {};

@@ -41,34 +41,28 @@ export type ListCronJobsFilter = {
   sessionKey?: SessionKey;
 };
 
-type CronManagerStoredDeps = {
-  cronJobs: CronJobsRepository;
-  cronRuns: CronRunsRepository;
-  executor: CronExecutor;
-  scheduler: CronScheduler;
-};
-
 export class CronManager {
-  private deps: CronManagerStoredDeps;
-  private hooksBus: IHooksBus;
-  private sessionManager: SessionManager;
+  private readonly cronJobs: CronJobsRepository;
+  private readonly cronRuns: CronRunsRepository;
+  private readonly executor: CronExecutor;
+  private readonly scheduler: CronScheduler;
+  private readonly hooksBus: IHooksBus;
+  private readonly sessionManager: SessionManager;
   private initialized = false;
   private readonly inFlight = new Set<Promise<unknown>>();
 
   constructor(dependencies: CronManagerDependencies) {
-    const cronJobs = dependencies.databaseManager.cronJobs;
-    const cronRuns = dependencies.databaseManager.cronRuns;
-    const scheduler = dependencies.scheduler ?? new CronScheduler();
-    const executor = new CronExecutor(
-      cronRuns,
+    this.cronJobs = dependencies.databaseManager.cronJobs;
+    this.cronRuns = dependencies.databaseManager.cronRuns;
+    this.scheduler = dependencies.scheduler ?? new CronScheduler();
+    this.executor = new CronExecutor(
+      this.cronRuns,
       dependencies.pipeline,
       dependencies.send,
       dependencies.sessionManager,
     );
     this.hooksBus = dependencies.hooksBus;
     this.sessionManager = dependencies.sessionManager;
-
-    this.deps = { cronJobs, cronRuns, executor, scheduler };
   }
 
   async initialize(): Promise<void> {
@@ -90,8 +84,8 @@ export class CronManager {
       },
     });
 
-    const running = await this.deps.cronRuns.findRunning();
-    await this.deps.cronRuns.markAbandoned(running.map((run) => run.id));
+    const running = await this.cronRuns.findRunning();
+    await this.cronRuns.markAbandoned(running.map((run) => run.id));
 
     logger.info('CronManager 已初始化');
     this.initialized = true;
@@ -100,8 +94,7 @@ export class CronManager {
 
   async destroy(): Promise<void> {
     this.hooksBus.unregister('internal:cron');
-    const deps = this.deps;
-    deps.scheduler.clearAll();
+    this.scheduler.clearAll();
     if (this.inFlight.size > 0) {
       logger.info('等待进行中的定时任务完成', { count: this.inFlight.size });
       await Promise.allSettled([...this.inFlight]);
@@ -115,8 +108,7 @@ export class CronManager {
       throw new Error(`无效或过期的定时任务调度: ${params.scheduleType} ${params.scheduleValue}`);
     }
 
-    const cronJobs = this.deps.cronJobs;
-    const id = await cronJobs.create({
+    const id = await this.cronJobs.create({
       scheduleType: params.scheduleType,
       scheduleValue: params.scheduleValue,
       prompt: params.prompt,
@@ -124,7 +116,7 @@ export class CronManager {
       nextRun,
     });
 
-    const job = await cronJobs.findById(id);
+    const job = await this.cronJobs.findById(id);
     if (job) {
       this.schedule(job);
     }
@@ -133,12 +125,11 @@ export class CronManager {
   }
 
   async listJobs(filter: ListCronJobsFilter = {}): Promise<CronJobRecord[]> {
-    const jobs = await this.deps.cronJobs.findAll();
+    const jobs = await this.cronJobs.findAll();
     const sessionKey = filter.sessionKey;
     if (!sessionKey) {
       return jobs;
     }
-
     return jobs.filter((job) => this.matchesSessionFilter(job, sessionKey));
   }
 
@@ -157,28 +148,25 @@ export class CronManager {
   }
 
   async deleteJob(jobId: string): Promise<boolean> {
-    const deps = this.deps;
-    const deleted = await deps.cronJobs.delete(jobId);
+    const deleted = await this.cronJobs.delete(jobId);
     if (deleted) {
-      deps.scheduler.cancel(jobId);
+      this.scheduler.cancel(jobId);
       logger.info('定时任务已删除', { jobId });
     }
     return deleted;
   }
 
   async runJobNow(jobId: string): Promise<string> {
-    const deps = this.deps;
-    const job = await deps.cronJobs.findById(jobId);
+    const job = await this.cronJobs.findById(jobId);
     if (!job) {
       throw new Error(`未找到定时任务 "${jobId}"`);
     }
-    return await deps.executor.execute(job);
+    return await this.executor.execute(job);
   }
 
   async reloadSchedules(): Promise<void> {
-    const deps = this.deps;
-    deps.scheduler.clearAll();
-    const jobs = await deps.cronJobs.findAll();
+    this.scheduler.clearAll();
+    const jobs = await this.cronJobs.findAll();
     let scheduledCount = 0;
     for (const job of jobs) {
       const normalized = await this.normalizeReloadedJobSchedule(job);
@@ -209,7 +197,7 @@ export class CronManager {
     }
 
     const nextRun = computeNextRun(job.scheduleType as CronScheduleType, job.scheduleValue);
-    const jobStillExists = await this.deps.cronJobs.updateNextRun(job.id, nextRun);
+    const jobStillExists = await this.cronJobs.updateNextRun(job.id, nextRun);
     if (!jobStillExists) {
       logger.info('定时任务已在恢复调度期间删除，跳过调度', { jobId: job.id });
       return null;
@@ -231,7 +219,7 @@ export class CronManager {
   }
 
   private schedule(job: CronJobRecord): void {
-    this.deps.scheduler.schedule(job, () => {
+    this.scheduler.schedule(job, () => {
       const run = this.executeScheduledJob(job.id).catch((err) => {
         logger.error(`定时任务 "${job.id}" 调度失败`, err);
       });
@@ -247,22 +235,21 @@ export class CronManager {
   }
 
   private async executeScheduledJob(jobId: string): Promise<string> {
-    const deps = this.deps;
-    const job = await deps.cronJobs.findById(jobId);
+    const job = await this.cronJobs.findById(jobId);
     if (!job) {
       throw new Error(`未找到定时任务 "${jobId}"`);
     }
 
     let result: string;
     try {
-      result = await deps.executor.execute(job);
+      result = await this.executor.execute(job);
     } finally {
       const nextRun = computeNextRun(job.scheduleType as CronScheduleType, job.scheduleValue);
-      const jobStillExists = await deps.cronJobs.updateNextRun(job.id, nextRun);
+      const jobStillExists = await this.cronJobs.updateNextRun(job.id, nextRun);
       if (!jobStillExists) {
         logger.info('定时任务已在执行期间删除，跳过重新调度', { jobId: job.id });
       } else {
-        const updated = await deps.cronJobs.findById(job.id);
+        const updated = await this.cronJobs.findById(job.id);
         if (updated?.nextRun) {
           this.schedule(updated);
         }
