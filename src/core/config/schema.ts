@@ -72,7 +72,6 @@ const McpServerConfigSchema = Type.Object(
 
 type McpServerConfig = Static<typeof McpServerConfigSchema>;
 
-
 // ─── Top-level AppConfig ─────────────────────────────────────────
 
 const AppConfigSchema = Type.Object({

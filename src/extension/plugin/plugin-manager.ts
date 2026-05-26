@@ -7,7 +7,7 @@ import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { CommandDefinition } from '@aesyclaw/core/types';
 
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import { loadExtensionModule, type ExtensionLifecycle } from '@aesyclaw/extension/extension-loader';
+import { loadExtensionModule, discoverExtensionDirs, type ExtensionLifecycle } from '@aesyclaw/extension/extension-loader';
 import {
   discoverPluginDefinition,
   pluginOwner,
@@ -19,7 +19,7 @@ import {
   type PluginModule,
   type PluginStatus,
 } from './plugin-types';
-import { PluginDiscovery } from './plugin-discovery';
+
 
 const logger = createScopedLogger('plugin-manager');
 
@@ -29,22 +29,17 @@ const logger = createScopedLogger('plugin-manager');
 export class PluginManager implements ExtensionLifecycle {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   readonly failedPlugins = new Map<string, string>();
-  private readonly discovery: PluginDiscovery;
+
   /** 可热更新的配置引用：pluginName → { current } */
   private readonly configRefs = new Map<string, { current: Record<string, unknown> }>();
 
-  constructor(private readonly deps: PluginManagerDependencies) {
-    this.discovery = new PluginDiscovery(
-      { paths: { extensionsDir: deps.paths.extensionsDir } },
-      this.failedPlugins,
-    );
-  }
+  constructor(private readonly deps: PluginManagerDependencies) {}
 
   // ─── ExtensionLifecycle ──────────────────────────────────────────
 
   /** 发现并加载所有已启用的插件。 */
   async setup(): Promise<void> {
-    const pluginDirs = await this.discovery.discoverPluginDirs();
+    const pluginDirs = await this.discoverPluginDirs();
     for (const pluginDir of pluginDirs) {
       const directoryName = path.basename(pluginDir);
       if (!this.isDirectoryEnabled(directoryName)) {
@@ -153,7 +148,7 @@ export class PluginManager implements ExtensionLifecycle {
 
   async enable(pluginName: string): Promise<void> {
     await this.setPluginEnabled(pluginName, true);
-    const match = await this.discovery.findPlugin(pluginName, this.loadedPlugins);
+    const match = await this.findPlugin(pluginName, this.loadedPlugins);
     if (match && !this.loadedPlugins.has(match.definition.name)) {
       try {
         await this.load(match.directory);
@@ -203,7 +198,7 @@ export class PluginManager implements ExtensionLifecycle {
       if (!isRecord(raw) || raw['enabled'] === false) continue;
       if (this.loadedPlugins.has(name)) continue;
 
-      const match = await this.discovery.findPlugin(name, this.loadedPlugins);
+      const match = await this.findPlugin(name, this.loadedPlugins);
       if (match) {
         try {
           await this.load(match.directory);
@@ -230,12 +225,12 @@ export class PluginManager implements ExtensionLifecycle {
       });
     }
 
-    const discovered = await this.discovery.discoverPluginDirs();
+    const discovered = await this.discoverPluginDirs();
     for (const pluginDir of discovered) {
       const directoryName = path.basename(pluginDir);
       if (statuses.has(directoryName)) continue;
 
-      const module = await this.discovery.safeLoadModule(pluginDir);
+      const module = await this.safeLoadModule(pluginDir);
       const configLookup = module ? this.getPluginConfig(module) : null;
       const enabled = configLookup?.enabled ?? this.isDirectoryEnabled(directoryName);
       const name = module?.definition.name ?? directoryName;
@@ -264,7 +259,7 @@ export class PluginManager implements ExtensionLifecycle {
       defaultConfig?: Record<string, unknown>;
     }>
   > {
-    return await this.discovery.getPluginDefinitions();
+    return await this.getPluginDefinitions();
   }
 
   getLoaded(pluginName: string): LoadedPlugin | undefined {
@@ -373,7 +368,7 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   private async setPluginEnabled(pluginName: string, enabled: boolean): Promise<void> {
-    const match = await this.discovery.findPlugin(pluginName, this.loadedPlugins);
+    const match = await this.findPlugin(pluginName, this.loadedPlugins);
     const canonicalName = match?.definition.name ?? pluginName;
     const plugins = this.getPluginRecord();
 
@@ -387,6 +382,64 @@ export class PluginManager implements ExtensionLifecycle {
 
     await this.deps.configManager.set('plugins', plugins);
   }
+
+  // ─── 磁盘发现 ────────────────────────────────────────────────
+
+  /** 扫描磁盘插件目录。 */
+  private async discoverPluginDirs(): Promise<string[]> {
+    return await discoverExtensionDirs({
+      extensionsDir: this.deps.paths.extensionsDir,
+      directoryPrefix: 'plugin_',
+      logger,
+      unreadableMessage: '插件扩展目录不可读',
+      inspectFailureMessage: '检查插件目录候选失败',
+      candidateField: 'pluginDir',
+    });
+  }
+
+  /** 安全加载插件模块（无缓存，每次都重新导入）。 */
+  private async safeLoadModule(pluginDir: string): Promise<PluginModule | null> {
+    try {
+      return await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
+    } catch (err) {
+      this.failedPlugins.set(path.basename(pluginDir), errorMessage(err));
+      return null;
+    }
+  }
+
+  /** 按名称或目录名查找插件（先查已加载，再扫磁盘）。 */
+  private async findPlugin(
+    nameOrAlias: string,
+    loadedPlugins: Map<
+      string,
+      { definition: PluginModule['definition']; directory: string; directoryName: string }
+    >,
+  ): Promise<PluginModule | null> {
+    // 先查已加载的
+    for (const loaded of loadedPlugins.values()) {
+      if (loaded.definition.name === nameOrAlias || loaded.directoryName === nameOrAlias) {
+        return {
+          definition: loaded.definition,
+          directory: loaded.directory,
+          directoryName: loaded.directoryName,
+          entryPath: '',
+        };
+      }
+    }
+
+    // 再扫磁盘
+    const pluginDirs = await this.discoverPluginDirs();
+    for (const pluginDir of pluginDirs) {
+      const directoryName = path.basename(pluginDir);
+      const module = await this.safeLoadModule(pluginDir);
+      if (!module) continue;
+      if (directoryName === nameOrAlias || module.definition.name === nameOrAlias) {
+        return module;
+      }
+    }
+    return null;
+  }
+
 }
 
 // ─── 工具函数 ────────────────────────────────────────────────────────
