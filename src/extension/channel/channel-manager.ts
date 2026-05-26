@@ -285,10 +285,43 @@ export class ChannelManager {
     });
   }
 
-  /** 停止全部频道并重新启动（配置热重载）。 */
+  /** 增量热重载：仅重启配置变更的频道，加载新增频道，卸载禁用的频道。 */
   async handleConfigReload(): Promise<void> {
-    await this.stopAll();
-    await this.startAll();
+    // Phase 1: 已加载的频道 — 配置变更则重启，定义移除或禁用则停止
+    for (const [channelName, loaded] of [...this.registry.loadedChannels]) {
+      const definition = this.registry.definitions.get(channelName);
+      if (!definition) {
+        // 频道定义已被移除 → 停止
+        await this.stop(channelName);
+        continue;
+      }
+
+      const freshConfig = this.getMergedConfig(definition);
+      // 配置未变更 → 跳过
+      if (JSON.stringify(loaded.config) === JSON.stringify(freshConfig)) continue;
+
+      // 配置变更 → 重启（stop + start），start 内部会检查 enabled 状态
+      logger.info(`频道 "${channelName}" 配置已变更，正在重启`);
+      try {
+        await this.stop(channelName);
+        await this.start(channelName);
+      } catch (err) {
+        logger.error(`热重载时重启频道 "${channelName}" 失败`, err);
+      }
+    }
+
+    // Phase 2: 已注册但未加载的频道 — 如果启用则启动
+    for (const definition of this.registry.definitions.values()) {
+      if (this.registry.loadedChannels.has(definition.name)) continue;
+      if (!this.isEnabled(definition.name)) continue;
+
+      try {
+        await this.start(definition.name);
+      } catch (err) {
+        this.registry.failedChannels.set(definition.name, errorMessage(err));
+        logger.error(`热重载时启动频道 "${definition.name}" 失败`, err);
+      }
+    }
   }
 
   // ─── 查询 ────────────────────────────────────────────────────────

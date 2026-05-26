@@ -219,7 +219,6 @@ export class PluginManager implements ExtensionLifecycle {
     }
   }
 
-
   // ─── 查询 ────────────────────────────────────────────────────────
 
   async listPlugins(): Promise<PluginStatus[]> {
