@@ -15,7 +15,10 @@ import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 
-import { validateExtension, discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils';
+import {
+  validateExtension,
+  discoverExtensionDefinition,
+} from '@aesyclaw/extension/extension-utils';
 
 export type RegisteredCommandInfo = Omit<CommandDefinition, 'execute'>;
 

@@ -5,7 +5,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { CommandDefinition } from '@aesyclaw/core/types';
-import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
+
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import { loadExtensionModule, type ExtensionLifecycle } from '@aesyclaw/extension/extension-loader';
 import {
@@ -79,7 +79,7 @@ export class PluginManager implements ExtensionLifecycle {
     const configLookup = this.getPluginConfig(module);
     const mergedConfig = getManagedPluginOptions(
       module.definition.defaultConfig,
-      configLookup.options,
+      configLookup.config,
     );
     if (!configLookup.enabled) {
       logger.info('跳过已禁用的插件', { pluginName });
@@ -121,17 +121,12 @@ export class PluginManager implements ExtensionLifecycle {
     this.failedPlugins.delete(module.directoryName);
 
     // 如果不存在，自动写入插件配置条目
-    if (!configLookup.entry) {
-      const plugins = this.getConfigEntries().map((entry) => ({
-        name: entry.name,
-        enabled: entry.enabled,
-        ...(entry.options === undefined ? {} : { options: optionsToRecord(entry.options) }),
-      }));
-      plugins.push({
-        name: pluginName,
+    if (!configLookup.exists) {
+      const plugins = this.getPluginRecord();
+      plugins[pluginName] = {
         enabled: true,
-        ...createPluginOptionsProperty(module.definition.defaultConfig),
-      });
+        ...stripEnabledField(module.definition.defaultConfig ?? {}),
+      };
       await this.deps.configManager.set('plugins', plugins).catch((err: unknown) => {
         logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
       });
@@ -175,25 +170,24 @@ export class PluginManager implements ExtensionLifecycle {
 
   /** 热重载：配置变更时重启对应插件，加载新增插件，卸载禁用的插件。 */
   async handleConfigReload(): Promise<void> {
-    const entries = this.getConfigEntries();
+    const record = this.getPluginRecord();
 
-    // 已加载的插件：配置变更时重启（destroy + init），配置未变则跳过
+    // Phase 1: 已加载的插件 — 配置变更则重启
     for (const [pluginName, loaded] of [...this.loadedPlugins]) {
-      const entry = entries.find((e) => e.name === pluginName || e.name === loaded.directoryName);
-      const enabled = entry?.enabled ?? true;
-
-      if (!enabled) {
+      const raw = record[pluginName] ?? record[loaded.directoryName];
+      const entry = isRecord(raw) ? raw : null;
+      if (!entry || entry['enabled'] === false) {
         await this.unload(pluginName);
         continue;
       }
 
-      const freshOptions = optionsToRecord(entry?.options);
-      const freshConfig = getManagedPluginOptions(loaded.definition.defaultConfig, freshOptions);
+      const freshConfig = getManagedPluginOptions(
+        loaded.definition.defaultConfig,
+        stripEnabledField(entry),
+      );
 
-      // 配置未变更 → 跳过
       if (JSON.stringify(loaded.config) === JSON.stringify(freshConfig)) continue;
 
-      // 配置变更 → 重启插件：unload（destroy + 清理）→ load（init + 注册）
       const directory = loaded.directory;
       logger.info(`插件 "${pluginName}" 配置已变更，正在重启`);
       await this.unload(pluginName);
@@ -204,17 +198,17 @@ export class PluginManager implements ExtensionLifecycle {
       }
     }
 
-    // 新增/启用的插件：加载
-    for (const entry of entries) {
-      if (!entry.enabled) continue;
-      if (this.loadedPlugins.has(entry.name)) continue;
+    // Phase 2: 新增/启用的插件 — 加载
+    for (const [name, raw] of Object.entries(record)) {
+      if (!isRecord(raw) || raw['enabled'] === false) continue;
+      if (this.loadedPlugins.has(name)) continue;
 
-      const match = await this.discovery.findPlugin(entry.name, this.loadedPlugins);
+      const match = await this.discovery.findPlugin(name, this.loadedPlugins);
       if (match) {
         try {
           await this.load(match.directory);
         } catch (err) {
-          logger.error(`热重载时加载插件 "${entry.name}" 失败`, err);
+          logger.error(`热重载时加载插件 "${name}" 失败`, err);
         }
       }
     }
@@ -345,49 +339,43 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   private getPluginConfig(module: PluginModule): PluginConfigLookup {
-    const plugins = this.getConfigEntries();
-    const entry = plugins.find(
-      (candidate) =>
-        candidate.name === module.definition.name || candidate.name === module.directoryName,
-    );
+    const plugins = this.getPluginRecord();
+    const raw = plugins[module.definition.name] ?? plugins[module.directoryName];
+    const entry = isRecord(raw) ? raw : null;
     return {
-      entry,
-      enabled: entry?.enabled ?? true,
-      options: optionsToRecord(entry?.options),
+      exists: entry !== null,
+      enabled: entry?.['enabled'] !== false,
+      config: entry ? stripEnabledField(entry) : {},
     };
   }
 
   private isDirectoryEnabled(directoryName: string): boolean {
-    const entry = this.getConfigEntries().find((candidate) => candidate.name === directoryName);
-    return entry?.enabled ?? true;
+    const raw = this.getPluginRecord()[directoryName];
+    const entry = isRecord(raw) ? raw : null;
+    return entry?.['enabled'] !== false;
   }
 
-  private getConfigEntries(): ReadonlyArray<Readonly<PluginConfigEntry>> {
+  private getPluginRecord(): Record<string, unknown> {
     try {
-      return this.deps.configManager.get('plugins') as ReadonlyArray<Readonly<PluginConfigEntry>>;
+      const plugins = this.deps.configManager.get('plugins');
+      return isRecord(plugins) ? plugins : {};
     } catch (err) {
       logger.error('读取插件配置失败', err);
-      return [];
+      return {};
     }
   }
 
   private async setPluginEnabled(pluginName: string, enabled: boolean): Promise<void> {
     const match = await this.discovery.findPlugin(pluginName, this.loadedPlugins);
-    const aliases = new Set([
-      pluginName,
-      ...(match ? [match.definition.name, match.directoryName] : []),
-    ]);
     const canonicalName = match?.definition.name ?? pluginName;
-    const plugins = this.getConfigEntries().map((entry) => ({
-      name: entry.name,
-      enabled: aliases.has(entry.name) ? enabled : entry.enabled,
-      ...(entry.options === undefined ? {} : { options: optionsToRecord(entry.options) }),
-    }));
+    const plugins = this.getPluginRecord();
 
-    const updatedExisting = plugins.some((entry) => aliases.has(entry.name));
-
-    if (!updatedExisting) {
-      plugins.push({ name: canonicalName, enabled });
+    const existing: Record<string, unknown> | undefined =
+      (plugins[canonicalName] ?? plugins[match?.directoryName ?? '']) as Record<string, unknown> | undefined;
+    if (existing) {
+      existing['enabled'] = enabled;
+    } else {
+      plugins[canonicalName] = { enabled } as Record<string, unknown>;
     }
 
     await this.deps.configManager.set('plugins', plugins);
@@ -403,16 +391,7 @@ function getManagedPluginOptions(
   return stripEnabledField(mergeDefaults(stripEnabledField(defaults ?? {}), overrides));
 }
 
-function createPluginOptionsProperty(defaults: Record<string, unknown> | undefined): {
-  options?: Record<string, unknown>;
-} {
-  const options = stripEnabledField(defaults ?? {});
-  return Object.keys(options).length === 0 ? {} : { options };
-}
 
-function optionsToRecord(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {};
-}
 
 /** 根据错误状态和启用状态解析插件状态字符串 */
 function resolvePluginState(error: string | undefined, enabled: boolean): PluginLifecycleState {

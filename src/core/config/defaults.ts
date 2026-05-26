@@ -28,5 +28,5 @@ export const DEFAULT_CONFIG: AppConfig = {
       enabled: false,
     },
   ],
-  plugins: [],
+  plugins: {},
 };

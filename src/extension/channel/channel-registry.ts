@@ -213,5 +213,3 @@ function resolveChannelState(
   if (enabled) return 'unloaded';
   return 'disabled';
 }
-
-

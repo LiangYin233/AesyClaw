@@ -12,7 +12,7 @@ import type { IHooksBus, HookRegistration } from '@aesyclaw/hook';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
 import type { Logger } from '@aesyclaw/core/logger';
-import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
+
 import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
@@ -85,11 +85,11 @@ export type PluginManagerDependencies = {
   paths: Readonly<ResolvedPaths>;
 };
 
-/** 从配置中查找插件启用/禁用状态和选项的结果。 */
+/** 从配置中查找插件启用/禁用状态和配置的结果。 */
 export type PluginConfigLookup = {
-  entry?: Readonly<PluginConfigEntry>;
+  exists: boolean;
   enabled: boolean;
-  options: Record<string, unknown>;
+  config: Record<string, unknown>;
 };
 
 export type { HookRegistration };

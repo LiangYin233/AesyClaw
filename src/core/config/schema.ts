@@ -74,16 +74,6 @@ type McpServerConfig = Static<typeof McpServerConfigSchema>;
 
 // ─── Plugin ──────────────────────────────────────────────────────
 
-const PluginConfigEntrySchema = Type.Object(
-  {
-    name: Type.String(),
-    enabled: Type.Boolean({ default: true }),
-    options: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-  },
-  { additionalProperties: true },
-);
-
-type PluginConfigEntry = Static<typeof PluginConfigEntrySchema>;
 
 // ─── Top-level AppConfig ─────────────────────────────────────────
 
@@ -98,7 +88,7 @@ const AppConfigSchema = Type.Object({
   channels: Type.Record(Type.String(), Type.Unknown()),
   agent: AgentConfigSchema,
   mcp: Type.Array(McpServerConfigSchema),
-  plugins: Type.Array(PluginConfigEntrySchema),
+  plugins: Type.Record(Type.String(), Type.Unknown()),
 });
 
 type AppConfig = Static<typeof AppConfigSchema>;
@@ -120,13 +110,11 @@ export {
   MemoryConfigSchema,
   /** MCP 服务器配置模式 */
   McpServerConfigSchema,
-  /** 插件配置条目模式 */
-  PluginConfigEntrySchema,
+
   /** 顶层应用配置模式 */
   AppConfigSchema,
   // 派生类型
   type ProviderConfig,
   type McpServerConfig,
-  type PluginConfigEntry,
   type AppConfig,
 };
