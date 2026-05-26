@@ -4,9 +4,9 @@
  * 从 PluginManager 中提取，专注 plugins 段的配置操作。
  */
 import { isRecord } from '@aesyclaw/core/utils';
+import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { PluginModule } from './plugin-types';
-
 export type ConfigDeps = {
   configManager: ConfigManager;
 };
@@ -21,7 +21,7 @@ export function getPluginConfig(
   return {
     exists: entry !== null,
     enabled: entry?.['enabled'] !== false,
-    config: entry ? stripRecordEnabled(entry) : {},
+    config: entry ? stripEnabledField(entry) : {},
   };
 }
 
@@ -58,7 +58,3 @@ export async function setPluginEnabled(
   await deps.configManager.set('plugins', plugins);
 }
 
-function stripRecordEnabled(value: Record<string, unknown>): Record<string, unknown> {
-  const { enabled: _enabled, ...rest } = value;
-  return rest;
-}

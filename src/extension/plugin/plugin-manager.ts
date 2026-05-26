@@ -366,7 +366,7 @@ function getManagedPluginOptions(
   defaults: Record<string, unknown> | undefined,
   overrides: Record<string, unknown>,
 ): Record<string, unknown> {
-  return stripEnabledField(mergeDefaults(stripEnabledField(defaults ?? {}), overrides));
+  return mergeDefaults(stripEnabledField(defaults ?? {}), overrides);
 }
 
 /** 根据错误状态和启用状态解析插件状态字符串 */
