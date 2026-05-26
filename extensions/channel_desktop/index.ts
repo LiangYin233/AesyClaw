@@ -6,36 +6,28 @@
 
 import fs from 'node:fs/promises';
 import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
+import { validateWithSchema } from '@aesyclaw/sdk';
 import type { DesktopMediaItem, DesktopOutboundMessage } from './types';
 import { DesktopServer } from './desktop-server';
-
-// ─── 配置类型 ──────────────────────────────────────────────────────
-
-type DesktopChannelConfig = {
-  port: number;
-  host: string;
-  authToken: string;
-};
-
-const DEFAULT_CONFIG: DesktopChannelConfig = {
-  port: 9730,
-  host: '127.0.0.1',
-  authToken: 'desktop-local',
-};
+import { DesktopChannelConfigSchema, type DesktopChannelConfig } from './config-schema';
 
 // ─── 插件实例 ──────────────────────────────────────────────────────
 
 let server: DesktopServer | null = null;
-
 export const channel: ChannelPlugin = {
   name: 'desktop',
   version: '0.1.0',
   description: 'AesyClaw Desktop — Electron 桌面客户端频道',
   streaming: true,
-  defaultConfig: DEFAULT_CONFIG as unknown as Record<string, unknown>,
+  defaultConfig: DesktopChannelConfigSchema as unknown as Record<string, unknown>,
 
   async init(ctx: ChannelContext): Promise<void> {
-    const config = ctx.config as unknown as DesktopChannelConfig;
+    const validated = validateWithSchema<DesktopChannelConfig>(
+      DesktopChannelConfigSchema,
+      ctx.config,
+      `频道配置(desktop)`,
+    );
+    const config = validated;
     const authToken = config.authToken;
     const adminToken = (ctx.configManager.get('server.authToken') as string | undefined) ?? '';
 

@@ -6,6 +6,7 @@ import type {
   SenderInfo,
   SessionKey,
 } from '@aesyclaw/sdk';
+import { validateWithSchema } from '@aesyclaw/sdk';
 import { DEFAULT_CONFIG } from './constants';
 import {
   enrichMessageWithDownloads,
@@ -17,7 +18,7 @@ import { sendOneBotMessage } from './outbound';
 import type { OneBotChannelConfig } from './types';
 import { createOneBotWebSocketClient, type OneBotWebSocketClient } from './websocket-client';
 import { parseConfig } from './utils';
-
+import { OneBotChannelConfigSchema } from './config-schema';
 let context: ChannelContext | null = null;
 let config: OneBotChannelConfig | null = null;
 let client: OneBotWebSocketClient | null = null;
@@ -34,8 +35,14 @@ export const channel: ChannelPlugin = {
   streaming: false,
   defaultConfig: DEFAULT_CONFIG,
   async init(ctx) {
+    // 运行时校验配置，填充默认值
+    const validated = validateWithSchema<OneBotChannelConfig>(
+      OneBotChannelConfigSchema,
+      ctx.config,
+      `频道配置(onebot)`,
+    );
     context = ctx;
-    config = parseConfig(ctx.config);
+    config = parseConfig(validated);
     destroyed = false;
     client = createOneBotWebSocketClient({
       config,

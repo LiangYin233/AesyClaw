@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
-import { prepareQR, pollLogin } from './login';
+import { validateWithSchema } from '@aesyclaw/sdk';
+import { WeixinChannelConfigSchema, type WeixinChannelConfig } from './config-schema';
 import { startMonitor } from './monitor';
 import { sendMessage, notifyStart, notifyStop } from './api';
 import { uploadToCdn } from './cdn';
@@ -47,10 +48,14 @@ export const channel: ChannelPlugin = {
   version: '0.1.0',
   description: '微信频道 — 通过 iLink 协议接入，支持单聊消息收发',
   streaming: false,
-  defaultConfig: { enabled: false },
+  defaultConfig: WeixinChannelConfigSchema as unknown as Record<string, unknown>,
 
   async init(ctx: ChannelContext) {
-    destroyed = false;
+    validateWithSchema<WeixinChannelConfig>(
+      WeixinChannelConfigSchema,
+      ctx.config,
+      `频道配置(weixin)`,
+    );
     const creds = await loadCreds(ctx);
     if (creds?.token && creds?.baseUrl) {
       token = creds.token;

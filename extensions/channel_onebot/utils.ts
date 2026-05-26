@@ -18,6 +18,7 @@ export function parseConfig(config: Record<string, unknown>): OneBotChannelConfi
   return {
     serverUrl: readString(config['serverUrl'], DEFAULT_CONFIG.serverUrl),
     accessToken: readString(config['accessToken'], DEFAULT_CONFIG.accessToken),
+    allowedChats: readStringArray(config['allowedChats'], DEFAULT_CONFIG.allowedChats),
   };
 }
 
@@ -30,6 +31,20 @@ export function parseConfig(config: Record<string, unknown>): OneBotChannelConfi
  */
 export function readString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+/**
+ * 安全读取字符串数组值，无效时返回回退值。
+ *
+ * @param value - 待读取的值
+ * @param fallback - 回退值
+ * @returns 有效字符串数组或回退值
+ */
+export function readStringArray(value: unknown, fallback: string[]): string[] {
+  if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+    return value as string[];
+  }
+  return fallback;
 }
 
 /**

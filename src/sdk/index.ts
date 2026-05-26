@@ -58,4 +58,7 @@ export type {
 export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 export { resolvePaths } from '@aesyclaw/core/path-resolver';
 
+// ─── 配置校验 ───────────────────────────────────────────────────
+export { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
+
 export type { ResolvedModel } from '@aesyclaw/contracts/llm';

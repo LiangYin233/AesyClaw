@@ -90,6 +90,11 @@ type PluginConfigEntry = Static<typeof PluginConfigEntrySchema>;
 const AppConfigSchema = Type.Object({
   server: ServerConfigSchema,
   providers: Type.Record(Type.String(), ProviderConfigSchema),
+  /**
+   * 频道配置以名称-值对的方式存储。由于频道是运行时从磁盘发现的动态扩展，
+   * 顶层无法预知所有频道名，因此值类型为 Unknown。
+   * 每个频道应在自身的 init() 中使用 validateWithSchema() 做运行时校验。
+   */
   channels: Type.Record(Type.String(), Type.Unknown()),
   agent: AgentConfigSchema,
   mcp: Type.Array(McpServerConfigSchema),

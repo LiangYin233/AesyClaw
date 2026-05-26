@@ -178,9 +178,7 @@ export class PluginManager implements ExtensionLifecycle {
 
     // 已加载的插件：更新配置引用
     for (const [pluginName, loaded] of [...this.loadedPlugins]) {
-      const entry = entries.find(
-        (e) => e.name === pluginName || e.name === loaded.directoryName,
-      );
+      const entry = entries.find((e) => e.name === pluginName || e.name === loaded.directoryName);
       const enabled = entry?.enabled ?? true;
 
       if (!enabled) {
@@ -189,10 +187,7 @@ export class PluginManager implements ExtensionLifecycle {
       }
 
       const freshOptions = optionsToRecord(entry?.options);
-      const freshConfig = getManagedPluginOptions(
-        loaded.definition.defaultConfig,
-        freshOptions,
-      );
+      const freshConfig = getManagedPluginOptions(loaded.definition.defaultConfig, freshOptions);
 
       const ref = this.configRefs.get(pluginName);
       if (ref) {
@@ -294,7 +289,9 @@ export class PluginManager implements ExtensionLifecycle {
     const owner = pluginOwner(pluginName);
     const deps = this.deps;
     return {
-      get config() { return ref.current; },
+      get config() {
+        return ref.current;
+      },
       paths: deps.paths,
       registerTool: (tool: AesyClawTool): void => {
         deps.toolRegistry.register({ ...tool, owner });
