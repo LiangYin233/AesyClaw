@@ -13,7 +13,7 @@ import {
   type SenderInfo,
 } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   ChannelContext,
   ChannelManagerDependencies,
@@ -22,7 +22,7 @@ import type {
   LoadedChannel,
 } from './channel-types';
 import { isChannelEnabled } from './channel-types';
-import { ChannelRegistry } from './channel-registry';
+import { ChannelRegistry, getManagedChannelDefaults } from './channel-registry';
 
 const logger = createScopedLogger('channel-manager');
 
@@ -393,27 +393,22 @@ export class ChannelManager {
   }
 
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
-    const channelConfig = this.getConfigRecord(definition.name);
-    return mergeDefaults(getManagedChannelDefaults(definition), channelConfig);
+    return this.registry.getMergedConfig(definition);
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
-    try {
-      const config = this.deps.configManager.get(`channels.${channelName}`);
-      return isRecord(config) ? config : {};
-    } catch {
-      logger.debug('读取频道配置失败，使用空配置', { channelName });
-      return {};
-    }
+    return this.registry.getConfigRecord(channelName);
   }
 
   private isEnabled(channelName: string): boolean {
-    const definition = this.registry.definitions.get(channelName);
-    const config = definition
-      ? this.getMergedConfig(definition)
-      : this.getConfigRecord(channelName);
-    return isChannelEnabled(config);
+    return this.registry.isEnabled(channelName);
   }
+
+  private getAllConfigRecords(): Record<string, unknown> {
+    return this.registry.getAllConfigRecords();
+  }
+
+
 
   private async setChannelEnabled(channelName: string, enabled: boolean): Promise<void> {
     const definition = this.registry.definitions.get(channelName);
@@ -430,15 +425,6 @@ export class ChannelManager {
     await this.deps.configManager.set('channels', channels);
   }
 
-  private getAllConfigRecords(): Record<string, unknown> {
-    try {
-      const config = this.deps.configManager.get('channels');
-      return isRecord(config) ? { ...config } : {};
-    } catch {
-      logger.debug('读取全部频道配置失败，使用空配置');
-      return {};
-    }
-  }
 
   private requireLoaded(channelName: string): LoadedChannel {
     const loaded = this.registry.loadedChannels.get(channelName);
@@ -470,11 +456,3 @@ function channelRuntimeOwner(channelName: string): `channel:${string}` {
   return `channel:${channelName}`;
 }
 
-function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
-  return { enabled: false, ...omitManagedChannelKeys(channel.defaultConfig ?? {}) };
-}
-
-function omitManagedChannelKeys(value: Record<string, unknown>): Record<string, unknown> {
-  const { enabled: _enabled, ...rest } = value;
-  return rest;
-}

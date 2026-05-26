@@ -153,6 +153,7 @@ export class ChannelRegistry {
 
   // ─── 内部方法 ────────────────────────────────────────────────────
 
+  /** 注册频道默认值到 ConfigManager。 */
   private registerDefaults(channel: ChannelPlugin): void {
     this.deps.configManager.registerDefaults(
       `channels.${channel.name}`,
@@ -160,7 +161,8 @@ export class ChannelRegistry {
     );
   }
 
-  private isEnabled(channelName: string): boolean {
+  /** 检查频道在配置中是否已启用。 */
+  isEnabled(channelName: string): boolean {
     const definition = this.definitions.get(channelName);
     const config = definition
       ? this.getMergedConfig(definition)
@@ -168,35 +170,37 @@ export class ChannelRegistry {
     return isChannelEnabled(config);
   }
 
-  private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
+  /** 合并频道默认值与配置文件中的值，配置文件优先。 */
+  getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
     const channelConfig = this.getConfigRecord(definition.name);
     return mergeDefaults(getManagedChannelDefaults(definition), channelConfig);
   }
 
-  private getConfigRecord(channelName: string): Record<string, unknown> {
+  /** 从 ConfigManager 读取指定频道的配置记录。 */
+  getConfigRecord(channelName: string): Record<string, unknown> {
     try {
       const config = this.deps.configManager.get(`channels.${channelName}`);
       return isRecord(config) ? config : {};
     } catch {
-      logger.debug('读取频道配置失败，使用空配置', { channelName });
       return {};
     }
   }
 
+  /** 从 ConfigManager 读取全部频道配置。 */
   getAllConfigRecords(): Record<string, unknown> {
     try {
       const config = this.deps.configManager.get('channels');
       return isRecord(config) ? { ...config } : {};
     } catch {
-      logger.debug('读取全部频道配置失败，使用空配置');
       return {};
     }
   }
+
 }
 
 // ─── 模块级工具函数 ─────────────────────────────────────────────
 
-function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
+export function getManagedChannelDefaults(channel: ChannelPlugin): Record<string, unknown> {
   return { enabled: false, ...omitManagedChannelKeys(channel.defaultConfig ?? {}) };
 }
 
