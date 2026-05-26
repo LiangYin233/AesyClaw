@@ -4,33 +4,22 @@
  * 从 ChannelManager 中提取，专注入站接收和出站发送的消息流转。
  */
 
-import {
-  serializeSessionKey,
-  type Message,
-  type OutboundSignal,
-  type SessionKey,
-  type SenderInfo,
-} from '@aesyclaw/core/types';
+import { serializeSessionKey, type Message, type OutboundSignal, type SessionKey, type SenderInfo } from '@aesyclaw/core/types';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { LoadedChannel } from './channel-types';
-
-export type RouterDeps = {
-  loadedChannels: Map<string, LoadedChannel>;
-  hooksBus: IHooksBus;
-  pipeline: MessageProcessor;
-  requireLoaded(channelName: string): LoadedChannel;
-};
 
 /** 非流式频道的 chunk 缓冲区 — channel:session → 累积文本 */
 export type ChunkBuffers = Map<string, string>;
 
 export async function send(
-  deps: RouterDeps,
+  loadedChannels: Map<string, LoadedChannel>,
+  hooksBus: IHooksBus,
+  requireLoaded: (channelName: string) => LoadedChannel,
   buffers: ChunkBuffers,
   signal: OutboundSignal,
 ): Promise<void> {
-  const loaded = deps.requireLoaded(signal.session.channel);
+  const loaded = requireLoaded(signal.session.channel);
 
   if (loaded.definition.streaming) {
     await loaded.definition.send(signal);
@@ -53,7 +42,7 @@ export async function send(
       if (accumulated) {
         const message: Message = { components: [{ type: 'Plain', text: accumulated }] };
         const sendCtx = { message, sessionKey: signal.session };
-        const result = await deps.hooksBus.dispatch('pipeline:send', sendCtx);
+        const result = await hooksBus.dispatch('pipeline:send', sendCtx);
         const processed: Message = result.action === 'respond' ? result.message : message;
         await loaded.definition.send({
           kind: 'message',
@@ -66,23 +55,25 @@ export async function send(
     }
 
     default:
-      // message / toolCall / toolResult / error — 直接转发
       await loaded.definition.send(signal);
       return;
   }
 }
 
 export async function receive(
-  deps: RouterDeps,
+  loadedChannels: Map<string, LoadedChannel>,
+  hooksBus: IHooksBus,
+  pipeline: MessageProcessor,
+  requireLoaded: (channelName: string) => LoadedChannel,
   buffers: ChunkBuffers,
   channelName: string,
   inbound: Message,
   sessionKey: SessionKey,
   sender?: SenderInfo,
 ): Promise<void> {
-  deps.requireLoaded(channelName);
-  await deps.pipeline.receiveWithSend(inbound, sessionKey, sender, async (signal) => {
-    await send(deps, buffers, signal);
+  requireLoaded(channelName);
+  await pipeline.receiveWithSend(inbound, sessionKey, sender, async (signal) => {
+    await send(loadedChannels, hooksBus, requireLoaded, buffers, signal);
   });
 }
 

@@ -14,7 +14,6 @@ import {
   pluginOwner,
   type LoadedPlugin,
   type PluginConfigLookup,
-  type PluginContext,
   type PluginLifecycleState,
   type PluginManagerDependencies,
   type PluginModule,
@@ -84,7 +83,7 @@ export class PluginManager implements ExtensionLifecycle {
     const owner = pluginOwner(pluginName);
     const ref: { current: Record<string, unknown> } = { current: mergedConfig };
     this.configRefs.set(pluginName, ref);
-    const context = this.createPluginContext(pluginName, ref);
+    const context = createPluginContext(this.deps, this.deps.paths, pluginName, ref);
 
     try {
       await module.definition.init(context);
@@ -295,12 +294,7 @@ export class PluginManager implements ExtensionLifecycle {
     }
   }
 
-  private createPluginContext(
-    pluginName: string,
-    ref: { current: Record<string, unknown> },
-  ): PluginContext {
-    return createPluginContext(this.deps, this.deps.paths, pluginName, ref);
-  }
+
 
   private async cleanupOwner(pluginName: string): Promise<void> {
     const owner = pluginOwner(pluginName);
@@ -317,11 +311,11 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   private getPluginConfig(module: PluginModule): PluginConfigLookup {
-    return pluginConfig.getPluginConfig(this.deps, this.getPluginRecord(), module);
+    return pluginConfig.getPluginConfig(this.getPluginRecord(), module);
   }
 
   private isDirectoryEnabled(directoryName: string): boolean {
-    return pluginConfig.isDirectoryEnabled(this.deps, directoryName);
+    return pluginConfig.isDirectoryEnabled(this.deps.configManager, directoryName);
   }
 
   private getPluginRecord(): Record<string, unknown> {

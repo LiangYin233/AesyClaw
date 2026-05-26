@@ -16,7 +16,6 @@ import {
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
-  ChannelContext,
   ChannelManagerDependencies,
   ChannelPlugin,
   ChannelStatus,
@@ -203,7 +202,9 @@ export class ChannelManager {
       return this.createUnloadedChannel(definition, config);
     }
 
-    const context = this.createContext(definition.name, config);
+    const context = ctxFactory.createContext(this.deps, this.deps.paths, definition.name, config, async (msg, sk, sender) => {
+      await this.receive(definition.name, msg, sk, sender);
+    });
     try {
       await definition.init(context);
     } catch (err) {
@@ -303,7 +304,10 @@ export class ChannelManager {
     sender?: SenderInfo,
   ): Promise<void> {
     await router.receive(
-      this.deps as unknown as router.RouterDeps,
+      this.loadedChannels,
+      this.deps.hooksBus,
+      this.deps.pipeline,
+      (n) => this.requireLoaded(n),
       this.chunkBuffers,
       channelName,
       inbound,
@@ -393,30 +397,26 @@ export class ChannelManager {
 
   // ─── 内部方法 ────────────────────────────────────────────────────
 
-  private createContext(channelName: string, config: Record<string, unknown>): ChannelContext {
-    return ctxFactory.createContext(this.deps, this.deps.paths, channelName, config, async (msg, sk, sender) => {
-      await this.receive(channelName, msg, sk, sender);
-    });
-  }
+
 
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
-    return channelConfig.getMergedConfig(this.deps, definition);
+    return channelConfig.getMergedConfig(this.deps.configManager, definition);
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
-    return channelConfig.getConfigRecord(this.deps, channelName);
+    return channelConfig.getConfigRecord(this.deps.configManager, channelName);
   }
 
   private isEnabled(channelName: string): boolean {
-    return channelConfig.isEnabled(this.deps, this.definitions, channelName);
+    return channelConfig.isEnabled(this.deps.configManager, this.definitions, channelName);
   }
 
   private getAllConfigRecords(): Record<string, unknown> {
-    return channelConfig.getAllConfigRecords(this.deps);
+    return channelConfig.getAllConfigRecords(this.deps.configManager);
   }
 
   private async setChannelEnabled(channelName: string, enabled: boolean): Promise<void> {
-    await channelConfig.setChannelEnabled(this.deps, this.definitions, channelName, enabled);
+    await channelConfig.setChannelEnabled(this.deps.configManager, this.definitions, channelName, enabled);
   }
 
   private requireLoaded(channelName: string): LoadedChannel {

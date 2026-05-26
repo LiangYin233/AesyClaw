@@ -12,21 +12,17 @@ export function getManagedChannelDefaults(channel: ChannelPlugin): Record<string
   return { enabled: false, ...stripEnabledField(channel.defaultConfig ?? {}) };
 }
 
-export type ConfigDeps = {
-  configManager: ConfigManager;
-};
-
 export function getMergedConfig(
-  deps: ConfigDeps,
+  configManager: ConfigManager,
   definition: ChannelPlugin,
 ): Record<string, unknown> {
-  const channelConfig = getConfigRecord(deps, definition.name);
+  const channelConfig = getConfigRecord(configManager, definition.name);
   return mergeDefaults(getManagedChannelDefaults(definition), channelConfig);
 }
 
-export function getConfigRecord(deps: ConfigDeps, channelName: string): Record<string, unknown> {
+export function getConfigRecord(configManager: ConfigManager, channelName: string): Record<string, unknown> {
   try {
-    const config = deps.configManager.get(`channels.${channelName}`);
+    const config = configManager.get(`channels.${channelName}`);
     return isRecord(config) ? config : {};
   } catch {
     return {};
@@ -34,20 +30,20 @@ export function getConfigRecord(deps: ConfigDeps, channelName: string): Record<s
 }
 
 export function isEnabled(
-  deps: ConfigDeps,
+  configManager: ConfigManager,
   definitions: Map<string, ChannelPlugin>,
   channelName: string,
 ): boolean {
   const definition = definitions.get(channelName);
   const config = definition
-    ? getMergedConfig(deps, definition)
-    : getConfigRecord(deps, channelName);
+    ? getMergedConfig(configManager, definition)
+    : getConfigRecord(configManager, channelName);
   return isChannelEnabled(config);
 }
 
-export function getAllConfigRecords(deps: ConfigDeps): Record<string, unknown> {
+export function getAllConfigRecords(configManager: ConfigManager): Record<string, unknown> {
   try {
-    const config = deps.configManager.get('channels');
+    const config = configManager.get('channels');
     return isRecord(config) ? { ...config } : {};
   } catch {
     return {};
@@ -55,14 +51,14 @@ export function getAllConfigRecords(deps: ConfigDeps): Record<string, unknown> {
 }
 
 export async function setChannelEnabled(
-  deps: ConfigDeps,
+  configManager: ConfigManager,
   definitions: Map<string, ChannelPlugin>,
   channelName: string,
   enabled: boolean,
 ): Promise<void> {
   const definition = definitions.get(channelName);
-  const current = getConfigRecord(deps, channelName);
-  const channels = getAllConfigRecords(deps);
+  const current = getConfigRecord(configManager, channelName);
+  const channels = getAllConfigRecords(configManager);
   const { enabled: _enabled, ...defaults } = definition
     ? getManagedChannelDefaults(definition)
     : {};
@@ -71,5 +67,5 @@ export async function setChannelEnabled(
     ...current,
     enabled,
   };
-  await deps.configManager.set('channels', channels);
+  await configManager.set('channels', channels);
 }
