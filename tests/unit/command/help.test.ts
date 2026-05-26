@@ -12,7 +12,7 @@ describe('createHelpCommand', () => {
     ]);
     const result = await cmd.execute([], { sessionKey: KEY });
     const text = result.components[0].type === 'Plain' ? result.components[0].text : '';
-    expect(text).toContain('可用命令');
+    expect(text).toContain('## 内置');
     expect(text.indexOf('/clear')).toBeLessThan(text.indexOf('/help'));
     expect(text.indexOf('/help')).toBeLessThan(text.indexOf('/stop'));
     expect(text).toContain('Clear history');

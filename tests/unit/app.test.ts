@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
-import { ChannelManager } from '../../src/extension/channel/channel-manager';
+import { ChannelManager } from '../../src/extension/channel/manager';
 import { CronManager } from '../../src/cron/manager';
 import { McpManager } from '../../src/tool/mcp/mcp-manager';
 import { WebUiManager } from '../../src/web/webui-manager';
@@ -46,7 +46,7 @@ describe('Application', () => {
       ]);
       expect(JSON.parse(readFileSync(configFile, 'utf-8'))).toMatchObject({
         server: expect.objectContaining({ logLevel: 'info' }),
-        plugins: [],
+        plugins: {},
         mcp: [expect.objectContaining({ name: 'example', enabled: false })],
       });
     } finally {
@@ -160,9 +160,9 @@ describe('Application', () => {
       await app.start();
 
       const configFile = path.join(testRoot, '.aesyclaw', 'config.json');
-      const config = JSON.parse(readFileSync(configFile, 'utf-8')) as { plugins?: unknown[] };
+      const config = JSON.parse(readFileSync(configFile, 'utf-8')) as { plugins?: Record<string, unknown> };
       expect((globalThis as { __aesyclawChannelStarts?: number }).__aesyclawChannelStarts).toBeGreaterThanOrEqual(1);
-      expect(config.plugins).toEqual([]);
+      expect(config.plugins).toEqual({});
     } finally {
       await app.shutdown();
     }
