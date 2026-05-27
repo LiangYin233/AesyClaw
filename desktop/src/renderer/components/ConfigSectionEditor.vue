@@ -666,7 +666,6 @@ function resetSection(): void {
   void loadConfig(true);
 }
 
-
 // ─── Shared entry functions (channels + plugins) ──────────────────────
 
 function removeEntry(key: string): void {

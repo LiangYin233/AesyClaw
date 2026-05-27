@@ -34,7 +34,7 @@ function isHtml(text: string): boolean {
 
 const LATEX_RE = /(?<!\\)\$\$[\s\S]*?\$\$|(?<!\\)\$[\s\S]*?\$/;
 
-function isLatex(text: string): boolean {
+export function isLatex(text: string): boolean {
   return LATEX_RE.test(text);
 }
 
@@ -47,7 +47,7 @@ function isLatex(text: string): boolean {
  * Display math ($$...$$) is processed first to avoid greedy matching
  * by the inline math ($...$) pass.
  */
-function preprocessLatex(markdown: string): string {
+export function preprocessLatex(markdown: string): string {
   // Display math first
   let result = markdown.replace(/(?<!\\)\$\$([\s\S]*?)\$\$/g, (_match: string, tex: string) => {
     try {

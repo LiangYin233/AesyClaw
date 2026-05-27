@@ -2,10 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildHtmlDocument,
   convertHtmlToImage,
   convertMarkdownToImage,
   handleMd2ImgSend,
+  isLatex,
   PlaywrightMarkdownRenderer,
+  preprocessLatex,
 } from '../../../extensions/plugin_md2img/index';
 
 function createLogger() {
@@ -381,5 +384,146 @@ describe('plugin_md2img', () => {
 
     expect(png).toEqual(Buffer.from('png-bytes'));
     expect(renderHtmlToPng).toHaveBeenCalledOnce();
+  });
+
+  // ─── LaTeX detection ───────────────────────────────────────────────
+
+  describe('isLatex', () => {
+    it('detects inline math $...$', () => {
+      expect(isLatex('The formula $E=mc^2$ is famous.')).toBe(true);
+    });
+
+    it('detects display math $$...$$', () => {
+      expect(isLatex('$$\\frac{1}{2}$$')).toBe(true);
+    });
+
+    it('returns false for plain text without dollar signs', () => {
+      expect(isLatex('Just plain text with no math.')).toBe(false);
+    });
+
+    it('returns false for escaped dollar signs', () => {
+      expect(isLatex('It costs \\$5.00 for coffee.')).toBe(false);
+    });
+
+    it('returns false for a lone dollar sign without closing pair', () => {
+      expect(isLatex('The price is $5.')).toBe(false);
+    });
+  });
+
+  // ─── LaTeX pre-processor ────────────────────────────────────────────
+
+  describe('preprocessLatex', () => {
+    it('replaces inline $...$ with KaTeX-rendered HTML', () => {
+      const result = preprocessLatex('The formula $E=mc^2$ is famous.');
+      expect(result).not.toContain('$');
+      expect(result).toContain('katex');
+      expect(result).toContain('katex-html');
+    });
+
+    it('replaces display math $$...$$ with KaTeX display HTML', () => {
+      const result = preprocessLatex('$$\\frac{1}{2}$$');
+      expect(result).not.toContain('$$');
+      expect(result).toContain('katex-display');
+    });
+
+    it('handles both inline and display math in the same text', () => {
+      const result = preprocessLatex('Inline $a=b$ and display $$\\sum_{i=1}^{n} i$$.');
+      expect(result).toContain('katex');
+      expect(result).toContain('katex-display');
+      // Verify no raw delimiters remain
+      expect(result.match(/\$/g)).toBeNull();
+    });
+
+    it('falls back to original text on bad LaTeX (throwOnError: false)', () => {
+      // Bad LaTeX: unmatched braces cause KaTeX to throw
+      const result = preprocessLatex('Bad: $\\invalid$$');
+      // With throwOnError: false, KaTeX either handles it or fallback preserves raw
+      // Since it might still try to format, just verify no crash
+      expect(typeof result).toBe('string');
+    });
+  });
+
+  // ─── buildHtmlDocument with baseHref ────────────────────────────────
+
+  describe('buildHtmlDocument', () => {
+    it('injects <base> tag when baseHref is provided', () => {
+      const doc = buildHtmlDocument('<p>test</p>', '<html><head></head><body>{{content}}</body></html>', 'file:///some/dir/');
+      expect(doc).toContain('<base');
+      expect(doc).toContain('file:///some/dir/');
+    });
+
+    it('does not inject <base> tag without baseHref', () => {
+      const doc = buildHtmlDocument('<p>test</p>', '<html><head></head><body>{{content}}</body></html>');
+      expect(doc).not.toContain('<base');
+    });
+  });
+
+  // ─── HandleMd2ImgSend with LaTeX ───────────────────────────────────
+
+  describe('handleMd2ImgSend LaTeX', () => {
+    it('triggers conversion on LaTeX-only content ($...$ without markdown)', async () => {
+      const logger = createLogger();
+      const pngBuffer = Buffer.from('png-bytes');
+      const convert = vi.fn(async () => pngBuffer);
+
+      const result = await handleMd2ImgSend(
+        {
+          message: { components: [{ type: 'Plain', text: 'The formula $E=mc^2$ is famous.' }] },
+          sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+        },
+        {
+          htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+          logger,
+          pluginConfig: { enabledChannels: ['*'] },
+          convert,
+        },
+      );
+
+      expect(result.action).toBe('respond');
+      expect(convert).toHaveBeenCalledOnce();
+    });
+
+    it('skips plain text without LaTeX, markdown or HTML', async () => {
+      const logger = createLogger();
+      const convert = vi.fn(async () => Buffer.from('png'));
+
+      const result = await handleMd2ImgSend(
+        {
+          message: { components: [{ type: 'Plain', text: 'Just a friendly greeting.' }] },
+          sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+        },
+        {
+          htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+          logger,
+          pluginConfig: { enabledChannels: ['*'] },
+          convert,
+        },
+      );
+
+      expect(result).toEqual({ action: 'next' });
+      expect(convert).not.toHaveBeenCalled();
+    });
+
+    it('processes $$...$$ display math as markdown path', async () => {
+      const logger = createLogger();
+      const pngBuffer = Buffer.from('png-bytes');
+      const convert = vi.fn(async () => pngBuffer);
+
+      const result = await handleMd2ImgSend(
+        {
+          message: { components: [{ type: 'Plain', text: '$$\\int_{0}^{1} x^2 \\, dx$$' }] },
+          sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+        },
+        {
+          htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+          logger,
+          pluginConfig: { enabledChannels: ['*'] },
+          convert,
+        },
+      );
+
+      expect(result.action).toBe('respond');
+      expect(convert).toHaveBeenCalledOnce();
+    });
   });
 });

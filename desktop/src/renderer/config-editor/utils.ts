@@ -184,7 +184,6 @@ export function getDefaultSectionValue(key: ConfigSectionKey): unknown {
   return {};
 }
 
-
 export function formatFieldLabel(key: string): string {
   return key
     .split('.')
