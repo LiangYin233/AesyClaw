@@ -197,6 +197,8 @@ function useChatImpl() {
 
     const raw = response.data as DesktopHistoryMessage[];
     const converted: ChatMessage[] = [];
+    // 用于 toolResult 匹配 toolCall：key=toolCallId, value=ToolCallState 对象引用
+    const toolCallIndex = new Map<string, ToolCallState>();
 
     for (const message of raw) {
       if (message.role === 'user') {
@@ -210,22 +212,46 @@ function useChatImpl() {
         const cleanText = stripInformationTags(text);
         // 纯文本 assistant
         if (!message.toolData) {
-          converted.push({ role: 'assistant', text: cleanText, streaming: false, usage: message.usage, media: attachmentsToMedia(attachments) });
+          converted.push({
+            role: 'assistant',
+            text: cleanText,
+            streaming: false,
+            usage: message.usage,
+            media: attachmentsToMedia(attachments),
+          });
           continue;
         }
-        // 含 toolCall 的 assistant：先添加文本，再添加工具调用卡片
+        // 含 toolCall 的 assistant
         if (cleanText) {
-          converted.push({ role: 'assistant', text: cleanText, streaming: false, usage: message.usage });
+          converted.push({
+            role: 'assistant',
+            text: cleanText,
+            streaming: false,
+            usage: message.usage,
+          });
         }
+        // 为每个工具调用创建卡片，注册到索引中，待 toolResult 更新
         parseToolCallsFromData(message.toolData).forEach((tc) => {
-          converted.push({ role: 'tool', toolCall: tc });
+          const card: ToolMessage = { role: 'tool', toolCall: tc };
+          converted.push(card);
+          toolCallIndex.set(tc.toolCallId, tc);
         });
         continue;
       }
 
       if (message.role === 'toolResult') {
         const tc = parseToolResultFromData(message.toolData, message.content);
-        converted.push({ role: 'tool', toolCall: tc });
+        // 通过 toolCallId 匹配已有的调用卡片，合并结果
+        const existing = toolCallIndex.get(tc.toolCallId);
+        if (existing) {
+          existing.result = tc.result;
+          existing.isError = tc.isError;
+          existing.status = tc.status;
+        } else {
+          // 无对应调用（如旧数据），独立显示结果卡片
+          converted.push({ role: 'tool', toolCall: tc });
+        }
+        continue;
       }
     }
 
@@ -439,9 +465,18 @@ function useChatImpl() {
   function parseToolCallsFromData(toolData: string): ToolCallState[] {
     try {
       const parsed = JSON.parse(toolData);
-      const calls: Array<{ id?: string; name: string; arguments?: Record<string, unknown> }> = Array.isArray(parsed)
-        ? parsed
-        : (parsed as { toolCalls?: Array<{ id?: string; name: string; arguments?: Record<string, unknown> }> }).toolCalls ?? [];
+      const calls: Array<{ id?: string; name: string; arguments?: Record<string, unknown> }> =
+        Array.isArray(parsed)
+          ? parsed
+          : ((
+              parsed as {
+                toolCalls?: Array<{
+                  id?: string;
+                  name: string;
+                  arguments?: Record<string, unknown>;
+                }>;
+              }
+            ).toolCalls ?? []);
       return calls.map((tc) => ({
         toolCallId: tc.id ?? '',
         toolName: tc.name,
@@ -457,10 +492,21 @@ function useChatImpl() {
   /** 从 toolResult 消息的 toolData 中解析 ToolCallState */
   function parseToolResultFromData(toolData: string | undefined, content: string): ToolCallState {
     if (!toolData) {
-      return { toolCallId: '', toolName: '', args: {}, result: content, status: 'done', expanded: false };
+      return {
+        toolCallId: '',
+        toolName: '',
+        args: {},
+        result: content,
+        status: 'done',
+        expanded: false,
+      };
     }
     try {
-      const parsed = JSON.parse(toolData) as { toolCallId?: string; toolName?: string; isError?: boolean };
+      const parsed = JSON.parse(toolData) as {
+        toolCallId?: string;
+        toolName?: string;
+        isError?: boolean;
+      };
       return {
         toolCallId: parsed.toolCallId ?? '',
         toolName: parsed.toolName ?? '',
@@ -471,7 +517,14 @@ function useChatImpl() {
         expanded: false,
       };
     } catch {
-      return { toolCallId: '', toolName: '', args: {}, result: content, status: 'done', expanded: false };
+      return {
+        toolCallId: '',
+        toolName: '',
+        args: {},
+        result: content,
+        status: 'done',
+        expanded: false,
+      };
     }
   }
 
