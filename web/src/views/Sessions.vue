@@ -124,7 +124,9 @@
                         v-for="(item, idx) in displayMessages"
                         :key="'d' + idx"
                         class="flex flex-col max-w-[85%]"
-                        :class="item.kind === 'msg' && item.role === 'user' ? 'self-end' : 'self-start'"
+                        :class="
+                          item.kind === 'msg' && item.role === 'user' ? 'self-end' : 'self-start'
+                        "
                       >
                         <div v-if="item.kind === 'msg'">
                           <div
@@ -168,7 +170,11 @@
                               >
                               <span
                                 class="w-[7px] h-[7px] rounded-full shrink-0"
-                                :class="item.error ? 'bg-[var(--color-danger)]' : 'bg-[var(--color-accent-green)]'"
+                                :class="
+                                  item.error
+                                    ? 'bg-[var(--color-danger)]'
+                                    : 'bg-[var(--color-accent-green)]'
+                                "
                               ></span>
                               <span>{{ item.name }}</span>
                             </div>
@@ -177,12 +183,26 @@
                               class="border-t border-[var(--color-border)] p-3 flex flex-col gap-3"
                             >
                               <div>
-                                <div class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5">Args</div>
-                                <pre class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed">{{ JSON.stringify(item.args, null, 2) }}</pre>
+                                <div
+                                  class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5"
+                                >
+                                  Args
+                                </div>
+                                <pre
+                                  class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed"
+                                  >{{ JSON.stringify(item.args, null, 2) }}</pre
+                                >
                               </div>
                               <div v-if="item.result !== undefined">
-                                <div class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5">Result</div>
-                                <pre class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed bg-[rgba(20,20,19,0.02)] rounded p-2">{{ item.result || '(empty)' }}</pre>
+                                <div
+                                  class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5"
+                                >
+                                  Result
+                                </div>
+                                <pre
+                                  class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed bg-[rgba(20,20,19,0.02)] rounded p-2"
+                                  >{{ item.result || '(empty)' }}</pre
+                                >
                               </div>
                             </div>
                           </div>
@@ -199,7 +219,9 @@
                       Started: {{ formatTime(firstMsgTimestamp) }}
                       <span v-if="displayMessages.length > 0">
                         &middot; Last activity:
-                        {{ formatTime(displayMessages[displayMessages.length - 1]?.timestamp) }}</span
+                        {{
+                          formatTime(displayMessages[displayMessages.length - 1]?.timestamp)
+                        }}</span
                       >
                     </span>
                   </div>
@@ -407,18 +429,20 @@ function buildDisplayMessages(raw: PersistableMessage[]): DisplayItem[] {
 
     if (msg.role === 'toolResult') {
       const meta = parseToolResult(msg.toolData);
-      const existing = toolIndex.get(meta.toolCallId);
+      const callId = meta.toolCallId ?? '';
+      const isErr = meta.isError ?? false;
+      const existing = toolIndex.get(callId);
       if (existing) {
         existing.result = msg.content;
-        existing.error = meta.isError;
+        existing.error = isErr;
       } else {
         result.push({
           kind: 'tool',
-          id: meta.toolCallId || '',
-          name: meta.toolName || 'Tool',
+          id: callId,
+          name: meta.toolName ?? 'Tool',
           args: {},
           result: msg.content,
-          error: meta.isError,
+          error: isErr,
           timestamp: ts,
         });
       }

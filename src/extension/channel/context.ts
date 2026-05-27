@@ -27,24 +27,19 @@ export function createContext(
   }> {
     try {
       const session =
-        deps.sessionManager.get(sessionKey) ??
-        (await deps.sessionManager.create(sessionKey));
+        deps.sessionManager.get(sessionKey) ?? (await deps.sessionManager.create(sessionKey));
       const messages = session.get();
       const estimatedTokens = estimateApproximateTokens(messages);
 
       const roleId = (session as { roleId?: string }).roleId;
       const modelId = roleId ?? undefined;
-      const contextWindow = modelId
-        ? deps.llmAdapter.resolveModel(modelId).contextWindow
-        : 128_000;
+      const contextWindow = modelId ? deps.llmAdapter.resolveModel(modelId).contextWindow : 128_000;
 
       return {
         estimatedTokens,
         contextWindow,
         percentage:
-          contextWindow > 0
-            ? Math.round((estimatedTokens / contextWindow) * 10000) / 100
-            : 0,
+          contextWindow > 0 ? Math.round((estimatedTokens / contextWindow) * 10000) / 100 : 0,
       };
     } catch {
       return { estimatedTokens: 0, contextWindow: 0, percentage: 0 };

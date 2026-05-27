@@ -7,7 +7,6 @@
 import type { AgentMessage } from '@aesyclaw/contracts/llm';
 import { extractMessageText } from '@aesyclaw/contracts/llm';
 
-
 /**
  * 估算消息列表的 token 数（粗略估算，每字符约 0.25 个 token）。
  * 包括文本内容以及工具调用的 JSON 参数。
