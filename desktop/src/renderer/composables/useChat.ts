@@ -135,16 +135,23 @@ function useChatImpl() {
   const lastBackendSummaries = new Map<string, DesktopSessionSummary>();
   const pendingDeletedSessions = new Map<string, { confirmed: boolean }>();
   const pendingChannelRequests = new Map<string, (data: unknown) => void>();
+  const responseTypeMap: Record<string, string> = {
+    get_sessions: 'sessions',
+    get_session_messages: 'session_messages',
+  };
 
   /** 通过 chat WebSocket 发送请求并等待响应事件 */
-  function channelRequest(type: string, payload?: Record<string, unknown>): Promise<unknown> {
+  async function channelRequest(type: string, payload?: Record<string, unknown>): Promise<unknown> {
+    const responseType = responseTypeMap[type] ?? type;
+    const sent = await window.aesyclaw.sendChatRaw(type,
+      (payload?.['sessionId'] as string) ?? '');
+    if (!sent) return [];
     return new Promise((resolve) => {
-      const key = `${type}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+      const key = `${responseType}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
       pendingChannelRequests.set(key, resolve);
-      window.aesyclaw.sendChatRaw(type, (payload?.["sessionId"] as string) ?? '');
       setTimeout(() => {
         pendingChannelRequests.delete(key);
-        resolve(undefined);
+        resolve([]);
       }, 10000);
     });
   }

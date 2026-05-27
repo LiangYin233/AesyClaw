@@ -93,7 +93,7 @@ function setupIpc(): void {
     },
   );
   ipcMain.handle('chat:sendRaw', async (_event, payload: { type: string; sessionId: string }) => {
-    wsManager?.sendRawMessage(payload.type, { sessionId: payload.sessionId });
+    return wsManager?.sendRawMessage(payload.type, { sessionId: payload.sessionId }) ?? false;
   });
 
   ipcMain.handle('chat:cancel', async (_event, sessionId: string) => {
