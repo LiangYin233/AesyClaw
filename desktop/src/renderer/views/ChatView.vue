@@ -19,7 +19,10 @@
             :class="{ warning: contextUsage.percentage > 70, danger: contextUsage.percentage > 90 }"
           ></div>
         </div>
-        <span class="context-label">{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} / {{ contextUsage.contextWindow }})</span>
+        <span class="context-label"
+          >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
+          {{ contextUsage.contextWindow }})</span
+        >
       </div>
       <MessageList
         :messages="activeSession.messages ?? []"
@@ -59,10 +62,15 @@ const {
   createSession,
   syncSessionsFromBackend,
   loadSessionMessages,
+  reloadSessionMessages,
   sendMessage,
   handleStreamEvent,
 } = useChat();
-const contextUsage = ref<{ estimatedTokens: number; contextWindow: number; percentage: number } | null>(null);
+const contextUsage = ref<{
+  estimatedTokens: number;
+  contextWindow: number;
+  percentage: number;
+} | null>(null);
 const commands = ref<Array<{ name: string; description: string }>>([]);
 
 let unsubscribeChat: (() => void) | null = null;
@@ -84,6 +92,16 @@ onMounted(() => {
     if (event.type === 'done') {
       void syncSessionsFromBackend();
       void fetchContextUsage();
+      // 检测 /compact 完成后重载会话
+      const sess = activeSession.value;
+      const last = sess?.messages[sess.messages.length - 1];
+      if (
+        last?.role === 'assistant' &&
+        typeof last.text === 'string' &&
+        last.text.startsWith('会话已压缩完成')
+      ) {
+        void reloadSessionMessages(sess.id);
+      }
     }
   });
 
