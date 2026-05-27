@@ -15,6 +15,7 @@ import type { ExtensionManager } from '@aesyclaw/extension/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 
 /** Web 运行时需要的所有依赖项 */
 export type WebRuntimeDependencies = {
@@ -28,4 +29,5 @@ export type WebRuntimeDependencies = {
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
   paths: Readonly<ResolvedPaths>;
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 };
