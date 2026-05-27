@@ -88,10 +88,7 @@ onMounted(() => {
   void syncAndLoadActiveSession();
 
   unsubscribeChat = window.aesyclaw.onChatMessage((event: ChatMessageEvent) => {
-    if (
-      event.type === 'sessions' ||
-      event.type === 'session_messages'
-    ) {
+    if (event.type === 'sessions' || event.type === 'session_messages') {
       handleChannelResponse(
         event.type,
         'sessionId' in event ? event.sessionId : undefined,
