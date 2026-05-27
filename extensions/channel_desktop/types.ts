@@ -12,7 +12,8 @@ export type DesktopInboundMessage =
   | DesktopCancelMessage
   | DesktopFileStartMessage
   | DesktopFileEndMessage
-  | DesktopPongMessage;
+  | DesktopPongMessage
+  | DesktopGetContextUsageMessage;
 
 /** 用户发送的聊天消息 */
 export type DesktopChatMessage = {
@@ -52,6 +53,21 @@ export type DesktopPongMessage = {
   type: 'pong';
 };
 
+/** 查询会话上下文窗口使用率 */
+export type DesktopGetContextUsageMessage = {
+  type: 'get_context_usage';
+  sessionId: string;
+};
+
+/** 上下文窗口使用率响应 */
+export type DesktopContextUsageMessage = {
+  type: 'context_usage';
+  sessionId: string;
+  estimatedTokens: number;
+  contextWindow: number;
+  percentage: number;
+};
+
 // ─── 下行消息（AesyClaw → Electron）───────────────────────────────
 
 export type DesktopOutboundMessage =
@@ -64,7 +80,8 @@ export type DesktopOutboundMessage =
   | DesktopAuthMessage
   | DesktopFileStartMessage
   | DesktopFileEndMessage
-  | DesktopPingMessage;
+  | DesktopPingMessage
+  | DesktopContextUsageMessage;
 
 /** 流式文本块 */
 export type DesktopChunkMessage = {

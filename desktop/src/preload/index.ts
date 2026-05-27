@@ -37,7 +37,14 @@ export type ChatMessageEvent =
       isError: boolean;
     }
   | { type: 'done'; sessionId: string; usage?: DesktopUsage }
-  | { type: 'error'; sessionId: string; message: string };
+  | { type: 'error'; sessionId: string; message: string }
+  | {
+      type: 'context_usage';
+      sessionId: string;
+      estimatedTokens: number;
+      contextWindow: number;
+      percentage: number;
+    };
 export type DesktopSessionSummary = {
   id: string;
   channel: string;

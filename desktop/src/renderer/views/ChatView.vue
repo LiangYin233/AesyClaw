@@ -10,6 +10,19 @@
 
     <!-- Chat area -->
     <div class="chat-area" v-if="activeSession">
+      <div class="context-bar" v-if="contextUsage">
+        <div class="context-track">
+          <div
+            class="context-fill"
+            :style="{ width: Math.min(contextUsage.percentage, 100) + '%' }"
+            :class="{ warning: contextUsage.percentage > 70, danger: contextUsage.percentage > 90 }"
+          ></div>
+        </div>
+        <span class="context-label"
+          >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
+          {{ contextUsage.contextWindow }})</span
+        >
+      </div>
       <MessageList
         :messages="activeSession.messages ?? []"
         :activeSession="activeSession"
@@ -34,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useChat } from '../composables/useChat';
 import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
 import SessionList from '../components/SessionList.vue';
@@ -48,6 +61,7 @@ const {
   createSession,
   syncSessionsFromBackend,
   loadSessionMessages,
+  reloadSessionMessages,
   sendMessage,
   handleStreamEvent,
 } = useChat();
@@ -57,6 +71,11 @@ let unsubscribeChat: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
 let unsubscribeCommands: (() => void) | null = null;
 const activeCopyMenuIndex = ref<number | null>(null);
+const contextUsage = ref<{
+  estimatedTokens: number;
+  contextWindow: number;
+  percentage: number;
+} | null>(null);
 
 onMounted(() => {
   unsubscribeStatus = window.aesyclaw.onStatusChange((status) => {
@@ -69,7 +88,20 @@ onMounted(() => {
 
   unsubscribeChat = window.aesyclaw.onChatMessage((event: ChatMessageEvent) => {
     handleStreamEvent(event);
-    if (event.type === 'done') void syncSessionsFromBackend();
+    if (event.type === 'done') {
+      void syncSessionsFromBackend();
+      void fetchContextUsage();
+      // 检测 /compact 完成后重载会话
+      const sess = activeSession.value;
+      const last = sess?.messages[sess.messages.length - 1];
+      if (
+        last?.role === 'assistant' &&
+        typeof last.text === 'string' &&
+        last.text.startsWith('会话已压缩完成')
+      ) {
+        void reloadSessionMessages(sess.id);
+      }
+    }
   });
 
   unsubscribeCommands = window.aesyclaw.onCommands((cmds) => {
@@ -95,6 +127,7 @@ async function syncAndLoadActiveSession() {
 function selectSession(sessionId: string) {
   activeSessionId.value = sessionId;
   void loadSessionMessages(sessionId);
+  setTimeout(() => void fetchContextUsage(), 300);
 }
 
 function onSend(
@@ -103,6 +136,7 @@ function onSend(
   attachments: { name: string; mime: string; size: number }[],
 ) {
   void sendMessage(text, files, attachments);
+  setTimeout(() => void fetchContextUsage(), 500);
 }
 
 function onCancel() {
@@ -127,6 +161,37 @@ async function deleteSession(sessionId: string) {
   await nextTick();
   await sendMessage('/clear delete', [], []);
 }
+
+/** 通过 admin WebSocket 获取会话上下文使用率 */
+async function fetchContextUsage(): Promise<void> {
+  const session = activeSession.value;
+  if (!session) {
+    contextUsage.value = null;
+    return;
+  }
+  // 从 get_sessions 返回值中查找匹配的 backend session ID
+  const sessionsRes = await window.aesyclaw.adminRequest('get_sessions');
+  if (!sessionsRes.ok || !Array.isArray(sessionsRes.data)) return;
+  const backend = (sessionsRes.data as Array<{ id: string; chatId: string }>).find(
+    (s) => s.chatId === session.id,
+  );
+  if (!backend) return;
+  const res = await window.aesyclaw.adminRequest('get_session_context', {
+    sessionId: backend.id,
+  });
+  if (res.ok && res.data) {
+    contextUsage.value = res.data as {
+      estimatedTokens: number;
+      contextWindow: number;
+      percentage: number;
+    };
+  }
+}
+
+// 会话切换时刷新
+watch(activeSessionId, () => {
+  setTimeout(() => void fetchContextUsage(), 300);
+});
 </script>
 
 <style scoped>
@@ -165,5 +230,47 @@ async function deleteSession(sessionId: string) {
   color: var(--color-mid-gray);
   font-style: italic;
   margin: 0;
+}
+
+/* ── Context usage bar ──────────────── */
+.context-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 32px;
+  background: #faf8f3;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.context-track {
+  flex: 1;
+  max-width: 200px;
+  height: 6px;
+  background: #e6e0d4;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.context-fill {
+  height: 100%;
+  background: var(--color-accent-green);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.context-fill.warning {
+  background: #d4a84b;
+}
+
+.context-fill.danger {
+  background: #c45b5b;
+}
+
+.context-label {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  color: var(--color-mid-gray);
+  white-space: nowrap;
 }
 </style>

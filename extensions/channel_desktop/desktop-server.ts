@@ -133,13 +133,15 @@ export class DesktopServer {
       this.logger.warn('无效的 JSON 消息', { connectionId });
       return;
     }
-
     switch (msg.type) {
       case 'chat':
         void this.handleChatMessage(connectionId, msg);
         break;
       case 'cancel':
         void this.handleCancelMessage(connectionId, msg);
+        break;
+      case 'get_context_usage':
+        void this.handleGetContextUsage(connectionId, msg);
         break;
       case 'file_start':
         this.handleFileStart(connectionId, msg);
@@ -213,6 +215,28 @@ export class DesktopServer {
         sessionId: msg.sessionId,
         message: err instanceof Error ? err.message : '取消 Agent 处理失败',
       } satisfies DesktopOutboundMessage);
+    }
+  }
+
+  private async handleGetContextUsage(
+    _connectionId: string,
+    msg: { type: 'get_context_usage'; sessionId: string },
+  ): Promise<void> {
+    const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
+    try {
+      const usage = await this.options.context.getSessionContextUsage(sessionKey);
+      const conn = this.sessions.getConnection(msg.sessionId);
+      if (conn) {
+        conn.sendJson({
+          type: 'context_usage',
+          sessionId: msg.sessionId,
+          estimatedTokens: usage.estimatedTokens,
+          contextWindow: usage.contextWindow,
+          percentage: usage.percentage,
+        } satisfies DesktopOutboundMessage);
+      }
+    } catch {
+      this.logger.warn('获取会话上下文使用率失败', { sessionId: msg.sessionId });
     }
   }
 
