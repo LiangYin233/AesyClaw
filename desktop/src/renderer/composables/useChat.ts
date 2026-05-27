@@ -195,21 +195,41 @@ function useChatImpl() {
     const response = await window.aesyclaw.adminRequest('get_messages', { sessionId: summary.id });
     if (!response.ok || !Array.isArray(response.data)) return;
 
-    session.messages = (response.data as DesktopHistoryMessage[]).map(
-      (message): UserMessage | AssistantMessage => {
+    const raw = response.data as DesktopHistoryMessage[];
+    const converted: ChatMessage[] = [];
+
+    for (const message of raw) {
+      if (message.role === 'user') {
+        const { text, attachments } = parseAttachmentsFromText(message.content);
+        converted.push({ role: 'user', text: stripInformationTags(text), attachments });
+        continue;
+      }
+
+      if (message.role === 'assistant') {
         const { text, attachments } = parseAttachmentsFromText(message.content);
         const cleanText = stripInformationTags(text);
-        return message.role === 'assistant'
-          ? {
-              role: 'assistant',
-              text: cleanText,
-              streaming: false,
-              usage: message.usage,
-              media: attachmentsToMedia(attachments),
-            }
-          : { role: 'user', text: cleanText, attachments };
-      },
-    );
+        // 纯文本 assistant
+        if (!message.toolData) {
+          converted.push({ role: 'assistant', text: cleanText, streaming: false, usage: message.usage, media: attachmentsToMedia(attachments) });
+          continue;
+        }
+        // 含 toolCall 的 assistant：先添加文本，再添加工具调用卡片
+        if (cleanText) {
+          converted.push({ role: 'assistant', text: cleanText, streaming: false, usage: message.usage });
+        }
+        parseToolCallsFromData(message.toolData).forEach((tc) => {
+          converted.push({ role: 'tool', toolCall: tc });
+        });
+        continue;
+      }
+
+      if (message.role === 'toolResult') {
+        const tc = parseToolResultFromData(message.toolData, message.content);
+        converted.push({ role: 'tool', toolCall: tc });
+      }
+    }
+
+    session.messages = converted;
     session.activeAssistantMessage = null;
   }
 
@@ -411,6 +431,48 @@ function useChatImpl() {
       session.messages.push(session.activeAssistantMessage);
     }
     session.activeAssistantMessage.text += text;
+  }
+
+  // ── 历史消息工具数据解析 ──────────────────────────────────
+
+  /** 从 assistant 消息的 toolData 中解析 ToolCallState 列表（兼容新旧格式） */
+  function parseToolCallsFromData(toolData: string): ToolCallState[] {
+    try {
+      const parsed = JSON.parse(toolData);
+      const calls: Array<{ id?: string; name: string; arguments?: Record<string, unknown> }> = Array.isArray(parsed)
+        ? parsed
+        : (parsed as { toolCalls?: Array<{ id?: string; name: string; arguments?: Record<string, unknown> }> }).toolCalls ?? [];
+      return calls.map((tc) => ({
+        toolCallId: tc.id ?? '',
+        toolName: tc.name,
+        args: tc.arguments ?? {},
+        status: 'done' as const,
+        expanded: false,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /** 从 toolResult 消息的 toolData 中解析 ToolCallState */
+  function parseToolResultFromData(toolData: string | undefined, content: string): ToolCallState {
+    if (!toolData) {
+      return { toolCallId: '', toolName: '', args: {}, result: content, status: 'done', expanded: false };
+    }
+    try {
+      const parsed = JSON.parse(toolData) as { toolCallId?: string; toolName?: string; isError?: boolean };
+      return {
+        toolCallId: parsed.toolCallId ?? '',
+        toolName: parsed.toolName ?? '',
+        args: {},
+        result: content,
+        isError: parsed.isError,
+        status: parsed.isError ? 'error' : 'done',
+        expanded: false,
+      };
+    } catch {
+      return { toolCallId: '', toolName: '', args: {}, result: content, status: 'done', expanded: false };
+    }
   }
 
   return {

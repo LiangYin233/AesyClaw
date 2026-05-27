@@ -50,10 +50,11 @@ export type DesktopSessionSummary = {
 };
 
 export type DesktopHistoryMessage = {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'toolResult';
   content: string;
   timestamp?: string;
   usage?: DesktopUsage;
+  toolData?: string;
 };
 
 export type DesktopUploadFile = {

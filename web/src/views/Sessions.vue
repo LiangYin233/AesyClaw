@@ -158,7 +158,10 @@
                         </div>
 
                         <!-- Assistant tool calls (inline cards) -->
-                        <div v-if="msg.role === 'assistant' && msg.toolData" class="flex flex-col gap-1.5 mt-1.5">
+                        <div
+                          v-if="msg.role === 'assistant' && msg.toolData"
+                          class="flex flex-col gap-1.5 mt-1.5"
+                        >
                           <div
                             v-for="(tc, tci) in parseToolCalls(msg.toolData)"
                             :key="tci"
@@ -168,14 +171,29 @@
                               class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none font-heading text-xs text-mid-gray transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
                               @click="toggleToolDetail(idx + '-' + tci)"
                             >
-                              <span class="text-[10px] w-3 shrink-0 transition-transform duration-[0.2s] ease"
-                                    :class="{ 'rotate-90': toolDetailExpanded === idx + '-' + tci }">▸</span>
-                              <span class="w-[7px] h-[7px] rounded-full shrink-0 bg-[var(--color-accent-green)]"></span>
+                              <span
+                                class="text-[10px] w-3 shrink-0 transition-transform duration-[0.2s] ease"
+                                :class="{ 'rotate-90': toolDetailExpanded === idx + '-' + tci }"
+                                >▸</span
+                              >
+                              <span
+                                class="w-[7px] h-[7px] rounded-full shrink-0 bg-[var(--color-accent-green)]"
+                              ></span>
                               <span>{{ tc.name }}</span>
                             </div>
-                            <div v-if="toolDetailExpanded === idx + '-' + tci" class="border-t border-[var(--color-border)] p-3">
-                              <div class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5">Args</div>
-                              <pre class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed">{{ JSON.stringify(tc.arguments, null, 2) }}</pre>
+                            <div
+                              v-if="toolDetailExpanded === idx + '-' + tci"
+                              class="border-t border-[var(--color-border)] p-3"
+                            >
+                              <div
+                                class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5"
+                              >
+                                Args
+                              </div>
+                              <pre
+                                class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed"
+                                >{{ JSON.stringify(tc.arguments, null, 2) }}</pre
+                              >
                             </div>
                           </div>
                         </div>
@@ -184,21 +202,42 @@
                         <div
                           v-if="msg.role === 'toolResult'"
                           class="border border-[var(--color-border)] rounded-sm overflow-hidden bg-surface"
-                          :class="{ 'border-[rgba(196,91,91,0.4)]': parseToolResult(msg.toolData).isError }"
+                          :class="{
+                            'border-[rgba(196,91,91,0.4)]': parseToolResult(msg.toolData).isError,
+                          }"
                         >
                           <div
                             class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none font-heading text-xs text-mid-gray transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
                             @click="toggleToolDetail(idx)"
                           >
-                            <span class="text-[10px] w-3 shrink-0 transition-transform duration-[0.2s] ease"
-                                  :class="{ 'rotate-90': toolDetailExpanded === idx }">▸</span>
-                            <span class="w-[7px] h-[7px] rounded-full shrink-0"
-                                  :class="parseToolResult(msg.toolData).isError ? 'bg-[var(--color-danger)]' : 'bg-[var(--color-accent-green)]'"></span>
+                            <span
+                              class="text-[10px] w-3 shrink-0 transition-transform duration-[0.2s] ease"
+                              :class="{ 'rotate-90': toolDetailExpanded === idx }"
+                              >▸</span
+                            >
+                            <span
+                              class="w-[7px] h-[7px] rounded-full shrink-0"
+                              :class="
+                                parseToolResult(msg.toolData).isError
+                                  ? 'bg-[var(--color-danger)]'
+                                  : 'bg-[var(--color-accent-green)]'
+                              "
+                            ></span>
                             <span>{{ parseToolResult(msg.toolData).toolName || 'Tool' }}</span>
                           </div>
-                          <div v-if="toolDetailExpanded === idx" class="border-t border-[var(--color-border)] p-3">
-                            <div class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5">Result</div>
-                            <pre class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed bg-[rgba(20,20,19,0.02)] rounded p-2">{{ msg.content || '(empty)' }}</pre>
+                          <div
+                            v-if="toolDetailExpanded === idx"
+                            class="border-t border-[var(--color-border)] p-3"
+                          >
+                            <div
+                              class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5"
+                            >
+                              Result
+                            </div>
+                            <pre
+                              class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed bg-[rgba(20,20,19,0.02)] rounded p-2"
+                              >{{ msg.content || '(empty)' }}</pre
+                            >
                           </div>
                         </div>
                       </div>
