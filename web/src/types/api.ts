@@ -22,9 +22,11 @@ export interface Session {
 }
 
 export interface PersistableMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'toolResult';
   content: string;
   timestamp?: string;
+  /** 工具调用/结果的 JSON 序列化数据 */
+  toolData?: string;
 }
 
 export interface UsageSummary {
