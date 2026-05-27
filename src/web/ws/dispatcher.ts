@@ -30,9 +30,9 @@ on('get_messages', async (data, deps) => {
 });
 on('clear_session', async (data, deps) => {
   await sessionService.clearSessionHistory(deps, extractStringData(data, 'sessionId'));
-  on('get_session_context', async (data, deps) => {
-    return await sessionService.getSessionContext(deps, extractStringData(data, 'sessionId'));
-  });
+on('get_session_context', async (data, deps) => {
+  return await sessionService.getSessionContext(deps, extractStringData(data, 'sessionId'));
+});
 });
 
 // ── 配置 ──

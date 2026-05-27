@@ -186,10 +186,9 @@ function useChatImpl() {
     }
   }
 
-  async function loadSessionMessages(sessionId: string, force = false): Promise<void> {
+  async function loadSessionMessages(sessionId: string): Promise<void> {
     const session = sessions.value.find((item) => item.id === sessionId);
-    if (!session || session.streaming) return;
-    if (!force && session.messages.length > 0) return;
+    if (!session || session.streaming || session.messages.length > 0) return;
     const summary = findBackendSummary(sessionId);
     if (!summary) return;
 
@@ -252,6 +251,7 @@ function useChatImpl() {
           // 无对应调用（如旧数据），独立显示结果卡片
           converted.push({ role: 'tool', toolCall: tc });
         }
+        continue;
       }
     }
 
@@ -528,14 +528,6 @@ function useChatImpl() {
     }
   }
 
-  /** 强制重新加载指定会话的消息（清空缓存后从后端拉取） */
-  async function reloadSessionMessages(sessionId: string): Promise<void> {
-    const session = sessions.value.find((item) => item.id === sessionId);
-    if (!session) return;
-    session.messages = [];
-    await loadSessionMessages(sessionId, true);
-  }
-
   return {
     sessions,
     activeSessionId,
@@ -544,7 +536,6 @@ function useChatImpl() {
     syncSessionsFromBackend,
     loadSessionMessages,
     sendMessage,
-    reloadSessionMessages,
     handleStreamEvent,
   };
 }
