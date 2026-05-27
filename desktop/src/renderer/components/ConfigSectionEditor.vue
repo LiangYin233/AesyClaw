@@ -764,6 +764,43 @@ function setGenericNumberField(path: string, raw: string): void {
 function handleGenericComplexField(path: string, raw: string): void {
   handleComplexField(`generic.${path}`, raw, (parsed) => setGenericField(path, parsed));
 }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (isRecord(val) && Object.keys(val).length > 0) {
+      Object.assign(result, flattenObject(val, path));
+    } else {
+      result[path] = val;
+    }
+  }
+  return result;
+}
+
+function getFields(record: Record<string, unknown>, skipKeys: string[] = []): ConfigField[] {
+  const fields: ConfigField[] = [];
+  const skip = new Set(skipKeys);
+  const flat = flattenObject(record);
+  for (const [key, val] of Object.entries(flat)) {
+    if (skip.has(key)) continue;
+    let type: ConfigField['type'] = 'string';
+    if (typeof val === 'number') type = 'number';
+    else if (typeof val === 'boolean') type = 'boolean';
+    else if (typeof val === 'object' && val !== null) type = 'object';
+    fields.push({
+      path: key,
+      key,
+      displayLabel: configEditor.formatFieldLabel(key),
+      value: val,
+      type,
+    });
+  }
+  return fields;
+}
 
 function parseNumberInput(raw: string): number | null {
   if (raw.trim() === '') return null;
