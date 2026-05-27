@@ -61,6 +61,7 @@ function createTestDb() {
       session_id TEXT NOT NULL REFERENCES sessions(id),
       role TEXT NOT NULL,
       content TEXT NOT NULL,
+      tool_data TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE role_bindings (

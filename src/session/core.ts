@@ -1,7 +1,10 @@
 import {
   completeMessageUsage,
+  type MessageUsage,
   type SessionKey,
   type PersistableMessage,
+  type PersistableToolCall,
+  type PersistableToolResult,
 } from '@aesyclaw/core/types';
 import {
   assistantHasToolCalls,
@@ -10,7 +13,7 @@ import {
   type AgentMessage,
   type ModelResolver,
 } from '@aesyclaw/contracts/llm';
-import { createPersistedAssistantMessage } from '@aesyclaw/agent/types';
+import { createPersistedAssistantMessage, ApiType } from '@aesyclaw/agent/types';
 import type {
   MessagesRepository,
   UsageRepository,
@@ -63,11 +66,15 @@ export class Session {
     this._messages = records.map((r) =>
       r.role === 'user'
         ? createUserMessage(r.content, parseTimestamp(r.timestamp))
-        : createPersistedAssistantMessage(
-            r.content,
-            parseTimestamp(r.timestamp),
-            completeMessageUsage(r.usage),
-          ),
+        : r.role === 'toolResult'
+          ? reconstructToolResultMessage(r.content, r.toolData, r.timestamp)
+          : r.toolData
+            ? reconstructAssistantWithToolCalls(r.content, r.toolData, r.usage, r.timestamp)
+            : createPersistedAssistantMessage(
+                r.content,
+                parseTimestamp(r.timestamp),
+                completeMessageUsage(r.usage),
+              ),
     );
   }
 
@@ -190,17 +197,80 @@ function sanitizeGhostToolCalls(agentMessages: AgentMessage[]): AgentMessage[] {
 }
 
 function toPersistable(message: AgentMessage): PersistableMessage | null {
-  if (message.role !== 'user' && message.role !== 'assistant') return null;
-  if (message.role === 'assistant' && assistantHasToolCalls(message)) return null;
-
   const text = extractMessageText(message).trim();
-  if (text.length === 0) return null;
 
-  return {
-    role: message.role,
-    content: text,
-    timestamp: new Date().toISOString(),
-  };
+  // ── user: 仅持久化文本（不变） ────────────────────────────────
+  if (message.role === 'user') {
+    if (text.length === 0) return null;
+    return { role: 'user', content: text, timestamp: new Date().toISOString() };
+  }
+
+  // ── assistant: 含 toolCall 时保留结构 ────────────────────────
+  if (message.role === 'assistant') {
+    const hasToolCalls = assistantHasToolCalls(message);
+    if (!hasToolCalls) {
+      if (text.length === 0) return null;
+      return { role: 'assistant', content: text, timestamp: new Date().toISOString() };
+    }
+
+    const toolCalls = (message.content as Array<{ type: string }>)
+      .filter(
+        (
+          c,
+        ): c is {
+          type: 'toolCall';
+          id: string;
+          name: string;
+          arguments: Record<string, unknown>;
+        } => c.type === 'toolCall',
+      )
+      .map(
+        (tc) =>
+          ({ id: tc.id, name: tc.name, arguments: tc.arguments }) satisfies PersistableToolCall,
+      );
+    // message 已收窄为 AssistantMessage，stopReason 直接可用
+    const stopReason = message.stopReason;
+    const wrapped = {
+      toolCalls,
+      ...(stopReason !== 'stop' ? { stopReason } : {}),
+    };
+
+    return {
+      role: 'assistant',
+      content: text,
+      toolData: JSON.stringify(wrapped),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ── toolResult: 新持久化 ─────────────────────────────────────
+  if (message.role === 'toolResult') {
+    const toolResult = message as AgentMessage & {
+      toolCallId: string;
+      toolName: string;
+      isError: boolean;
+      details?: unknown;
+    };
+
+    const toolData: PersistableToolResult = {
+      toolCallId: toolResult.toolCallId,
+      toolName: toolResult.toolName,
+      isError: toolResult.isError ?? false,
+    };
+    const rawDetails = toolResult.details;
+    if (rawDetails !== undefined && rawDetails !== null && typeof rawDetails === 'object') {
+      toolData.details = rawDetails as Record<string, unknown>;
+    }
+
+    return {
+      role: 'toolResult',
+      content: text,
+      toolData: JSON.stringify(toolData),
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  return null;
 }
 
 function getPersistedAssistantTextFromToolResult(message: AgentMessage): string | null {
@@ -218,6 +288,75 @@ function parseTimestamp(timestamp?: string): number {
   if (!timestamp) return Date.now();
   const parsed = Date.parse(timestamp);
   return Number.isNaN(parsed) ? Date.now() : parsed;
+}
+
+// ─── 绑定重构辅助函数 ────────────────────────────────────────────
+
+function reconstructAssistantWithToolCalls(
+  content: string,
+  toolData: string | undefined,
+  usage: MessageUsage | undefined,
+  timestamp: string | undefined,
+): AgentMessage {
+  let tcs: PersistableToolCall[] = [];
+  let stopReason: string = 'stop';
+  if (toolData) {
+    try {
+      const parsed = JSON.parse(toolData);
+      if (Array.isArray(parsed)) {
+        tcs = parsed as PersistableToolCall[];
+      } else {
+        tcs = (parsed as { toolCalls: PersistableToolCall[] }).toolCalls ?? [];
+        stopReason = (parsed as { stopReason?: string }).stopReason ?? 'stop';
+      }
+    } catch {
+      logger.warn('解析助理消息 toolData 失败，将使用空工具调用', { toolData });
+    }
+  }
+  const textContent: { type: 'text'; text: string } = { type: 'text', text: content };
+  const toolCallContents = tcs.map((tc) => ({
+    type: 'toolCall' as const,
+    id: tc.id,
+    name: tc.name,
+    arguments: tc.arguments,
+  }));
+  return {
+    role: 'assistant',
+    content: [textContent, ...toolCallContents],
+    api: ApiType.OPENAI_RESPONSES,
+    provider: 'persisted-history',
+    model: 'persisted-history',
+    usage: completeMessageUsage(usage),
+    stopReason: stopReason as 'stop' | 'toolUse' | 'length' | 'error' | 'aborted',
+    timestamp: parseTimestamp(timestamp),
+  } as AgentMessage;
+}
+
+function reconstructToolResultMessage(
+  content: string,
+  toolData: string | undefined,
+  timestamp: string | undefined,
+): AgentMessage {
+  let meta: PersistableToolResult;
+  if (toolData) {
+    try {
+      meta = JSON.parse(toolData) as PersistableToolResult;
+    } catch {
+      logger.warn('解析 toolResult 消息 toolData 失败，将使用默认值', { toolData });
+      meta = { toolCallId: '', toolName: '', isError: false };
+    }
+  } else {
+    meta = { toolCallId: '', toolName: '', isError: false };
+  }
+  return {
+    role: 'toolResult',
+    toolCallId: meta.toolCallId,
+    toolName: meta.toolName,
+    isError: meta.isError,
+    content: [{ type: 'text', text: content }],
+    ...(meta.details !== undefined ? { details: meta.details } : {}),
+    timestamp: parseTimestamp(timestamp),
+  } as AgentMessage;
 }
 
 import { estimateApproximateTokens } from './token-utils';

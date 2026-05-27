@@ -3,7 +3,7 @@ import { completeSimple } from '@mariozechner/pi-ai';
 import type * as PiAiModule from '@mariozechner/pi-ai';
 import { Session } from '../../../src/session/core';
 import type { AgentMessage } from '../../../src/agent/types';
-import type { SessionKey } from '../../../src/core/types/identity';
+import type { PersistableMessage, SessionKey } from '../../../src/core/types';
 import { getRecentLogEntries, setLogLevel, resetLogState } from '../../../src/core/logger';
 
 vi.mock('@mariozechner/pi-ai', async () => {
@@ -214,7 +214,13 @@ describe('Session.syncFromAgent', () => {
       } as unknown as AgentMessage,
     ]);
 
-    expect(messagesRepo.save).not.toHaveBeenCalled();
+    // assistant 含 toolCall 现在会持久化（文本 + toolData）
+    expect(messagesRepo.save).toHaveBeenCalledTimes(1);
+    const saved = messagesRepo.save.mock.calls[0][1] as PersistableMessage;
+    expect(saved.role).toBe('assistant');
+    expect(saved.content).toBe('checking');
+    expect(saved.toolData).toBeDefined();
+    // 但 usage 仍然不记录（无 messageId 时跳过）
     expect(usageRepo.create).not.toHaveBeenCalled();
   });
 
@@ -285,8 +291,12 @@ describe('Session.syncFromAgent', () => {
       } as AgentMessage,
     ]);
 
+    // 顺序: user → 含toolCall的assistant(空文本+toolData) → toolResult →
+    //       persistAsAssistantText(额外) → final回复
     expect(messagesRepo.save.mock.calls.map((call) => call[1].content)).toEqual([
       'send text and file',
+      '',
+      '消息已发送: "visible text"',
       'visible text',
       'final reply',
     ]);
@@ -322,8 +332,10 @@ describe('Session.syncFromAgent', () => {
       } as AgentMessage,
     ]);
 
+    // user → toolResult → assistant: toolResult 现在也会持久化
     expect(messagesRepo.save.mock.calls.map((call) => call[1].content)).toEqual([
       'run other tool',
+      'tool output',
       'final reply',
     ]);
   });

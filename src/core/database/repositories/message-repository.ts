@@ -1,8 +1,8 @@
 /**
  * MessageRepository — messages 表的数据访问层。
  *
- * 仅应持久化用户和纯文本助手消息。
- * 工具调用和工具结果在会话同步为可持久化消息时过滤掉。
+ * 持久化所有消息类型，包括含工具调用的助手消息和工具结果。
+ * 结构化工具数据存储在 tool_data JSON 列中，文本内容存储在 content 列。
  */
 
 import type { DatabaseSync } from 'node:sqlite';
@@ -15,9 +15,12 @@ export async function saveMessage(
   message: PersistableMessage,
 ): Promise<number> {
   const timestamp = message.timestamp ?? new Date().toISOString();
+  const toolData = message.toolData ?? null;
   const result = db
-    .prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
-    .run(sessionId, message.role, message.content, timestamp);
+    .prepare(
+      'INSERT INTO messages (session_id, role, content, tool_data, timestamp) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(sessionId, message.role, message.content, toolData, timestamp);
 
   return Number(result.lastInsertRowid);
 }
@@ -32,6 +35,7 @@ export async function loadMessageHistory(
       `SELECT
         m.role,
         m.content,
+        m.tool_data,
         m.timestamp,
         u.id AS usage_id,
         u.input_tokens,
@@ -54,9 +58,10 @@ export async function loadMessageHistory(
   return rows.map((row) => {
     const usage = row.role === 'assistant' && row.usage_id !== null ? usageFromRow(row) : undefined;
     return {
-      role: row.role as 'user' | 'assistant',
+      role: row.role as PersistableMessage['role'],
       content: row.content,
       timestamp: row.timestamp,
+      toolData: row.tool_data ?? undefined,
       ...(usage ? { usage } : {}),
     };
   });
@@ -100,6 +105,7 @@ export async function replaceMessageWithSummary(
 type MessageHistoryRow = {
   role: string;
   content: string;
+  tool_data: string | null;
   timestamp: string;
   usage_id: number | null;
   input_tokens: number | null;

@@ -146,8 +146,38 @@ function isFiniteNumber(value: unknown): value is number {
 
 /** 持久化到数据库的消息记录 */
 export type PersistableMessage = {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'toolResult';
   content: string;
   timestamp?: string;
   usage?: MessageUsage;
+  /**
+   * 工具调用/结果的 JSON 序列化数据。
+   * - assistant 含 toolCall: JSON 串 (PersistableAssistantToolData)
+   * - toolResult: JSON 串 (PersistableToolResult)
+   * - 其他角色: undefined
+   */
+  toolData?: string;
+};
+
+/** 可持久化的工具调用块（JSON 序列化友好） */
+export type PersistableToolCall = {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+};
+
+/** 可持久化的工具结果元数据（JSON 序列化友好） */
+export type PersistableToolResult = {
+  toolCallId: string;
+  toolName: string;
+  isError: boolean;
+  /** 额外的结构化结果数据，不含 content 文本 */
+  details?: Record<string, unknown>;
+};
+
+/** 可持久化的助手消息工具数据块（含 toolCalls + stopReason） */
+export type PersistableAssistantToolData = {
+  toolCalls: PersistableToolCall[];
+  /** 原始的 stopReason，默认 'stop' */
+  stopReason?: string;
 };

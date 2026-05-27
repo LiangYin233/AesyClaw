@@ -174,6 +174,7 @@ export class DatabaseManager {
         session_id TEXT NOT NULL REFERENCES sessions(id),
         role       TEXT NOT NULL,
         content    TEXT NOT NULL,
+        tool_data  TEXT,
         timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -231,7 +232,17 @@ export class DatabaseManager {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    this.ensureMessagesToolDataColumn();
     this.ensureUsageDetailColumns();
+  }
+
+  private ensureMessagesToolDataColumn(): void {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    const columns = this.getTableColumns('messages');
+    if (!columns.has('tool_data')) {
+      this.db.exec('ALTER TABLE messages ADD COLUMN tool_data TEXT');
+      logger.info('messages 表已添加 tool_data 列');
+    }
   }
 
   private ensureUsageDetailColumns(): void {

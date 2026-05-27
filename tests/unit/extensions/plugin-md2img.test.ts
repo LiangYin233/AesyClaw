@@ -447,13 +447,20 @@ describe('plugin_md2img', () => {
 
   describe('buildHtmlDocument', () => {
     it('injects <base> tag when baseHref is provided', () => {
-      const doc = buildHtmlDocument('<p>test</p>', '<html><head></head><body>{{content}}</body></html>', 'file:///some/dir/');
+      const doc = buildHtmlDocument(
+        '<p>test</p>',
+        '<html><head></head><body>{{content}}</body></html>',
+        'file:///some/dir/',
+      );
       expect(doc).toContain('<base');
       expect(doc).toContain('file:///some/dir/');
     });
 
     it('does not inject <base> tag without baseHref', () => {
-      const doc = buildHtmlDocument('<p>test</p>', '<html><head></head><body>{{content}}</body></html>');
+      const doc = buildHtmlDocument(
+        '<p>test</p>',
+        '<html><head></head><body>{{content}}</body></html>',
+      );
       expect(doc).not.toContain('<base');
     });
   });

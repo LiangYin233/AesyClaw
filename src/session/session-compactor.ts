@@ -133,8 +133,37 @@ async function summarizeConversation(
 
 function buildSummaryPrompt(messages: AgentMessage[]): string {
   const transcript = messages
-    .map((m) => `${m.role.toUpperCase()}: ${extractMessageText(m).trim()}`)
-    .filter((line) => !line.endsWith(':'))
+    .map((m) => {
+      const text = extractMessageText(m).trim();
+      let line = `${m.role.toUpperCase()}: ${text}`;
+
+      // 附加工具调用信息
+      if (m.role === 'assistant' && Array.isArray(m.content)) {
+        const toolCalls = m.content.filter(
+          (c): c is typeof c & { type: 'toolCall'; id: string; name: string } =>
+            typeof c === 'object' && c !== null && 'type' in c && c.type === 'toolCall',
+        );
+        if (toolCalls.length > 0) {
+          const callsStr = toolCalls
+            .map((tc) => `[调用工具: ${tc.name}(${JSON.stringify(tc.arguments ?? {})})]`)
+            .join('\n');
+          line += `\n${callsStr}`;
+        }
+      }
+
+      if (m.role === 'toolResult') {
+        const tr = m as AgentMessage & { toolName?: string; isError?: boolean };
+        const status = tr.isError ? '失败' : '成功';
+        line += ` [工具结果: ${tr.toolName ?? '未知'} - ${status}]`;
+      }
+
+      return line;
+    })
+    .filter((line) => {
+      // 过滤掉纯角色标识符的行
+      const afterColon = line.split(': ')[1];
+      return afterColon !== undefined && afterColon.trim().length > 0;
+    })
     .join('\n\n');
   return ['Conversation transcript:', '', transcript].join('\n');
 }
