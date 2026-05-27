@@ -98,6 +98,9 @@ const api = {
 
   /** 取消当前对话 */
   cancelChat: (sessionId: string) => ipcRenderer.invoke('chat:cancel', sessionId),
+  /** 发送任意 JSON 消息到 chat WebSocket */
+  sendChatRaw: (type: string, sessionId: string) =>
+    ipcRenderer.invoke('chat:sendRaw', { type, sessionId }),
 
   /** 发送管理面板请求 */
   adminRequest: (type: string, payload?: unknown) => {

@@ -88,10 +88,16 @@ onMounted(() => {
 
   unsubscribeChat = window.aesyclaw.onChatMessage((event: ChatMessageEvent) => {
     handleStreamEvent(event);
+    if (event.type === 'context_usage') {
+      contextUsage.value = {
+        estimatedTokens: event.estimatedTokens,
+        contextWindow: event.contextWindow,
+        percentage: event.percentage,
+      };
+    }
     if (event.type === 'done') {
       void syncSessionsFromBackend();
-      void fetchContextUsage();
-      // 检测 /compact 完成后重载会话
+      void requestContextUsage();
       const sess = activeSession.value;
       const last = sess?.messages[sess.messages.length - 1];
       if (
@@ -127,7 +133,7 @@ async function syncAndLoadActiveSession() {
 function selectSession(sessionId: string) {
   activeSessionId.value = sessionId;
   void loadSessionMessages(sessionId);
-  setTimeout(() => void fetchContextUsage(), 300);
+  setTimeout(() => void requestContextUsage(), 300);
 }
 
 function onSend(
@@ -136,7 +142,7 @@ function onSend(
   attachments: { name: string; mime: string; size: number }[],
 ) {
   void sendMessage(text, files, attachments);
-  setTimeout(() => void fetchContextUsage(), 500);
+  setTimeout(() => void requestContextUsage(), 500);
 }
 
 function onCancel() {
@@ -162,35 +168,19 @@ async function deleteSession(sessionId: string) {
   await sendMessage('/clear delete', [], []);
 }
 
-/** 通过 admin WebSocket 获取会话上下文使用率 */
-async function fetchContextUsage(): Promise<void> {
+/** 通过 chat WebSocket 请求上下文使用率（channel_desktop 插件处理） */
+function requestContextUsage(): void {
   const session = activeSession.value;
   if (!session) {
     contextUsage.value = null;
     return;
   }
-  // 从 get_sessions 返回值中查找匹配的 backend session ID
-  const sessionsRes = await window.aesyclaw.adminRequest('get_sessions');
-  if (!sessionsRes.ok || !Array.isArray(sessionsRes.data)) return;
-  const backend = (sessionsRes.data as Array<{ id: string; chatId: string }>).find(
-    (s) => s.chatId === session.id,
-  );
-  if (!backend) return;
-  const res = await window.aesyclaw.adminRequest('get_session_context', {
-    sessionId: backend.id,
-  });
-  if (res.ok && res.data) {
-    contextUsage.value = res.data as {
-      estimatedTokens: number;
-      contextWindow: number;
-      percentage: number;
-    };
-  }
+  window.aesyclaw.sendChatRaw('get_context_usage', session.id);
 }
 
 // 会话切换时刷新
 watch(activeSessionId, () => {
-  setTimeout(() => void fetchContextUsage(), 300);
+  setTimeout(() => void requestContextUsage(), 300);
 });
 </script>
 

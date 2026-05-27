@@ -191,6 +191,13 @@ export class WebSocketManager extends EventEmitter {
     this.chatWs.send(JSON.stringify({ type: 'cancel', sessionId }));
   }
 
+  /** 发送任意 JSON 消息到 chat WebSocket */
+  sendRawMessage(type: string, payload: Record<string, unknown> = {}): boolean {
+    if (this.chatWs?.readyState !== WebSocket.OPEN) return false;
+    this.chatWs.send(JSON.stringify({ type, ...payload }));
+    return true;
+  }
+
   // ─── 管理请求 ──────────────────────────────────────────────────
 
   async sendAdminRequest(request: {
