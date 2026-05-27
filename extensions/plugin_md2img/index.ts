@@ -4,6 +4,8 @@ import type { Browser } from 'playwright';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import katex from 'katex';
 import { validateWithSchema, getMessageText } from '@aesyclaw/sdk';
 import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
 import type { HookCtx, HookResult } from '@aesyclaw/sdk';
@@ -12,6 +14,7 @@ import { Md2ImgPluginConfigSchema, type Md2ImgPluginConfig } from './config-sche
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');
 const FONT_PATH = resolve(__dirname, 'SourceHanSerif-VF.otf.woff2');
+const require = createRequire(import.meta.url);
 
 // ─── Content detection ──────────────────────────────────────────
 
@@ -29,6 +32,47 @@ function isHtml(text: string): boolean {
   return HTML_RE.test(text);
 }
 
+const LATEX_RE = /(?<!\\)\$\$[\s\S]*?\$\$|(?<!\\)\$[\s\S]*?\$/;
+
+function isLatex(text: string): boolean {
+  return LATEX_RE.test(text);
+}
+
+// ─── LaTeX pre-processor ────────────────────────────────────────
+
+/**
+ * Pre-process markdown text to replace $...$ and $$...$$ delimiters
+ * with KaTeX-rendered HTML before marked.parse().
+ *
+ * Display math ($$...$$) is processed first to avoid greedy matching
+ * by the inline math ($...$) pass.
+ */
+function preprocessLatex(markdown: string): string {
+  // Display math first
+  let result = markdown.replace(
+    /(?<!\\)\$\$([\s\S]*?)\$\$/g,
+    (_match: string, tex: string) => {
+      try {
+        return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false });
+      } catch {
+        return `$${tex}$$`;
+      }
+    },
+  );
+  // Inline math
+  result = result.replace(
+    /(?<!\\)\$([\s\S]*?)\$/g,
+    (_match: string, tex: string) => {
+      try {
+        return katex.renderToString(tex.trim(), { throwOnError: false });
+      } catch {
+        return `$${tex}$`;
+      }
+    },
+  );
+  return result;
+}
+
 // ─── Document builder ───────────────────────────────────────────
 
 /**
@@ -38,8 +82,12 @@ function isHtml(text: string): boolean {
  * @param htmlTemplate - HTML 模板字符串，需包含 {{content}} 占位符
  * @returns 完整的 HTML 文档字符串
  */
-export function buildHtmlDocument(htmlContent: string, htmlTemplate: string): string {
-  return htmlTemplate.replace('{{content}}', htmlContent);
+export function buildHtmlDocument(htmlContent: string, htmlTemplate: string, baseHref?: string): string {
+  let doc = htmlTemplate.replace('{{content}}', htmlContent);
+  if (baseHref) {
+    doc = doc.replace('<head>', `<head><base href="${baseHref}">`);
+  }
+  return doc;
 }
 
 // ─── Playwright renderer ───────────────────────────────────────
@@ -109,22 +157,23 @@ export class PlaywrightMarkdownRenderer implements Md2ImgHtmlRenderer {
 
 // ─── Conversion pipeline ────────────────────────────────────────
 
-/**
- * 将 Markdown 文本转换为 PNG 图片。
- *
- * @param markdown - Markdown 文本
- * @param htmlTemplate - HTML 模板
- * @param deps - 可选依赖注入（自定义渲染器）
- * @returns PNG 图片 Buffer
- */
-/** 将文本渲染为 PNG。若 asMarkdown 为 true 则先通过 marked 解析。 */
+/** 将文本渲染为 PNG。若 asMarkdown 为 true 则先通过 marked 解析（含 LaTeX 预处理）。 */
 async function renderToPng(
   content: string,
   htmlTemplate: string,
   options?: { asMarkdown?: boolean; renderHtmlToPng?: (doc: string) => Promise<Buffer> },
 ): Promise<Buffer> {
-  const html = options?.asMarkdown ? (marked.parse(content, { async: false }) as string) : content;
-  const htmlDocument = buildHtmlDocument(html, htmlTemplate);
+  let html: string;
+  if (options?.asMarkdown) {
+    const processed = preprocessLatex(content);
+    html = marked.parse(processed, { async: false }) as string;
+  } else {
+    html = content;
+  }
+  const baseHref = katexDistDir
+    ? `file:///${katexDistDir.replace(/\\/g, '/')}/`
+    : undefined;
+  const htmlDocument = buildHtmlDocument(html, htmlTemplate, baseHref);
   const render = options?.renderHtmlToPng ?? ((doc: string) => getRenderer().renderHtmlToPng(doc));
   return await render(htmlDocument);
 }
@@ -156,7 +205,7 @@ function resolveEnabledChannels(config: Record<string, unknown>): string[] {
 }
 
 /**
- * onSend 钩子处理函数。检测 Markdown / HTML 内容并渲染为图片后替换原消息。
+ * onSend 钩子处理函数。检测 Markdown / HTML / LaTeX 内容并渲染为图片后替换原消息。
  *
  * @param context - 发送上下文
  * @param deps - 依赖项（模板、日志、插件配置、转换函数）
@@ -181,7 +230,8 @@ export async function handleMd2ImgSend(
 
   const isHtmlContent = isHtml(text);
   const isMarkdownContent = isMarkdown(text);
-  if (!isHtmlContent && !isMarkdownContent) {
+  const hasLatex = isLatex(text);
+  if (!isHtmlContent && !isMarkdownContent && !hasLatex) {
     return { action: 'next' };
   }
 
@@ -189,10 +239,15 @@ export async function handleMd2ImgSend(
   if (!sessionKey?.channel || (!channels.includes('*') && !channels.includes(sessionKey.channel))) {
     return { action: 'next' };
   }
+
+  // LaTeX-only content (no markdown, no HTML) still needs marked.parse()
+  // so the preprocessed KaTeX HTML is properly wrapped in a paragraph.
+  const shouldRenderAsMarkdown = isMarkdownContent || hasLatex;
+
   try {
     const convert =
       deps.convert ??
-      ((c: string, t: string) => renderToPng(c, t, { asMarkdown: isMarkdownContent }));
+      ((c: string, t: string) => renderToPng(c, t, { asMarkdown: shouldRenderAsMarkdown }));
     const pngBuffer = await convert(text, template);
 
     const nonTextComponents = message.components.filter((c) => c.type !== 'Plain');
@@ -222,7 +277,7 @@ const plugin: PluginDefinition = {
   name: 'md2img',
   version: '0.1.0',
   description:
-    'Detects Markdown / HTML in LLM output and sends it as a rendered image instead of raw text.',
+    'Detects Markdown / HTML / LaTeX in LLM output and sends it as a rendered image instead of raw text.',
   defaultConfig: { enabledChannels: ['*'] },
   middlewares: [
     {
@@ -266,12 +321,25 @@ const plugin: PluginDefinition = {
     } catch {
       logger.info('md2img initialized without bundled fonts; browser fallback fonts will be used');
     }
+
+    // ── KaTeX CSS ──────────────────────────────────────────────
+    try {
+      const katexCssPath = require.resolve('katex/dist/katex.min.css');
+      katexDistDir = dirname(katexCssPath);
+      const katexCss = await readFile(katexCssPath, 'utf-8');
+      htmlTemplate = htmlTemplate.replace('{{katexCss}}', `<style>${katexCss}</style>`);
+      logger.info('md2img initialized with KaTeX CSS');
+    } catch {
+      htmlTemplate = htmlTemplate.replace('{{katexCss}}', '');
+      logger.info('md2img initialized without KaTeX CSS; LaTeX may not render correctly');
+    }
   },
   async destroy() {
     await getRenderer().destroy();
     htmlTemplate = '';
     logger = undefined;
     pluginConfig = {};
+    katexDistDir = undefined;
   },
 };
 
@@ -280,6 +348,7 @@ const plugin: PluginDefinition = {
 let htmlTemplate = '';
 let logger: PluginContext['logger'] | undefined;
 let pluginConfig: Record<string, unknown> = {};
+let katexDistDir: string | undefined;
 let renderer: PlaywrightMarkdownRenderer | null = null;
 
 function getRenderer(): PlaywrightMarkdownRenderer {
