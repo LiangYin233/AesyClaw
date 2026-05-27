@@ -63,6 +63,7 @@ const {
   loadSessionMessages,
   reloadSessionMessages,
   sendMessage,
+  handleChannelResponse,
   handleStreamEvent,
 } = useChat();
 const commands = ref<Array<{ name: string; description: string }>>([]);
@@ -87,6 +88,17 @@ onMounted(() => {
   void syncAndLoadActiveSession();
 
   unsubscribeChat = window.aesyclaw.onChatMessage((event: ChatMessageEvent) => {
+    if (
+      event.type === 'sessions' ||
+      event.type === 'session_messages'
+    ) {
+      handleChannelResponse(
+        event.type,
+        'sessionId' in event ? event.sessionId : undefined,
+        'data' in event ? event.data : undefined,
+      );
+      return;
+    }
     handleStreamEvent(event);
     if (event.type === 'context_usage') {
       contextUsage.value = {

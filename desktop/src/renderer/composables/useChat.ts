@@ -134,7 +134,41 @@ function useChatImpl() {
   const activeSessionId = ref<string | null>(null);
   const lastBackendSummaries = new Map<string, DesktopSessionSummary>();
   const pendingDeletedSessions = new Map<string, { confirmed: boolean }>();
+  const pendingChannelRequests = new Map<string, (data: unknown) => void>();
 
+  /** 通过 chat WebSocket 发送请求并等待响应事件 */
+  function channelRequest(type: string, payload?: Record<string, unknown>): Promise<unknown> {
+    return new Promise((resolve) => {
+      const key = `${type}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+      pendingChannelRequests.set(key, resolve);
+      window.aesyclaw.sendChatRaw(type, (payload?.["sessionId"] as string) ?? '');
+      setTimeout(() => {
+        pendingChannelRequests.delete(key);
+        resolve(undefined);
+      }, 10000);
+    });
+  }
+
+  /** 处理来自 chat WebSocket 的响应事件 */
+  function handleChannelResponse(
+    type: string,
+    _sessionId: string | undefined,
+    data: unknown,
+  ): void {
+    let resolved = false;
+    for (const [key, resolve] of pendingChannelRequests) {
+      if (key.startsWith(type + ':')) {
+        pendingChannelRequests.delete(key);
+        resolve(data);
+        resolved = true;
+        break;
+      }
+    }
+    if (!resolved) {
+      // 无等待请求时，触发被动同步（如 compact 后自动刷新）
+      if (type === 'sessions') void syncSessionsFromBackend();
+    }
+  }
   const activeSession = computed(
     (): ChatSession | null => sessions.value.find((s) => s.id === activeSessionId.value) ?? null,
   );
@@ -147,10 +181,9 @@ function useChatImpl() {
   }
 
   async function syncSessionsFromBackend(): Promise<void> {
-    const response = await window.aesyclaw.adminRequest('get_sessions');
-    if (!response.ok || !Array.isArray(response.data)) return;
-
-    const summaries = (response.data as DesktopSessionSummary[]).filter(
+    const raw = await channelRequest('get_sessions');
+    if (!Array.isArray(raw)) return;
+    const summaries = (raw as DesktopSessionSummary[]).filter(
       (session) => session.channel === 'desktop',
     );
     lastBackendSummaries.clear();
@@ -192,11 +225,10 @@ function useChatImpl() {
     if (!force && session.messages.length > 0) return;
     const summary = findBackendSummary(sessionId);
     if (!summary) return;
-
-    const response = await window.aesyclaw.adminRequest('get_messages', { sessionId: summary.id });
-    if (!response.ok || !Array.isArray(response.data)) return;
-
-    const raw = response.data as DesktopHistoryMessage[];
+    const raw = (await channelRequest('get_session_messages', {
+      sessionId,
+    })) as DesktopHistoryMessage[];
+    if (!Array.isArray(raw)) return;
     const converted: ChatMessage[] = [];
     // 用于 toolResult 匹配 toolCall：key=toolCallId, value=ToolCallState 对象引用
     const toolCallIndex = new Map<string, ToolCallState>();
@@ -545,6 +577,7 @@ function useChatImpl() {
     loadSessionMessages,
     reloadSessionMessages,
     sendMessage,
+    handleChannelResponse,
     handleStreamEvent,
   };
 }

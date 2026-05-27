@@ -31,11 +31,25 @@ export type ExtensionManagerDependencies = {
   };
   databaseManager: {
     sessions: {
-      findAllSummaries(): Promise<Array<{ id: string; channel: string; type: string; chatId: string; lastActivity?: string; firstUserMessage?: string; messageCount: number }>>;
-      findById(id: string): Promise<{ id: string; channel: string; type: string; chatId: string } | null>;
+      findAllSummaries(): Promise<
+        Array<{
+          id: string;
+          channel: string;
+          type: string;
+          chatId: string;
+          lastActivity?: string;
+          firstUserMessage?: string;
+          messageCount: number;
+        }>
+      >;
+      findById(
+        id: string,
+      ): Promise<{ id: string; channel: string; type: string; chatId: string } | null>;
     };
     messages: {
-      loadHistory(sessionId: string): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
+      loadHistory(
+        sessionId: string,
+      ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
     };
   };
 };

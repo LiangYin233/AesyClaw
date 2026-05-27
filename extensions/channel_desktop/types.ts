@@ -83,7 +83,9 @@ export type DesktopOutboundMessage =
   | DesktopFileStartMessage
   | DesktopFileEndMessage
   | DesktopPingMessage
-  | DesktopContextUsageMessage;
+  | DesktopContextUsageMessage
+  | { type: 'sessions'; data: unknown }
+  | { type: 'session_messages'; sessionId: string; data: unknown };
 
 /** 流式文本块 */
 export type DesktopChunkMessage = {
