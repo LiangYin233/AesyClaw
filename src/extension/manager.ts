@@ -11,6 +11,8 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import { PluginManager } from './plugin/manager';
 import type { PluginStatus } from './plugin/types';
 import { ChannelManager } from './channel/manager';
+import type { Session } from '@aesyclaw/session/core';
+import type { SessionKey } from '@aesyclaw/core/types';
 
 const logger = createScopedLogger('manager');
 
@@ -23,6 +25,10 @@ export type ExtensionManagerDependencies = {
   pipeline: Pipeline;
   paths: Readonly<ResolvedPaths>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
+  sessionManager: {
+    get(key: SessionKey): Session | undefined;
+    create(key: SessionKey): Promise<Session>;
+  };
 };
 
 /**
@@ -48,6 +54,8 @@ export class ExtensionManager {
       paths: deps.paths,
       toolRegistry: deps.toolRegistry,
       commandRegistry: deps.commandRegistry,
+      sessionManager: deps.sessionManager,
+      llmAdapter: deps.llmAdapter,
     });
     this.pluginManager = new PluginManager({
       configManager: deps.configManager,

@@ -189,6 +189,7 @@ export class Application {
       pipeline: this.sub.pipeline,
       paths: this.paths,
       llmAdapter: this.sub.llmAdapter,
+      sessionManager: this.sub.sessionManager,
     });
 
     registerBuiltinCommands(this.sub.commandRegistry, {

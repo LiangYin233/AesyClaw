@@ -14,6 +14,8 @@ import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
+import type { Session } from '@aesyclaw/session/core';
+import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 
 import {
   validateExtension,
@@ -34,6 +36,14 @@ export type ChannelContext = {
   registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
   getCommands(): RegisteredCommandInfo[];
   logger: Logger;
+  /**
+   * 获取指定会话的上下文窗口使用率。
+   * 返回估算 token 数、模型上下文窗口大小、占用百分比。
+   * 若会话不存在或无法确定模型，contextWindow/percentage 可能为 0。
+   */
+  getSessionContextUsage(
+    sessionKey: SessionKey,
+  ): Promise<{ estimatedTokens: number; contextWindow: number; percentage: number }>;
 };
 
 export type ChannelPlugin = {
@@ -77,6 +87,11 @@ export type ChannelManagerDependencies = {
   paths: Readonly<ResolvedPaths>;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
+  sessionManager: {
+    get(key: SessionKey): Session | undefined;
+    create(key: SessionKey): Promise<Session>;
+  };
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 };
 
 /** 从磁盘加载完成后的频道模块。 */
