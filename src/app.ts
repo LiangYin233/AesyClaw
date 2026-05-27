@@ -247,7 +247,6 @@ export class Application {
       toolRegistry: this.sub.toolRegistry,
       skillManager: this.sub.skillManager,
       paths: this.paths,
-      llmAdapter: this.sub.llmAdapter,
     });
     await this.webUiManager.initialize();
   }

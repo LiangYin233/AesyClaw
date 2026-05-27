@@ -44,6 +44,8 @@ export async function getSessionMessages(
 /**
  * 清空指定会话的消息历史。
  *
+ * 先检查会话是否被锁定（正在被 Agent 处理），若锁定则拒绝。
+ *
  * @param deps - WebUI 管理器依赖项
  * @param sessionId - 会话 ID
  * @throws 会话未找到或已锁定时抛出
@@ -70,39 +72,4 @@ export async function clearSessionHistory(
 
   await deps.databaseManager.messages.clearHistory(sessionId);
   await deps.sessionManager.clear(sessionKey);
-}
-
-/**
- * 获取指定会话的上下文窗口使用率。
- */
-export async function getSessionContext(
-  deps: WebRuntimeDependencies,
-  sessionId: string,
-): Promise<{ estimatedTokens: number; contextWindow: number; percentage: number }> {
-  const sessionRecord = await deps.databaseManager.sessions.findById(sessionId);
-  if (!sessionRecord) throw new Error('会话未找到');
-
-  // 通过角色获取 modelId
-  const boundRoleId = await deps.databaseManager.roleBindings.getActiveRole(sessionId);
-  const role = boundRoleId ? deps.roleManager.getRole(boundRoleId) : undefined;
-  const modelId = role?.model ?? deps.roleManager.getDefaultRole()?.model;
-  const contextWindow = modelId ? deps.llmAdapter.resolveModel(modelId).contextWindow : 128_000;
-
-  // 估算 token：直接用 content 文本长度 / 3.5
-  const messages = await deps.databaseManager.messages.loadHistory(sessionId);
-  let charCount = 0;
-  for (const msg of messages) {
-    charCount += msg.content.length;
-    if (msg.toolData) {
-      // 粗略估计 tool_data JSON 长度
-      charCount += msg.toolData.length;
-    }
-  }
-  const estimatedTokens = Math.ceil(charCount / 3.5);
-
-  return {
-    estimatedTokens,
-    contextWindow,
-    percentage: contextWindow > 0 ? Math.round((estimatedTokens / contextWindow) * 10000) / 100 : 0,
-  };
 }
