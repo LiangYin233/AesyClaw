@@ -175,17 +175,17 @@ export function getSectionValue(source: unknown, key: ConfigSectionKey): unknown
   if (!isRecord(source)) return getDefaultSectionValue(key);
   const value = source[key];
   if (value === undefined) return getDefaultSectionValue(key);
-  if (key === 'plugins') return Array.isArray(value) ? value : [];
   if (key === 'mcp') return Array.isArray(value) ? value : [];
-  if (key === 'channels') return isRecord(value) ? value : {};
+  if (key === 'channels' || key === 'plugins') return isRecord(value) ? value : {};
   return value;
 }
 
 export function getDefaultSectionValue(key: ConfigSectionKey): unknown {
-  if (key === 'plugins' || key === 'mcp') return [];
+  if (key === 'mcp') return [];
   return {};
 }
 
+// no longer used — plugins now use object format like channels
 export function normalizePluginEntry(value: unknown): PluginEntry {
   const source = isRecord(value) ? value : {};
   return {

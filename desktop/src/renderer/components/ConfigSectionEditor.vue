@@ -34,7 +34,7 @@
       </div>
 
       <template v-if="sectionKey === 'channels'">
-        <article v-for="entry in channelEntries" :key="entry.key" class="config-entry">
+        <article v-for="entry in entries" :key="entry.key" class="config-entry">
           <div class="entry-header">
             <div class="entry-title">{{ entry.key || 'New channel' }}</div>
             <div class="entry-controls">
@@ -118,25 +118,21 @@
       </template>
 
       <template v-else-if="sectionKey === 'plugins'">
-        <article
-          v-for="(plugin, index) in pluginEntries"
-          :key="`${plugin.name}-${index}`"
-          class="config-entry"
-        >
+        <article v-for="entry in entries" :key="entry.key" class="config-entry">
           <div class="entry-header">
-            <div class="entry-title">{{ plugin.name || `Plugin ${index + 1}` }}</div>
+            <div class="entry-title">{{ entry.key || entry.key }}</div>
             <div class="entry-controls">
               <label class="toggle-label">Enabled</label>
               <ToggleSwitch
-                :model-value="plugin.enabled"
+                :model-value="getEntryEnabled(entry)"
                 :disabled="saving"
-                @update:model-value="updatePluginField(index, 'enabled', $event)"
+                @update:model-value="toggleEntryEnabled(entry.key)"
               />
               <button
                 class="danger-btn"
                 type="button"
                 title="Remove plugin"
-                @click="removePlugin(index)"
+                @click="removeEntry(entry.key)"
               >
                 ×
               </button>
@@ -144,18 +140,18 @@
           </div>
 
           <div class="fields-title">Options</div>
-          <div v-if="getPluginFields(plugin).length === 0" class="empty-inline">No options.</div>
+          <div v-if="getEntryFields(entry).length === 0" class="empty-inline">No options.</div>
           <div v-else class="field-grid">
             <div
-              v-for="field in getPluginFields(plugin)"
-              :key="`plugin-${index}-${field.key}`"
+              v-for="field in getEntryFields(entry)"
+              :key="`${entry.key}-${field.key}`"
               class="field-block"
             >
               <label class="field-label">{{ field.displayLabel }}</label>
               <ToggleSwitch
                 v-if="field.type === 'boolean'"
                 :model-value="Boolean(field.value)"
-                @update:model-value="setPluginOptionField(index, field.path, $event)"
+                @update:model-value="setEntryField(entry.key, field.path, $event)"
               />
               <input
                 v-else-if="field.type === 'number'"
@@ -163,7 +159,11 @@
                 type="number"
                 class="field-input"
                 @input="
-                  setPluginNumberField(index, field.path, ($event.target as HTMLInputElement).value)
+                  setEntryNumberField(
+                    entry.key,
+                    field.path,
+                    ($event.target as HTMLInputElement).value,
+                  )
                 "
               />
               <template v-else-if="field.type === 'object'">
@@ -172,18 +172,18 @@
                   class="field-input json-input"
                   rows="3"
                   @input="
-                    handlePluginComplexField(
-                      index,
+                    handleEntryComplexField(
+                      entry.key,
                       field.path,
                       ($event.target as HTMLTextAreaElement).value,
                     )
                   "
                 />
                 <p
-                  v-if="getComplexFieldError(`plugins.${index}.${field.path}`)"
+                  v-if="getComplexFieldError(`plugins.${entry.key}.${field.path}`)"
                   class="status-text error field-error"
                 >
-                  {{ getComplexFieldError(`plugins.${index}.${field.path}`) }}
+                  {{ getComplexFieldError(`plugins.${entry.key}.${field.path}`) }}
                 </p>
               </template>
               <input
@@ -191,7 +191,7 @@
                 :value="field.value"
                 class="field-input"
                 @input="
-                  setPluginOptionField(index, field.path, ($event.target as HTMLInputElement).value)
+                  setEntryField(entry.key, field.path, ($event.target as HTMLInputElement).value)
                 "
               />
             </div>
@@ -530,7 +530,6 @@ import type {
   ConfigField,
   ConfigSectionKey,
   McpServerForm,
-  PluginEntry,
   ProviderForm,
 } from '../config-editor/types';
 import * as configEditor from '../config-editor/utils';
@@ -595,19 +594,13 @@ const itemCount = computed(() => {
   if (props.sectionKey === 'mcp') return mcpServers.value.length;
   if (props.sectionKey !== 'channels' && props.sectionKey !== 'plugins')
     return genericFields.value.length;
-  if (Array.isArray(sectionValue.value)) return sectionValue.value.length;
   if (configEditor.isRecord(sectionValue.value)) return Object.keys(sectionValue.value).length;
   return 0;
 });
 
-const channelEntries = computed<ChannelEntry[]>(() => {
+const entries = computed<ChannelEntry[]>(() => {
   if (!configEditor.isRecord(sectionValue.value)) return [];
   return Object.entries(sectionValue.value).map(([key, value]) => ({ key, value }));
-});
-
-const pluginEntries = computed<PluginEntry[]>(() => {
-  if (!Array.isArray(sectionValue.value)) return [];
-  return sectionValue.value.map(configEditor.normalizePluginEntry);
 });
 
 const providerEntries = computed<ProviderForm[]>(() => {
@@ -777,64 +770,59 @@ function handleChannelComplexField(channelKey: string, path: string, raw: string
   );
 }
 
-function removePlugin(index: number): void {
-  const next = [...getRawPlugins()];
-  next.splice(index, 1);
+// ─── Shared entry functions (channels + plugins) ──────────────────────
+
+function removeEntry(key: string): void {
+  if (!configEditor.isRecord(sectionValue.value)) return;
+  const next = { ...sectionValue.value };
+  delete next[key];
   sectionValue.value = next;
 }
 
-async function updatePluginField(
-  index: number,
-  key: 'name' | 'enabled',
-  value: string | boolean,
-): Promise<void> {
-  const previous = [...getRawPlugins()];
-  const next = [...previous];
-  const current = next[index];
-  if (!current) return;
-  next[index] = { ...current, [key]: value };
-  sectionValue.value = next;
+function getEntryEnabled(entry: ChannelEntry): boolean {
+  return configEditor.isRecord(entry.value) && typeof entry.value['enabled'] === 'boolean'
+    ? entry.value['enabled']
+    : true;
+}
 
-  if (key !== 'enabled') return;
-  const name = typeof current['name'] === 'string' ? current['name'] : '';
-  if (!name) return;
+async function toggleEntryEnabled(key: string): Promise<void> {
+  const current = configEditor.isRecord(sectionValue.value) ? sectionValue.value : {};
+  const entryValue = configEditor.isRecord(current[key]) ? current[key] : {};
+  const enabled = entryValue['enabled'] === false;
+  sectionValue.value = { ...current, [key]: { ...entryValue, enabled } };
 
   try {
-    await requestAdmin('set_plugin_enabled', { name, enabled: value });
+    const wsType = props.sectionKey === 'plugins' ? 'set_plugin_enabled' : 'set_channel_enabled';
+    await requestAdmin(wsType, { name: key, enabled });
     feedbackType.value = 'success';
-    feedback.value = `${name} ${value ? 'enabled' : 'disabled'}`;
+    feedback.value = `${key} ${enabled ? 'enabled' : 'disabled'}`;
   } catch (err) {
-    sectionValue.value = previous;
+    sectionValue.value = current;
     feedbackType.value = 'error';
-    feedback.value = err instanceof Error ? err.message : 'Failed to update plugin';
+    feedback.value = err instanceof Error ? err.message : 'Failed to update';
   }
 }
 
-function getPluginFields(plugin: PluginEntry): ConfigField[] {
-  const options = configEditor.isRecord(plugin['options']) ? plugin['options'] : {};
-  return getFields(options);
+function getEntryFields(entry: ChannelEntry): ConfigField[] {
+  return configEditor.isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
 }
 
-function setPluginOptionField(index: number, path: string, value: unknown): void {
-  const next = [...getRawPlugins()];
-  const current = next[index];
-  if (!current) return;
-  const options = configEditor.isRecord(current['options']) ? { ...current['options'] } : {};
-  setNestedValue(options, path, value);
-  next[index] = { ...current, options };
-  sectionValue.value = next;
+function setEntryField(entryKey: string, path: string, value: unknown): void {
+  const current = configEditor.isRecord(sectionValue.value) ? sectionValue.value : {};
+  const entryConfig = configEditor.isRecord(current[entryKey]) ? { ...current[entryKey] } : {};
+  setNestedValue(entryConfig, path, value);
+  sectionValue.value = { ...current, [entryKey]: entryConfig };
 }
 
-function setPluginNumberField(index: number, path: string, raw: string): void {
+function setEntryNumberField(entryKey: string, path: string, raw: string): void {
   const parsed = parseNumberInput(raw);
   if (parsed === null) return;
-  setPluginOptionField(index, path, parsed);
+  setEntryField(entryKey, path, parsed);
 }
 
-function handlePluginComplexField(index: number, path: string, raw: string): void {
-  handleComplexField(`plugins.${index}.${path}`, raw, (parsed) =>
-    setPluginOptionField(index, path, parsed),
-  );
+function handleEntryComplexField(entryKey: string, path: string, raw: string): void {
+  const errorKey = `${props.sectionKey}.${entryKey}.${path}`;
+  handleComplexField(errorKey, raw, (parsed) => setEntryField(entryKey, path, parsed));
 }
 
 function handleComplexField(
@@ -1182,11 +1170,6 @@ function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: st
     oldProviderKey,
     newProviderKey,
   );
-}
-
-function getRawPlugins(): Record<string, unknown>[] {
-  if (!Array.isArray(sectionValue.value)) return [];
-  return sectionValue.value.map((item) => (configEditor.isRecord(item) ? { ...item } : {}));
 }
 
 onMounted(() => {

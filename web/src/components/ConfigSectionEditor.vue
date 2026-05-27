@@ -37,7 +37,7 @@
 
         <template v-if="sectionKey === 'channels'">
           <div
-            v-for="entry in channelEntries"
+            v-for="entry in entries"
             :key="entry.key"
             class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
           >
@@ -55,14 +55,14 @@
                     Enabled
                   </label>
                   <ToggleSwitch
-                    :model-value="getChannelEnabled(entry)"
-                    @update:model-value="toggleChannelEnabled(entry.key)"
+                    :model-value="getEntryEnabled(entry)"
+                    @update:model-value="toggleEntryEnabled(entry.key)"
                   />
                 </div>
                 <button
                   type="button"
                   class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed"
-                  @click="removeChannel(entry.key)"
+                  @click="removeEntry(entry.key)"
                 >
                   <TrashIcon class="w-4 h-4" />
                 </button>
@@ -78,7 +78,7 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <template
-                    v-for="field in getChannelFields(entry)"
+                    v-for="field in getEntryFields(entry)"
                     :key="`${entry.key}-${field.key}`"
                   >
                     <div class="mb-5">
@@ -90,7 +90,7 @@
                       <template v-if="field.type === 'boolean'">
                         <ToggleSwitch
                           :model-value="Boolean(field.value)"
-                          @update:model-value="setChannelField(entry.key, field.path, $event)"
+                          @update:model-value="setEntryField(entry.key, field.path, $event)"
                         />
                       </template>
                       <input
@@ -99,7 +99,7 @@
                         type="number"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
                         @input="
-                          setChannelField(
+                          setEntryField(
                             entry.key,
                             field.path,
                             parseFloat(($event.target as HTMLInputElement).value) || 0,
@@ -112,7 +112,7 @@
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
                         rows="3"
                         @input="
-                          handleChannelComplexField(
+                          handleEntryComplexField(
                             entry.key,
                             field.path,
                             ($event.target as HTMLTextAreaElement).value,
@@ -124,7 +124,7 @@
                         :value="field.value"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
                         @input="
-                          setChannelField(
+                          setEntryField(
                             entry.key,
                             field.path,
                             ($event.target as HTMLInputElement).value,
@@ -141,14 +141,14 @@
 
         <template v-else>
           <div
-            v-for="(plugin, index) in pluginEntries"
-            :key="`${plugin.name}-${index}`"
+            v-for="entry in entries"
+            :key="entry.key"
             class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
           >
             <div class="flex items-center justify-between gap-4 mb-0">
               <div>
                 <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">
-                  {{ plugin.name || `Plugin ${index + 1}` }}
+                  {{ entry.key || `Plugin ${entry.key}` }}
                 </div>
               </div>
               <div class="flex items-center gap-2.5 mb-0">
@@ -159,14 +159,14 @@
                     Enabled
                   </label>
                   <ToggleSwitch
-                    :model-value="plugin.enabled"
-                    @update:model-value="updatePluginField(index, 'enabled', $event)"
+                    :model-value="getEntryEnabled(entry)"
+                    @update:model-value="toggleEntryEnabled(entry.key)"
                   />
                 </div>
                 <button
                   type="button"
                   class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed"
-                  @click="removePlugin(index)"
+                  @click="removeEntry(entry.key)"
                 >
                   <TrashIcon class="w-4 h-4" />
                 </button>
@@ -175,7 +175,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
               <div
-                v-if="getPluginFields(plugin).length > 0"
+                v-if="getEntryFields(entry).length > 0"
                 class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3"
               >
                 <div
@@ -185,8 +185,8 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <template
-                    v-for="field in getPluginFields(plugin)"
-                    :key="`plugin-${index}-${field.key}`"
+                    v-for="field in getEntryFields(entry)"
+                    :key="`${entry.key}-${field.key}`"
                   >
                     <div class="mb-5">
                       <label
@@ -197,7 +197,7 @@
                       <template v-if="field.type === 'boolean'">
                         <ToggleSwitch
                           :model-value="Boolean(field.value)"
-                          @update:model-value="setPluginOptionField(index, field.path, $event)"
+                          @update:model-value="setEntryField(entry.key, field.path, $event)"
                         />
                       </template>
                       <input
@@ -206,8 +206,8 @@
                         type="number"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
                         @input="
-                          setPluginOptionField(
-                            index,
+                          setEntryField(
+                            entry.key,
                             field.path,
                             parseFloat(($event.target as HTMLInputElement).value) || 0,
                           )
@@ -219,8 +219,8 @@
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
                         rows="3"
                         @input="
-                          handlePluginComplexField(
-                            index,
+                          handleEntryComplexField(
+                            entry.key,
                             field.path,
                             ($event.target as HTMLTextAreaElement).value,
                           )
@@ -231,8 +231,8 @@
                         :value="field.value"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
                         @input="
-                          setPluginOptionField(
-                            index,
+                          setEntryField(
+                            entry.key,
                             field.path,
                             ($event.target as HTMLInputElement).value,
                           )
@@ -258,13 +258,7 @@ import ToggleSwitch from '@/components/ToggleSwitch.vue';
 import { isRecord, toJson } from '@/lib/object';
 import { TrashIcon } from '@heroicons/vue/24/outline';
 
-interface PluginEntry extends Record<string, unknown> {
-  name: string;
-  enabled: boolean;
-  options?: Record<string, unknown>;
-}
-
-interface ChannelEntry {
+interface EntryItem {
   key: string;
   value: unknown;
 }
@@ -278,27 +272,19 @@ const props = defineProps<{
 const ws = useWebSocket();
 const { showToast } = useToast();
 
-const sectionValue = ref<unknown>(props.sectionKey === 'plugins' ? [] : {});
+const sectionValue = ref<Record<string, unknown>>({});
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
-const sectionKey = computed(() => props.sectionKey);
-const entryNoun = computed(() => (props.sectionKey === 'plugins' ? 'plugin' : 'channel'));
 
 const itemCount = computed(() => {
-  if (Array.isArray(sectionValue.value)) return sectionValue.value.length;
-  if (isRecord(sectionValue.value)) return Object.keys(sectionValue.value).length;
-  return 0;
+  if (!isRecord(sectionValue.value)) return 0;
+  return Object.keys(sectionValue.value).length;
 });
 
-const channelEntries = computed<ChannelEntry[]>(() => {
+const entries = computed<EntryItem[]>(() => {
   if (!isRecord(sectionValue.value)) return [];
   return Object.entries(sectionValue.value).map(([key, value]) => ({ key, value }));
-});
-
-const pluginEntries = computed<PluginEntry[]>(() => {
-  if (!Array.isArray(sectionValue.value)) return [];
-  return sectionValue.value.map(normalizePluginEntry);
 });
 
 async function loadConfig() {
@@ -327,31 +313,32 @@ async function saveSection() {
   }
 }
 
-function removeChannel(key: string) {
+function removeEntry(key: string) {
   if (!isRecord(sectionValue.value)) return;
   const next = { ...sectionValue.value };
   delete next[key];
   sectionValue.value = next;
 }
 
-function getChannelEnabled(entry: ChannelEntry): boolean {
+function getEntryEnabled(entry: EntryItem): boolean {
   return isRecord(entry.value) && typeof entry.value['enabled'] === 'boolean'
     ? entry.value['enabled']
     : true;
 }
 
-async function toggleChannelEnabled(key: string) {
+async function toggleEntryEnabled(key: string) {
   const current = isRecord(sectionValue.value) ? sectionValue.value : {};
-  const channelValue = isRecord(current[key]) ? current[key] : {};
-  const enabled = channelValue['enabled'] === false;
-  sectionValue.value = { ...current, [key]: { ...channelValue, enabled } };
+  const entryValue = isRecord(current[key]) ? current[key] : {};
+  const enabled = entryValue['enabled'] === false;
+  sectionValue.value = { ...current, [key]: { ...entryValue, enabled } };
 
   try {
-    await ws.send('set_channel_enabled', { name: key, enabled });
+    const wsType = props.sectionKey === 'plugins' ? 'set_plugin_enabled' : 'set_channel_enabled';
+    await ws.send(wsType, { name: key, enabled });
     showToast('toast-success', `${key} ${enabled ? 'enabled' : 'disabled'}`);
   } catch (err) {
     sectionValue.value = current;
-    showToast('toast-error', err instanceof Error ? err.message : 'Failed to update channel');
+    showToast('toast-error', err instanceof Error ? err.message : 'Failed to update');
   }
 }
 
@@ -361,6 +348,10 @@ interface ConfigField {
   displayLabel: string;
   value: unknown;
   type: 'string' | 'number' | 'boolean' | 'object';
+}
+
+function getEntryFields(entry: EntryItem): ConfigField[] {
+  return isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
 }
 
 function getFields(record: Record<string, unknown>, skipKeys: string[] = []): ConfigField[] {
@@ -384,10 +375,6 @@ function getFields(record: Record<string, unknown>, skipKeys: string[] = []): Co
   return fields;
 }
 
-function getChannelFields(entry: ChannelEntry): ConfigField[] {
-  return isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
-}
-
 function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
@@ -401,11 +388,11 @@ function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string
   return result;
 }
 
-function setChannelField(channelKey: string, path: string, value: unknown) {
+function setEntryField(entryKey: string, path: string, value: unknown) {
   const current = isRecord(sectionValue.value) ? sectionValue.value : {};
-  const channelConfig = isRecord(current[channelKey]) ? { ...current[channelKey] } : {};
-  setNestedValue(channelConfig, path, value);
-  sectionValue.value = { ...current, [channelKey]: channelConfig };
+  const entryConfig = isRecord(current[entryKey]) ? { ...current[entryKey] } : {};
+  setNestedValue(entryConfig, path, value);
+  sectionValue.value = { ...current, [entryKey]: entryConfig };
 }
 
 function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown) {
@@ -425,8 +412,8 @@ function setNestedValue(obj: Record<string, unknown>, path: string, value: unkno
   }
 }
 
-function handleChannelComplexField(channelKey: string, path: string, raw: string) {
-  handleComplexField(raw, (parsed) => setChannelField(channelKey, path, parsed));
+function handleEntryComplexField(entryKey: string, path: string, raw: string) {
+  handleComplexField(raw, (parsed) => setEntryField(entryKey, path, parsed));
 }
 
 function formatFieldLabel(key: string): string {
@@ -441,52 +428,6 @@ function formatFieldLabel(key: string): string {
     .join(' > ');
 }
 
-function removePlugin(index: number) {
-  const next = [...getRawPlugins()];
-  next.splice(index, 1);
-  sectionValue.value = next;
-}
-
-async function updatePluginField(index: number, key: 'name' | 'enabled', value: string | boolean) {
-  const previous = [...getRawPlugins()];
-  const next = [...previous];
-  const current = next[index];
-  if (!current) return;
-  next[index] = { ...current, [key]: value };
-  sectionValue.value = next;
-
-  if (key !== 'enabled') return;
-
-  const name = typeof current['name'] === 'string' ? current['name'] : '';
-  if (!name) return;
-  try {
-    await ws.send('set_plugin_enabled', { name, enabled: value });
-    showToast('toast-success', `${name} ${value ? 'enabled' : 'disabled'}`);
-  } catch (err) {
-    sectionValue.value = previous;
-    showToast('toast-error', err instanceof Error ? err.message : 'Failed to update plugin');
-  }
-}
-
-function getPluginFields(plugin: PluginEntry): ConfigField[] {
-  const options = isRecord(plugin['options']) ? plugin['options'] : {};
-  return getFields(options);
-}
-
-function setPluginOptionField(index: number, path: string, value: unknown) {
-  const next = [...getRawPlugins()];
-  const current = next[index];
-  if (!current) return;
-  const options = isRecord(current['options']) ? { ...current['options'] } : {};
-  setNestedValue(options, path, value);
-  next[index] = { ...current, options };
-  sectionValue.value = next;
-}
-
-function handlePluginComplexField(index: number, path: string, raw: string) {
-  handleComplexField(raw, (parsed) => setPluginOptionField(index, path, parsed));
-}
-
 function handleComplexField(raw: string, setParsed: (value: unknown) => void) {
   let parsed: unknown;
   try {
@@ -497,26 +438,10 @@ function handleComplexField(raw: string, setParsed: (value: unknown) => void) {
   setParsed(parsed);
 }
 
-function getSectionValue(source: unknown, key: 'channels' | 'plugins'): unknown {
-  if (!isRecord(source)) return key === 'plugins' ? [] : {};
+function getSectionValue(source: unknown, key: 'channels' | 'plugins'): Record<string, unknown> {
+  if (!isRecord(source)) return {};
   const value = source[key];
-  if (key === 'plugins') return Array.isArray(value) ? value : [];
   return isRecord(value) ? value : {};
-}
-
-function normalizePluginEntry(value: unknown): PluginEntry {
-  const source = isRecord(value) ? value : {};
-  return {
-    ...source,
-    name: typeof source['name'] === 'string' ? source['name'] : '',
-    enabled: typeof source['enabled'] === 'boolean' ? source['enabled'] : true,
-    options: isRecord(source['options']) ? source['options'] : undefined,
-  };
-}
-
-function getRawPlugins(): Record<string, unknown>[] {
-  if (!Array.isArray(sectionValue.value)) return [];
-  return sectionValue.value.map((item) => (isRecord(item) ? { ...item } : {}));
 }
 
 onMounted(() => {
