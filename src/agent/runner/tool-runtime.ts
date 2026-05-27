@@ -62,11 +62,19 @@ export function calculateToolResultBudget(
   content: string,
 ): { maxToolResultTokens: number; maxToolResultChars: number } {
   const compressionLimitTokens = Math.floor(model.contextWindow * compressionThreshold);
-  const historyTextLength = history.reduce(
-    (total, message) => total + extractMessageText(message).length,
-    0,
-  );
-  const usedTokens = Math.ceil(historyTextLength / 3.5) + Math.ceil(content.length / 3.5);
+  // 与 token-utils.ts 的 estimateApproximateTokens 保持口径一致
+  let charCount = 0;
+  for (const message of history) {
+    charCount += extractMessageText(message).length;
+    if (message.role === 'assistant' && Array.isArray(message.content)) {
+      for (const block of message.content as unknown as Array<Record<string, unknown>>) {
+        if (block['type'] === 'toolCall') {
+          charCount += JSON.stringify(block['arguments'] ?? {}).length;
+        }
+      }
+    }
+  }
+  const usedTokens = Math.ceil(charCount / 3.5) + Math.ceil(content.length / 3.5);
   const remainingTokens = Math.max(0, compressionLimitTokens - usedTokens);
   const maxToolResultTokens = Math.floor(remainingTokens * 0.5);
   return {
