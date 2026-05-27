@@ -62,7 +62,7 @@ describe('estimateApproximateTokens', () => {
         timestamp: Date.now(),
       },
     ];
-    // Only 'Some text' (9 chars) counts
-    expect(estimateApproximateTokens(messages)).toBe(3);
+    // 'Some text' (9 chars) + toolCall JSON args '{}' (2 chars) = 11 / 3.5 ≈ 4
+    expect(estimateApproximateTokens(messages)).toBe(4);
   });
 });
