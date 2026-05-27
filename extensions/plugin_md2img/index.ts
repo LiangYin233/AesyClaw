@@ -49,27 +49,21 @@ function isLatex(text: string): boolean {
  */
 function preprocessLatex(markdown: string): string {
   // Display math first
-  let result = markdown.replace(
-    /(?<!\\)\$\$([\s\S]*?)\$\$/g,
-    (_match: string, tex: string) => {
-      try {
-        return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false });
-      } catch {
-        return `$${tex}$$`;
-      }
-    },
-  );
+  let result = markdown.replace(/(?<!\\)\$\$([\s\S]*?)\$\$/g, (_match: string, tex: string) => {
+    try {
+      return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false });
+    } catch {
+      return `$${tex}$$`;
+    }
+  });
   // Inline math
-  result = result.replace(
-    /(?<!\\)\$([\s\S]*?)\$/g,
-    (_match: string, tex: string) => {
-      try {
-        return katex.renderToString(tex.trim(), { throwOnError: false });
-      } catch {
-        return `$${tex}$`;
-      }
-    },
-  );
+  result = result.replace(/(?<!\\)\$([\s\S]*?)\$/g, (_match: string, tex: string) => {
+    try {
+      return katex.renderToString(tex.trim(), { throwOnError: false });
+    } catch {
+      return `$${tex}$`;
+    }
+  });
   return result;
 }
 
@@ -82,7 +76,11 @@ function preprocessLatex(markdown: string): string {
  * @param htmlTemplate - HTML 模板字符串，需包含 {{content}} 占位符
  * @returns 完整的 HTML 文档字符串
  */
-export function buildHtmlDocument(htmlContent: string, htmlTemplate: string, baseHref?: string): string {
+export function buildHtmlDocument(
+  htmlContent: string,
+  htmlTemplate: string,
+  baseHref?: string,
+): string {
   let doc = htmlTemplate.replace('{{content}}', htmlContent);
   if (baseHref) {
     doc = doc.replace('<head>', `<head><base href="${baseHref}">`);
@@ -170,9 +168,7 @@ async function renderToPng(
   } else {
     html = content;
   }
-  const baseHref = katexDistDir
-    ? `file:///${katexDistDir.replace(/\\/g, '/')}/`
-    : undefined;
+  const baseHref = katexDistDir ? `file:///${katexDistDir.replace(/\\/g, '/')}/` : undefined;
   const htmlDocument = buildHtmlDocument(html, htmlTemplate, baseHref);
   const render = options?.renderHtmlToPng ?? ((doc: string) => getRenderer().renderHtmlToPng(doc));
   return await render(htmlDocument);

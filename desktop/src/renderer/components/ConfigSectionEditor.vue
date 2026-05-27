@@ -40,15 +40,15 @@
             <div class="entry-controls">
               <label class="toggle-label">Enabled</label>
               <ToggleSwitch
-                :model-value="getChannelEnabled(entry)"
+                :model-value="getEntryEnabled(entry)"
                 :disabled="saving"
-                @update:model-value="toggleChannelEnabled(entry.key)"
+                @update:model-value="toggleEntryEnabled(entry.key)"
               />
               <button
                 class="danger-btn"
                 type="button"
                 title="Remove channel"
-                @click="removeChannel(entry.key)"
+                @click="removeEntry(entry.key)"
               >
                 ×
               </button>
@@ -56,12 +56,12 @@
           </div>
 
           <div class="fields-title">Configuration</div>
-          <div v-if="getChannelFields(entry).length === 0" class="empty-inline">
+          <div v-if="getEntryFields(entry).length === 0" class="empty-inline">
             No editable fields.
           </div>
           <div v-else class="field-grid">
             <div
-              v-for="field in getChannelFields(entry)"
+              v-for="field in getEntryFields(entry)"
               :key="`${entry.key}-${field.key}`"
               class="field-block"
             >
@@ -69,7 +69,7 @@
               <ToggleSwitch
                 v-if="field.type === 'boolean'"
                 :model-value="Boolean(field.value)"
-                @update:model-value="setChannelField(entry.key, field.path, $event)"
+                @update:model-value="setEntryField(entry.key, field.path, $event)"
               />
               <input
                 v-else-if="field.type === 'number'"
@@ -77,7 +77,7 @@
                 type="number"
                 class="field-input"
                 @input="
-                  setChannelNumberField(
+                  setEntryNumberField(
                     entry.key,
                     field.path,
                     ($event.target as HTMLInputElement).value,
@@ -90,7 +90,7 @@
                   class="field-input json-input"
                   rows="3"
                   @input="
-                    handleChannelComplexField(
+                    handleEntryComplexField(
                       entry.key,
                       field.path,
                       ($event.target as HTMLTextAreaElement).value,
@@ -98,10 +98,10 @@
                   "
                 />
                 <p
-                  v-if="getComplexFieldError(`channels.${entry.key}.${field.path}`)"
+                  v-if="getComplexFieldError(`${props.sectionKey}.${entry.key}.${field.path}`)"
                   class="status-text error field-error"
                 >
-                  {{ getComplexFieldError(`channels.${entry.key}.${field.path}`) }}
+                  {{ getComplexFieldError(`${props.sectionKey}.${entry.key}.${field.path}`) }}
                 </p>
               </template>
               <input
@@ -109,7 +109,7 @@
                 :value="field.value"
                 class="field-input"
                 @input="
-                  setChannelField(entry.key, field.path, ($event.target as HTMLInputElement).value)
+                  setEntryField(entry.key, field.path, ($event.target as HTMLInputElement).value)
                 "
               />
             </div>
@@ -666,109 +666,6 @@ function resetSection(): void {
   void loadConfig(true);
 }
 
-function removeChannel(key: string): void {
-  if (!configEditor.isRecord(sectionValue.value)) return;
-  const next = { ...sectionValue.value };
-  delete next[key];
-  sectionValue.value = next;
-}
-
-function getChannelEnabled(entry: ChannelEntry): boolean {
-  return configEditor.isRecord(entry.value) && typeof entry.value['enabled'] === 'boolean'
-    ? entry.value['enabled']
-    : true;
-}
-
-async function toggleChannelEnabled(key: string): Promise<void> {
-  const current = configEditor.isRecord(sectionValue.value) ? sectionValue.value : {};
-  const channelValue = configEditor.isRecord(current[key]) ? current[key] : {};
-  const enabled = channelValue['enabled'] === false;
-  sectionValue.value = { ...current, [key]: { ...channelValue, enabled } };
-
-  try {
-    await requestAdmin('set_channel_enabled', { name: key, enabled });
-    feedbackType.value = 'success';
-    feedback.value = `${key} ${enabled ? 'enabled' : 'disabled'}`;
-  } catch (err) {
-    sectionValue.value = current;
-    feedbackType.value = 'error';
-    feedback.value = err instanceof Error ? err.message : 'Failed to update channel';
-  }
-}
-
-function getChannelFields(entry: ChannelEntry): ConfigField[] {
-  return configEditor.isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
-}
-
-function getFields(record: Record<string, unknown>, skipKeys: string[] = []): ConfigField[] {
-  const fields: ConfigField[] = [];
-  const skip = new Set(skipKeys);
-  const flat = flattenObject(record);
-  for (const [key, val] of Object.entries(flat)) {
-    if (skip.has(key)) continue;
-    let type: ConfigField['type'] = 'string';
-    if (typeof val === 'number') type = 'number';
-    else if (typeof val === 'boolean') type = 'boolean';
-    else if (typeof val === 'object' && val !== null) type = 'object';
-    fields.push({
-      path: key,
-      key,
-      displayLabel: configEditor.formatFieldLabel(key),
-      value: val,
-      type,
-    });
-  }
-  return fields;
-}
-
-function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (configEditor.isRecord(val) && Object.keys(val).length > 0) {
-      Object.assign(result, flattenObject(val, path));
-    } else {
-      result[path] = val;
-    }
-  }
-  return result;
-}
-
-function setChannelField(channelKey: string, path: string, value: unknown): void {
-  const current = configEditor.isRecord(sectionValue.value) ? sectionValue.value : {};
-  const channelConfig = configEditor.isRecord(current[channelKey])
-    ? { ...current[channelKey] }
-    : {};
-  setNestedValue(channelConfig, path, value);
-  sectionValue.value = { ...current, [channelKey]: channelConfig };
-}
-
-function setChannelNumberField(channelKey: string, path: string, raw: string): void {
-  const parsed = parseNumberInput(raw);
-  if (parsed === null) return;
-  setChannelField(channelKey, path, parsed);
-}
-
-function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
-  const parts = path.split('.');
-  let current = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
-    if (!part) continue;
-    if (!configEditor.isRecord(current[part])) {
-      current[part] = {};
-    }
-    current = current[part] as Record<string, unknown>;
-  }
-  const lastPart = parts[parts.length - 1];
-  if (lastPart) current[lastPart] = value;
-}
-
-function handleChannelComplexField(channelKey: string, path: string, raw: string): void {
-  handleComplexField(`channels.${channelKey}.${path}`, raw, (parsed) =>
-    setChannelField(channelKey, path, parsed),
-  );
-}
 
 // ─── Shared entry functions (channels + plugins) ──────────────────────
 

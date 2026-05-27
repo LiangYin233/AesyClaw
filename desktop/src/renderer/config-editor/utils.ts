@@ -4,7 +4,6 @@ import type {
   JsonParseResult,
   McpServerForm,
   McpTransport,
-  PluginEntry,
   ProviderForm,
   ProviderModelForm,
 } from './types';
@@ -185,16 +184,6 @@ export function getDefaultSectionValue(key: ConfigSectionKey): unknown {
   return {};
 }
 
-// no longer used — plugins now use object format like channels
-export function normalizePluginEntry(value: unknown): PluginEntry {
-  const source = isRecord(value) ? value : {};
-  return {
-    ...source,
-    name: typeof source['name'] === 'string' ? source['name'] : '',
-    enabled: typeof source['enabled'] === 'boolean' ? source['enabled'] : true,
-    options: isRecord(source['options']) ? source['options'] : undefined,
-  };
-}
 
 export function formatFieldLabel(key: string): string {
   return key
