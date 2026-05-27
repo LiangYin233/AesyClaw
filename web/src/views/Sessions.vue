@@ -121,123 +121,70 @@
                     </div>
                     <div v-else class="flex flex-col gap-3 p-4 max-h-[480px] overflow-y-auto">
                       <div
-                        v-for="(msg, idx) in messages"
-                        :key="messageKey(msg, idx)"
+                        v-for="(item, idx) in displayMessages"
+                        :key="'d' + idx"
                         class="flex flex-col max-w-[85%]"
-                        :class="msg.role === 'user' ? 'self-end' : 'self-start'"
+                        :class="item.kind === 'msg' && item.role === 'user' ? 'self-end' : 'self-start'"
                       >
-                        <!-- Role badge + timestamp -->
-                        <div
-                          class="flex items-center gap-2 mb-1"
-                          :class="msg.role === 'user' ? 'flex-row-reverse' : ''"
-                        >
-                          <span
-                            class="inline-flex items-center px-2 py-[0.15rem] rounded font-heading text-[0.7rem] font-medium lowercase"
-                            :class="
-                              msg.role === 'user'
-                                ? 'bg-[rgba(106,155,204,0.12)] text-[#4a7aa8]'
-                                : msg.role === 'toolResult'
-                                  ? 'bg-[rgba(196,91,91,0.10)] text-[#a85a5a]'
-                                  : 'bg-[rgba(120,140,93,0.12)] text-[#5a6e47]'
-                            "
-                          >
-                            {{ msg.role === 'toolResult' ? 'tool' : msg.role }}
-                          </span>
-                          <span class="font-heading text-[0.7rem] text-mid-gray">{{
-                            formatTime(msg.timestamp)
-                          }}</span>
-                        </div>
-
-                        <!-- User / text-only assistant bubble -->
-                        <div
-                          v-if="msg.role !== 'toolResult'"
-                          class="py-2.5 px-3 rounded-sm font-body text-sm leading-relaxed text-dark break-words border border-[var(--color-border)]"
-                          :class="msg.role === 'user' ? 'bg-light-gray' : 'bg-surface'"
-                        >
-                          {{ msg.content }}
-                        </div>
-
-                        <!-- Assistant tool calls (inline cards) -->
-                        <div
-                          v-if="msg.role === 'assistant' && msg.toolData"
-                          class="flex flex-col gap-1.5 mt-1.5"
-                        >
+                        <div v-if="item.kind === 'msg'">
                           <div
-                            v-for="(tc, tci) in parseToolCalls(msg.toolData)"
-                            :key="tci"
+                            class="flex items-center gap-2 mb-1"
+                            :class="item.role === 'user' ? 'flex-row-reverse' : ''"
+                          >
+                            <span
+                              class="inline-flex items-center px-2 py-[0.15rem] rounded font-heading text-[0.7rem] font-medium lowercase"
+                              :class="
+                                item.role === 'user'
+                                  ? 'bg-[rgba(106,155,204,0.12)] text-[#4a7aa8]'
+                                  : 'bg-[rgba(120,140,93,0.12)] text-[#5a6e47]'
+                              "
+                            >
+                              {{ item.role }}
+                            </span>
+                            <span class="font-heading text-[0.7rem] text-mid-gray">{{
+                              formatTime(item.timestamp)
+                            }}</span>
+                          </div>
+                          <div
+                            class="py-2.5 px-3 rounded-sm font-body text-sm leading-relaxed text-dark break-words border border-[var(--color-border)]"
+                            :class="item.role === 'user' ? 'bg-light-gray' : 'bg-surface'"
+                          >
+                            {{ item.content }}
+                          </div>
+                        </div>
+                        <div v-if="item.kind === 'tool'">
+                          <div
                             class="border border-[var(--color-border)] rounded-sm overflow-hidden bg-surface"
+                            :class="{ 'border-[rgba(196,91,91,0.4)]': item.error }"
                           >
                             <div
                               class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none font-heading text-xs text-mid-gray transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
-                              @click="toggleToolDetail(idx + '-' + tci)"
+                              @click="toggleToolDetail('t' + idx)"
                             >
                               <span
                                 class="text-[10px] w-3 shrink-0 transition-transform duration-[0.2s] ease"
-                                :class="{ 'rotate-90': toolDetailExpanded === idx + '-' + tci }"
-                                >▸</span
+                                :class="{ 'rotate-90': toolDetailExpanded === 't' + idx }"
+                                >&#9658;</span
                               >
                               <span
-                                class="w-[7px] h-[7px] rounded-full shrink-0 bg-[var(--color-accent-green)]"
+                                class="w-[7px] h-[7px] rounded-full shrink-0"
+                                :class="item.error ? 'bg-[var(--color-danger)]' : 'bg-[var(--color-accent-green)]'"
                               ></span>
-                              <span>{{ tc.name }}</span>
+                              <span>{{ item.name }}</span>
                             </div>
                             <div
-                              v-if="toolDetailExpanded === idx + '-' + tci"
-                              class="border-t border-[var(--color-border)] p-3"
+                              v-if="toolDetailExpanded === 't' + idx"
+                              class="border-t border-[var(--color-border)] p-3 flex flex-col gap-3"
                             >
-                              <div
-                                class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5"
-                              >
-                                Args
+                              <div>
+                                <div class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5">Args</div>
+                                <pre class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed">{{ JSON.stringify(item.args, null, 2) }}</pre>
                               </div>
-                              <pre
-                                class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed"
-                                >{{ JSON.stringify(tc.arguments, null, 2) }}</pre
-                              >
+                              <div v-if="item.result !== undefined">
+                                <div class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5">Result</div>
+                                <pre class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed bg-[rgba(20,20,19,0.02)] rounded p-2">{{ item.result || '(empty)' }}</pre>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-
-                        <!-- Tool result card -->
-                        <div
-                          v-if="msg.role === 'toolResult'"
-                          class="border border-[var(--color-border)] rounded-sm overflow-hidden bg-surface"
-                          :class="{
-                            'border-[rgba(196,91,91,0.4)]': parseToolResult(msg.toolData).isError,
-                          }"
-                        >
-                          <div
-                            class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none font-heading text-xs text-mid-gray transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
-                            @click="toggleToolDetail(idx)"
-                          >
-                            <span
-                              class="text-[10px] w-3 shrink-0 transition-transform duration-[0.2s] ease"
-                              :class="{ 'rotate-90': toolDetailExpanded === idx }"
-                              >▸</span
-                            >
-                            <span
-                              class="w-[7px] h-[7px] rounded-full shrink-0"
-                              :class="
-                                parseToolResult(msg.toolData).isError
-                                  ? 'bg-[var(--color-danger)]'
-                                  : 'bg-[var(--color-accent-green)]'
-                              "
-                            ></span>
-                            <span>{{ parseToolResult(msg.toolData).toolName || 'Tool' }}</span>
-                          </div>
-                          <div
-                            v-if="toolDetailExpanded === idx"
-                            class="border-t border-[var(--color-border)] p-3"
-                          >
-                            <div
-                              class="font-heading text-[10px] font-semibold text-mid-gray uppercase tracking-[0.06em] mb-1.5"
-                            >
-                              Result
-                            </div>
-                            <pre
-                              class="font-mono text-xs text-dark whitespace-pre-wrap break-all max-h-[180px] overflow-y-auto m-0 leading-relaxed bg-[rgba(20,20,19,0.02)] rounded p-2"
-                              >{{ msg.content || '(empty)' }}</pre
-                            >
                           </div>
                         </div>
                       </div>
@@ -246,13 +193,13 @@
 
                   <div class="flex items-center justify-between pt-2">
                     <span class="font-heading text-xs font-medium text-dark"
-                      >{{ messages.length }} messages</span
+                      >{{ msgCount }} messages</span
                     >
                     <span class="font-body text-xs text-mid-gray">
-                      Started: {{ formatTime(messages[0]?.timestamp) }}
-                      <span v-if="messages.length > 0">
+                      Started: {{ formatTime(firstMsgTimestamp) }}
+                      <span v-if="displayMessages.length > 0">
                         &middot; Last activity:
-                        {{ formatTime(messages[messages.length - 1]?.timestamp) }}</span
+                        {{ formatTime(displayMessages[displayMessages.length - 1]?.timestamp) }}</span
                       >
                     </span>
                   </div>
@@ -272,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
 import {
   ChevronRightIcon,
@@ -290,6 +237,7 @@ const messages = ref<PersistableMessage[]>([]);
 const messagesLoading = ref(false);
 const openMenuSessionId = ref<string | null>(null);
 const toolDetailExpanded = ref<string | null>(null);
+
 async function loadSessions() {
   try {
     const data = await ws.send('get_sessions');
@@ -367,13 +315,6 @@ function formatDate(iso: string | null | undefined): string {
     })
   );
 }
-function messageKey(message: PersistableMessage, index: number): string {
-  const base = `${message.timestamp}:${message.role}`;
-  if (message.toolData) {
-    return `${base}:${message.toolData.slice(0, 40)}`;
-  }
-  return `${base}:${message.content.slice(0, 30)}`;
-}
 
 function toggleToolDetail(key: string | number): void {
   const k = String(key);
@@ -404,6 +345,98 @@ function parseToolResult(toolData: string | undefined): ToolResultShape {
     return { isError: false };
   }
 }
+
+// ─── 合并后的显示数据模型 ──────────────────────────────────
+
+type DisplayItem =
+  | {
+      kind: 'msg';
+      role: 'user' | 'assistant';
+      content: string;
+      timestamp?: string;
+    }
+  | {
+      kind: 'tool';
+      id: string;
+      name: string;
+      args: Record<string, unknown>;
+      result?: string;
+      error: boolean;
+      timestamp?: string;
+    };
+
+/**
+ * 将原始 messages 合并为显示用列表：toolResult 合并到对应的 toolCall 卡片中。
+ * 与 Desktop 的 loadSessionMessages 逻辑保持一致。
+ */
+function buildDisplayMessages(raw: PersistableMessage[]): DisplayItem[] {
+  const result: DisplayItem[] = [];
+  const toolIndex = new Map<string, DisplayItem & { kind: 'tool' }>();
+
+  for (const msg of raw) {
+    const ts = msg.timestamp;
+
+    if (msg.role === 'user') {
+      result.push({ kind: 'msg', role: 'user', content: msg.content, timestamp: ts });
+      continue;
+    }
+
+    if (msg.role === 'assistant') {
+      if (!msg.toolData) {
+        result.push({ kind: 'msg', role: 'assistant', content: msg.content, timestamp: ts });
+        continue;
+      }
+      if (msg.content) {
+        result.push({ kind: 'msg', role: 'assistant', content: msg.content, timestamp: ts });
+      }
+      for (const tc of parseToolCalls(msg.toolData)) {
+        const id = tc.id || tc.name;
+        const item: DisplayItem = {
+          kind: 'tool',
+          id,
+          name: tc.name,
+          args: tc.arguments ?? {},
+          error: false,
+          timestamp: ts,
+        };
+        result.push(item);
+        toolIndex.set(id, item as DisplayItem & { kind: 'tool' });
+      }
+      continue;
+    }
+
+    if (msg.role === 'toolResult') {
+      const meta = parseToolResult(msg.toolData);
+      const existing = toolIndex.get(meta.toolCallId);
+      if (existing) {
+        existing.result = msg.content;
+        existing.error = meta.isError;
+      } else {
+        result.push({
+          kind: 'tool',
+          id: meta.toolCallId || '',
+          name: meta.toolName || 'Tool',
+          args: {},
+          result: msg.content,
+          error: meta.isError,
+          timestamp: ts,
+        });
+      }
+      continue;
+    }
+  }
+
+  return result;
+}
+
+const displayMessages = computed(() => buildDisplayMessages(messages.value));
+
+const msgCount = computed(() => displayMessages.value.filter((d) => d.kind === 'msg').length);
+
+const firstMsgTimestamp = computed(() => {
+  const first = displayMessages.value.find((d) => d.kind === 'msg');
+  return first?.timestamp;
+});
 
 onMounted(loadSessions);
 </script>
