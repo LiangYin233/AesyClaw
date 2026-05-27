@@ -46,6 +46,47 @@ export function createContext(
     }
   }
 
+  /** 获取所有会话列表 */
+  async function getSessions(): Promise<
+    Array<{
+      id: string;
+      channel: string;
+      type: string;
+      chatId: string;
+      title: string;
+      firstUserMessage?: string;
+      messageCount?: number;
+      lastActivity?: string;
+    }>
+  > {
+    try {
+      const records = await deps.databaseManager.sessions.findAllSummaries();
+      return records.map((s) => ({
+        ...s,
+        title: (s.firstUserMessage ?? s.chatId).slice(0, 30),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /** 获取指定会话的消息历史 */
+  async function getSessionMessages(
+    sessionKey: SessionKey,
+  ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>> {
+    try {
+      const session =
+        deps.sessionManager.get(sessionKey) ?? (await deps.sessionManager.create(sessionKey));
+      const dbSession = await deps.databaseManager.sessions.findById(
+        (session as { sessionId: string }).sessionId,
+      );
+      if (!dbSession) return [];
+      return await deps.databaseManager.messages.loadHistory(dbSession.id);
+    } catch {
+      return [];
+    }
+  }
+
   return {
     name: channelName,
     config,
@@ -68,5 +109,7 @@ export function createContext(
       deps.commandRegistry.getAll().map(({ execute: _execute, ...command }) => command),
     logger: createScopedLogger(`channel:${channelName}`),
     getSessionContextUsage,
+    getSessions,
+    getSessionMessages,
   };
 }

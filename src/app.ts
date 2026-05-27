@@ -190,6 +190,7 @@ export class Application {
       paths: this.paths,
       llmAdapter: this.sub.llmAdapter,
       sessionManager: this.sub.sessionManager,
+      databaseManager: this.sub.databaseManager,
     });
 
     registerBuiltinCommands(this.sub.commandRegistry, {

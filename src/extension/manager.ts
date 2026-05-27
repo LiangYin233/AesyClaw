@@ -29,6 +29,15 @@ export type ExtensionManagerDependencies = {
     get(key: SessionKey): Session | undefined;
     create(key: SessionKey): Promise<Session>;
   };
+  databaseManager: {
+    sessions: {
+      findAllSummaries(): Promise<Array<{ id: string; channel: string; type: string; chatId: string; lastActivity?: string; firstUserMessage?: string; messageCount: number }>>;
+      findById(id: string): Promise<{ id: string; channel: string; type: string; chatId: string } | null>;
+    };
+    messages: {
+      loadHistory(sessionId: string): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
+    };
+  };
 };
 
 /**
@@ -56,6 +65,7 @@ export class ExtensionManager {
       commandRegistry: deps.commandRegistry,
       sessionManager: deps.sessionManager,
       llmAdapter: deps.llmAdapter,
+      databaseManager: deps.databaseManager,
     });
     this.pluginManager = new PluginManager({
       configManager: deps.configManager,

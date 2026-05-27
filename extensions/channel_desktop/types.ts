@@ -13,7 +13,9 @@ export type DesktopInboundMessage =
   | DesktopFileStartMessage
   | DesktopFileEndMessage
   | DesktopPongMessage
-  | DesktopGetContextUsageMessage;
+  | DesktopGetContextUsageMessage
+  | { type: 'get_sessions' }
+  | { type: 'get_session_messages'; sessionId: string };
 
 /** 用户发送的聊天消息 */
 export type DesktopChatMessage = {

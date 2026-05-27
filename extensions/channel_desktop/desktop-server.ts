@@ -140,6 +140,12 @@ export class DesktopServer {
       case 'cancel':
         void this.handleCancelMessage(connectionId, msg);
         break;
+      case 'get_sessions':
+        void this.handleGetSessions(connectionId, msg);
+        break;
+      case 'get_session_messages':
+        void this.handleGetSessionMessages(connectionId, msg);
+        break;
       case 'get_context_usage':
         void this.handleGetContextUsage(connectionId, msg);
         break;
@@ -237,6 +243,37 @@ export class DesktopServer {
       }
     } catch {
       this.logger.warn('获取会话上下文使用率失败', { sessionId: msg.sessionId });
+    }
+  }
+
+  private async handleGetSessions(
+    _connectionId: string,
+    _msg: { type: 'get_sessions' },
+  ): Promise<void> {
+    try {
+      const sessions = await this.options.context.getSessions();
+      // 广播给所有连接（只有一个 Desktop 客户端）
+      for (const conn of this.wsServer.sessions.activeConnections) {
+        conn.sendJson({ type: 'sessions', data: sessions });
+      }
+    } catch {
+      this.logger.warn('获取会话列表失败');
+    }
+  }
+
+  private async handleGetSessionMessages(
+    _connectionId: string,
+    msg: { type: 'get_session_messages'; sessionId: string },
+  ): Promise<void> {
+    try {
+      const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
+      const messages = await this.options.context.getSessionMessages(sessionKey);
+      const conn = this.sessions.getConnection(msg.sessionId);
+      if (conn) {
+        conn.sendJson({ type: 'session_messages', sessionId: msg.sessionId, data: messages });
+      }
+    } catch {
+      this.logger.warn('获取会话消息失败', { sessionId: msg.sessionId });
     }
   }
 

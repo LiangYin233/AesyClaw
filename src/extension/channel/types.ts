@@ -44,6 +44,23 @@ export type ChannelContext = {
   getSessionContextUsage(
     sessionKey: SessionKey,
   ): Promise<{ estimatedTokens: number; contextWindow: number; percentage: number }>;
+  /** 获取所有会话列表（用于 Desktop 同步） */
+  getSessions(): Promise<
+    Array<{
+      id: string;
+      channel: string;
+      type: string;
+      chatId: string;
+      title: string;
+      firstUserMessage?: string;
+      messageCount?: number;
+      lastActivity?: string;
+    }>
+  >;
+  /** 获取指定会话的消息历史 */
+  getSessionMessages(
+    sessionKey: SessionKey,
+  ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
 };
 
 export type ChannelPlugin = {
@@ -92,6 +109,17 @@ export type ChannelManagerDependencies = {
     create(key: SessionKey): Promise<Session>;
   };
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
+  databaseManager: {
+    sessions: {
+      findAllSummaries(): Promise<
+        Array<{ id: string; channel: string; type: string; chatId: string; lastActivity?: string; firstUserMessage?: string; messageCount: number }>
+      >;
+      findById(id: string): Promise<{ id: string; channel: string; type: string; chatId: string } | null>;
+    };
+    messages: {
+      loadHistory(sessionId: string): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
+    };
+  };
 };
 
 /** 从磁盘加载完成后的频道模块。 */
