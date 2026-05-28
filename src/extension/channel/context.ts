@@ -14,7 +14,7 @@ export function createContext(
   deps: ChannelManagerDependencies,
   paths: ResolvedPaths,
   channelName: string,
-  config: Record<string, unknown>,
+  ref: { current: Record<string, unknown> },
   receiveHook: ChannelContext['receive'],
   state: Record<string, unknown>,
 ): ChannelContext {
@@ -90,7 +90,9 @@ export function createContext(
 
   return {
     name: channelName,
-    config,
+    get config() {
+      return ref.current;
+    },
     configManager: deps.configManager,
     paths,
     receive: receiveHook,

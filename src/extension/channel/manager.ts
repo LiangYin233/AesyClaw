@@ -205,11 +205,12 @@ export class ChannelManager {
     }
 
     const state: Record<string, unknown> = {};
+    const ref: { current: Record<string, unknown> } = { current: config };
     const context = ctxFactory.createContext(
       this.deps,
       this.deps.paths,
       definition.name,
-      config,
+      ref,
       async (msg, sk, sender) => {
         await this.receive(definition.name, msg, sk, sender);
       },
