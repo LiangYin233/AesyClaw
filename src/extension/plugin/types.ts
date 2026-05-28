@@ -18,7 +18,10 @@ import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ChannelPlugin } from '@aesyclaw/extension/channel/types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
-import { validateExtension, discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils';
+import {
+  validateExtension,
+  discoverExtensionDefinition,
+} from '@aesyclaw/extension/extension-utils';
 /** 插件初始化时接收的受限上下文。 */
 export type PluginContext = {
   config: Record<string, unknown>;

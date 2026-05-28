@@ -19,7 +19,6 @@ import type { LoadedChannel } from './types';
 export type ChunkBuffers = Map<string, string>;
 
 export async function send(
-  loadedChannels: Map<string, LoadedChannel>,
   hooksBus: IHooksBus,
   requireLoaded: (channelName: string) => LoadedChannel,
   buffers: ChunkBuffers,
@@ -67,7 +66,6 @@ export async function send(
 }
 
 export async function receive(
-  loadedChannels: Map<string, LoadedChannel>,
   hooksBus: IHooksBus,
   pipeline: MessageProcessor,
   requireLoaded: (channelName: string) => LoadedChannel,
@@ -79,7 +77,7 @@ export async function receive(
 ): Promise<void> {
   requireLoaded(channelName);
   await pipeline.receiveWithSend(inbound, sessionKey, sender, async (signal) => {
-    await send(loadedChannels, hooksBus, requireLoaded, buffers, signal);
+    await send(hooksBus, requireLoaded, buffers, signal);
   });
 }
 

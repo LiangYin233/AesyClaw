@@ -19,7 +19,7 @@ export function createContext(
   state: Record<string, unknown>,
 ): ChannelContext {
   const owner = `channel:${channelName}` as const;
-
+  const log = createScopedLogger(`ctx:${channelName}`);
   /** 获取指定会话的上下文窗口使用率。 */
   async function getSessionContextUsage(sessionKey: SessionKey): Promise<{
     estimatedTokens: number;
@@ -42,7 +42,8 @@ export function createContext(
         percentage:
           contextWindow > 0 ? Math.round((estimatedTokens / contextWindow) * 10000) / 100 : 0,
       };
-    } catch {
+    } catch (err) {
+      log.warn('getSessionContextUsage 失败', err);
       return { estimatedTokens: 0, contextWindow: 0, percentage: 0 };
     }
   }
@@ -66,7 +67,8 @@ export function createContext(
         ...s,
         title: (s.firstUserMessage ?? s.chatId).slice(0, 30),
       }));
-    } catch {
+    } catch (err) {
+      log.warn('getSessions 失败', err);
       return [];
     }
   }
@@ -83,7 +85,8 @@ export function createContext(
       );
       if (!dbSession) return [];
       return await deps.databaseManager.messages.loadHistory(dbSession.id);
-    } catch {
+    } catch (err) {
+      log.warn('getSessionMessages 失败', err);
       return [];
     }
   }

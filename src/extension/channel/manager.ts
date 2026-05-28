@@ -7,7 +7,6 @@ import {
   type ExtensionLoaderLogger,
 } from '@aesyclaw/extension/extension-loader';
 import {
-  serializeSessionKey,
   type Message,
   type OutboundSignal,
   type SessionKey,
@@ -62,7 +61,6 @@ export class ChannelManager {
     for (const mod of modules) {
       this.register(mod.definition, 'disk');
     }
-    await this.startAll();
     await this.startAll();
   }
 
@@ -264,46 +262,7 @@ export class ChannelManager {
   private readonly chunkBuffers = new Map<string, string>();
 
   async send(signal: OutboundSignal): Promise<void> {
-    const loaded = this.requireLoaded(signal.session.channel);
-
-    if (loaded.definition.streaming) {
-      await loaded.definition.send(signal);
-      return;
-    }
-
-    // 非流式频道：缓存 chunk，done 时组装+过钩子后一次性发送
-    const key = `${signal.session.channel}:${serializeSessionKey(signal.session)}`;
-
-    switch (signal.kind) {
-      case 'chunk':
-        if (signal.text.length > 0) {
-          this.chunkBuffers.set(key, (this.chunkBuffers.get(key) ?? '') + signal.text);
-        }
-        return;
-
-      case 'done': {
-        const accumulated = this.chunkBuffers.get(key) ?? '';
-        this.chunkBuffers.delete(key);
-        if (accumulated) {
-          const message: Message = { components: [{ type: 'Plain', text: accumulated }] };
-          const sendCtx = { message, sessionKey: signal.session };
-          const result = await this.deps.hooksBus.dispatch('pipeline:send', sendCtx);
-          const processed: Message = result.action === 'respond' ? result.message : message;
-          await loaded.definition.send({
-            kind: 'message',
-            session: signal.session,
-            content: processed,
-            intermediate: false,
-          });
-        }
-        return;
-      }
-
-      default:
-        // message / toolCall / toolResult / error — 直接转发（message 已在 pipeline 中过钩子）
-        await loaded.definition.send(signal);
-        return;
-    }
+    await router.send(this.deps.hooksBus, (n) => this.requireLoaded(n), this.chunkBuffers, signal);
   }
 
   /**
@@ -316,7 +275,6 @@ export class ChannelManager {
     sender?: SenderInfo,
   ): Promise<void> {
     await router.receive(
-      this.loadedChannels,
       this.deps.hooksBus,
       this.deps.pipeline,
       (n) => this.requireLoaded(n),
@@ -413,16 +371,8 @@ export class ChannelManager {
     return channelConfig.getMergedConfig(this.deps.configManager, definition);
   }
 
-  private getConfigRecord(channelName: string): Record<string, unknown> {
-    return channelConfig.getConfigRecord(this.deps.configManager, channelName);
-  }
-
   private isEnabled(channelName: string): boolean {
     return channelConfig.isEnabled(this.deps.configManager, this.definitions, channelName);
-  }
-
-  private getAllConfigRecords(): Record<string, unknown> {
-    return channelConfig.getAllConfigRecords(this.deps.configManager);
   }
 
   private async setChannelEnabled(channelName: string, enabled: boolean): Promise<void> {
