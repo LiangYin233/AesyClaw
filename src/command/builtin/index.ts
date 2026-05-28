@@ -5,7 +5,7 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';
-import type { ExtensionManager } from '@aesyclaw/extension/manager';
+import type { PluginManager } from '@aesyclaw/extension/plugin/manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { AgentRegistry } from '@aesyclaw/agent/registry';
 import { createHelpCommand } from './help';
@@ -21,7 +21,7 @@ import { createSkillReloadCommand } from './skill-commands';
 /** 注册内置命令所需的完整依赖集合。 */
 export type BuiltinCommandDependencies = {
   roleManager: RoleManager;
-  pluginManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
+  pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
   sessionManager: Pick<SessionManager, 'create' | 'clear' | 'delete' | 'get'>;
   llmAdapter: LlmAdapter;
   skillManager: SkillManager;
@@ -46,7 +46,7 @@ export function registerBuiltinCommands(
     databaseManager: deps.databaseManager,
     agentRegistry: deps.agentRegistry,
   };
-  const pluginDeps: pluginCommands.PluginCommandDeps = { extensionManager: deps.pluginManager };
+  const pluginDeps: pluginCommands.PluginCommandDeps = { pluginManager: deps.pluginManager };
 
   registry.register(createHelpCommand(() => registry.getAll()));
   registry.register(

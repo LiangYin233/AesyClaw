@@ -18,7 +18,7 @@ export class ConfigManager {
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private readonly configStore: Conf<Record<string, unknown>>;
   private readonly fileWatcher: ConfigFileWatcher;
-  /** 配置重载后的回调（由 ExtensionManager 注册） */
+  /** 配置重载后的回调（由 Application.installHotReload 注册） */
   onConfigReloaded?: () => void;
 
   /**

@@ -77,8 +77,8 @@ on('set_channel_enabled', async (data, deps) => {
 });
 on('set_plugin_enabled', async (data, deps) => {
   const { name, enabled } = extractToggleData(data);
-  if (enabled) await deps.pluginManager.enablePlugin(name);
-  else await deps.pluginManager.disablePlugin(name);
+  if (enabled) await deps.pluginManager.enable(name);
+  else await deps.pluginManager.disable(name);
 });
 
 // ── 状态 / 用量 ──

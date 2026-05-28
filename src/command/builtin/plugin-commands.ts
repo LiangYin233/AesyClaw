@@ -9,14 +9,14 @@
  */
 
 import type { CommandDefinition, CommandContext, Message } from '@aesyclaw/core/types';
-import type { ExtensionManager } from '@aesyclaw/extension/manager';
+import type { PluginManager } from '@aesyclaw/extension/plugin/manager';
 
 export type PluginCommandDeps = {
-  extensionManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
+  pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
 };
 
 async function resolvePluginName(deps: PluginCommandDeps, rawName: string): Promise<string | null> {
-  const plugins = await deps.extensionManager.listPlugins();
+  const plugins = await deps.pluginManager.listPlugins();
   const plugin = plugins.find(
     (candidate) => candidate.name === rawName || candidate.directoryName === rawName,
   );
@@ -38,7 +38,7 @@ export function createPluginListCommand(deps: PluginCommandDeps): CommandDefinit
     usage: '/plugin list',
     scope: 'system',
     execute: async (_args: string[], _context: CommandContext): Promise<Message> => {
-      const plugins = await deps.extensionManager.listPlugins();
+      const plugins = await deps.pluginManager.listPlugins();
       if (plugins.length === 0) {
         return { components: [{ type: 'Plain', text: '当前没有发现插件。' }] };
       }
@@ -82,7 +82,7 @@ export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefin
         return { components: [{ type: 'Plain', text: `未找到插件：${name}` }] };
       }
 
-      await deps.extensionManager.enablePlugin(pluginName);
+      await deps.pluginManager.enable(pluginName);
       return { components: [{ type: 'Plain', text: `插件已启用：${pluginName}` }] };
     },
   };
@@ -116,7 +116,7 @@ export function createPluginDisableCommand(deps: PluginCommandDeps): CommandDefi
         return { components: [{ type: 'Plain', text: `未找到插件：${name}` }] };
       }
 
-      await deps.extensionManager.disablePlugin(pluginName);
+      await deps.pluginManager.disable(pluginName);
       return { components: [{ type: 'Plain', text: `插件已禁用：${pluginName}` }] };
     },
   };

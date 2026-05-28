@@ -21,10 +21,9 @@ import { ToolRegistry } from './tool/tool-registry';
 import { registerBuiltinCommands } from './command/builtin';
 import { registerBuiltinTools } from './tool/builtin';
 import { CronManager } from './cron/manager';
-import { ExtensionManager } from './extension/manager';
+import { PluginManager } from './extension/plugin/manager';
+import { ChannelManager } from './extension/channel/manager';
 import { WebUiManager } from './web/webui-manager';
-import { createAgentFactory } from './agent/factory';
-import { createRoleResolver } from './agent/role-resolver';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
 import type { ResolvedPaths } from './core/path-resolver';
@@ -60,17 +59,6 @@ function createSubsystems(): Deps {
   const compressionThreshold = configManager.get('agent.memory.compressionThreshold') as number;
   const hooksBus = new HooksBus();
 
-  const agentFactory = createAgentFactory({
-    llmAdapter,
-    roleManager,
-    skillManager,
-    toolRegistry,
-    hooksBus,
-    compressionThreshold,
-    agentRegistry,
-  });
-  const roleResolver = createRoleResolver();
-
   const pipeline = new Pipeline({
     sessionManager,
     commandRegistry,
@@ -80,8 +68,14 @@ function createSubsystems(): Deps {
     hooksBus,
     llmAdapter,
     compressionThreshold,
-    agentFactory,
-    roleResolver,
+    agentDeps: {
+      llmAdapter,
+      roleManager,
+      skillManager,
+      toolRegistry,
+      hooksBus,
+      compressionThreshold,
+    },
   });
 
   const mcpManager = new McpManager(configManager, toolRegistry, new SdkMcpClientFactory());
@@ -104,7 +98,8 @@ function createSubsystems(): Deps {
 
 export class Application {
   private sub: Deps;
-  private extensionManager: ExtensionManager | null = null;
+  private pluginManager: PluginManager | null = null;
+  private channelManager: ChannelManager | null = null;
   private webUiManager: WebUiManager | null = null;
   private cronManager: CronManager | null = null;
   private shuttingDown = false;
@@ -144,7 +139,8 @@ export class Application {
       () => this.sub.roleManager.destroy(),
       // 3. 停止扩展（频道+插件）：此时 pipeline/hooksBus 仍可用，
       //    但频道 destroy 中不应有出站消息发送
-      () => this.extensionManager?.destroy(),
+      () => this.channelManager?.destroy(),
+      () => this.pluginManager?.destroy(),
       // 4. 断开 MCP（MCP 工具已不再被调用）
       () => this.sub.mcpManager.disconnectAll(),
       // 5. 销毁 pipeline（清空 hooksBus）
@@ -181,21 +177,31 @@ export class Application {
   private async initExtensionRuntime(): Promise<void> {
     await this.sub.pipeline.initialize();
 
-    this.extensionManager = new ExtensionManager({
+    // ChannelManager 先于 PluginManager 构造（PluginManager 可选依赖 ChannelManager）
+    this.channelManager = new ChannelManager({
+      configManager: this.sub.configManager,
+      pipeline: this.sub.pipeline,
+      hooksBus: this.sub.pipeline.hooksBus,
+      paths: this.paths,
+      toolRegistry: this.sub.toolRegistry,
+      commandRegistry: this.sub.commandRegistry,
+      sessionManager: this.sub.sessionManager,
+      llmAdapter: this.sub.llmAdapter,
+      databaseManager: this.sub.databaseManager,
+    });
+    this.pluginManager = new PluginManager({
       configManager: this.sub.configManager,
       toolRegistry: this.sub.toolRegistry,
       commandRegistry: this.sub.commandRegistry,
       hooksBus: this.sub.pipeline.hooksBus,
-      pipeline: this.sub.pipeline,
+      channelManager: this.channelManager,
       paths: this.paths,
       llmAdapter: this.sub.llmAdapter,
-      sessionManager: this.sub.sessionManager,
-      databaseManager: this.sub.databaseManager,
     });
 
     registerBuiltinCommands(this.sub.commandRegistry, {
       roleManager: this.sub.roleManager,
-      pluginManager: this.extensionManager,
+      pluginManager: this.pluginManager,
       sessionManager: this.sub.sessionManager,
       llmAdapter: this.sub.llmAdapter,
       skillManager: this.sub.skillManager,
@@ -208,7 +214,9 @@ export class Application {
       agentRegistry: this.sub.agentRegistry,
     });
 
-    await this.extensionManager.setup();
+    // 先加载插件（插件 init 期间可能注册频道），再注册磁盘频道并启动全部
+    await this.pluginManager.setup();
+    await this.channelManager.setup();
   }
 
   private async initPeripheralRuntime(): Promise<void> {
@@ -218,15 +226,15 @@ export class Application {
     }
     await this.sub.mcpManager.connectAll();
 
-    if (!this.extensionManager) throw new Error('ExtensionManager 未初始化');
-    const em = this.extensionManager;
+    if (!this.channelManager) throw new Error('ChannelManager 未初始化');
+    if (!this.pluginManager) throw new Error('PluginManager 未初始化');
 
     this.cronManager = new CronManager({
       databaseManager: this.sub.databaseManager,
       pipeline: this.sub.pipeline,
       hooksBus: this.sub.pipeline.hooksBus,
       sessionManager: this.sub.sessionManager,
-      send: async (signal) => await em.channels.send(signal),
+      send: async (signal) => await this.channelManager!.send(signal),
     });
     await this.cronManager.initialize();
 
@@ -243,8 +251,8 @@ export class Application {
       sessionManager: this.sub.sessionManager,
       cronManager: this.cronManager,
       roleManager: this.sub.roleManager,
-      channelManager: em.channels,
-      pluginManager: em,
+      channelManager: this.channelManager,
+      pluginManager: this.pluginManager,
       toolRegistry: this.sub.toolRegistry,
       skillManager: this.sub.skillManager,
       paths: this.paths,
@@ -256,6 +264,16 @@ export class Application {
     await this.sub.configManager.syncDefaults();
     this.sub.configManager.startHotReload();
     this.sub.roleStore.startHotReload();
+
+    // 配置文件变更后自动热重载插件和频道配置
+    this.sub.configManager.onConfigReloaded = () => {
+      void this.pluginManager?.handleConfigReload().catch((err) => {
+        logger.error('插件配置热重载失败', err);
+      });
+      void this.channelManager?.handleConfigReload().catch((err) => {
+        logger.error('频道配置热重载失败', err);
+      });
+    };
   }
 
   private async runStep(name: string, fn: () => Promise<void>): Promise<void> {

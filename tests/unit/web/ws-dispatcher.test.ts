@@ -30,8 +30,8 @@ function createDeps() {
       { name: 'example', version: '0.1.0', description: 'Example plugin' },
       { name: 'exec', version: '0.1.0', description: 'Shell exec plugin' },
     ]),
-    enablePlugin: vi.fn(async () => undefined),
-    disablePlugin: vi.fn(async () => undefined),
+    enable: vi.fn(async () => undefined),
+    disable: vi.fn(async () => undefined),
   };
 
   return {

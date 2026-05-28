@@ -7,19 +7,14 @@ const agentSetRole = vi.fn(async () => undefined);
 const agentProcess = vi.fn(async () => ({
   components: [{ type: 'Plain' as const, text: 'agent' }],
 }));
-const resolveActiveRoleId = vi.fn(async () => undefined);
-
 vi.mock('@aesyclaw/agent/agent', () => ({
-  Agent: Object.assign(
-    vi.fn(function () {
-      return {
-        buildPrompt: vi.fn(() => ({ prompt: 'system', tools: [] })),
-        setRole: agentSetRole,
-        process: agentProcess,
-      };
-    }),
-    { resolveActiveRoleId },
-  ),
+  Agent: vi.fn(function () {
+    return {
+      buildPrompt: vi.fn(() => ({ prompt: 'system', tools: [] })),
+      setRole: agentSetRole,
+      process: agentProcess,
+    };
+  }),
 }));
 
 const sessionKey: SessionKey = { channel: 'test', type: 'private', chatId: '1' };
@@ -76,27 +71,28 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
       getRole: vi.fn(() => role),
     },
     databaseManager: {
+      sessions: {
+        findByKey: vi.fn(async () => null),
+      },
       roleBindings: {
         getActiveRole: vi.fn(async () => null),
       },
     },
     llmAdapter: {} as never,
     compressionThreshold: 0.8,
-    agentRegistry: {} as never,
-    agentFactory: {
-      create: vi.fn(async () => ({
-        process: vi.fn(async () => ({ components: [{ type: 'Plain', text: 'response' }] })),
-        setRole: vi.fn(),
-        callLLM: vi.fn(),
-        invalidatePromptCache: vi.fn(),
-        setModel: vi.fn(),
-        session: session as never,
-        model: {} as never,
-        activeRole: role,
-      })),
+    agentRegistry: {
+      getAgent: vi.fn(() => undefined),
     },
-    roleResolver: {
-      resolveActiveRoleId: vi.fn(async () => undefined),
+    agentDeps: {
+      llmAdapter: {} as never,
+      roleManager: {
+        getDefaultRole: vi.fn(() => role),
+        getRole: vi.fn(() => role),
+      },
+      skillManager: {} as never,
+      toolRegistry: {} as never,
+      hooksBus: {} as never,
+      compressionThreshold: 0.8,
     },
   };
 }

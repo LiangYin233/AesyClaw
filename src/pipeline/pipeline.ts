@@ -23,6 +23,7 @@ import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import { createTimeInjectHook } from './time-inject';
 import { createAutoCompactHook } from './auto-compact';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
+import { Agent } from '@aesyclaw/agent/agent';
 
 const logger = createScopedLogger('pipeline');
 
@@ -101,17 +102,34 @@ export class Pipeline implements MessageProcessor {
       // ── Step 2: 会话与角色解析 ────────────────────────────
       const session = await this.deps.sessionManager.create(sessionKey);
 
-      const activeRoleId = await this.deps.roleResolver.resolveActiveRoleId(
-        { sessionKey },
-        { databaseManager: this.deps.databaseManager, agentRegistry: this.deps.agentRegistry },
-      );
+      let activeRoleId: string | undefined;
+      const existingAgent = this.deps.agentRegistry.getAgent(sessionKey);
+      if (existingAgent?.roleId) {
+        activeRoleId = existingAgent.roleId;
+      } else {
+        const sessionRecord = await this.deps.databaseManager.sessions.findByKey(sessionKey);
+        if (sessionRecord) {
+          activeRoleId =
+            (await this.deps.databaseManager.roleBindings.getActiveRole(sessionRecord.id)) ??
+            undefined;
+        }
+      }
 
       const activeRole = activeRoleId
         ? this.deps.roleManager.getRole(activeRoleId)
         : this.deps.roleManager.getDefaultRole();
 
-      // ── Step 3: 创建 Agent ───────────────────────────────
-      const agent = await this.deps.agentFactory.create(session, activeRole);
+      const agent = new Agent({
+        session,
+        llmAdapter: this.deps.agentDeps.llmAdapter,
+        roleManager: this.deps.agentDeps.roleManager,
+        skillManager: this.deps.agentDeps.skillManager,
+        toolRegistry: this.deps.agentDeps.toolRegistry,
+        hooksBus: this.deps.agentDeps.hooksBus,
+        compressionThreshold: this.deps.agentDeps.compressionThreshold,
+        registry: this.deps.agentRegistry,
+      });
+      await agent.setRole(activeRole);
 
       // ── Step 4: 命令检测 ─────────────────────────────────
       const text = getMessageText(message);

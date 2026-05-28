@@ -15,7 +15,9 @@ import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import type { Session } from '@aesyclaw/session/core';
+import type { SessionManager } from '@aesyclaw/session';
+import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
+
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
 
@@ -114,34 +116,9 @@ export type ChannelManagerDependencies = {
   paths: Readonly<ResolvedPaths>;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
-  sessionManager: {
-    get(key: SessionKey): Session | undefined;
-    create(key: SessionKey): Promise<Session>;
-  };
+  sessionManager: SessionManager;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
-  databaseManager: {
-    sessions: {
-      findAllSummaries(): Promise<
-        Array<{
-          id: string;
-          channel: string;
-          type: string;
-          chatId: string;
-          lastActivity?: string;
-          firstUserMessage?: string;
-          messageCount: number;
-        }>
-      >;
-      findById(
-        id: string,
-      ): Promise<{ id: string; channel: string; type: string; chatId: string } | null>;
-    };
-    messages: {
-      loadHistory(
-        sessionId: string,
-      ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
-    };
-  };
+  databaseManager: Pick<DatabaseManager, 'sessions' | 'messages'>;
 };
 
 /** 从磁盘加载完成后的频道模块。 */

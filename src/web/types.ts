@@ -11,7 +11,7 @@ import type { SessionManager } from '@aesyclaw/session';
 import type { CronManager } from '@aesyclaw/cron/manager';
 import type { RoleManager } from '@aesyclaw/role/manager';
 import type { ChannelManager } from '@aesyclaw/extension/channel/manager';
-import type { ExtensionManager } from '@aesyclaw/extension/manager';
+import type { PluginManager } from '@aesyclaw/extension/plugin/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
@@ -24,7 +24,7 @@ export type WebRuntimeDependencies = {
   cronManager: CronManager;
   roleManager: RoleManager;
   channelManager: ChannelManager;
-  pluginManager: ExtensionManager;
+  pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable' | 'getPluginDefinitions'>;
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
   paths: Readonly<ResolvedPaths>;
