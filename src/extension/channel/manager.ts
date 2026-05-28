@@ -6,13 +6,14 @@ import {
   discoverAndLoadExtensionModules,
   type ExtensionLoaderLogger,
 } from '@aesyclaw/extension/extension-loader';
-import {
-  type Message,
-  type OutboundSignal,
-  type SessionKey,
-  type SenderInfo,
+import type {
+  Message,
+  OutboundSignal,
+  SessionKey,
+  SenderInfo,
 } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   ChannelManagerDependencies,
@@ -196,9 +197,7 @@ export class ChannelManager {
       return this.createUnloadedChannel(definition, config);
     }
 
-    // 如果频道定义了 configSchema，框架自动校验并填充默认值
     if (definition.configSchema) {
-      const { validateWithSchema } = await import('@aesyclaw/core/config/schema-utils');
       config = validateWithSchema(definition.configSchema, config, `频道配置(${definition.name})`);
     }
 

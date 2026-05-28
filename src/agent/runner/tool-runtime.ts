@@ -20,8 +20,6 @@ type PiAgentToolAdapter = {
   execute: (toolCallId: string, params: unknown, signal?: AbortSignal) => Promise<unknown>;
 };
 
-
-
 export function adaptToolForPiAgent(tool: AgentTool, signal: AbortSignal): PiAgentToolAdapter {
   return {
     name: tool.name,

@@ -62,7 +62,6 @@ export function createProviderCacheKey(sessionKey: SessionKey): string {
   return `session:${serializeSessionKey(sessionKey)}`;
 }
 
-
 export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResult> {
   const {
     roleId,

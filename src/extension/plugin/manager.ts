@@ -19,6 +19,7 @@ import {
   type PluginModule,
   type PluginStatus,
 } from './types';
+import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 
 const logger = createScopedLogger('manager');
 
@@ -82,7 +83,6 @@ export class PluginManager implements ExtensionLifecycle {
 
     // 如果插件定义了 configSchema，框架自动校验并填充默认值
     if (module.definition.configSchema) {
-      const { validateWithSchema } = await import('@aesyclaw/core/config/schema-utils');
       mergedConfig = validateWithSchema(
         module.definition.configSchema,
         mergedConfig,
