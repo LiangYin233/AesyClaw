@@ -8,7 +8,8 @@ import type { AgentTool, AgentToolResult, AgentMessage } from '../types';
 import { extractMessageText } from '../types';
 import type { AfterToolCallContext, AfterToolCallResult } from '@mariozechner/pi-agent-core';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-
+import { isRecord } from '@aesyclaw/core/utils';
+import { throwIfCancelled, AgentRunCancelledError } from './shared';
 const logger = createScopedLogger('tool-runtime');
 
 type PiAgentToolAdapter = {
@@ -19,11 +20,7 @@ type PiAgentToolAdapter = {
   execute: (toolCallId: string, params: unknown, signal?: AbortSignal) => Promise<unknown>;
 };
 
-class AgentRunCancelledError extends Error {
-  constructor() {
-    super('Agent 处理已中止');
-  }
-}
+
 
 export function adaptToolForPiAgent(tool: AgentTool, signal: AbortSignal): PiAgentToolAdapter {
   return {
@@ -104,7 +101,7 @@ export function limitToolResultContent<T extends AgentToolResult>(
     ...result,
     content,
     details: {
-      ...(isPlainRecord(result.details) ? result.details : {}),
+      ...(isRecord(result.details) ? result.details : {}),
       truncated: true,
       originalContentLength,
       truncatedContentLength: content.reduce((total, block) => total + block.text.length, 0),
@@ -139,14 +136,4 @@ export function createToolResultBudgetHandler(toolResultBudget: {
     if (limited.terminate !== undefined) override.terminate = limited.terminate;
     return override;
   };
-}
-
-function throwIfCancelled(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw signal.reason instanceof Error ? signal.reason : new AgentRunCancelledError();
-  }
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

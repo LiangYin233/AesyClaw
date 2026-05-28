@@ -36,7 +36,7 @@ import {
   getFinalAssistantMeta,
 } from './runner/run-parser';
 import { convertAgentEvent } from './runner/event-converter';
-
+import { throwIfCancelled, AgentRunCancelledError } from './runner/shared';
 const logger = createScopedLogger('agent-runner');
 
 export type AgentRunParams = {
@@ -62,11 +62,6 @@ export function createProviderCacheKey(sessionKey: SessionKey): string {
   return `session:${serializeSessionKey(sessionKey)}`;
 }
 
-class AgentRunCancelledError extends Error {
-  constructor() {
-    super('Agent 处理已中止');
-  }
-}
 
 export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResult> {
   const {
@@ -149,11 +144,6 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
   }
 }
 
-function throwIfCancelled(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw signal.reason instanceof Error ? signal.reason : new AgentRunCancelledError();
-  }
-}
 function createStreamFn(apiKey: string, extraBody?: Record<string, unknown>): StreamFn {
   const hasExtra = extraBody !== undefined && Object.keys(extraBody).length > 0;
   const onPayload = hasExtra

@@ -2,10 +2,8 @@
  * HooksBus unit tests.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import { HooksBus } from '../../../src/hook/hooks-bus';
-import type { IHooksBus } from '../../../src/hook/hooks-bus';
-import type { HookRegistration, HookCtx } from '../../../src/hook/types';
+import type { HookRegistration, HookCtx, IHooksBus } from '../../../src/hook';
 
 function makeCtx(overrides: Partial<HookCtx> = {}): HookCtx {
   return {

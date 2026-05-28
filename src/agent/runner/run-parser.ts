@@ -7,6 +7,7 @@
 import type { AgentMessage } from '../types';
 import type { MessageUsage } from '@aesyclaw/core/types';
 import { assistantHasToolCalls } from '@aesyclaw/contracts/llm';
+import { isRecord } from '@aesyclaw/core/utils';
 
 export function createAgentRunResult(newMessages: readonly AgentMessage[]): {
   newMessages: AgentMessage[];
@@ -46,7 +47,7 @@ export function getFinalAssistantUsage(
   const finalAssistant = findFinalAssistant(messages);
   if (!finalAssistant || assistantHasToolCalls(finalAssistant)) return undefined;
   const usage = (finalAssistant as unknown as { usage?: unknown }).usage;
-  if (!isPlainRecord(usage)) return undefined;
+  if (!isRecord(usage)) return undefined;
 
   const input = numberField(usage, 'input');
   const output = numberField(usage, 'output');
@@ -65,7 +66,7 @@ export function getFinalAssistantUsage(
 
   const result: MessageUsage = { input, output, cacheRead, cacheWrite, totalTokens };
   const cost = usage['cost'];
-  if (isPlainRecord(cost)) {
+  if (isRecord(cost)) {
     const inputCost = numberField(cost, 'input');
     const outputCost = numberField(cost, 'output');
     const cacheReadCost = numberField(cost, 'cacheRead');
@@ -128,8 +129,4 @@ function extractAssistantText(message: AgentMessage): string {
     .filter((content): content is { type: 'text'; text: string } => content.type === 'text')
     .map((content) => content.text)
     .join('\n');
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
