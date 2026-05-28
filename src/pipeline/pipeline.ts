@@ -86,9 +86,14 @@ export class Pipeline implements MessageProcessor {
           await this.message(send, receiveResult.message, sessionKey, 'hook');
         } else if (receiveResult.action === 'error') {
           logger.error('pipeline:receive 钩子执行错误', receiveResult.reason);
-          await this.message(send, {
-            components: [{ type: 'Plain', text: `[Hook Error] ${receiveResult.reason}` }],
-          }, sessionKey, 'hook');
+          await this.message(
+            send,
+            {
+              components: [{ type: 'Plain', text: `[Hook Error] ${receiveResult.reason}` }],
+            },
+            sessionKey,
+            'hook',
+          );
         }
         return;
       }
@@ -147,9 +152,14 @@ export class Pipeline implements MessageProcessor {
             await this.message(send, beforeResult.message, session.key, 'hook');
           } else if (beforeResult.action === 'error') {
             logger.error('pipeline:beforeLLM 钩子执行错误', beforeResult.reason);
-            await this.message(send, {
-              components: [{ type: 'Plain', text: `[Hook Error] ${beforeResult.reason}` }],
-            }, session.key, 'hook');
+            await this.message(
+              send,
+              {
+                components: [{ type: 'Plain', text: `[Hook Error] ${beforeResult.reason}` }],
+              },
+              session.key,
+              'hook',
+            );
           }
           return;
         }

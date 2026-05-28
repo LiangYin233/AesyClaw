@@ -171,6 +171,22 @@ async function runBeforeToolHooks(
     };
   }
 
+  if (result.action === 'error') {
+    logger.error('tool:beforeCall 钩子执行错误，阻止工具调用', {
+      ...logContext,
+      reason: result.reason,
+    });
+
+    return {
+      handled: true,
+      result: {
+        content: `[Hook Error] ${result.reason}`,
+        isError: true,
+      },
+      outcome: 'blocked',
+    };
+  }
+
   return { handled: false };
 }
 
@@ -256,6 +272,14 @@ async function runAfterToolHooks(
   };
 
   const afterResult = await hooksBus.dispatch('tool:afterCall', ctx);
+
+  if (afterResult.action === 'error') {
+    logger.error('tool:afterCall 钩子执行错误', {
+      ...logContext,
+      reason: afterResult.reason,
+    });
+    return result;
+  }
 
   if (afterResult.action !== 'override') {
     return result;
