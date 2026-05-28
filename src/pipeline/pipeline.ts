@@ -84,6 +84,11 @@ export class Pipeline implements MessageProcessor {
       if (receiveResult.action !== 'next') {
         if (receiveResult.action === 'respond') {
           await this.message(send, receiveResult.message, sessionKey, 'hook');
+        } else if (receiveResult.action === 'error') {
+          logger.error('pipeline:receive 钩子执行错误', receiveResult.reason);
+          await this.message(send, {
+            components: [{ type: 'Plain', text: `[Hook Error] ${receiveResult.reason}` }],
+          }, sessionKey, 'hook');
         }
         return;
       }
@@ -124,6 +129,8 @@ export class Pipeline implements MessageProcessor {
         return;
       }
 
+      let streamed = false;
+
       try {
         // ── Step 6: pipeline:beforeLLM 链与 Agent 处理 ─────
         const beforeCtx: HookCtx = {
@@ -138,13 +145,17 @@ export class Pipeline implements MessageProcessor {
         if (beforeResult.action !== 'next') {
           if (beforeResult.action === 'respond') {
             await this.message(send, beforeResult.message, session.key, 'hook');
+          } else if (beforeResult.action === 'error') {
+            logger.error('pipeline:beforeLLM 钩子执行错误', beforeResult.reason);
+            await this.message(send, {
+              components: [{ type: 'Plain', text: `[Hook Error] ${beforeResult.reason}` }],
+            }, session.key, 'hook');
           }
           return;
         }
 
         const transformedMessage = beforeCtx.message;
 
-        let streamed = false;
         // 流式事件回调：直接推送给 channel，不经过 pipeline:send 钩子链
         const onStream = (signal: OutboundSignal): void => {
           streamed = true;
@@ -169,6 +180,16 @@ export class Pipeline implements MessageProcessor {
           await this.message(send, outbound, session.key, 'agent_final');
         }
       } finally {
+        // 强制 flush：如果流式已开始但 done 信号可能未到（如 Agent 取消），
+        // 确保非流式频道的 chunk buffer 被 flush。
+        if (streamed) {
+          void send({
+            kind: 'done',
+            session: session.key,
+          }).catch((err) => {
+            logger.error('强制 flush 非流式频道 buffer 失败', err);
+          });
+        }
         session.unlock();
       }
     } catch (err) {
@@ -195,6 +216,10 @@ export class Pipeline implements MessageProcessor {
     if (sendResult.action === 'block') {
       logger.info('出站消息被 pipeline:send 链阻断');
       return false;
+    }
+    if (sendResult.action === 'error') {
+      logger.error('pipeline:send 钩子执行错误', sendResult.reason);
+      // 不阻断发送，继续用原消息
     }
 
     const finalOutbound: Message = sendResult.action === 'respond' ? sendResult.message : outbound;

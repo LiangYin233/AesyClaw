@@ -57,7 +57,8 @@ export type HookResult =
   | { action: 'next' }
   | { action: 'respond'; message: Message }
   | { action: 'block'; reason?: string }
-  | { action: 'override'; result: HookToolExecutionResult };
+  | { action: 'override'; result: HookToolExecutionResult }
+  | { action: 'error'; reason: string };
 
 // ─── 中间件 ─────────────────────────────────────────────────────
 

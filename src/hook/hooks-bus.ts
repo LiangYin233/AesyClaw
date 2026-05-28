@@ -115,7 +115,8 @@ export class HooksBus implements IHooksBus {
       return await chainFn(ctx);
     } catch (err) {
       logger.error(`Hook 链 "${chain}" 执行异常`, err);
-      return { action: 'next' };
+      const reason = err instanceof Error ? err.message : String(err);
+      return { action: 'error', reason };
     }
   }
 
