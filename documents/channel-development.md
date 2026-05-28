@@ -15,53 +15,64 @@
 ```ts
 // extensions/channel_myplatform/index.ts
 import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
+import { Type } from '@sinclair/typebox';
 
 export const channel: ChannelPlugin = {
   name: 'myplatform',
   version: '0.1.0',
   description: 'My custom messaging platform',
-  streaming: false, // 是否支持流式输出
+  streaming: false,
   defaultConfig: {
-    enabled: true,
     apiKey: '',
   },
+  // 可选：配置的 TypeBox Schema，提供后框架自动校验并填充默认值
+  configSchema: Type.Object({
+    apiKey: Type.String(),
+  }),
 
   async init(ctx: ChannelContext) {
-    // 连接消息平台，收到消息时调用：
+    // 使用 ctx.state 替代模块级 let 变量
+    ctx.state.client = await connect(ctx.config['apiKey']);
+
+    // 收到外部消息时，通过 ctx.receive 送入 Pipeline：
     // ctx.receive(message, sessionKey, sender)
   },
 
   async destroy() {
-    // 断开连接，清理资源
-  },
-
-  async receive(message, sessionKey, sender) {
-    // 入站消息处理（可选，通常通过 ctx.receive 直接透传）
+    // 断开连接，清理资源（ctx.state 由框架自动清理）
   },
 
   async send(signal: OutboundSignal) {
     // 处理出站信号
+  },
+
+  // 可选：健康检查
+  async healthCheck() {
+    return { ok: true, latencyMs: 42 };
   },
 };
 
 export default channel;
 ```
 
+````
+
 ---
 
 ## ChannelPlugin
 
-| 字段                                    | 类型      | 必填 | 说明                           |
-| --------------------------------------- | --------- | ---- | ------------------------------ |
-| `name`                                  | `string`  | ✅   | 频道名称                       |
-| `version`                               | `string`  | ✅   | 语义化版本号                   |
-| `description`                           | `string`  | ❌   | 频道简介                       |
-| `streaming`                             | `boolean` | ✅   | 是否支持流式输出（见下方说明） |
-| `defaultConfig`                         | `object`  | ❌   | 默认配置                       |
-| `init(ctx)`                             | `async`   | ✅   | 频道初始化                     |
-| `destroy()`                             | `async`   | ❌   | 频道卸载                       |
-| `receive(message, sessionKey, sender?)` | `async`   | ✅   | 接收入站消息                   |
-| `send(signal)`                          | `async`   | ✅   | 接收出站信号                   |
+| 字段              | 类型      | 必填 | 说明                           |
+| ----------------- | --------- | ---- | ------------------------------ |
+| `name`            | `string`  | ✅   | 频道名称                       |
+| `version`         | `string`  | ✅   | 语义化版本号                   |
+| `description`     | `string`  | ❌   | 频道简介                       |
+| `defaultConfig`   | `object`  | ❌   | 默认配置                       |
+| `configSchema`    | `TSchema` | ❌   | TypeBox Schema，提供后框架自动校验 |
+| `streaming`       | `boolean` | ✅   | 是否支持流式输出（见下方说明） |
+| `init(ctx)`       | `async`   | ✅   | 频道初始化                     |
+| `destroy()`       | `async`   | ❌   | 频道卸载                       |
+| `send(signal)`    | `async`   | ✅   | 接收出站信号                   |
+| `healthCheck()`   | `async`   | ❌   | 可选健康检查，返回状态和延迟   |
 
 ---
 
@@ -87,17 +98,18 @@ export default channel;
 
 频道在 `init(ctx)` 中接收的上下文：
 
-| 属性/方法                               | 说明                                 |
-| --------------------------------------- | ------------------------------------ |
-| `name`                                  | 频道名称                             |
-| `config`                                | 频道配置                             |
-| `configManager`                         | 全局配置管理器                       |
-| `paths`                                 | 路径解析器                           |
-| `receive(message, sessionKey, sender?)` | 将入站消息送入 Pipeline 处理         |
-| `registerTool(tool)`                    | 注册工具（作用域 `channel:{name}`）  |
-| `registerCommand(cmd)`                  | 注册斜杠命令                         |
-| `getCommands()`                         | 获取已注册的命令列表（不含 execute） |
-| `logger`                                | 带 `channel:{name}` 作用域的 Logger  |
+| 属性/方法                                       | 说明                                 |
+| ----------------------------------------------- | ------------------------------------ |
+| `name`                                          | 频道名称                             |
+| `config`                                        | 频道配置（框架自动校验后的结果）     |
+| `state`                                         | 运行时状态容器（stop 时自动清理）     |
+| `configManager`                                 | 全局配置管理器                       |
+| `paths`                                         | 路径解析器                           |
+| `receive(message, sessionKey, sender?)`         | 将入站消息送入 Pipeline 处理         |
+| `registerTool(tool)`                            | 注册工具（作用域 `channel:{name}`）  |
+| `registerCommand(cmd)`                          | 注册斜杠命令                         |
+| `getCommands()`                                 | 获取已注册的命令列表（不含 execute） |
+| `logger`                                        | 带 `channel:{name}` 作用域的 Logger  |
 
 ---
 
@@ -109,7 +121,7 @@ export default channel;
 
 ```ts
 { kind: 'chunk', session: SessionKey, text: string, index: number }
-```
+````
 
 仅 `streaming: true` 的频道会收到此信号。
 

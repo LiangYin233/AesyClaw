@@ -1,3 +1,4 @@
+import type { TSchema } from '@sinclair/typebox';
 import type { IHooksBus } from '@aesyclaw/hook';
 /** 频道接口定义。 */
 
@@ -61,6 +62,8 @@ export type ChannelContext = {
   getSessionMessages(
     sessionKey: SessionKey,
   ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
+  /** 运行时状态容器（框架自动管理生命周期，stop 时清空） */
+  state: Record<string, unknown>;
 };
 
 export type ChannelPlugin = {
@@ -68,18 +71,22 @@ export type ChannelPlugin = {
   version: string;
   description?: string;
   defaultConfig?: Record<string, unknown>;
+  /** 配置的 TypeBox Schema（提供后框架在 start() 时自动校验并填充默认值） */
+  configSchema?: TSchema;
   streaming: boolean;
   init(ctx: ChannelContext): Promise<void>;
   destroy?(): Promise<void>;
-  receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
   send(signal: OutboundSignal): Promise<void>;
+  /** 健康检查（可选），返回健康状况和延迟 */
+  healthCheck?(): Promise<ChannelHealthStatus>;
 };
 
-/** 内存中已加载频道的运行时表示。 */
 export type LoadedChannel = {
   definition: ChannelPlugin;
   config: Record<string, unknown>;
   loadedAt: Date;
+  /** 频道运行时状态容器 */
+  state: Record<string, unknown>;
 };
 
 /** 频道生命周期的 4 种状态。 */
@@ -158,7 +165,6 @@ export function isChannelEnabled(config: Record<string, unknown> | undefined): b
 export function isChannelPlugin(value: unknown): value is ChannelPlugin {
   const validated = validateExtension<ChannelPlugin>(value);
   if (validated === false) return false;
-  if (typeof validated['receive'] !== 'function') return false;
   if (typeof validated['send'] !== 'function') return false;
   return true;
 }
@@ -173,3 +179,9 @@ export function discoverChannelDefinition(imported: unknown): ChannelPlugin | nu
   if (!base) return null;
   return isChannelPlugin(base) ? base : null;
 }
+
+export type ChannelHealthStatus = {
+  ok: boolean;
+  error?: string;
+  latencyMs?: number;
+};

@@ -16,6 +16,7 @@ export function createContext(
   channelName: string,
   config: Record<string, unknown>,
   receiveHook: ChannelContext['receive'],
+  state: Record<string, unknown>,
 ): ChannelContext {
   const owner = `channel:${channelName}` as const;
 
@@ -111,5 +112,6 @@ export function createContext(
     getSessionContextUsage,
     getSessions,
     getSessionMessages,
+    state,
   };
 }

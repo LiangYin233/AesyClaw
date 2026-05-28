@@ -6,7 +6,7 @@ import type {
   SenderInfo,
   SessionKey,
 } from '@aesyclaw/sdk';
-import { validateWithSchema } from '@aesyclaw/sdk';
+
 import { DEFAULT_CONFIG } from './constants';
 import {
   enrichMessageWithDownloads,
@@ -34,15 +34,11 @@ export const channel: ChannelPlugin = {
   description: 'Connects to a remote OneBot/NapCat WebSocket server and routes messages.',
   streaming: false,
   defaultConfig: DEFAULT_CONFIG,
+  configSchema: OneBotChannelConfigSchema,
   async init(ctx) {
-    // 运行时校验配置，填充默认值
-    const validated = validateWithSchema<OneBotChannelConfig>(
-      OneBotChannelConfigSchema,
-      ctx.config,
-      `频道配置(onebot)`,
-    );
     context = ctx;
-    config = parseConfig(validated);
+    config = parseConfig(ctx.config);
+    destroyed = false;
     destroyed = false;
     client = createOneBotWebSocketClient({
       config,
@@ -65,9 +61,9 @@ export const channel: ChannelPlugin = {
     }
     await handleOutbound(signal);
   },
-  receive: receiveMessage,
 };
 
+/** 将接收到的消息注入 Pipeline（通过 ctx.receive） */
 async function receiveMessage(
   message: Message,
   sessionKey: SessionKey,
@@ -78,7 +74,6 @@ async function receiveMessage(
   }
   await context.receive(message, sessionKey, sender);
 }
-
 async function handlePlatformPayload(payload: Record<string, unknown>): Promise<void> {
   const inbound = mapOneBotEventToMessage(payload, context?.name ?? 'onebot');
   if (!inbound || !context) {

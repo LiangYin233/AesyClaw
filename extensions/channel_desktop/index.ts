@@ -6,7 +6,7 @@
 
 import fs from 'node:fs/promises';
 import type { ChannelPlugin, ChannelContext, OutboundSignal } from '@aesyclaw/sdk';
-import { validateWithSchema } from '@aesyclaw/sdk';
+
 import type { DesktopMediaItem, DesktopOutboundMessage } from './types';
 import { DesktopServer } from './desktop-server';
 import { DesktopChannelConfigSchema, type DesktopChannelConfig } from './config-schema';
@@ -20,14 +20,11 @@ export const channel: ChannelPlugin = {
   description: 'AesyClaw Desktop — Electron 桌面客户端频道',
   streaming: true,
   defaultConfig: DesktopChannelConfigSchema as unknown as Record<string, unknown>,
+  configSchema: DesktopChannelConfigSchema,
 
   async init(ctx: ChannelContext): Promise<void> {
-    const validated = validateWithSchema<DesktopChannelConfig>(
-      DesktopChannelConfigSchema,
-      ctx.config,
-      `频道配置(desktop)`,
-    );
-    const config = validated;
+    const config = ctx.config as DesktopChannelConfig;
+
     const authToken = config.authToken;
     const adminToken = (ctx.configManager.get('server.authToken') as string | undefined) ?? '';
 
@@ -49,13 +46,8 @@ export const channel: ChannelPlugin = {
     server = null;
   },
 
-  receive,
   send,
 };
-
-async function receive(): Promise<void> {
-  // 入站消息由 DesktopServer.handleChatMessage 直接调用 context.receive()
-}
 
 async function send(signal: OutboundSignal): Promise<void> {
   if (!server) return;

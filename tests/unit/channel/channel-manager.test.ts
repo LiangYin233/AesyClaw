@@ -75,9 +75,9 @@ function makeChannel(overrides: Partial<ChannelPlugin> = {}): ChannelPlugin {
     name: 'test',
     version: '1.0.0',
     defaultConfig: { token: 'default' },
+    streaming: false,
     init: vi.fn(async () => undefined),
     destroy: vi.fn(async () => undefined),
-    receive: vi.fn(async () => undefined),
     send: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -97,6 +97,24 @@ function makeManager(options: {
     paths: fakePaths,
     toolRegistry: options.toolRegistry ?? new ToolRegistry(),
     commandRegistry: options.commandRegistry ?? new CommandRegistry(),
+    hooksBus: { dispatch: vi.fn(async () => ({ action: 'next' })) },
+    sessionManager: {
+      get: vi.fn(),
+      create: vi.fn(async () => ({
+        key: { channel: 'test', type: 'private', chatId: '1' },
+        get: vi.fn(() => []),
+      })),
+    },
+    llmAdapter: { resolveModel: vi.fn(() => ({ contextWindow: 128_000 })) },
+    databaseManager: {
+      sessions: {
+        findAllSummaries: vi.fn(async () => []),
+        findById: vi.fn(async () => null),
+      },
+      messages: {
+        loadHistory: vi.fn(async () => []),
+      },
+    },
   });
 }
 
@@ -280,7 +298,7 @@ describe('ChannelManager', () => {
     expect(manager.getLoaded('test')).toBeUndefined();
   });
 
-  it('rejects dynamically discovered channels missing send or receive', async () => {
+  it('rejects dynamically discovered channels missing send', async () => {
     const { isChannelPlugin } = await import('../../../src/extension/channel/types');
     const base = {
       name: 'dynamic',
@@ -288,20 +306,19 @@ describe('ChannelManager', () => {
       init: vi.fn(async () => undefined),
     };
 
-    expect(isChannelPlugin({ ...base, send: vi.fn(async () => undefined) })).toBe(false);
-    expect(isChannelPlugin({ ...base, receive: vi.fn(async () => undefined) })).toBe(false);
+    // 未提供 send → 非法
+    expect(isChannelPlugin(base)).toBe(false);
+    // 提供 send → 合法
     expect(
       isChannelPlugin({
         ...base,
         send: vi.fn(async () => undefined),
-        receive: vi.fn(async () => undefined),
       }),
     ).toBe(true);
   });
 
   it('discovers only static default or channel exports', async () => {
-    const { discoverChannelDefinition } =
-      await import('../../../src/extension/channel/types');
+    const { discoverChannelDefinition } = await import('../../../src/extension/channel/types');
     const staticChannel = makeChannel({ name: 'static' });
 
     expect(discoverChannelDefinition({ default: staticChannel })).toBe(staticChannel);

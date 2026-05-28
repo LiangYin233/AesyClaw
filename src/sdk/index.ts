@@ -14,6 +14,7 @@ export type {
   ChannelContext,
   ChannelPlugin,
   RegisteredCommandInfo,
+  ChannelHealthStatus,
 } from '@aesyclaw/extension/channel/types';
 
 export type {

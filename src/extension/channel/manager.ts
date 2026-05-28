@@ -21,11 +21,7 @@ import type {
   ChannelStatus,
   LoadedChannel,
 } from './types';
-import {
-  isChannelEnabled,
-  discoverChannelDefinition,
-  type ChannelLifecycleState,
-} from './types';
+import { isChannelEnabled, discoverChannelDefinition, type ChannelLifecycleState } from './types';
 import * as router from './router';
 import * as channelConfig from './config';
 import * as ctxFactory from './context';
@@ -197,14 +193,28 @@ export class ChannelManager {
       await this.stop(channelName);
     }
 
-    const config = this.getMergedConfig(definition);
+    let config = this.getMergedConfig(definition);
     if (!isChannelEnabled(config)) {
       return this.createUnloadedChannel(definition, config);
     }
 
-    const context = ctxFactory.createContext(this.deps, this.deps.paths, definition.name, config, async (msg, sk, sender) => {
-      await this.receive(definition.name, msg, sk, sender);
-    });
+    // 如果频道定义了 configSchema，框架自动校验并填充默认值
+    if (definition.configSchema) {
+      const { validateWithSchema } = await import('@aesyclaw/core/config/schema-utils');
+      config = validateWithSchema(definition.configSchema, config, `频道配置(${definition.name})`);
+    }
+
+    const state: Record<string, unknown> = {};
+    const context = ctxFactory.createContext(
+      this.deps,
+      this.deps.paths,
+      definition.name,
+      config,
+      async (msg, sk, sender) => {
+        await this.receive(definition.name, msg, sk, sender);
+      },
+      state,
+    );
     try {
       await definition.init(context);
     } catch (err) {
@@ -216,6 +226,7 @@ export class ChannelManager {
       definition,
       config,
       loadedAt: new Date(),
+      state,
     };
     this.loadedChannels.set(definition.name, loaded);
     this.failedChannels.delete(definition.name);
@@ -397,8 +408,6 @@ export class ChannelManager {
 
   // ─── 内部方法 ────────────────────────────────────────────────────
 
-
-
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
     return channelConfig.getMergedConfig(this.deps.configManager, definition);
   }
@@ -416,7 +425,12 @@ export class ChannelManager {
   }
 
   private async setChannelEnabled(channelName: string, enabled: boolean): Promise<void> {
-    await channelConfig.setChannelEnabled(this.deps.configManager, this.definitions, channelName, enabled);
+    await channelConfig.setChannelEnabled(
+      this.deps.configManager,
+      this.definitions,
+      channelName,
+      enabled,
+    );
   }
 
   private requireLoaded(channelName: string): LoadedChannel {
@@ -441,6 +455,7 @@ export class ChannelManager {
       definition,
       config,
       loadedAt: new Date(),
+      state: {},
     };
   }
 }
@@ -459,5 +474,3 @@ function resolveChannelState(
   if (enabled) return 'unloaded';
   return 'disabled';
 }
-
-
