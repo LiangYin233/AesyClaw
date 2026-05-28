@@ -8,7 +8,7 @@
 
 
 import type { PluginDefinition } from '@aesyclaw/sdk';
-import { MultimodalPluginConfigSchema } from './config-schema';
+import { MultimodalPluginConfigSchema, type MultimodalPluginConfig } from './config-schema';
 import { createImageUnderstandingTool } from './image-understanding';
 import { createSpeechToTextTool } from './speech-to-text';
 
@@ -29,12 +29,9 @@ const plugin: PluginDefinition = {
   configSchema: MultimodalPluginConfigSchema,
 
   async init(ctx) {
-    const imgCfg = ctx.config['imageUnderstanding'] as Record<string, unknown> | undefined;
-    const sttCfg = ctx.config['speechToText'] as Record<string, unknown> | undefined;
-      MultimodalPluginConfigSchema,
-      ctx.config,
-      `插件配置(multimodal)`,
-
+    const cfg = ctx.config as unknown as MultimodalPluginConfig;
+    const imgCfg = cfg.imageUnderstanding;
+    const sttCfg = cfg.speechToText;
 
     if (imgCfg) {
       ctx.registerTool(

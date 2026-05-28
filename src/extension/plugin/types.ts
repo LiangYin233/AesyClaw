@@ -44,6 +44,8 @@ export type PluginDefinition = {
   configSchema?: TSchema;
   init(ctx: PluginContext): Promise<void>;
   destroy?(): Promise<void>;
+  /** 健康检查（可选），返回健康状况和延迟 */
+  healthCheck?(): Promise<PluginHealthStatus>;
   middlewares?: HookRegistration[];
 };
 /** 内存中已加载插件的运行时表示。 */
@@ -56,6 +58,13 @@ export type LoadedPlugin = {
   /** 插件运行时状态容器 */
   state: Record<string, unknown>;
   loadedAt: Date;
+};
+
+/** 插件健康检查结果。 */
+export type PluginHealthStatus = {
+  ok: boolean;
+  error?: string;
+  latencyMs?: number;
 };
 
 /** 插件生命周期的 4 种状态。 */

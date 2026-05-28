@@ -100,6 +100,10 @@ export class PluginManager implements ExtensionLifecycle {
       await module.definition.init(context);
       if (module.definition.middlewares) {
         for (const reg of module.definition.middlewares) {
+          if (!reg.chain || typeof reg.handler !== 'function') {
+            logger.warn(`跳过无效的 middleware 注册（插件 ${pluginName}）：缺少 chain 或 handler`);
+            continue;
+          }
           this.deps.hooksBus.register({
             ...reg,
             id: `plugin:${pluginName}:${reg.id}`,
