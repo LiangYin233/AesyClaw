@@ -15,43 +15,37 @@ describe('desktop useChat history usage', () => {
 
     vi.stubGlobal('window', {
       aesyclaw: {
-        adminRequest: vi.fn(async (type: string) => {
-          if (type === 'get_sessions') {
-            return {
-              ok: true,
-              data: [
-                {
-                  id: 'session-db-id',
-                  channel: 'desktop',
-                  type: 'private',
-                  chatId: 'desktop-chat-id',
-                  title: 'History usage',
-                  firstUserMessage: 'History usage',
-                  messageCount: 2,
-                },
-              ],
-            };
-          }
-
-          if (type === 'get_messages') {
-            return {
-              ok: true,
-              data: [
-                { role: 'user', content: 'hello' },
-                { role: 'assistant', content: 'hi', usage },
-              ],
-            };
-          }
-
-          return { ok: false };
-        }),
+        sendChatRaw: vi.fn(async () => true),
       },
     });
 
     try {
       const chat = useChat();
-      await chat.syncSessionsFromBackend();
-      await chat.loadSessionMessages('desktop-chat-id');
+
+      // sync sessions
+      const sessionPromise = chat.syncSessionsFromBackend();
+      await Promise.resolve(); // flush microtasks
+      chat.handleChannelResponse('sessions', undefined, [
+        {
+          id: 'session-db-id',
+          channel: 'desktop',
+          type: 'private',
+          chatId: 'desktop-chat-id',
+          title: 'History usage',
+          firstUserMessage: 'History usage',
+          messageCount: 2,
+        },
+      ]);
+      await sessionPromise;
+
+      // load messages
+      const msgPromise = chat.loadSessionMessages('desktop-chat-id');
+      await Promise.resolve(); // flush microtasks
+      chat.handleChannelResponse('session_messages', undefined, [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: 'hi', usage },
+      ]);
+      await msgPromise;
 
       expect(chat.activeSession.value?.messages).toEqual([
         { role: 'user', text: 'hello' },

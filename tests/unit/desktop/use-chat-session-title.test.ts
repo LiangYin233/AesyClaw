@@ -6,29 +6,29 @@ describe('desktop useChat session titles', () => {
   it('uses firstUserMessage to strip metadata even when backend title is truncated', async () => {
     vi.stubGlobal('window', {
       aesyclaw: {
-        adminRequest: vi.fn(async (type: string) => {
-          if (type !== 'get_sessions') return { ok: false };
-          return {
-            ok: true,
-            data: [
-              {
-                id: 'session-db-id',
-                channel: 'desktop',
-                type: 'private',
-                chatId: 'desktop-chat-id',
-                title: '<infomation>hidden metadata</i',
-                firstUserMessage: '<infomation>hidden metadata</infomation>Visible title',
-                messageCount: 1,
-              },
-            ],
-          };
-        }),
+        sendChatRaw: vi.fn(async () => true),
       },
     });
 
     try {
       const chat = useChat();
-      await chat.syncSessionsFromBackend();
+      const promise = chat.syncSessionsFromBackend();
+      // flush microtasks so channelRequest stores the pending resolve
+      await Promise.resolve();
+
+      chat.handleChannelResponse('sessions', undefined, [
+        {
+          id: 'session-db-id',
+          channel: 'desktop',
+          type: 'private',
+          chatId: 'desktop-chat-id',
+          title: '<infomation>hidden metadata</i',
+          firstUserMessage: '<infomation>hidden metadata</infomation>Visible title',
+          messageCount: 1,
+        },
+      ]);
+
+      await promise;
 
       expect(chat.sessions.value).toEqual([
         expect.objectContaining({
