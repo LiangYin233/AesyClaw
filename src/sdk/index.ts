@@ -8,7 +8,11 @@
  * 所有外部扩展代码无需修改。
  */
 
-export type { PluginContext, PluginDefinition, PluginHealthStatus } from '@aesyclaw/extension/plugin/types';
+export type {
+  PluginContext,
+  PluginDefinition,
+  PluginHealthStatus,
+} from '@aesyclaw/extension/plugin/types';
 
 export type {
   ChannelContext,

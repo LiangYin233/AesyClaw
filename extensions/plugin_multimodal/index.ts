@@ -6,7 +6,6 @@
  * API 密钥和 baseUrl 通过 ctx.resolveModel() 从核心 config 的 providers 段解析。
  */
 
-
 import type { PluginDefinition } from '@aesyclaw/sdk';
 import { MultimodalPluginConfigSchema, type MultimodalPluginConfig } from './config-schema';
 import { createImageUnderstandingTool } from './image-understanding';

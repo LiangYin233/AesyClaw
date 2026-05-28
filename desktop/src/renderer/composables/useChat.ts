@@ -143,8 +143,7 @@ function useChatImpl() {
   /** 通过 chat WebSocket 发送请求并等待响应事件 */
   async function channelRequest(type: string, payload?: Record<string, unknown>): Promise<unknown> {
     const responseType = responseTypeMap[type] ?? type;
-    const sent = await window.aesyclaw.sendChatRaw(type,
-      (payload?.['sessionId'] as string) ?? '');
+    const sent = await window.aesyclaw.sendChatRaw(type, (payload?.['sessionId'] as string) ?? '');
     if (!sent) return [];
     return new Promise((resolve) => {
       const key = `${responseType}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
