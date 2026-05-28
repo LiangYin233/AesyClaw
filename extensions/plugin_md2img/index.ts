@@ -6,10 +6,10 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import katex from 'katex';
-import { validateWithSchema, getMessageText } from '@aesyclaw/sdk';
+import { getMessageText } from '@aesyclaw/sdk';
 import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
 import type { HookCtx, HookResult } from '@aesyclaw/sdk';
-import { Md2ImgPluginConfigSchema, type Md2ImgPluginConfig } from './config-schema';
+import { Md2ImgPluginConfigSchema } from './config-schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');
@@ -267,14 +267,13 @@ export async function handleMd2ImgSend(
   }
 }
 
-// ─── Plugin definition ──────────────────────────────────────────
-
 const plugin: PluginDefinition = {
   name: 'md2img',
   version: '0.1.0',
   description:
     'Detects Markdown / HTML / LaTeX in LLM output and sends it as a rendered image instead of raw text.',
   defaultConfig: { enabledChannels: ['*'] },
+  configSchema: Md2ImgPluginConfigSchema,
   middlewares: [
     {
       id: 'md2img-send',
@@ -295,13 +294,8 @@ const plugin: PluginDefinition = {
     },
   ],
   async init(ctx) {
-    const validated = validateWithSchema<Md2ImgPluginConfig>(
-      Md2ImgPluginConfigSchema,
-      ctx.config,
-      `插件配置(md2img)`,
-    );
     logger = ctx.logger;
-    pluginConfig = validated as unknown as Record<string, unknown>;
+    pluginConfig = ctx.config;
 
     try {
       htmlTemplate = await readFile(TEMPLATE_PATH, 'utf-8');

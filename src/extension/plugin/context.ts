@@ -13,6 +13,7 @@ export function createPluginContext(
   paths: ResolvedPaths,
   pluginName: string,
   ref: { current: Record<string, unknown> },
+  state: Record<string, unknown>,
 ): PluginContext {
   const owner = pluginOwner(pluginName);
   return {
@@ -39,6 +40,7 @@ export function createPluginContext(
       deps.channelManager.register(channel, owner);
     },
     logger: createScopedLogger(owner),
+    state,
     resolveModel: (providerModel) => deps.llmAdapter.resolveModel(providerModel),
   };
 }

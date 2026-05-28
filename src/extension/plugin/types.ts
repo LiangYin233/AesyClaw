@@ -1,3 +1,4 @@
+import type { TSchema } from '@sinclair/typebox';
 /**
  * 插件接口定义。
  *
@@ -21,6 +22,8 @@ import { discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils
 /** 插件初始化时接收的受限上下文。 */
 export type PluginContext = {
   config: Record<string, unknown>;
+  /** 运行时状态容器（框架自动管理生命周期，unload 时清空） */
+  state: Record<string, unknown>;
   paths: Readonly<ResolvedPaths>;
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
@@ -36,11 +39,12 @@ export type PluginDefinition = {
   version: string;
   description?: string;
   defaultConfig?: Record<string, unknown>;
+  /** 配置的 TypeBox Schema（提供后框架在 load() 时自动校验并填充默认值） */
+  configSchema?: TSchema;
   init(ctx: PluginContext): Promise<void>;
   destroy?(): Promise<void>;
   middlewares?: HookRegistration[];
 };
-
 /** 内存中已加载插件的运行时表示。 */
 export type LoadedPlugin = {
   definition: PluginDefinition;
@@ -48,6 +52,8 @@ export type LoadedPlugin = {
   directoryName: string;
   owner: ToolOwner;
   config: Record<string, unknown>;
+  /** 插件运行时状态容器 */
+  state: Record<string, unknown>;
   loadedAt: Date;
 };
 

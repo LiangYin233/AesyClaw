@@ -71,7 +71,7 @@ export class PluginManager implements ExtensionLifecycle {
     }
 
     const configLookup = this.getPluginConfig(module);
-    const mergedConfig = getManagedPluginOptions(
+    let mergedConfig = getManagedPluginOptions(
       module.definition.defaultConfig,
       configLookup.config,
     );
@@ -80,10 +80,21 @@ export class PluginManager implements ExtensionLifecycle {
       return null;
     }
 
+    // 如果插件定义了 configSchema，框架自动校验并填充默认值
+    if (module.definition.configSchema) {
+      const { validateWithSchema } = await import('@aesyclaw/core/config/schema-utils');
+      mergedConfig = validateWithSchema(
+        module.definition.configSchema,
+        mergedConfig,
+        `插件配置(${pluginName})`,
+      );
+    }
+
     const owner = pluginOwner(pluginName);
     const ref: { current: Record<string, unknown> } = { current: mergedConfig };
     this.configRefs.set(pluginName, ref);
-    const context = createPluginContext(this.deps, this.deps.paths, pluginName, ref);
+    const state: Record<string, unknown> = {};
+    const context = createPluginContext(this.deps, this.deps.paths, pluginName, ref, state);
 
     try {
       await module.definition.init(context);
@@ -108,6 +119,7 @@ export class PluginManager implements ExtensionLifecycle {
       directoryName: module.directoryName,
       owner,
       config: ref.current,
+      state,
       loadedAt: new Date(),
     };
     this.loadedPlugins.set(pluginName, loaded);
@@ -259,7 +271,6 @@ export class PluginManager implements ExtensionLifecycle {
     return [...statuses.values()].sort((a, b) => a.directoryName.localeCompare(b.directoryName));
   }
 
-  /** 获取所有已发现插件的定义信息 */
   async getPluginDefinitions(): Promise<
     Array<{
       name: string;
@@ -268,7 +279,24 @@ export class PluginManager implements ExtensionLifecycle {
       defaultConfig?: Record<string, unknown>;
     }>
   > {
-    return await this.getPluginDefinitions();
+    const dirs = await loader.discoverPluginDirs(this.deps.paths.extensionsDir);
+    const results: Array<{
+      name: string;
+      version?: string;
+      description?: string;
+      defaultConfig?: Record<string, unknown>;
+    }> = [];
+    for (const pluginDir of dirs) {
+      const module = await loader.safeLoadModule(pluginDir, this.failedPlugins);
+      if (!module) continue;
+      results.push({
+        name: module.definition.name,
+        version: module.definition.version,
+        description: module.definition.description,
+        defaultConfig: module.definition.defaultConfig,
+      });
+    }
+    return results;
   }
 
   getLoaded(pluginName: string): LoadedPlugin | undefined {
@@ -293,8 +321,6 @@ export class PluginManager implements ExtensionLifecycle {
       logger.info('插件已卸载', { pluginName: actualName });
     }
   }
-
-
 
   private async cleanupOwner(pluginName: string): Promise<void> {
     const owner = pluginOwner(pluginName);
