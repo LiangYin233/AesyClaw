@@ -11,10 +11,12 @@ import {
   type SessionKey,
   type SenderInfo,
 } from '@aesyclaw/core/types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { LoadedChannel } from './types';
 
+const logger = createScopedLogger('router');
 /** 非流式频道的 chunk 缓冲区 — channel:session → 累积文本 */
 export type ChunkBuffers = Map<string, string>;
 
@@ -48,6 +50,13 @@ export async function send(
         const message: Message = { components: [{ type: 'Plain', text: accumulated }] };
         const sendCtx = { message, sessionKey: signal.session };
         const result = await hooksBus.dispatch('pipeline:send', sendCtx);
+        if (result.action === 'block') {
+          logger.info('非流式出站消息被 pipeline:send 链阻断');
+          return;
+        }
+        if (result.action === 'error') {
+          logger.error('pipeline:send 钩子执行错误', result.reason);
+        }
         const processed: Message = result.action === 'respond' ? result.message : message;
         await loaded.definition.send({
           kind: 'message',
