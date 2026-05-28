@@ -18,7 +18,7 @@ import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ChannelPlugin } from '@aesyclaw/extension/channel/types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
-import { discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils';
+import { validateExtension, discoverExtensionDefinition } from '@aesyclaw/extension/extension-utils';
 /** 插件初始化时接收的受限上下文。 */
 export type PluginContext = {
   config: Record<string, unknown>;
@@ -119,6 +119,12 @@ export type { HookRegistration };
 export function pluginOwner(pluginName: string): ToolOwner {
   return `plugin:${pluginName}`;
 }
+/** 校验未知值是否符合 PluginDefinition 结构。 */
+export function isPluginDefinition(value: unknown): value is PluginDefinition {
+  const validated = validateExtension<PluginDefinition>(value);
+  if (validated === false) return false;
+  return true;
+}
 
 /**
  * 从动态导入的模块中发现并校验插件定义。
@@ -126,6 +132,7 @@ export function pluginOwner(pluginName: string): ToolOwner {
  * 支持 default 或 plugin 命名导出。
  */
 export function discoverPluginDefinition(imported: unknown): PluginDefinition | null {
-  const result = discoverExtensionDefinition(imported, 'plugin');
-  return result as PluginDefinition | null;
+  const base = discoverExtensionDefinition(imported, 'plugin');
+  if (!base) return null;
+  return isPluginDefinition(base) ? base : null;
 }
