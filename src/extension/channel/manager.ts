@@ -6,12 +6,7 @@ import {
   discoverAndLoadExtensionModules,
   type ExtensionLoaderLogger,
 } from '@aesyclaw/extension/extension-loader';
-import type {
-  Message,
-  OutboundSignal,
-  SessionKey,
-  SenderInfo,
-} from '@aesyclaw/core/types';
+import type { Message, OutboundSignal, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 import { errorMessage } from '@aesyclaw/core/utils';

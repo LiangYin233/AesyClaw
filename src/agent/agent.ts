@@ -204,12 +204,34 @@ export class Agent {
       onStream,
     );
 
-    const finalResult =
-      ephemeral || result.cancelled || (messageSent && !result.lastAssistant)
-        ? result
-        : await this.ensureAssistantText(effectiveRole, history, result, sendMessage);
+    const finalResult = await this.handleResult(
+      context,
+      history,
+      result,
+      messageSent,
+      sendMessage,
+      content,
+    );
 
-    if (!ephemeral) {
+    return this.toMessage(effectiveRole.id, finalResult);
+  }
+
+  /**
+   * 处理 LLM 调用结果：决定是否追文本、持久化到会话。
+   */
+  private async handleResult(
+    context: ProcessContext,
+    history: AgentMessage[],
+    result: AgentRunResult,
+    messageSent: boolean,
+    sendMessage: ((message: Message) => Promise<boolean>) | undefined,
+    content: string,
+  ): Promise<AgentRunResult> {
+    const finalResult = this.needsTextFollowUp(context, result, messageSent)
+      ? await this.ensureAssistantText(context.effectiveRole, history, result, sendMessage)
+      : result;
+
+    if (!context.ephemeral) {
       await this.session.syncFromAgent(finalResult.newMessages);
       // 若 Agent 被 /stop 中止，用户的输入消息只存在于 PiAgent
       // 内部状态中（被丢弃了），没有通过 syncFromAgent 持久化。
@@ -219,7 +241,21 @@ export class Agent {
       }
     }
 
-    return this.toMessage(effectiveRole.id, finalResult);
+    return finalResult;
+  }
+
+  /**
+   * 判断是否需要后续追文 — 条件为：非临时、未取消、未通过流式产生文本、LLM 未返回文字。
+   */
+  private needsTextFollowUp(
+    context: ProcessContext,
+    result: AgentRunResult,
+    messageSent: boolean,
+  ): boolean {
+    if (context.ephemeral) return false;
+    if (result.cancelled) return false;
+    if (messageSent && !result.lastAssistant) return false;
+    return !result.lastAssistant;
   }
 
   /**
