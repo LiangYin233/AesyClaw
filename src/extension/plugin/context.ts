@@ -21,6 +21,7 @@ export function createPluginContext(
       return ref.current;
     },
     paths,
+    configManager: deps.configManager,
     registerTool: (tool) => {
       deps.toolRegistry.register({ ...tool, owner });
     },

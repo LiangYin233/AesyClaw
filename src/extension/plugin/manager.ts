@@ -201,8 +201,8 @@ export class PluginManager implements ExtensionLifecycle {
 
       const directory = loaded.directory;
       logger.info(`插件 "${pluginName}" 配置已变更，正在重启`);
-      await this.unload(pluginName);
       try {
+        await this.unload(pluginName);
         await this.load(directory);
       } catch (err) {
         logger.error(`热重载时重启插件 "${pluginName}" 失败`, err);

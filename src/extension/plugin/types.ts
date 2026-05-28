@@ -25,6 +25,7 @@ export type PluginContext = {
   /** 运行时状态容器（框架自动管理生命周期，unload 时清空） */
   state: Record<string, unknown>;
   paths: Readonly<ResolvedPaths>;
+  configManager: ConfigManager;
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
   registerCommand(command: Omit<CommandDefinition, 'scope'>): void;

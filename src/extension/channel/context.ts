@@ -115,5 +115,6 @@ export function createContext(
     getSessions,
     getSessionMessages,
     state,
+    resolveModel: (providerModel) => deps.llmAdapter.resolveModel(providerModel),
   };
 }

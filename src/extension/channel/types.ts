@@ -17,6 +17,7 @@ import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { Session } from '@aesyclaw/session/core';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
+import type { ResolvedModel } from '@aesyclaw/contracts/llm';
 
 import {
   validateExtension,
@@ -64,6 +65,8 @@ export type ChannelContext = {
   ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
   /** 运行时状态容器（框架自动管理生命周期，stop 时清空） */
   state: Record<string, unknown>;
+  /** 根据 "provider/model" 标识符解析完整的模型配置（含 API 密钥、baseUrl 等） */
+  resolveModel(providerModel: string): ResolvedModel;
 };
 
 export type ChannelPlugin = {
