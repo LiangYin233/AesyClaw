@@ -13,7 +13,7 @@
       <Transition name="chat-area" mode="out-in">
         <MessageList
           v-if="activeSession"
-:key="activeSessionId ?? 'none'"
+          :key="activeSessionId ?? 'none'"
           :messages="activeSession.messages ?? []"
           :activeSession="activeSession"
           :activeCopyMenuIndex="activeCopyMenuIndex"
@@ -38,7 +38,10 @@
             <div
               class="context-fill"
               :style="{ width: Math.min(contextUsage.percentage, 100) + '%' }"
-              :class="{ warning: contextUsage.percentage > 70, danger: contextUsage.percentage > 90 }"
+              :class="{
+                warning: contextUsage.percentage > 70,
+                danger: contextUsage.percentage > 90,
+              }"
             ></div>
           </div>
           <span class="context-label"
@@ -257,8 +260,8 @@ watch(activeSessionId, () => {
   align-items: center;
   gap: 10px;
   padding: 6px 32px;
+  margin-bottom: 8px;
   background: #faf8f3;
-  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
