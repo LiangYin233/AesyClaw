@@ -19,7 +19,7 @@ export const channel: ChannelPlugin = {
   version: '0.1.0',
   description: 'AesyClaw Desktop — Electron 桌面客户端频道',
   streaming: true,
-  defaultConfig: DesktopChannelConfigSchema as unknown as Record<string, unknown>,
+  defaultConfig: { port: 9730, host: '127.0.0.1', authToken: 'desktop-local' },
   configSchema: DesktopChannelConfigSchema,
 
   async init(ctx: ChannelContext): Promise<void> {

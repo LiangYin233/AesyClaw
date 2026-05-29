@@ -49,7 +49,7 @@ export const channel: ChannelPlugin = {
   version: '0.1.0',
   description: '微信频道 — 通过 iLink 协议接入，支持单聊消息收发',
   streaming: false,
-  defaultConfig: WeixinChannelConfigSchema as unknown as Record<string, unknown>,
+  defaultConfig: { enabled: false },
   configSchema: WeixinChannelConfigSchema,
 
   async init(ctx: ChannelContext) {
