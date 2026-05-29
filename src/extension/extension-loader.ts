@@ -10,14 +10,6 @@ export type ExtensionLoaderLogger = {
   warn(message: string, ...args: unknown[]): void;
 };
 
-/** 扩展组件的统一生命周期类型。 */
-export type ExtensionLifecycle = {
-  /** 加载并初始化（如从磁盘发现 + 导入 + 启动）。 */
-  setup(): Promise<void>;
-  /** 清理并释放资源。 */
-  destroy(): Promise<void>;
-};
-
 /** 发现并加载扩展模块的选项。 */
 export type DiscoverAndLoadOptions<T> = {
   extensionsDir: string;

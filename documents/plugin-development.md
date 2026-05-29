@@ -53,15 +53,17 @@ export default plugin;
 
 ## PluginDefinition
 
-| 字段            | 类型                 | 必填 | 说明                         |
-| --------------- | -------------------- | ---- | ---------------------------- |
-| `name`          | `string`             | ✅   | 插件名称，用于配置标识       |
-| `version`       | `string`             | ✅   | 语义化版本号                 |
-| `description`   | `string`             | ❌   | 插件简介                     |
-| `defaultConfig` | `object`             | ❌   | 默认配置，用户配置会与其合并 |
-| `init(ctx)`     | `async`              | ✅   | 插件初始化入口               |
-| `destroy()`     | `async`              | ❌   | 插件卸载时清理               |
-| `middlewares`   | `HookRegistration[]` | ❌   | 注册的管道钩子               |
+| 字段            | 类型                 | 必填 | 说明                                      |
+| --------------- | -------------------- | ---- | ----------------------------------------- |
+| `name`          | `string`             | ✅   | 插件名称，用于配置标识                    |
+| `version`       | `string`             | ✅   | 语义化版本号                              |
+| `description`   | `string`             | ❌   | 插件简介                                  |
+| `defaultConfig` | `object`             | ❌   | 默认配置，用户配置会与其合并              |
+| `configSchema`  | `TSchema`            | ❌   | TypeBox Schema，提供后框架自动校验        |
+| `init(ctx)`     | `async`              | ✅   | 插件初始化入口                            |
+| `destroy()`     | `async`              | ❌   | 插件卸载时清理（可选）                    |
+| `healthCheck()` | `async`              | ❌   | 健康检查，返回 `{ ok, error, latencyMs }` |
+| `middlewares`   | `HookRegistration[]` | ❌   | 注册的管道钩子                            |
 
 ---
 
@@ -71,10 +73,13 @@ export default plugin;
 
 ### 配置与路径
 
-| 属性     | 类型                      | 说明                                                      |
-| -------- | ------------------------- | --------------------------------------------------------- |
-| `config` | `Record<string, unknown>` | 插件自身配置（defaultConfig 与用户配置合并后）            |
-| `paths`  | `ResolvedPaths`           | 路径解析器，包含 extensionsDir、mediaDir、workspaceDir 等 |
+| 属性            | 类型                      | 说明                                                             |
+| --------------- | ------------------------- | ---------------------------------------------------------------- |
+| `name`          | `string`                  | 插件名称（与 `PluginDefinition.name` 相同）                      |
+| `config`        | `Record<string, unknown>` | 插件自身配置（defaultConfig 与用户配置合并后，`enabled` 已剥离） |
+| `paths`         | `ResolvedPaths`           | 路径解析器，包含 extensionsDir、mediaDir、workspaceDir 等        |
+| `state`         | `Record<string, unknown>` | 运行时状态容器，框架在卸载时自动清理                             |
+| `configManager` | `ConfigManager`           | 全局配置管理器                                                   |
 
 ### 注册能力
 

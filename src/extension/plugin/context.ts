@@ -5,6 +5,7 @@
  */
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import { pluginOwner, type PluginContext, type PluginManagerDependencies } from './types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 
@@ -17,8 +18,10 @@ export function createPluginContext(
 ): PluginContext {
   const owner = pluginOwner(pluginName);
   return {
+    name: pluginName,
     get config() {
-      return ref.current;
+      // 插件上下文中剥离 enabled 字段
+      return stripEnabledField(ref.current);
     },
     paths,
     configManager: deps.configManager,

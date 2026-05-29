@@ -125,7 +125,7 @@ describe('ChannelManager', () => {
     const pipeline = makePipeline();
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
-        expect(ctx.config).toEqual({ enabled: true, token: 'configured' });
+        expect(ctx.config).toEqual({ token: 'configured' });
         expect(ctx.receive).toEqual(expect.any(Function));
       }),
     });

@@ -36,38 +36,3 @@ export async function safeLoadModule(
     return null;
   }
 }
-
-/** 按名称或目录名查找插件（先查已加载，再扫磁盘）。 */
-export async function findPlugin(
-  nameOrAlias: string,
-  loadedPlugins: Map<
-    string,
-    { definition: PluginModule['definition']; directory: string; directoryName: string }
-  >,
-  extensionsDir: string,
-  failedPlugins: Map<string, string>,
-): Promise<PluginModule | null> {
-  // 先查已加载的
-  for (const loaded of loadedPlugins.values()) {
-    if (loaded.definition.name === nameOrAlias || loaded.directoryName === nameOrAlias) {
-      return {
-        definition: loaded.definition,
-        directory: loaded.directory,
-        directoryName: loaded.directoryName,
-        entryPath: '',
-      };
-    }
-  }
-
-  // 再扫磁盘
-  const pluginDirs = await discoverPluginDirs(extensionsDir);
-  for (const pluginDir of pluginDirs) {
-    const directoryName = path.basename(pluginDir);
-    const module = await safeLoadModule(pluginDir, failedPlugins);
-    if (!module) continue;
-    if (directoryName === nameOrAlias || module.definition.name === nameOrAlias) {
-      return module;
-    }
-  }
-  return null;
-}

@@ -13,6 +13,7 @@ import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import type { LoadedExtension, ExtensionLifecycleState } from '@aesyclaw/extension/types';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { SessionManager } from '@aesyclaw/session';
@@ -86,16 +87,14 @@ export type ChannelPlugin = {
   healthCheck?(): Promise<ChannelHealthStatus>;
 };
 
-export type LoadedChannel = {
-  definition: ChannelPlugin;
-  config: Record<string, unknown>;
-  loadedAt: Date;
-  /** 频道运行时状态容器 */
-  state: Record<string, unknown>;
-};
+/** 已加载频道的运行时状态（LoadedExtension 的子集）。 */
+export type LoadedChannel = Omit<
+  LoadedExtension<ChannelPlugin, ChannelContext>,
+  'context' | 'owner'
+>;
 
 /** 频道生命周期的 4 种状态。 */
-export type ChannelLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
+export type ChannelLifecycleState = ExtensionLifecycleState;
 
 /** 前端查询单个频道时的状态快照。 */
 export type ChannelStatus = {

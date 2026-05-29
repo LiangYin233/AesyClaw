@@ -33,21 +33,3 @@ export function getPluginRecord(configManager: ConfigManager): Record<string, un
     return {};
   }
 }
-
-export async function setPluginEnabled(
-  configManager: ConfigManager,
-  pluginName: string,
-  canonicalName: string,
-  directoryName: string,
-  enabled: boolean,
-): Promise<void> {
-  const plugins = getPluginRecord(configManager);
-  const existing: Record<string, unknown> | undefined = (plugins[canonicalName] ??
-    plugins[directoryName]) as Record<string, unknown> | undefined;
-  if (existing) {
-    existing['enabled'] = enabled;
-  } else {
-    plugins[canonicalName] = { enabled } as Record<string, unknown>;
-  }
-  await configManager.set('plugins', plugins);
-}

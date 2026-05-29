@@ -24,6 +24,8 @@ import {
 } from '@aesyclaw/extension/extension-utils';
 /** 插件初始化时接收的受限上下文。 */
 export type PluginContext = {
+  /** 插件名称 */
+  name: string;
   config: Record<string, unknown>;
   /** 运行时状态容器（框架自动管理生命周期，unload 时清空） */
   state: Record<string, unknown>;
@@ -50,17 +52,6 @@ export type PluginDefinition = {
   /** 健康检查（可选），返回健康状况和延迟 */
   healthCheck?(): Promise<PluginHealthStatus>;
   middlewares?: HookRegistration[];
-};
-/** 内存中已加载插件的运行时表示。 */
-export type LoadedPlugin = {
-  definition: PluginDefinition;
-  directory: string;
-  directoryName: string;
-  owner: ToolOwner;
-  config: Record<string, unknown>;
-  /** 插件运行时状态容器 */
-  state: Record<string, unknown>;
-  loadedAt: Date;
 };
 
 /** 插件健康检查结果。 */

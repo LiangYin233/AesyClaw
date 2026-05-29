@@ -5,6 +5,7 @@
  */
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import { estimateApproximateTokens } from '@aesyclaw/session';
 import type { SessionKey } from '@aesyclaw/core/types';
 import type { ChannelContext, ChannelManagerDependencies } from './types';
@@ -94,7 +95,8 @@ export function createContext(
   return {
     name: channelName,
     get config() {
-      return ref.current;
+      // 频道上下文中剥离 enabled 字段
+      return stripEnabledField(ref.current);
     },
     configManager: deps.configManager,
     paths,
