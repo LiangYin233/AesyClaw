@@ -223,8 +223,28 @@ export class DatabaseManager {
       );
     `);
 
+    this.ensureSessionColumns();
     this.ensureMessagesToolDataColumn();
     this.ensureUsageDetailColumns();
+  }
+
+  /**
+   * 兼容旧数据库：为 sessions 表补充 role_id 和 model_id 列。
+   *
+   * 新库建表时已包含这两列，此处仅在旧库缺失时补充。
+   * 注意：不处理 role_bindings 表的迁移（旧数据已不使用）。
+   */
+  private ensureSessionColumns(): void {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    const columns = this.getTableColumns('sessions');
+    if (!columns.has('role_id')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN role_id TEXT');
+      logger.info('sessions 表已添加 role_id 列');
+    }
+    if (!columns.has('model_id')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN model_id TEXT');
+      logger.info('sessions 表已添加 model_id 列');
+    }
   }
 
   private ensureMessagesToolDataColumn(): void {
