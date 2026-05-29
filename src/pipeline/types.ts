@@ -31,6 +31,5 @@ export type PipelineDependencies = {
     toolRegistry: ToolRegistry;
     hooksBus: IHooksBus;
     compressionThreshold: number;
-    defaultModel: string;
   };
 };

@@ -72,7 +72,8 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
     },
     databaseManager: {
       sessions: {
-        findByKey: vi.fn(async () => null),
+        findByKey: vi.fn(async () => ({ model_id: 'openai/gpt-4o' } as unknown as never)),
+        setModel: vi.fn(),
       },
     },
     llmAdapter: {} as never,
@@ -90,7 +91,6 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
       toolRegistry: {} as never,
       hooksBus: {} as never,
       compressionThreshold: 0.8,
-      defaultModel: 'openai/gpt-4o',
     },
   };
 }

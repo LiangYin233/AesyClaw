@@ -9,7 +9,6 @@ import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
  * @param llmAdapter - LLM 适配器
  * @param databaseManager - 数据库管理器（仅需 sessions）
  * @param agentRegistry - Agent 注册表
- * @param defaultModel - 默认模型 ID
  * @returns 命令定义
  */
 export function createCompactCommand(

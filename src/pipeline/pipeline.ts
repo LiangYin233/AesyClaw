@@ -117,6 +117,11 @@ export class Pipeline implements MessageProcessor {
         ? this.deps.roleManager.getRole(activeRoleId)
         : this.deps.roleManager.getDefaultRole();
 
+      // 模型绑定：优先从已注册的 Agent 获取，否则从 DB 读取
+      const agentModelId =
+        this.deps.agentRegistry.getAgent(sessionKey)?.modelIdentifier ??
+        (await this.deps.databaseManager.sessions.findByKey(sessionKey))!.model_id!;
+
       const agent = new Agent({
         session,
         llmAdapter: this.deps.agentDeps.llmAdapter,
@@ -126,18 +131,9 @@ export class Pipeline implements MessageProcessor {
         hooksBus: this.deps.agentDeps.hooksBus,
         compressionThreshold: this.deps.agentDeps.compressionThreshold,
         registry: this.deps.agentRegistry,
-        defaultModel: this.deps.agentDeps.defaultModel,
+        defaultModel: agentModelId,
       });
       await agent.setRole(activeRole);
-
-      // ── Step 3: 模型绑定 ────────────────────────────────
-      const dbRecord = await this.deps.databaseManager.sessions.findByKey(sessionKey);
-      const boundModel = dbRecord?.model_id ?? this.deps.agentDeps.defaultModel;
-      // 新会话自动绑定默认模型
-      if (!dbRecord?.model_id && dbRecord) {
-        await this.deps.databaseManager.sessions.setModel(dbRecord.id, boundModel);
-      }
-      agent.setModel(boundModel);
 
       // ── Step 4: 命令检测 ─────────────────────────────────
       const text = getMessageText(message);

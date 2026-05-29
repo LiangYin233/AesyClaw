@@ -56,8 +56,10 @@ function createSubsystems(): Deps {
   const llmAdapter = new LlmAdapter(configManager);
 
   const compressionThreshold = configManager.get('agent.memory.compressionThreshold') as number;
-  const defaultModel = configManager.get('agent.defaultModel') as string;
-  const sessionManager = new SessionManager(databaseManager, defaultModel);
+  const sessionManager = new SessionManager(
+    databaseManager,
+    () => configManager.get('agent.defaultModel') as string,
+  );
   const hooksBus = new HooksBus();
 
   const pipeline = new Pipeline({
@@ -76,7 +78,6 @@ function createSubsystems(): Deps {
       toolRegistry,
       hooksBus,
       compressionThreshold,
-      defaultModel,
     },
   });
 
