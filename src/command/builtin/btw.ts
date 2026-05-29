@@ -67,6 +67,10 @@ export function createBtwCommand(
       });
       const role = activeRoleId ? getRoleOrFallback(activeRoleId) : getDefaultRole();
 
+      // 优先使用会话绑定的模型，否则用 defaultModel
+      const dbRecord = await databaseManager.sessions.findByKey(context.sessionKey);
+      const modelId = dbRecord?.model_id ?? defaultModel;
+
       const agent = new Agent({
         session,
         llmAdapter,
@@ -76,7 +80,7 @@ export function createBtwCommand(
         hooksBus,
         compressionThreshold,
         registry: agentRegistry,
-        defaultModel,
+        defaultModel: modelId,
       });
       const outbound = await agent.process(
         { components: [{ type: 'Plain', text: content }] },
