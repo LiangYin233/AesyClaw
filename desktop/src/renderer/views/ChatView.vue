@@ -259,8 +259,8 @@ watch(activeSessionId, () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 32px;
-  margin-bottom: 8px;
+  padding: 6px 24px;
+  margin-bottom: 4px;
   background: #fdfbf9;
   flex-shrink: 0;
 }
