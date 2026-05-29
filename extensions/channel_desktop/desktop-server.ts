@@ -225,13 +225,13 @@ export class DesktopServer {
   }
 
   private async handleGetContextUsage(
-    _connectionId: string,
+    connectionId: string,
     msg: { type: 'get_context_usage'; sessionId: string },
   ): Promise<void> {
     const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
     try {
       const usage = await this.options.context.getSessionContextUsage(sessionKey);
-      const conn = this.sessions.getConnection(msg.sessionId);
+      const conn = this.sessions.getConnectionById(connectionId);
       if (conn) {
         conn.sendJson({
           type: 'context_usage',
