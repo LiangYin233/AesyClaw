@@ -148,7 +148,6 @@ export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelC
     return this.definitions.has(channelName);
   }
 
-
   /**
    * 增量热重载：仅重启配置变更的频道，加载新增频道，卸载禁用的频道。
    */

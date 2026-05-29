@@ -155,7 +155,6 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
     }
   }
 
-
   /**
    * 列出所有插件的状态。
    */
