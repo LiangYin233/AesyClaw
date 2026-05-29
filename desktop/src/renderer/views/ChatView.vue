@@ -202,7 +202,7 @@ function requestContextUsage(): void {
 
 /** 截断模型 ID 为简短显示名 */
 function shortModel(modelId: string): string {
-return modelId.includes('/') ? modelId.split('/').pop() ?? modelId : modelId;
+  return modelId.includes('/') ? (modelId.split('/').pop() ?? modelId) : modelId;
 }
 
 // 会话切换时刷新

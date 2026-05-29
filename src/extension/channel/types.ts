@@ -50,9 +50,7 @@ export type ChannelContext = {
     sessionKey: SessionKey,
   ): Promise<{ estimatedTokens: number; contextWindow: number; percentage: number }>;
   /** 获取指定会话绑定的模型和角色 ID */
-  getSessionModel(
-    sessionKey: SessionKey,
-  ): Promise<{ modelId?: string; roleId?: string }>;
+  getSessionModel(sessionKey: SessionKey): Promise<{ modelId?: string; roleId?: string }>;
   /** 获取所有会话列表（用于 Desktop 同步） */
   getSessions(): Promise<
     Array<{
