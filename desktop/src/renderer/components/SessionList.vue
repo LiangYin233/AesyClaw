@@ -92,7 +92,29 @@ function onDelete(id: string) {
   font-size: 13px;
   color: var(--color-mid-gray);
   font-family: var(--font-body);
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    transform 0.1s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.session-item:active {
+  transform: scale(0.98);
+}
+
+.session-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: var(--color-primary);
+  border-radius: 0 2px 2px 0;
+  transition: height var(--transition-fast);
 }
 
 .session-item:hover {
@@ -103,6 +125,10 @@ function onDelete(id: string) {
 .session-item.active {
   background: #f7f0ea;
   color: var(--color-dark);
+}
+
+.session-item.active::before {
+  height: 60%;
 }
 
 .session-title {

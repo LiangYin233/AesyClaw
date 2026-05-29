@@ -83,6 +83,8 @@ export type ChatSession = {
   pendingToolCalls: Map<string, ToolCallState>;
   /** 当前正在累积的 assistant 文本消息 */
   activeAssistantMessage: AssistantMessage | null;
+  /** 正在加载历史消息 */
+  isLoading?: boolean;
 };
 
 export type ChatMessage =
@@ -231,9 +233,11 @@ function useChatImpl() {
     if (!force && session.messages.length > 0) return;
     const summary = findBackendSummary(sessionId);
     if (!summary) return;
+    session.isLoading = true;
     const raw = (await channelRequest('get_session_messages', {
       sessionId,
     })) as DesktopHistoryMessage[];
+    session.isLoading = false;
     if (!Array.isArray(raw)) return;
     const converted: ChatMessage[] = [];
     // 用于 toolResult 匹配 toolCall：key=toolCallId, value=ToolCallState 对象引用
@@ -443,6 +447,7 @@ function useChatImpl() {
       streaming: false,
       pendingToolCalls: new Map(),
       activeAssistantMessage: null,
+      isLoading: false,
     };
   }
 

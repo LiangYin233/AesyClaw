@@ -8,41 +8,47 @@
       :selectSession="selectSession"
     />
 
-    <!-- Chat area -->
-    <div class="chat-area" v-if="activeSession">
-      <div class="context-bar" v-if="contextUsage">
-        <div class="context-track">
-          <div
-            class="context-fill"
-            :style="{ width: Math.min(contextUsage.percentage, 100) + '%' }"
-            :class="{ warning: contextUsage.percentage > 70, danger: contextUsage.percentage > 90 }"
-          ></div>
-        </div>
-        <span class="context-label"
-          >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
-          {{ contextUsage.contextWindow }})</span
-        >
+    <!-- Chat area / Empty -->
+    <Transition name="chat-area" mode="out-in">
+      <div class="chat-area" v-if="activeSession" :key="activeSessionId ?? 'none'">
+        <Transition name="context-bar">
+          <div class="context-bar" v-if="contextUsage">
+            <div class="context-track">
+              <div
+                class="context-fill"
+                :style="{ width: Math.min(contextUsage.percentage, 100) + '%' }"
+                :class="{
+                  warning: contextUsage.percentage > 70,
+                  danger: contextUsage.percentage > 90,
+                }"
+              ></div>
+            </div>
+            <span class="context-label"
+              >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
+              {{ contextUsage.contextWindow }})</span
+            >
+          </div>
+        </Transition>
+        <MessageList
+          :messages="activeSession.messages ?? []"
+          :activeSession="activeSession"
+          :activeCopyMenuIndex="activeCopyMenuIndex"
+          :isLoading="!!activeSession.isLoading"
+          @toggle-copy-menu="toggleCopyMenu"
+          @close-copy-menu="closeCopyMenu"
+        />
+        <ChatInput
+          :commands="commands"
+          :streaming="!!activeSession?.streaming"
+          @send="onSend"
+          @cancel="onCancel"
+        />
       </div>
-      <MessageList
-        :messages="activeSession.messages ?? []"
-        :activeSession="activeSession"
-        :activeCopyMenuIndex="activeCopyMenuIndex"
-        @toggle-copy-menu="toggleCopyMenu"
-        @close-copy-menu="closeCopyMenu"
-      />
-      <ChatInput
-        :commands="commands"
-        :streaming="!!activeSession?.streaming"
-        @send="onSend"
-        @cancel="onCancel"
-      />
-    </div>
-
-    <!-- Empty -->
-    <div v-else class="empty-chat">
-      <p class="empty-title">Select or create a chat</p>
-      <p class="empty-sub">Your AI conversations appear here.</p>
-    </div>
+      <div v-else class="empty-chat" key="empty">
+        <p class="empty-title">Select or create a chat</p>
+        <p class="empty-sub">Your AI conversations appear here.</p>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -197,6 +203,8 @@ watch(activeSessionId, () => {
 .chat-view {
   display: flex;
   height: 100%;
+  position: relative;
+  overflow-x: hidden;
 }
 
 /* ── Chat area ───────────────────────── */
@@ -271,5 +279,38 @@ watch(activeSessionId, () => {
   font-size: 11px;
   color: var(--color-mid-gray);
   white-space: nowrap;
+}
+
+/* ── Transitions ─────────────────────── */
+.chat-area-enter-active,
+.chat-area-leave-active {
+  transition:
+    opacity var(--transition),
+    transform var(--transition);
+}
+
+.chat-area-enter-from {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+.chat-area-leave-to {
+  opacity: 0;
+  transform: translateX(-12px);
+}
+
+.context-bar-enter-active,
+.context-bar-leave-active {
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast),
+    max-height var(--transition-fast);
+}
+
+.context-bar-enter-from,
+.context-bar-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+  max-height: 0;
 }
 </style>

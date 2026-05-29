@@ -1,9 +1,22 @@
 <template>
   <div class="message-list" ref="messageListRef">
-    <div v-if="messages.length === 0 && !activeSession?.streaming" class="empty-state">
-      <p class="empty-title">Start a conversation</p>
-      <p class="empty-sub">Send a message to begin your AI-powered chat.</p>
-    </div>
+    <Transition name="fade" mode="out-in">
+      <div v-if="isLoading" class="loading-state" key="loading">
+        <div class="loading-skeleton">
+          <div class="skeleton-line skeleton-user"></div>
+          <div class="skeleton-line skeleton-assistant"></div>
+          <div class="skeleton-line skeleton-assistant short"></div>
+        </div>
+      </div>
+      <div
+        v-else-if="messages.length === 0 && !activeSession?.streaming"
+        class="empty-state"
+        key="empty"
+      >
+        <p class="empty-title">Start a conversation</p>
+        <p class="empty-sub">Send a message to begin your AI-powered chat.</p>
+      </div>
+    </Transition>
 
     <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
       <!-- User -->
@@ -240,6 +253,7 @@ const props = defineProps<{
   messages: ChatMessage[];
   activeSession: ChatSession | null;
   activeCopyMenuIndex: number | null;
+  isLoading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -1118,5 +1132,81 @@ function formatToolResult(result: unknown): string {
   word-break: break-word;
   padding: 4px 0;
   margin: 0;
+}
+
+/* ── Loading skeleton ──────────────────── */
+.loading-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+}
+
+.loading-skeleton {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: skeletonFadeIn 0.3s ease;
+}
+
+.skeleton-line {
+  height: 18px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0ece4 25%, #f8f6f2 50%, #f0ece4 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease infinite;
+}
+
+.skeleton-user {
+  width: 55%;
+  margin-left: auto;
+  height: 16px;
+  border-radius: 12px;
+}
+
+.skeleton-assistant {
+  width: 80%;
+  height: 14px;
+}
+
+.skeleton-assistant.short {
+  width: 45%;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes skeletonFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Fade transition ─────────────────── */
+.fade-enter-active,
+.fade-leave-active {
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 </style>
