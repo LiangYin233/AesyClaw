@@ -18,10 +18,12 @@ export class SessionManager {
   /**
    * @param databaseManager - 数据库管理器
    * @param getDefaultModel - 获取默认模型（支持热重载）
+   * @param getDefaultRoleId - 获取默认角色 ID（支持热重载）
    */
   constructor(
     private databaseManager: DatabaseManager,
     private getDefaultModel: () => string,
+    private getDefaultRoleId: () => string,
   ) {}
 
   /**
@@ -140,9 +142,12 @@ export class SessionManager {
 
   private async createFromDb(key: SessionKey, cacheKey: string): Promise<Session> {
     const sessionRecord = await this.databaseManager.sessions.findOrCreate(key);
-    // 新会话自动绑定默认模型
+    // 新会话自动绑定默认模型和角色
     if (!sessionRecord.model_id) {
       await this.databaseManager.sessions.setModel(sessionRecord.id, this.getDefaultModel());
+    }
+    if (!sessionRecord.role_id) {
+      await this.databaseManager.sessions.setRole(sessionRecord.id, this.getDefaultRoleId());
     }
     const session = new Session(sessionRecord.id, key, {
       messages: this.databaseManager.messages,

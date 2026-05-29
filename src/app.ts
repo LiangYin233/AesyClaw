@@ -59,6 +59,7 @@ function createSubsystems(): Deps {
   const sessionManager = new SessionManager(
     databaseManager,
     () => configManager.get('agent.defaultModel') as string,
+    () => roleManager.getDefaultRole().id,
   );
   const hooksBus = new HooksBus();
 
