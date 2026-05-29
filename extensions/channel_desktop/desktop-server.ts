@@ -262,13 +262,13 @@ export class DesktopServer {
   }
 
   private async handleGetSessionMessages(
-    _connectionId: string,
+    connectionId: string,
     msg: { type: 'get_session_messages'; sessionId: string },
   ): Promise<void> {
     try {
       const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
       const messages = await this.options.context.getSessionMessages(sessionKey);
-      const conn = this.sessions.getConnection(msg.sessionId);
+      const conn = this.sessions.getConnectionById(connectionId);
       if (conn) {
         conn.sendJson({ type: 'session_messages', sessionId: msg.sessionId, data: messages });
       }
