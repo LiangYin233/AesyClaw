@@ -117,6 +117,14 @@ export class Pipeline implements MessageProcessor {
         ? this.deps.roleManager.getRole(activeRoleId)
         : this.deps.roleManager.getDefaultRole();
 
+      // 持久化默认角色（新会话或未绑定时写入）
+      if (!activeRoleId) {
+        const sr = await this.deps.databaseManager.sessions.findByKey(sessionKey);
+        if (sr && !sr.role_id) {
+          await this.deps.databaseManager.sessions.setRole(sr.id, activeRole.id);
+        }
+      }
+
       // 模型绑定：优先从已注册的 Agent 获取，否则从 DB 读取
       const agentModelId =
         this.deps.agentRegistry.getAgent(sessionKey)?.modelIdentifier ??

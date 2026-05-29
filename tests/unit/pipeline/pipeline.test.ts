@@ -74,6 +74,7 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
       sessions: {
         findByKey: vi.fn(async () => ({ model_id: 'openai/gpt-4o' }) as unknown as never),
         setModel: vi.fn(),
+        setRole: vi.fn(),
       },
     },
     llmAdapter: {} as never,
