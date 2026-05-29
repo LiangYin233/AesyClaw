@@ -32,7 +32,6 @@ export function createContext(
         deps.sessionManager.get(sessionKey) ?? (await deps.sessionManager.create(sessionKey));
       const messages = session.get();
       const estimatedTokens = estimateApproximateTokens(messages);
-
       const record = await deps.databaseManager.sessions.findById(session.sessionId);
       if (!record?.model_id) throw new Error('会话未绑定模型');
       const modelId = record.model_id;

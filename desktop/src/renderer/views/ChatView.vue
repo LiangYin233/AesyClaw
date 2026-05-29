@@ -49,12 +49,10 @@
             {{ contextUsage.contextWindow }})</span
           >
           <span class="context-extra">
-            <span class="context-role" v-if="contextUsage.roleId"
-              >{{ contextUsage.roleId }}</span
-            >
-            <span class="context-model" v-if="contextUsage.modelId"
-              >{{ shortModel(contextUsage.modelId) }}</span
-            >
+            <span class="context-role" v-if="contextUsage.roleId">{{ contextUsage.roleId }}</span>
+            <span class="context-model" v-if="contextUsage.modelId">{{
+              shortModel(contextUsage.modelId)
+            }}</span>
           </span>
         </div>
       </Transition>

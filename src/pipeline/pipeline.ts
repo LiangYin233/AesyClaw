@@ -117,7 +117,22 @@ export class Pipeline implements MessageProcessor {
         ? this.deps.roleManager.getRole(activeRoleId)
         : this.deps.roleManager.getDefaultRole();
 
-      // 模型绑定：优先从已注册的 Agent 获取，否则从 DB 读取
+      // ── Step 3: 命令检测（优先于 agent 创建，命令无需模型）───
+      const text = getMessageText(message);
+      const resolved = this.deps.commandRegistry.resolve(text);
+
+      if (resolved) {
+        if (session.isLocked && !resolved.command.allowDuringAgentProcessing) {
+          await this.message(send, busyMessage(), session.key);
+          return;
+        }
+
+        const result = await this.deps.commandRegistry.executeResolved(resolved, { sessionKey });
+        await this.message(send, result, session.key, 'command');
+        return;
+      }
+
+      // ── Step 4: Agent 创建（非命令才需要 Agent）────────────
       const agentModelId =
         this.deps.agentRegistry.getAgent(sessionKey)?.modelIdentifier ??
         (await this.deps.databaseManager.sessions.findByKey(sessionKey))!.model_id!;
@@ -134,21 +149,6 @@ export class Pipeline implements MessageProcessor {
         defaultModel: agentModelId,
       });
       await agent.setRole(activeRole);
-
-      // ── Step 4: 命令检测 ─────────────────────────────────
-      const text = getMessageText(message);
-      const resolved = this.deps.commandRegistry.resolve(text);
-
-      if (resolved) {
-        if (session.isLocked && !resolved.command.allowDuringAgentProcessing) {
-          await this.message(send, busyMessage(), session.key);
-          return;
-        }
-
-        const result = await this.deps.commandRegistry.executeResolved(resolved, { sessionKey });
-        await this.message(send, result, session.key, 'command');
-        return;
-      }
 
       // ── Step 5: 非命令锁定 ───────────────────────────────
       if (!session.lock()) {
