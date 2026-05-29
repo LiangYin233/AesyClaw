@@ -48,9 +48,14 @@
             >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
             {{ contextUsage.contextWindow }})</span
           >
-          <span class="context-extra" v-if="contextUsage.modelId"
-            >{{ contextUsage.roleId ?? '' }} {{ shortModel(contextUsage.modelId) }}</span
-          >
+          <span class="context-extra">
+            <span class="context-role" v-if="contextUsage.roleId"
+              >{{ contextUsage.roleId }}</span
+            >
+            <span class="context-model" v-if="contextUsage.modelId"
+              >{{ shortModel(contextUsage.modelId) }}</span
+            >
+          </span>
         </div>
       </Transition>
     </div>
@@ -303,6 +308,24 @@ watch(activeSessionId, () => {
   color: var(--color-dark);
   white-space: nowrap;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-role,
+.context-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.context-role {
+  color: var(--color-primary);
+}
+
+.context-model {
+  color: var(--color-dark);
 }
 
 /* ── Transitions ─────────────────────── */
