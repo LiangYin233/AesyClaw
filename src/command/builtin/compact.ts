@@ -16,7 +16,6 @@ export function createCompactCommand(
   sessionManager: Pick<SessionManager, 'get'>,
   llmAdapter: LlmAdapter,
   databaseManager: Pick<DatabaseManager, 'sessions'>,
-  defaultModel: string,
 ): CommandDefinition {
   return {
     name: 'compact',
@@ -29,7 +28,7 @@ export function createCompactCommand(
       }
 
       const dbSession = await databaseManager.sessions.findByKey(context.sessionKey);
-      const modelId = dbSession?.model_id ?? defaultModel;
+      const modelId = dbSession!.model_id!;
       const summary = await session.compact(llmAdapter, modelId);
       return { components: [{ type: 'Plain', text: `会话已压缩完成。\n${summary}` }] };
     },

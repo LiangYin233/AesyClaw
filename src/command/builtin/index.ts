@@ -30,7 +30,6 @@ export type BuiltinCommandDependencies = {
   databaseManager: Pick<DatabaseManager, 'sessions'>;
   compressionThreshold: number;
   agentRegistry: AgentRegistry;
-  defaultModel: string;
 };
 
 /**
@@ -63,18 +62,12 @@ export function registerBuiltinCommands(
       deps.databaseManager,
       deps.compressionThreshold,
       deps.agentRegistry,
-      deps.defaultModel,
     ),
   );
   registry.register(createModelCommand(deps.llmAdapter, deps.agentRegistry, deps.databaseManager));
   registry.register(createClearCommand(deps.sessionManager, deps.agentRegistry));
   registry.register(
-    createCompactCommand(
-      deps.sessionManager,
-      deps.llmAdapter,
-      deps.databaseManager,
-      deps.defaultModel,
-    ),
+    createCompactCommand(deps.sessionManager, deps.llmAdapter, deps.databaseManager),
   );
   registry.register(createStopCommand(deps.sessionManager, deps.agentRegistry));
   registry.register(roleCommands.createRoleListCommand(roleDeps));

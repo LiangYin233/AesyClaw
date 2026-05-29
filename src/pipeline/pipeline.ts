@@ -130,11 +130,14 @@ export class Pipeline implements MessageProcessor {
       });
       await agent.setRole(activeRole);
 
-      // ── Step 3: 覆盖持久化的模型绑定 ────────────────────
+      // ── Step 3: 模型绑定 ────────────────────────────────
       const dbRecord = await this.deps.databaseManager.sessions.findByKey(sessionKey);
-      if (dbRecord?.model_id) {
-        agent.setModel(dbRecord.model_id);
+      const boundModel = dbRecord?.model_id ?? this.deps.agentDeps.defaultModel;
+      // 新会话自动绑定默认模型
+      if (!dbRecord?.model_id && dbRecord) {
+        await this.deps.databaseManager.sessions.setModel(dbRecord.id, boundModel);
       }
+      agent.setModel(boundModel);
 
       // ── Step 4: 命令检测 ─────────────────────────────────
       const text = getMessageText(message);

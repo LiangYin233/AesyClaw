@@ -45,7 +45,6 @@ export function createBtwCommand(
   databaseManager: Pick<DatabaseManager, 'sessions'>,
   compressionThreshold: number,
   agentRegistry: AgentRegistry,
-  defaultModel: string,
 ): CommandDefinition {
   return {
     name: 'btw',
@@ -67,9 +66,8 @@ export function createBtwCommand(
       });
       const role = activeRoleId ? getRoleOrFallback(activeRoleId) : getDefaultRole();
 
-      // 优先使用会话绑定的模型，否则用 defaultModel
       const dbRecord = await databaseManager.sessions.findByKey(context.sessionKey);
-      const modelId = dbRecord?.model_id ?? defaultModel;
+      const modelId = dbRecord!.model_id!;
 
       const agent = new Agent({
         session,

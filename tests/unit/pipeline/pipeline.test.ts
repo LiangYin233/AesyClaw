@@ -12,6 +12,7 @@ vi.mock('@aesyclaw/agent/agent', () => ({
     return {
       buildPrompt: vi.fn(() => ({ prompt: 'system', tools: [] })),
       setRole: agentSetRole,
+      setModel: vi.fn(),
       process: agentProcess,
     };
   }),
@@ -22,7 +23,6 @@ const role: RoleConfig = {
   id: 'default',
   description: 'default role',
   systemPrompt: 'system',
-  model: 'provider/model',
   toolPermission: { mode: 'allowlist', list: [] },
   skills: [],
   enabled: true,
@@ -90,6 +90,7 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
       toolRegistry: {} as never,
       hooksBus: {} as never,
       compressionThreshold: 0.8,
+      defaultModel: 'openai/gpt-4o',
     },
   };
 }

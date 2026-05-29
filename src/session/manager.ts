@@ -17,8 +17,12 @@ export class SessionManager {
 
   /**
    * @param databaseManager - 数据库管理器
+   * @param defaultModel - 新会话自动绑定的默认模型
    */
-  constructor(private databaseManager: DatabaseManager) {}
+  constructor(
+    private databaseManager: DatabaseManager,
+    private defaultModel = 'openai/gpt-4o',
+  ) {}
 
   /**
    * 获取或创建指定会话键对应的会话。
@@ -136,6 +140,10 @@ export class SessionManager {
 
   private async createFromDb(key: SessionKey, cacheKey: string): Promise<Session> {
     const sessionRecord = await this.databaseManager.sessions.findOrCreate(key);
+    // 新会话自动绑定默认模型
+    if (!sessionRecord.model_id) {
+      await this.databaseManager.sessions.setModel(sessionRecord.id, this.defaultModel);
+    }
     const session = new Session(sessionRecord.id, key, {
       messages: this.databaseManager.messages,
       usage: this.databaseManager.usage,

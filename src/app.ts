@@ -54,10 +54,10 @@ function createSubsystems(): Deps {
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
   const llmAdapter = new LlmAdapter(configManager);
-  const sessionManager = new SessionManager(databaseManager);
 
   const compressionThreshold = configManager.get('agent.memory.compressionThreshold') as number;
   const defaultModel = configManager.get('agent.defaultModel') as string;
+  const sessionManager = new SessionManager(databaseManager, defaultModel);
   const hooksBus = new HooksBus();
 
   const pipeline = new Pipeline({
@@ -214,7 +214,6 @@ export class Application {
         'agent.memory.compressionThreshold',
       ) as number,
       agentRegistry: this.sub.agentRegistry,
-      defaultModel: this.sub.configManager.get('agent.defaultModel') as string,
     });
 
     // 先加载插件（插件 init 期间可能注册频道），再注册磁盘频道并启动全部
