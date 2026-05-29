@@ -72,7 +72,7 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
     },
     databaseManager: {
       sessions: {
-        findByKey: vi.fn(async () => ({ model_id: 'openai/gpt-4o' } as unknown as never)),
+        findByKey: vi.fn(async () => ({ model_id: 'openai/gpt-4o' }) as unknown as never),
         setModel: vi.fn(),
       },
     },

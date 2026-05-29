@@ -8,31 +8,12 @@
       :selectSession="selectSession"
     />
 
-    <!-- Chat area / Empty -->
-    <Transition name="chat-area" mode="out-in">
-      <div class="chat-area" v-if="activeSession" :key="activeSessionId ?? 'none'">
-        <Transition name="context-bar">
-          <div class="context-bar" v-if="contextUsage">
-            <div class="context-track">
-              <div
-                class="context-fill"
-                :style="{ width: Math.min(contextUsage.percentage, 100) + '%' }"
-                :class="{
-                  warning: contextUsage.percentage > 70,
-                  danger: contextUsage.percentage > 90,
-                }"
-              ></div>
-            </div>
-            <span class="context-label"
-              >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
-              {{ contextUsage.contextWindow }})</span
-            >
-            <span class="context-extra" v-if="contextUsage.modelId"
-              >{{ contextUsage.roleId ?? '' }} {{ shortModel(contextUsage.modelId) }}</span
-            >
-          </div>
-        </Transition>
+    <div class="chat-main">
+      <!-- Message list / Empty (切换时过渡动画，不影响输入框和状态栏） -->
+      <Transition name="chat-area" mode="out-in">
         <MessageList
+          v-if="activeSession"
+:key="activeSessionId ?? 'none'"
           :messages="activeSession.messages ?? []"
           :activeSession="activeSession"
           :activeCopyMenuIndex="activeCopyMenuIndex"
@@ -40,18 +21,36 @@
           @toggle-copy-menu="toggleCopyMenu"
           @close-copy-menu="closeCopyMenu"
         />
-        <ChatInput
-          :commands="commands"
-          :streaming="!!activeSession?.streaming"
-          @send="onSend"
-          @cancel="onCancel"
-        />
-      </div>
-      <div v-else class="empty-chat" key="empty">
-        <p class="empty-title">Select or create a chat</p>
-        <p class="empty-sub">Your AI conversations appear here.</p>
-      </div>
-    </Transition>
+        <div v-else class="empty-chat" key="empty">
+          <p class="empty-title">Select or create a chat</p>
+          <p class="empty-sub">Your AI conversations appear here.</p>
+        </div>
+      </Transition>
+      <ChatInput
+        :commands="commands"
+        :streaming="!!activeSession?.streaming"
+        @send="onSend"
+        @cancel="onCancel"
+      />
+      <Transition name="context-bar">
+        <div class="context-bar" v-if="contextUsage">
+          <div class="context-track">
+            <div
+              class="context-fill"
+              :style="{ width: Math.min(contextUsage.percentage, 100) + '%' }"
+              :class="{ warning: contextUsage.percentage > 70, danger: contextUsage.percentage > 90 }"
+            ></div>
+          </div>
+          <span class="context-label"
+            >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
+            {{ contextUsage.contextWindow }})</span
+          >
+          <span class="context-extra" v-if="contextUsage.modelId"
+            >{{ contextUsage.roleId ?? '' }} {{ shortModel(contextUsage.modelId) }}</span
+          >
+        </div>
+      </Transition>
+    </div>
   </div>
 </template>
 
@@ -220,7 +219,7 @@ watch(activeSessionId, () => {
 }
 
 /* ── Chat area ───────────────────────── */
-.chat-area {
+.chat-main {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -233,6 +232,7 @@ watch(activeSessionId, () => {
   align-items: center;
   justify-content: center;
   flex: 1;
+  min-height: 0;
   text-align: center;
 }
 
