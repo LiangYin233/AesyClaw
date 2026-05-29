@@ -16,7 +16,6 @@ export const RoleConfigSchema = Type.Object({
   id: Type.String({ description: 'Unique role identifier' }),
   description: Type.String({ description: 'Brief description of the role' }),
   systemPrompt: Type.String({ description: 'System prompt template for the role' }),
-  model: Type.String({ description: 'provider/model format' }),
   toolPermission: Type.Object({
     mode: Type.Union([Type.Literal('allowlist'), Type.Literal('denylist')]),
     list: Type.Array(Type.String()),

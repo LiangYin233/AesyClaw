@@ -2,7 +2,6 @@
 
 import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 import type { RoleConfig } from '@aesyclaw/core/types';
-import { parseModelIdentifier } from '@aesyclaw/core/utils';
 
 /**
  * 获取所有角色。
@@ -27,42 +26,22 @@ export function getRole(deps: WebRuntimeDependencies, id: string): RoleConfig {
   return deps.roleManager.getRole(id);
 }
 
-function validateProviderModel(deps: WebRuntimeDependencies, model: string): void {
-  const { provider: providerName, modelId } = parseModelIdentifier(model);
-  const provider = deps.configManager.get(`providers.${providerName}`) as
-    | { models?: Record<string, unknown> }
-    | undefined;
-  if (provider === undefined) {
-    throw new Error(`提供商 "${providerName}" 未配置`);
-  }
-  if (provider.models === undefined || !(modelId in provider.models)) {
-    throw new Error(`提供商 "${providerName}" 中未找到模型 "${modelId}"`);
-  }
-}
-
 /**
  * 创建角色。
  *
  * @param deps - WebUI 管理器依赖项
- * @param body - 角色部分配置（model 为必填）
+ * @param body - 角色部分配置
  * @returns 创建的角色配置
- * @throws model 缺失或提供商/模型校验失败时抛出
  */
 export async function createRole(
   deps: WebRuntimeDependencies,
-  body: Partial<RoleConfig> & { model: string },
+  body: Partial<RoleConfig>,
 ): Promise<RoleConfig> {
-  if (!body.model) {
-    throw new Error('模型为必填项');
-  }
-
-  validateProviderModel(deps, body.model);
   const id = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : undefined;
 
   const role = await deps.roleManager.createRole({
     description: body.description ?? '',
     systemPrompt: body.systemPrompt ?? '',
-    model: body.model,
     toolPermission: body.toolPermission ?? { mode: 'allowlist', list: [] },
     skills: body.skills ?? ([] as string[]),
     enabled: body.enabled ?? true,
@@ -90,9 +69,6 @@ export async function updateRole(
   }
 
   const current = deps.roleManager.getRole(id);
-  const model = body.model ?? current.model;
-  validateProviderModel(deps, model);
-
   const updated: RoleConfig = { ...current, ...body, id };
   await deps.roleManager.saveRole(id, updated);
   return updated;

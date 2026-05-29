@@ -101,9 +101,7 @@ export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition 
         components: [
           {
             type: 'Plain',
-            text: [`当前角色：${role.id}`, `描述：${role.description}`, `模型：${role.model}`].join(
-              '\n',
-            ),
+            text: [`当前角色：${role.id}`, `描述：${role.description}`].join('\n'),
           },
         ],
       };

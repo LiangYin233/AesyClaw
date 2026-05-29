@@ -26,7 +26,7 @@ function createAutoCompactMiddleware(
     }
 
     if (estimateApproximateTokens(history) >= model.contextWindow * compressionThreshold) {
-      await ctx.session.compact(llmAdapter, ctx.role.model);
+      await ctx.session.compact(llmAdapter, ctx.agent?.modelIdentifier ?? '');
     }
 
     return next !== undefined ? await next() : { action: 'next' };

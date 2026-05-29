@@ -22,6 +22,7 @@ export type AgentRuntimeRef = {
   readonly session: SessionRuntimeRef;
   roleId?: string;
   readonly model: ResolvedModel;
+  readonly modelIdentifier: string;
   readonly activeRole: RoleConfig | null;
   setModel(modelId: string): void;
   setRole(role: RoleConfig): Promise<void>;

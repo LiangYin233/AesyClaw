@@ -71,7 +71,6 @@ export type RoleConfig = {
   id: string;
   description: string;
   systemPrompt: string;
-  model: string;
   toolPermission: ToolPermissionConfig;
   skills: string[] | ['*'];
   enabled: boolean;

@@ -34,6 +34,7 @@ export const DEFAULTS = {
   host: '0.0.0.0',
   logLevel: 'info',
   compressionThreshold: 0.8,
+  defaultModel: 'openai/gpt-4o',
 } as const;
 
 // ─── 标识符类型 ───────────────────────────────────────────────────

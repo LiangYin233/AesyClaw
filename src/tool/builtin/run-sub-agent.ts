@@ -171,7 +171,6 @@ function createTempSubAgentRole(
     id: `temp-sub-agent-${randomUUID()}`,
     description: 'Temporary delegated agent execution',
     systemPrompt: params.systemPrompt,
-    model: params.model ?? baseRole.model,
     enabled: true,
   };
 }

@@ -38,6 +38,7 @@ export type AgentOptions = {
   hooksBus: IHooksBus;
   compressionThreshold: number;
   registry: AgentRegistry;
+  defaultModel: string;
 };
 
 type ProcessOptions = {
@@ -61,6 +62,7 @@ export class Agent {
   private compressionThreshold: number;
 
   private _model!: ResolvedModel;
+  private _modelIdentifier = 'openai/gpt-4o';
   private _activeRole: RoleConfig | null = null;
   private _allowedTools: AesyClawTool[] = [];
 
@@ -102,12 +104,19 @@ export class Agent {
     this.compressionThreshold = options.compressionThreshold;
     this.registry = options.registry;
 
+    this._modelIdentifier = options.defaultModel;
+    this._model = this.llmAdapter.resolveModel(options.defaultModel);
     this.registry.registerAgent(this.session.key, this);
   }
 
   /** 当前解析后的模型配置 */
   get model(): ResolvedModel {
     return this._model;
+  }
+
+  /** 当前模型标识符（provider/model 格式） */
+  get modelIdentifier(): string {
+    return this._modelIdentifier;
   }
 
   /** 当前角色允许使用的工具列表 */
@@ -126,6 +135,7 @@ export class Agent {
    * @param modelId - 模型标识符，例如 "openai/gpt-4o"
    */
   setModel(modelId: string): void {
+    this._modelIdentifier = modelId;
     this._model = this.llmAdapter.resolveModel(modelId);
     logger.info('模型已切换', {
       provider: this._model.provider,
@@ -137,8 +147,6 @@ export class Agent {
     this._activeRole = role;
 
     this._allowedTools = this.toolRegistry.getForRole(role);
-
-    this._model = this.llmAdapter.resolveModel(role.model);
 
     this.roleId = role.id;
     this._cachedSystemPrompt = null;
@@ -285,7 +293,7 @@ export class Agent {
     const { prompt: builtPrompt, tools } = this.buildPrompt(role, executionContext);
     const prompt = this._cachedSystemPrompt ?? builtPrompt;
     this._cachedSystemPrompt ??= builtPrompt;
-    const model = this.llmAdapter.resolveModel(role.model);
+    const model = this._model;
 
     return await runAgentTask({
       roleId: role.id,
@@ -355,7 +363,7 @@ export class Agent {
         estimatedTokens: estimateApproximateTokens(combinedHistory),
         contextWindow: this._model.contextWindow,
       });
-      await this.session.compact(this.llmAdapter, role.model);
+      await this.session.compact(this.llmAdapter, this._modelIdentifier);
       followUpHistory = [...this.session.get()].concat(result.newMessages);
     }
 

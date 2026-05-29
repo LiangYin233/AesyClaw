@@ -52,6 +52,7 @@ const MemoryConfigSchema = Type.Object({
 });
 
 const AgentConfigSchema = Type.Object({
+  defaultModel: Type.String({ default: DEFAULTS.defaultModel }),
   memory: MemoryConfigSchema,
 });
 

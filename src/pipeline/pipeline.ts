@@ -126,8 +126,15 @@ export class Pipeline implements MessageProcessor {
         hooksBus: this.deps.agentDeps.hooksBus,
         compressionThreshold: this.deps.agentDeps.compressionThreshold,
         registry: this.deps.agentRegistry,
+        defaultModel: this.deps.agentDeps.defaultModel,
       });
       await agent.setRole(activeRole);
+
+      // ── Step 3: 覆盖持久化的模型绑定 ────────────────────
+      const dbRecord = await this.deps.databaseManager.sessions.findByKey(sessionKey);
+      if (dbRecord?.model_id) {
+        agent.setModel(dbRecord.model_id);
+      }
 
       // ── Step 4: 命令检测 ─────────────────────────────────
       const text = getMessageText(message);

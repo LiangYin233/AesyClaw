@@ -15,6 +15,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   providers: {},
   channels: {},
   agent: {
+    defaultModel: DEFAULTS.defaultModel,
     memory: {
       compressionThreshold: DEFAULTS.compressionThreshold,
     },

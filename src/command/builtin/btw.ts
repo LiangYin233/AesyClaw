@@ -30,6 +30,7 @@ import { Agent } from '@aesyclaw/agent/agent';
  * @param databaseManager - 数据库管理器（仅需 sessions）
  * @param compressionThreshold - 压缩阈值
  * @param agentRegistry - Agent 注册表
+ * @param defaultModel - 默认模型 ID
  * @returns 命令定义
  */
 export function createBtwCommand(
@@ -44,6 +45,7 @@ export function createBtwCommand(
   databaseManager: Pick<DatabaseManager, 'sessions'>,
   compressionThreshold: number,
   agentRegistry: AgentRegistry,
+  defaultModel: string,
 ): CommandDefinition {
   return {
     name: 'btw',
@@ -74,6 +76,7 @@ export function createBtwCommand(
         hooksBus,
         compressionThreshold,
         registry: agentRegistry,
+        defaultModel,
       });
       const outbound = await agent.process(
         { components: [{ type: 'Plain', text: content }] },
