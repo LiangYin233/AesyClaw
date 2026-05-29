@@ -494,6 +494,8 @@ function formatToolResult(result: unknown): string {
   flex: 1;
   overflow-y: auto;
   padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
 }
 
 .empty-state {

@@ -205,7 +205,11 @@ function useChatImpl() {
       const local =
         existing.get(summary.chatId) ??
         createEmptySession(summary.chatId, getSessionTitle(summary));
-      local.title = getSessionTitle(summary);
+      // 仅当后端摘要含有实际消息内容时才覆盖本地标题，
+      // 避免空会话的标题被回退为 desktop-xxx
+      if (summary.firstUserMessage) {
+        local.title = getSessionTitle(summary);
+      }
       synced.push(local);
       existing.delete(summary.chatId);
     }
