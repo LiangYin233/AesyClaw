@@ -131,6 +131,7 @@
             +
           </button>
           <textarea
+            ref="textareaRef"
             v-model="inputText"
             class="chat-input"
             placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
@@ -138,6 +139,7 @@
             :disabled="streaming"
             @keydown="handleKeydown"
             @paste="handlePaste"
+            @input="autoResize"
           ></textarea>
           <button v-if="streaming" class="stop-btn" @click="handleCancel">Stop</button>
           <button v-else class="send-btn" :disabled="!canSend" @click="handleSend">Send</button>
@@ -169,6 +171,7 @@ const emit = defineEmits<{
 
 const inputText = ref('');
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const selectedFiles = ref<File[]>([]);
 const isDragging = ref(false);
 // ─── 命令补全 ──────────────────────────────────────────────
@@ -277,6 +280,13 @@ function handleDrop(event: DragEvent) {
   if (files.length > 0) {
     selectedFiles.value = [...selectedFiles.value, ...files];
   }
+}
+
+function autoResize(): void {
+  const el = textareaRef.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
 }
 
 function handlePaste(event: ClipboardEvent) {
@@ -433,7 +443,8 @@ function attachmentIcon(mime: string): string {
   font-size: 14px;
   line-height: 1.5;
   outline: none;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
   transition: border var(--transition-fast);
 }
 
