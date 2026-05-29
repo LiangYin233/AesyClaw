@@ -399,7 +399,7 @@ function attachmentIcon(mime: string): string {
 
 /* ── Input ───────────────────────────── */
 .input-area {
-  padding: 16px 24px;
+  padding: 10px 24px 8px;
   border-top: 1px solid var(--color-border);
   background: #fdfbf9;
 }
