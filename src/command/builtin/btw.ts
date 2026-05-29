@@ -27,7 +27,7 @@ import { Agent } from '@aesyclaw/agent/agent';
  * @param skillManager - 技能管理器
  * @param toolRegistry - 工具注册表
  * @param hooksBus - Hook 总线
- * @param databaseManager - 数据库管理器（仅需 roleBindings 和 sessions）
+ * @param databaseManager - 数据库管理器（仅需 sessions）
  * @param compressionThreshold - 压缩阈值
  * @param agentRegistry - Agent 注册表
  * @returns 命令定义

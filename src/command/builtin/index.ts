@@ -64,7 +64,7 @@ export function registerBuiltinCommands(
       deps.agentRegistry,
     ),
   );
-  registry.register(createModelCommand(deps.llmAdapter, deps.agentRegistry));
+  registry.register(createModelCommand(deps.llmAdapter, deps.agentRegistry, deps.databaseManager));
   registry.register(createClearCommand(deps.sessionManager, deps.agentRegistry));
   registry.register(
     createCompactCommand(

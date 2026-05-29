@@ -173,11 +173,6 @@ export class DatabaseManager {
         timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
-      CREATE TABLE IF NOT EXISTS role_bindings (
-        session_id TEXT PRIMARY KEY REFERENCES sessions(id),
-        role_id    TEXT NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
 
       CREATE TABLE IF NOT EXISTS cron_jobs (
         id             TEXT PRIMARY KEY,
@@ -227,7 +222,7 @@ export class DatabaseManager {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    this.migrateRoleBindings();
+
     this.ensureMessagesToolDataColumn();
     this.ensureUsageDetailColumns();
   }
@@ -275,25 +270,6 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_usage_session_id ON usage(session_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_message_id ON usage(message_id) WHERE message_id IS NOT NULL;
     `);
-  }
-
-  private migrateRoleBindings(): void {
-    if (!this.db) throw new Error('数据库尚未初始化');
-    const columns = this.getTableColumns('sessions');
-    if (!columns.has('role_id')) {
-      this.db.exec('ALTER TABLE sessions ADD COLUMN role_id TEXT');
-    }
-    if (!columns.has('model_id')) {
-      this.db.exec('ALTER TABLE sessions ADD COLUMN model_id TEXT');
-    }
-    // 迁移现有 role_bindings 数据
-    this.db.exec(`
-      UPDATE sessions SET role_id = (
-        SELECT role_id FROM role_bindings WHERE role_bindings.session_id = sessions.id
-      )
-    `);
-    this.db.exec('DROP TABLE IF EXISTS role_bindings');
-    logger.info('role_bindings 已迁移到 sessions 表');
   }
 
   private getTableColumns(table: 'messages' | 'usage' | 'sessions'): Set<string> {

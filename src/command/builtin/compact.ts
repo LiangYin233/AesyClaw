@@ -11,7 +11,7 @@ import { Agent } from '@aesyclaw/agent/agent';
  * @param sessionManager - 会话管理器（仅需 get 方法）
  * @param llmAdapter - LLM 适配器
  * @param roleManager - 角色管理器（仅需 getRole 和 getDefaultRole）
- * @param databaseManager - 数据库管理器（仅需 roleBindings 和 sessions）
+ * @param databaseManager - 数据库管理器（仅需 sessions）
  * @param agentRegistry - Agent 注册表
  * @returns 命令定义
  */
