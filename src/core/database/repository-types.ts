@@ -13,6 +13,8 @@ import type {
   findAllSessionSummaries,
   findSessionById,
   deleteSessionByKey,
+  setSessionRole,
+  setSessionModel,
 } from './repositories/session-repository';
 import type {
   saveMessage,
@@ -20,10 +22,6 @@ import type {
   clearMessageHistory,
   replaceMessageWithSummary,
 } from './repositories/message-repository';
-import type {
-  getActiveRoleBinding,
-  setActiveRoleBinding,
-} from './repositories/role-binding-repository';
 import type {
   createCronJob,
   findCronJobById,
@@ -59,6 +57,8 @@ export type SessionsRepository = {
   deleteByKey: (
     key: Parameters<typeof deleteSessionByKey>[1],
   ) => ReturnType<typeof deleteSessionByKey>;
+  setRole: (id: string, roleId: string) => ReturnType<typeof setSessionRole>;
+  setModel: (id: string, modelId: string) => ReturnType<typeof setSessionModel>;
 };
 
 /** 消息仓库 API 类型 */
@@ -73,12 +73,6 @@ export type MessagesRepository = {
     sessionId: string,
     summary: string,
   ) => ReturnType<typeof replaceMessageWithSummary>;
-};
-
-/** 角色绑定仓库 API 类型 */
-export type RoleBindingsRepository = {
-  getActiveRole: (sessionId: string) => ReturnType<typeof getActiveRoleBinding>;
-  setActiveRole: (sessionId: string, roleId: string) => ReturnType<typeof setActiveRoleBinding>;
 };
 
 /** 定时任务仓库 API 类型 */

@@ -4,14 +4,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import * as sessions from './repositories/session-repository';
 import * as messages from './repositories/message-repository';
-import * as roleBindings from './repositories/role-binding-repository';
+
 import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
 import type {
   SessionsRepository,
   MessagesRepository,
-  RoleBindingsRepository,
   CronJobsRepository,
   CronRunsRepository,
   UsageRepository,
@@ -31,7 +30,6 @@ export class DatabaseManager {
   // 仓库 API 在 initialize() 时一次性构造,后续访问无 lambda 重建开销。
   sessions!: SessionsRepository;
   messages!: MessagesRepository;
-  roleBindings!: RoleBindingsRepository;
   cronJobs!: CronJobsRepository;
   cronRuns!: CronRunsRepository;
   usage!: UsageRepository;
@@ -110,20 +108,15 @@ export class DatabaseManager {
       findAllSummaries: () => sessions.findAllSessionSummaries(db),
       findById: (id) => sessions.findSessionById(db, id),
       deleteByKey: (key) => sessions.deleteSessionByKey(db, key),
+      setRole: (id, roleId) => sessions.setSessionRole(db, id, roleId),
+      setModel: (id, modelId) => sessions.setSessionModel(db, id, modelId),
     };
-
     this.messages = {
       save: (sessionId, message) => messages.saveMessage(db, sessionId, message),
       loadHistory: (sessionId) => messages.loadMessageHistory(db, sessionId),
       clearHistory: (sessionId) => messages.clearMessageHistory(db, sessionId),
       replaceWithSummary: (sessionId, summary) =>
         messages.replaceMessageWithSummary(db, sessionId, summary),
-    };
-
-    this.roleBindings = {
-      getActiveRole: (sessionId) => roleBindings.getActiveRoleBinding(db, sessionId),
-      setActiveRole: (sessionId, roleId) =>
-        roleBindings.setActiveRoleBinding(db, sessionId, roleId),
     };
 
     this.cronJobs = {
@@ -166,6 +159,8 @@ export class DatabaseManager {
         channel    TEXT NOT NULL,
         type       TEXT NOT NULL,
         chat_id    TEXT NOT NULL,
+        role_id    TEXT,
+        model_id   TEXT,
         UNIQUE(channel, type, chat_id)
       );
 
@@ -232,6 +227,7 @@ export class DatabaseManager {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    this.migrateRoleBindings();
     this.ensureMessagesToolDataColumn();
     this.ensureUsageDetailColumns();
   }
@@ -280,10 +276,34 @@ export class DatabaseManager {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_message_id ON usage(message_id) WHERE message_id IS NOT NULL;
     `);
   }
-  private getTableColumns(table: 'messages' | 'usage'): Set<string> {
+
+  private migrateRoleBindings(): void {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    const columns = this.getTableColumns('sessions');
+    if (!columns.has('role_id')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN role_id TEXT');
+    }
+    if (!columns.has('model_id')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN model_id TEXT');
+    }
+    // 迁移现有 role_bindings 数据
+    this.db.exec(`
+      UPDATE sessions SET role_id = (
+        SELECT role_id FROM role_bindings WHERE role_bindings.session_id = sessions.id
+      )
+    `);
+    this.db.exec('DROP TABLE IF EXISTS role_bindings');
+    logger.info('role_bindings 已迁移到 sessions 表');
+  }
+
+  private getTableColumns(table: 'messages' | 'usage' | 'sessions'): Set<string> {
     if (!this.db) throw new Error('数据库尚未初始化');
     const statement =
-      table === 'messages' ? 'PRAGMA table_info(messages)' : 'PRAGMA table_info(usage)';
+      table === 'messages'
+        ? 'PRAGMA table_info(messages)'
+        : table === 'sessions'
+          ? 'PRAGMA table_info(sessions)'
+          : 'PRAGMA table_info(usage)';
     const rows = this.db.prepare(statement).all() as Array<{ name: string }>;
     return new Set(rows.map((row) => row.name));
   }
@@ -292,7 +312,6 @@ export class DatabaseManager {
 export type {
   SessionsRepository,
   MessagesRepository,
-  RoleBindingsRepository,
   CronJobsRepository,
   CronRunsRepository,
   UsageRepository,

@@ -19,7 +19,7 @@ export function createCompactCommand(
   sessionManager: Pick<SessionManager, 'get'>,
   llmAdapter: LlmAdapter,
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>,
-  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
+  databaseManager: Pick<DatabaseManager, 'sessions'>,
   agentRegistry: AgentRegistry,
 ): CommandDefinition {
   return {

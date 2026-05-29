@@ -11,7 +11,9 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   findOrCreateSession,
   findSessionByKey,
+  findSessionById,
   deleteSessionByKey,
+  setSessionRole,
 } from '../../../../src/core/database/repositories/session-repository';
 import {
   saveMessage,
@@ -24,10 +26,6 @@ import {
   getTodayUsageSummary,
   getUsageStats,
 } from '../../../../src/core/database/repositories/usage-repository';
-import {
-  getActiveRoleBinding,
-  setActiveRoleBinding,
-} from '../../../../src/core/database/repositories/role-binding-repository';
 import {
   createCronJob,
   findCronJobById,
@@ -54,6 +52,8 @@ function createTestDb() {
       channel TEXT NOT NULL,
       type TEXT NOT NULL,
       chat_id TEXT NOT NULL,
+      role_id TEXT,
+      model_id TEXT,
       UNIQUE(channel, type, chat_id)
     );
     CREATE TABLE messages (
@@ -64,11 +64,7 @@ function createTestDb() {
       tool_data TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE TABLE role_bindings (
-      session_id TEXT PRIMARY KEY REFERENCES sessions(id),
-      role_id TEXT NOT NULL,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+
     CREATE TABLE cron_jobs (
       id TEXT PRIMARY KEY,
       schedule_type TEXT NOT NULL,
@@ -165,7 +161,7 @@ describe('Database Layer', () => {
       const key: SessionKey = { channel: 'test', type: 'private', chatId: 'delete-me' };
       const session = await findOrCreateSession(db, key);
       const messageId = await saveMessage(db, session.id, { role: 'assistant', content: 'bye' });
-      await setActiveRoleBinding(db, session.id, 'role-1');
+      await setSessionRole(db, session.id, 'role-1');
       await createUsageRecord(db, {
         model: 'gpt-4o',
         provider: 'openai',
@@ -179,7 +175,8 @@ describe('Database Layer', () => {
 
       await expect(findSessionByKey(db, key)).resolves.toBeNull();
       await expect(loadMessageHistory(db, session.id)).resolves.toEqual([]);
-      await expect(getActiveRoleBinding(db, session.id)).resolves.toBeNull();
+      const recordAfterDelete = await findSessionById(db, session.id);
+      expect(recordAfterDelete?.role_id).toBeUndefined();
       const usageRow = db.prepare('SELECT session_id, message_id FROM usage').get() as {
         session_id: string | null;
         message_id: number | null;
@@ -309,9 +306,9 @@ describe('Database Layer', () => {
     });
   });
 
-  // ─── RoleBinding Repository Functions ────────────────────────────
+  // ─── Session Role/Model Functions ────────────────────────────────
 
-  describe('RoleBindingRepository', () => {
+  describe('SessionRoleBinding', () => {
     let db: DatabaseSync;
     let sessionId: string;
 
@@ -329,21 +326,21 @@ describe('Database Layer', () => {
       db.close();
     });
 
-    it('should return null when no role is set', async () => {
-      const result = await getActiveRoleBinding(db, sessionId);
-      expect(result).toBeNull();
+    it('should return undefined when no role is set', async () => {
+      const record = await findSessionById(db, sessionId);
+      expect(record?.role_id).toBeUndefined();
     });
 
     it('should set and get active role', async () => {
-      await setActiveRoleBinding(db, sessionId, 'default');
-      const roleId = await getActiveRoleBinding(db, sessionId);
-      expect(roleId).toBe('default');
+      await setSessionRole(db, sessionId, 'default');
+      const record = await findSessionById(db, sessionId);
+      expect(record?.role_id).toBe('default');
     });
 
     it('should change active role', async () => {
-      await setActiveRoleBinding(db, sessionId, 'researcher');
-      const roleId = await getActiveRoleBinding(db, sessionId);
-      expect(roleId).toBe('researcher');
+      await setSessionRole(db, sessionId, 'researcher');
+      const record = await findSessionById(db, sessionId);
+      expect(record?.role_id).toBe('researcher');
     });
   });
 

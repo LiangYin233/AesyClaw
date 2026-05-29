@@ -7,7 +7,7 @@ import { Agent } from '@aesyclaw/agent/agent';
 /** role 子命令所需的依赖集合 */
 export type RoleCommandDeps = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
-  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
+  databaseManager: Pick<DatabaseManager, 'sessions'>;
   agentRegistry: AgentRegistry;
 };
 
@@ -66,7 +66,7 @@ export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinitio
 
       const session = await deps.databaseManager.sessions.findByKey(context.sessionKey);
       if (session) {
-        await deps.databaseManager.roleBindings.setActiveRole(session.id, roleId);
+        await deps.databaseManager.sessions.setRole(session.id, roleId);
       }
 
       const agent = deps.agentRegistry.getAgent(context.sessionKey);

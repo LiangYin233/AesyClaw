@@ -76,7 +76,7 @@ export class Agent {
   static async resolveActiveRoleId(
     context: CommandContext,
     deps: {
-      databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
+      databaseManager: Pick<DatabaseManager, 'sessions'>;
       agentRegistry: AgentRegistry;
     },
   ): Promise<string | undefined> {
@@ -86,7 +86,7 @@ export class Agent {
     const session = await deps.databaseManager.sessions.findByKey(context.sessionKey);
     if (!session) return undefined;
 
-    return (await deps.databaseManager.roleBindings.getActiveRole(session.id)) ?? undefined;
+    return session.role_id ?? undefined;
   }
 
   /**

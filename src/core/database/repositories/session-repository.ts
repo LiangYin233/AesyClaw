@@ -43,10 +43,17 @@ export async function findSessionByKey(
 ): Promise<SessionRecord | null> {
   const row = db
     .prepare(
-      'SELECT id, channel, type, chat_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?',
+      'SELECT id, channel, type, chat_id, role_id, model_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?',
     )
     .get(key.channel, key.type, key.chatId) as
-    | { id: string; channel: string; type: string; chat_id: string }
+    | {
+        id: string;
+        channel: string;
+        type: string;
+        chat_id: string;
+        role_id: string | null;
+        model_id: string | null;
+      }
     | undefined;
 
   if (!row) {
@@ -58,6 +65,8 @@ export async function findSessionByKey(
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
+    role_id: row.role_id ?? undefined,
+    model_id: row.model_id ?? undefined,
   };
 }
 
@@ -134,8 +143,17 @@ export async function findAllSessionSummaries(db: DatabaseSync): Promise<Session
 
 /** 按 ID 查找会话。未找到时返回 null。 */
 export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
-  const row = db.prepare('SELECT id, channel, type, chat_id FROM sessions WHERE id = ?').get(id) as
-    | { id: string; channel: string; type: string; chat_id: string }
+  const row = db
+    .prepare('SELECT id, channel, type, chat_id, role_id, model_id FROM sessions WHERE id = ?')
+    .get(id) as
+    | {
+        id: string;
+        channel: string;
+        type: string;
+        chat_id: string;
+        role_id: string | null;
+        model_id: string | null;
+      }
     | undefined;
 
   if (!row) {
@@ -147,6 +165,8 @@ export async function findSessionById(db: DatabaseSync, id: string): Promise<Ses
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
+    role_id: row.role_id ?? undefined,
+    model_id: row.model_id ?? undefined,
   };
 }
 
@@ -163,7 +183,6 @@ export async function deleteSessionByKey(db: DatabaseSync, key: SessionKey): Pro
     db.prepare('UPDATE usage SET message_id = NULL WHERE session_id = ?').run(row.id);
     db.prepare('UPDATE usage SET session_id = NULL WHERE session_id = ?').run(row.id);
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(row.id);
-    db.prepare('DELETE FROM role_bindings WHERE session_id = ?').run(row.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(row.id);
     db.exec('COMMIT');
     return true;
@@ -171,4 +190,18 @@ export async function deleteSessionByKey(db: DatabaseSync, key: SessionKey): Pro
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+/** 设置会话的角色 */
+export async function setSessionRole(db: DatabaseSync, id: string, roleId: string): Promise<void> {
+  db.prepare('UPDATE sessions SET role_id = ? WHERE id = ?').run(roleId, id);
+}
+
+/** 设置会话的模型 */
+export async function setSessionModel(
+  db: DatabaseSync,
+  id: string,
+  modelId: string,
+): Promise<void> {
+  db.prepare('UPDATE sessions SET model_id = ? WHERE id = ?').run(modelId, id);
 }

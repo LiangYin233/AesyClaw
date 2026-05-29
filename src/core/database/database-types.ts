@@ -11,6 +11,8 @@ export type SessionRecord = {
   type: string;
   chatId: string;
   lastActivity?: string;
+  role_id?: string;
+  model_id?: string;
 };
 
 // ─── 定时任务 ──────────────────────────────────────────────────────

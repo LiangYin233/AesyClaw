@@ -109,9 +109,7 @@ export class Pipeline implements MessageProcessor {
       } else {
         const sessionRecord = await this.deps.databaseManager.sessions.findByKey(sessionKey);
         if (sessionRecord) {
-          activeRoleId =
-            (await this.deps.databaseManager.roleBindings.getActiveRole(sessionRecord.id)) ??
-            undefined;
+          activeRoleId = sessionRecord.role_id ?? undefined;
         }
       }
 

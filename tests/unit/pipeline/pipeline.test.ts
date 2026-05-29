@@ -74,9 +74,6 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
       sessions: {
         findByKey: vi.fn(async () => null),
       },
-      roleBindings: {
-        getActiveRole: vi.fn(async () => null),
-      },
     },
     llmAdapter: {} as never,
     compressionThreshold: 0.8,

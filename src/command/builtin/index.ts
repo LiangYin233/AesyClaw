@@ -27,7 +27,7 @@ export type BuiltinCommandDependencies = {
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hooksBus: IHooksBus;
-  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
+  databaseManager: Pick<DatabaseManager, 'sessions'>;
   compressionThreshold: number;
   agentRegistry: AgentRegistry;
 };

@@ -33,9 +33,8 @@ export function createContext(
       const messages = session.get();
       const estimatedTokens = estimateApproximateTokens(messages);
 
-      const roleId = await deps.databaseManager.roleBindings.getActiveRole(
-        session.sessionId,
-      );
+      const record = await deps.databaseManager.sessions.findById(session.sessionId);
+      const roleId = record?.role_id;
       const modelId = roleId ?? undefined;
       const contextWindow = modelId ? deps.llmAdapter.resolveModel(modelId).contextWindow : 128_000;
 
