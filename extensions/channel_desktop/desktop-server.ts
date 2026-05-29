@@ -230,7 +230,10 @@ export class DesktopServer {
   ): Promise<void> {
     const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
     try {
-      const usage = await this.options.context.getSessionContextUsage(sessionKey);
+      const [usage, modelInfo] = await Promise.all([
+        this.options.context.getSessionContextUsage(sessionKey),
+        this.options.context.getSessionModel(sessionKey),
+      ]);
       const conn = this.sessions.getConnectionById(connectionId);
       if (conn) {
         conn.sendJson({
@@ -239,6 +242,8 @@ export class DesktopServer {
           estimatedTokens: usage.estimatedTokens,
           contextWindow: usage.contextWindow,
           percentage: usage.percentage,
+          modelId: modelInfo.modelId,
+          roleId: modelInfo.roleId,
         } satisfies DesktopOutboundMessage);
       }
     } catch {

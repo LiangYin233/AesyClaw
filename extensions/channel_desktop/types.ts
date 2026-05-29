@@ -68,6 +68,8 @@ export type DesktopContextUsageMessage = {
   estimatedTokens: number;
   contextWindow: number;
   percentage: number;
+  modelId?: string;
+  roleId?: string;
 };
 
 // ─── 下行消息（AesyClaw → Electron）───────────────────────────────

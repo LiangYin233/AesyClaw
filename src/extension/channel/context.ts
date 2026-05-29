@@ -92,6 +92,23 @@ export function createContext(
     }
   }
 
+  /** 获取指定会话绑定的模型和角色 ID */
+  async function getSessionModel(
+    sessionKey: SessionKey,
+  ): Promise<{ modelId?: string; roleId?: string }> {
+    try {
+      const session =
+        deps.sessionManager.get(sessionKey) ?? (await deps.sessionManager.create(sessionKey));
+      const record = await deps.databaseManager.sessions.findById(session.sessionId);
+      return {
+        modelId: record?.model_id ?? undefined,
+        roleId: record?.role_id ?? undefined,
+      };
+    } catch {
+      return {};
+    }
+  }
+
   return {
     name: channelName,
     get config() {
@@ -119,6 +136,7 @@ export function createContext(
     getSessionContextUsage,
     getSessions,
     getSessionMessages,
+    getSessionModel,
     state,
     resolveModel: (providerModel) => deps.llmAdapter.resolveModel(providerModel),
   };

@@ -27,6 +27,9 @@
               >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
               {{ contextUsage.contextWindow }})</span
             >
+            <span class="context-extra" v-if="contextUsage.modelId"
+              >{{ contextUsage.roleId ?? '' }} {{ shortModel(contextUsage.modelId) }}</span
+            >
           </div>
         </Transition>
         <MessageList
@@ -82,6 +85,8 @@ const contextUsage = ref<{
   estimatedTokens: number;
   contextWindow: number;
   percentage: number;
+  modelId?: string;
+  roleId?: string;
 } | null>(null);
 
 onMounted(() => {
@@ -108,6 +113,8 @@ onMounted(() => {
         estimatedTokens: event.estimatedTokens,
         contextWindow: event.contextWindow,
         percentage: event.percentage,
+        modelId: event.modelId,
+        roleId: event.roleId,
       };
     }
     if (event.type === 'done') {
@@ -191,6 +198,11 @@ function requestContextUsage(): void {
     return;
   }
   window.aesyclaw.sendChatRaw('get_context_usage', session.id);
+}
+
+/** 截断模型 ID 为简短显示名 */
+function shortModel(modelId: string): string {
+return modelId.includes('/') ? modelId.split('/').pop() ?? modelId : modelId;
 }
 
 // 会话切换时刷新
@@ -279,6 +291,15 @@ watch(activeSessionId, () => {
   font-size: 11px;
   color: var(--color-mid-gray);
   white-space: nowrap;
+}
+
+.context-extra {
+  margin-left: auto;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  color: var(--color-dark);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ── Transitions ─────────────────────── */
