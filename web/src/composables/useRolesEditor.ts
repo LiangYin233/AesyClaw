@@ -11,10 +11,6 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline';
 
-interface ModelOption {
-  value: string;
-  label: string;
-}
 
 interface ToolInfo {
   name: string;
@@ -35,7 +31,6 @@ export function useRolesEditor() {
   const roles = ref<Role[]>([]);
   const editingRole = ref<Role | null>(null);
   const creating = ref(false);
-  const modelOptions = ref<ModelOption[]>([]);
   const allTools = ref<ToolInfo[]>([]);
   const toolDropdownOpen = ref(false);
   const toolSearch = ref('');
@@ -48,7 +43,6 @@ export function useRolesEditor() {
     id: '',
     description: '',
     systemPrompt: '',
-    model: '',
     toolPermission: { mode: 'allowlist', list: [] },
     skills: [],
     enabled: true,
@@ -64,30 +58,6 @@ export function useRolesEditor() {
     }
   }
 
-  async function loadModelOptions(): Promise<void> {
-    try {
-      const config = (await ws.send('get_config')) as Record<string, unknown>;
-      const providers = config['providers'] as
-        | Record<string, { models?: Record<string, unknown> }>
-        | undefined;
-      const opts: ModelOption[] = [];
-      if (providers) {
-        for (const [providerName, providerCfg] of Object.entries(providers)) {
-          if (providerCfg.models) {
-            for (const modelId of Object.keys(providerCfg.models)) {
-              opts.push({
-                value: `${providerName}/${modelId}`,
-                label: `${providerName} / ${modelId}`,
-              });
-            }
-          }
-        }
-      }
-      modelOptions.value = opts;
-    } catch (err) {
-      console.error('Failed to load model options', err);
-    }
-  }
 
   async function loadTools(): Promise<void> {
     if (allTools.value.length > 0) return;
@@ -131,7 +101,6 @@ export function useRolesEditor() {
       id: '',
       description: '',
       systemPrompt: '',
-      model: modelOptions.value[0]?.value ?? '',
       toolPermission: { mode: 'allowlist', list: [] },
       skills: [],
       enabled: true,
@@ -304,7 +273,6 @@ export function useRolesEditor() {
 
   onMounted(() => {
     void loadRoles();
-    void loadModelOptions();
     document.addEventListener('click', handleClickOutside);
   });
 
@@ -316,7 +284,6 @@ export function useRolesEditor() {
     roles,
     editingRole,
     creating,
-    modelOptions,
     allTools,
     toolDropdownOpen,
     toolSearch,

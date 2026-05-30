@@ -7,7 +7,6 @@ export interface Role {
   id: string;
   description: string;
   systemPrompt: string;
-  model: string;
   toolPermission: ToolPermission;
   skills: string[];
   enabled: boolean;

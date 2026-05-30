@@ -32,11 +32,6 @@
             <th
               class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0"
             >
-              Model
-            </th>
-            <th
-              class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0"
-            >
               Enabled
             </th>
             <th
@@ -61,7 +56,6 @@
                 }}</span>
               </div>
             </td>
-            <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ role.model }}</td>
             <td class="px-4 py-3 border-b border-[var(--color-border)]">
               <span v-if="role.enabled" class="inline-flex items-center justify-center">
                 <CheckIcon class="w-4 h-4 text-accent-green stroke-[2.5]" />
@@ -157,23 +151,6 @@
                 />
               </div>
 
-              <div class="flex gap-4 items-end mb-5">
-                <div class="flex-1">
-                  <label
-                    class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
-                  >
-                    Model <span class="text-danger">*</span>
-                  </label>
-                  <select
-                    v-model="form.model"
-                    class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                  >
-                    <option value="" disabled>Select a model</option>
-                    <option v-for="opt in modelOptions" :key="opt.value" :value="opt.value">
-                      {{ opt.label }}
-                    </option>
-                  </select>
-                </div>
                 <div class="flex flex-col items-start gap-2">
                   <label
                     class="block mb-0 font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
@@ -493,7 +470,6 @@ const {
   roles,
   editingRole,
   creating,
-  modelOptions,
   toolDropdownOpen,
   toolSearch,
   toolDropdownRef,

@@ -25,7 +25,7 @@ export function isDirectoryEnabled(configManager: ConfigManager, directoryName: 
   return entry?.['enabled'] !== false;
 }
 
-export function getPluginRecord(configManager: ConfigManager): Record<string, unknown> {
+function getPluginRecord(configManager: ConfigManager): Record<string, unknown> {
   try {
     const plugins = configManager.get('plugins');
     return isRecord(plugins) ? plugins : {};
