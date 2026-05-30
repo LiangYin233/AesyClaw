@@ -35,8 +35,8 @@
       <Transition name="context-bar" v-if="contextUsage">
         <div class="context-bar">
           <div class="context-track">
-            <div class="context-fill-output" :style="contextOutputStyle"></div>
-            <div class="context-fill-input" :style="contextInputStyle"></div>
+            <div class="context-fill-output" :style="{ width: Math.min(contextUsage.outputTokens / contextUsage.contextWindow * 100, 100) + '%', minWidth: contextUsage.outputTokens > 0 ? '4px' : '0px' }"></div>
+            <div class="context-fill-input" :style="{ width: Math.min(contextUsage.inputTokens / contextUsage.contextWindow * 100, 100) + '%', minWidth: contextUsage.inputTokens > 0 ? '4px' : '0px' }"></div>
           </div>
           <span class="context-label" v-if="contextUsage.inputTokens || contextUsage.outputTokens">
             {{ contextUsage.inputTokens + contextUsage.outputTokens }} /
@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useChat } from '../composables/useChat';
 import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
 import SessionList from '../components/SessionList.vue';
