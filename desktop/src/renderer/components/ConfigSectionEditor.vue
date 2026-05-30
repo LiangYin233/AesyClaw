@@ -644,7 +644,10 @@ const modelOptions = computed<Array<{ value: string; label: string }>>(() => {
         const models = (providerCfg as Record<string, unknown>)['models'];
         if (configEditor.isRecord(models)) {
           for (const modelId of Object.keys(models)) {
-            opts.push({ value: `${providerName}/${modelId}`, label: `${providerName} / ${modelId}` });
+            opts.push({
+              value: `${providerName}/${modelId}`,
+              label: `${providerName} / ${modelId}`,
+            });
           }
         }
       }
