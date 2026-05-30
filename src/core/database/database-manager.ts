@@ -153,15 +153,6 @@ export class DatabaseManager {
         UNIQUE(channel, type, chat_id)
       );
 
-      CREATE TABLE IF NOT EXISTS messages (
-        id         INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT NOT NULL REFERENCES sessions(id),
-        role       TEXT NOT NULL,
-        content    TEXT NOT NULL,
-        tool_data  TEXT,
-        timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
 
       CREATE TABLE IF NOT EXISTS cron_jobs (
         id             TEXT PRIMARY KEY,
@@ -190,7 +181,6 @@ export class DatabaseManager {
         api          TEXT NOT NULL,
         response_id  TEXT,
         session_id   TEXT REFERENCES sessions(id) ON DELETE SET NULL,
-        message_id   INTEGER REFERENCES messages(id) ON DELETE SET NULL,
         timestamp    DATETIME DEFAULT CURRENT_TIMESTAMP,
         input_tokens        INTEGER NOT NULL,
         output_tokens       INTEGER NOT NULL,
@@ -213,7 +203,7 @@ export class DatabaseManager {
     `);
 
     this.ensureSessionColumns();
-    this.ensureMessagesToolDataColumn();
+
     this.ensureUsageDetailColumns();
   }
 
@@ -236,14 +226,6 @@ export class DatabaseManager {
     }
   }
 
-  private ensureMessagesToolDataColumn(): void {
-    if (!this.db) throw new Error('数据库尚未初始化');
-    const columns = this.getTableColumns('messages');
-    if (!columns.has('tool_data')) {
-      this.db.exec('ALTER TABLE messages ADD COLUMN tool_data TEXT');
-      logger.info('messages 表已添加 tool_data 列');
-    }
-  }
 
   private ensureUsageDetailColumns(): void {
     if (!this.db) throw new Error('数据库尚未初始化');
@@ -252,11 +234,6 @@ export class DatabaseManager {
     if (!columns.has('session_id')) {
       this.db.exec(
         'ALTER TABLE usage ADD COLUMN session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL',
-      );
-    }
-    if (!columns.has('message_id')) {
-      this.db.exec(
-        'ALTER TABLE usage ADD COLUMN message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL',
       );
     }
     if (!columns.has('cost_input')) {
@@ -277,18 +254,12 @@ export class DatabaseManager {
 
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_usage_session_id ON usage(session_id);
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_message_id ON usage(message_id) WHERE message_id IS NOT NULL;
     `);
   }
 
-  private getTableColumns(table: 'messages' | 'usage' | 'sessions'): Set<string> {
+  private getTableColumns(table: 'usage' | 'sessions'): Set<string> {
     if (!this.db) throw new Error('数据库尚未初始化');
-    const statement =
-      table === 'messages'
-        ? 'PRAGMA table_info(messages)'
-        : table === 'sessions'
-          ? 'PRAGMA table_info(sessions)'
-          : 'PRAGMA table_info(usage)';
+    const statement = table === 'sessions' ? 'PRAGMA table_info(sessions)' : 'PRAGMA table_info(usage)';
     const rows = this.db.prepare(statement).all() as Array<{ name: string }>;
     return new Set(rows.map((row) => row.name));
   }
