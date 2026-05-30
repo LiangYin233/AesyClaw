@@ -70,22 +70,15 @@ export async function findSessionByKey(
   };
 }
 
-/** 获取所有会话及最后活动时间，按最后活动排序。 */
+/** 获取所有会话。 */
 export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
   const rows = db
-    .prepare(
-      `SELECT s.id, s.channel, s.type, s.chat_id, MAX(m.timestamp) AS last_activity
-       FROM sessions s
-       LEFT JOIN messages m ON m.session_id = s.id
-       GROUP BY s.id
-       ORDER BY last_activity DESC`,
-    )
+    .prepare('SELECT id, channel, type, chat_id FROM sessions ORDER BY id')
     .all() as Array<{
     id: string;
     channel: string;
     type: string;
     chat_id: string;
-    last_activity: string | null;
   }>;
 
   return rows.map((row) => ({
@@ -93,41 +86,18 @@ export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
-    ...(row.last_activity ? { lastActivity: row.last_activity } : {}),
   }));
 }
 
-/** 获取所有会话摘要，包含首条用户消息和消息数量，避免按会话逐个加载完整历史。 */
+/** 获取所有会话摘要。消息统计由 JSON 文件提供。 */
 export async function findAllSessionSummaries(db: DatabaseSync): Promise<SessionSummaryRecord[]> {
   const rows = db
-    .prepare(
-      `SELECT
-         s.id,
-         s.channel,
-         s.type,
-         s.chat_id,
-         MAX(m.timestamp) AS last_activity,
-         COUNT(m.id) AS message_count,
-         (
-           SELECT m2.content
-           FROM messages m2
-           WHERE m2.session_id = s.id AND m2.role = 'user'
-           ORDER BY m2.timestamp ASC, m2.id ASC
-           LIMIT 1
-         ) AS first_user_message
-       FROM sessions s
-       LEFT JOIN messages m ON m.session_id = s.id
-       GROUP BY s.id
-       ORDER BY last_activity DESC`,
-    )
+    .prepare('SELECT id, channel, type, chat_id FROM sessions ORDER BY id')
     .all() as Array<{
     id: string;
     channel: string;
     type: string;
     chat_id: string;
-    last_activity: string | null;
-    message_count: number;
-    first_user_message: string | null;
   }>;
 
   return rows.map((row) => ({
@@ -135,9 +105,7 @@ export async function findAllSessionSummaries(db: DatabaseSync): Promise<Session
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
-    messageCount: row.message_count,
-    ...(row.last_activity ? { lastActivity: row.last_activity } : {}),
-    ...(row.first_user_message ? { firstUserMessage: row.first_user_message } : {}),
+    messageCount: 0,
   }));
 }
 
@@ -182,7 +150,6 @@ export async function deleteSessionByKey(db: DatabaseSync, key: SessionKey): Pro
   try {
     db.prepare('UPDATE usage SET message_id = NULL WHERE session_id = ?').run(row.id);
     db.prepare('UPDATE usage SET session_id = NULL WHERE session_id = ?').run(row.id);
-    db.prepare('DELETE FROM messages WHERE session_id = ?').run(row.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(row.id);
     db.exec('COMMIT');
     return true;

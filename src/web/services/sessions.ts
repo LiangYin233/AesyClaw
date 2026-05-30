@@ -37,8 +37,7 @@ export async function getSessionMessages(
   if (!session) {
     throw new Error('会话未找到');
   }
-  const messages = await deps.databaseManager.messages.loadHistory(sessionId);
-  return messages;
+  return await deps.sessionManager.fileStore.load(sessionId);
 }
 
 /**
@@ -70,6 +69,6 @@ export async function clearSessionHistory(
     throw new Error('会话正在处理中，无法清除历史');
   }
 
-  await deps.databaseManager.messages.clearHistory(sessionId);
+  await deps.sessionManager.fileStore.clear(sessionId);
   await deps.sessionManager.clear(sessionKey);
 }

@@ -17,12 +17,6 @@ import type {
   setSessionModel,
 } from './repositories/session-repository';
 import type {
-  saveMessage,
-  loadMessageHistory,
-  clearMessageHistory,
-  replaceMessageWithSummary,
-} from './repositories/message-repository';
-import type {
   createCronJob,
   findCronJobById,
   findAllCronJobs,
@@ -60,20 +54,6 @@ export type SessionsRepository = {
   ) => ReturnType<typeof deleteSessionByKey>;
   setRole: (id: string, roleId: string) => ReturnType<typeof setSessionRole>;
   setModel: (id: string, modelId: string) => ReturnType<typeof setSessionModel>;
-};
-
-/** 消息仓库 API 类型 */
-export type MessagesRepository = {
-  save: (
-    sessionId: string,
-    message: Parameters<typeof saveMessage>[2],
-  ) => ReturnType<typeof saveMessage>;
-  loadHistory: (sessionId: string) => ReturnType<typeof loadMessageHistory>;
-  clearHistory: (sessionId: string) => ReturnType<typeof clearMessageHistory>;
-  replaceWithSummary: (
-    sessionId: string,
-    summary: string,
-  ) => ReturnType<typeof replaceMessageWithSummary>;
 };
 
 /** 定时任务仓库 API 类型 */

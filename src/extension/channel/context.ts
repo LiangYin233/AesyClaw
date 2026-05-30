@@ -81,11 +81,7 @@ export function createContext(
     try {
       const session =
         deps.sessionManager.get(sessionKey) ?? (await deps.sessionManager.create(sessionKey));
-      const dbSession = await deps.databaseManager.sessions.findById(
-        (session as { sessionId: string }).sessionId,
-      );
-      if (!dbSession) return [];
-      return await deps.databaseManager.messages.loadHistory(dbSession.id);
+      return await deps.sessionManager.fileStore.load(session.sessionId);
     } catch (err) {
       log.warn('getSessionMessages 失败', err);
       return [];

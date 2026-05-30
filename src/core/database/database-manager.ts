@@ -3,14 +3,12 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import * as sessions from './repositories/session-repository';
-import * as messages from './repositories/message-repository';
 
 import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
 import type {
   SessionsRepository,
-  MessagesRepository,
   CronJobsRepository,
   CronRunsRepository,
   UsageRepository,
@@ -29,7 +27,6 @@ export class DatabaseManager {
 
   // 仓库 API 在 initialize() 时一次性构造,后续访问无 lambda 重建开销。
   sessions!: SessionsRepository;
-  messages!: MessagesRepository;
   cronJobs!: CronJobsRepository;
   cronRuns!: CronRunsRepository;
   usage!: UsageRepository;
@@ -81,9 +78,7 @@ export class DatabaseManager {
     const sessionsCount =
       (db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number } | undefined)
         ?.count ?? 0;
-    const messagesCount =
-      (db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number } | undefined)
-        ?.count ?? 0;
+    const messagesCount = 0; // messages stored in JSON files
     const cronJobsCount =
       (db.prepare('SELECT COUNT(*) as count FROM cron_jobs').get() as { count: number } | undefined)
         ?.count ?? 0;
@@ -110,13 +105,6 @@ export class DatabaseManager {
       deleteByKey: (key) => sessions.deleteSessionByKey(db, key),
       setRole: (id, roleId) => sessions.setSessionRole(db, id, roleId),
       setModel: (id, modelId) => sessions.setSessionModel(db, id, modelId),
-    };
-    this.messages = {
-      save: (sessionId, message) => messages.saveMessage(db, sessionId, message),
-      loadHistory: (sessionId) => messages.loadMessageHistory(db, sessionId),
-      clearHistory: (sessionId) => messages.clearMessageHistory(db, sessionId),
-      replaceWithSummary: (sessionId, summary) =>
-        messages.replaceMessageWithSummary(db, sessionId, summary),
     };
 
     this.cronJobs = {
@@ -308,7 +296,6 @@ export class DatabaseManager {
 
 export type {
   SessionsRepository,
-  MessagesRepository,
   CronJobsRepository,
   CronRunsRepository,
   UsageRepository,

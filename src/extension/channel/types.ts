@@ -119,7 +119,7 @@ export type ChannelManagerDependencies = {
   commandRegistry: CommandRegistry;
   sessionManager: SessionManager;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
-  databaseManager: Pick<DatabaseManager, 'sessions' | 'messages' | 'usage'>;
+  databaseManager: Pick<DatabaseManager, 'sessions' | 'usage'>;
 };
 
 /** 从磁盘加载完成后的频道模块。 */
