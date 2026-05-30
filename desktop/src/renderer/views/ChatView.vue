@@ -36,15 +36,19 @@
         <div class="context-bar" v-if="contextUsage">
           <div class="context-track">
             <div
-              class="context-fill-input"
+              class="context-fill-output"
               :style="{
-                width: Math.min((contextUsage.inputTokens / contextUsage.contextWindow) * 100, 100) + '%',
+                width:
+                  Math.min((contextUsage.outputTokens / contextUsage.contextWindow) * 100, 100) +
+                  '%',
               }"
             ></div>
             <div
-              class="context-fill-output"
+              class="context-fill-input"
               :style="{
-                width: Math.min((contextUsage.outputTokens / contextUsage.contextWindow) * 100, 100) + '%',
+                width:
+                  Math.min((contextUsage.inputTokens / contextUsage.contextWindow) * 100, 100) +
+                  '%',
               }"
             ></div>
           </div>
@@ -286,14 +290,14 @@ watch(activeSessionId, () => {
 .context-fill-input {
   height: 100%;
   background: #4a90d9;
-  border-radius: 3px 0 0 3px;
+  border-radius: 0 3px 3px 0;
   transition: width 0.3s ease;
 }
 
 .context-fill-output {
   height: 100%;
   background: #9b59b6;
-  border-radius: 0 3px 3px 0;
+  border-radius: 3px 0 0 3px;
   transition: width 0.3s ease;
 }
 
