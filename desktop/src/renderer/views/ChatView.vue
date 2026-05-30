@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useChat } from '../composables/useChat';
 import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
 import SessionList from '../components/SessionList.vue';
@@ -100,6 +100,18 @@ let unsubscribeChat: (() => void) | null = null;
 let unsubscribeStatus: (() => void) | null = null;
 let unsubscribeCommands: (() => void) | null = null;
 const activeCopyMenuIndex = ref<number | null>(null);
+
+const contextInputStyle = computed(() => {
+  if (!contextUsage.value) return {};
+  const pct = contextUsage.value.inputTokens / contextUsage.value.contextWindow * 100;
+  return { width: Math.min(pct, 100) + '%', minWidth: contextUsage.value.inputTokens > 0 ? '4px' : '0px' };
+});
+const contextOutputStyle = computed(() => {
+  if (!contextUsage.value) return {};
+  const pct = contextUsage.value.outputTokens / contextUsage.value.contextWindow * 100;
+  return { width: Math.min(pct, 100) + '%', minWidth: contextUsage.value.outputTokens > 0 ? '4px' : '0px' };
+});
+
 const contextUsage = ref<{
   inputTokens: number;
   outputTokens: number;
@@ -289,6 +301,7 @@ watch(activeSessionId, () => {
 }
 
 .context-fill-input {
+  flex-shrink: 0;
   height: 100%;
   background: #4a90d9;
   border-radius: 0 3px 3px 0;
@@ -296,6 +309,7 @@ watch(activeSessionId, () => {
 }
 
 .context-fill-output {
+  flex-shrink: 0;
   height: 100%;
   background: #9b59b6;
   border-radius: 3px 0 0 3px;
