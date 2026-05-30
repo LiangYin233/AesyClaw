@@ -26,6 +26,7 @@ import { ChannelManager } from './extension/channel/manager';
 import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
+import path from 'node:path';
 import type { ResolvedPaths } from './core/path-resolver';
 const logger = createScopedLogger('app');
 
@@ -60,6 +61,7 @@ function createSubsystems(): Deps {
     databaseManager,
     () => configManager.get('agent.defaultModel') as string,
     () => roleManager.getDefaultRole().id,
+    path.join(configManager.resolvedPaths.dataDir, 'sessions'),
   );
   const hooksBus = new HooksBus();
 

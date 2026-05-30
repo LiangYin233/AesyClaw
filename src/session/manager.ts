@@ -2,6 +2,7 @@ import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { Session } from './core';
+import { SessionFileStore } from './file-store';
 
 const logger = createScopedLogger('session-manager');
 
@@ -14,17 +15,22 @@ const logger = createScopedLogger('session-manager');
 export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private pendingSessions: Map<string, Promise<Session>> = new Map();
+  readonly fileStore: SessionFileStore;
 
   /**
    * @param databaseManager - 数据库管理器
    * @param getDefaultModel - 获取默认模型（支持热重载）
    * @param getDefaultRoleId - 获取默认角色 ID（支持热重载）
+   * @param sessionsDir - 会话 JSON 文件存储目录
    */
   constructor(
     private databaseManager: DatabaseManager,
     private getDefaultModel: () => string,
     private getDefaultRoleId: () => string,
-  ) {}
+    sessionsDir: string,
+  ) {
+    this.fileStore = new SessionFileStore(sessionsDir);
+  }
 
   /**
    * 获取或创建指定会话键对应的会话。
@@ -149,11 +155,13 @@ export class SessionManager {
     if (!sessionRecord.role_id) {
       await this.databaseManager.sessions.setRole(sessionRecord.id, this.getDefaultRoleId());
     }
-    const session = new Session(sessionRecord.id, key, {
-      messages: this.databaseManager.messages,
-      usage: this.databaseManager.usage,
-      toolUsage: this.databaseManager.toolUsage,
-    });
+    const session = new Session(
+      sessionRecord.id,
+      key,
+      this.fileStore,
+      this.databaseManager.usage,
+      this.databaseManager.toolUsage,
+    );
     await session.bind();
     this.sessions.set(cacheKey, session);
     logger.info('会话已创建', { cacheKey });

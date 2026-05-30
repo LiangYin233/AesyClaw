@@ -15,11 +15,11 @@ import {
 } from '@aesyclaw/contracts/llm';
 import { createPersistedAssistantMessage, ApiType } from '@aesyclaw/agent/types';
 import type {
-  MessagesRepository,
   UsageRepository,
   ToolUsageRepository,
 } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { SessionFileStore } from './file-store';
 import { compactSession } from './session-compactor';
 
 const logger = createScopedLogger('session');
@@ -33,11 +33,9 @@ export class Session {
   constructor(
     sessionId: string,
     key: SessionKey,
-    private db: {
-      messages: MessagesRepository;
-      usage?: UsageRepository;
-      toolUsage?: ToolUsageRepository;
-    },
+    private store: SessionFileStore,
+    private usageRepo?: UsageRepository,
+    private toolUsageRepo?: ToolUsageRepository,
   ) {
     this.sessionId = sessionId;
     this.key = key;
@@ -62,7 +60,7 @@ export class Session {
   }
 
   async bind(): Promise<void> {
-    const records = await this.db.messages.loadHistory(this.sessionId);
+    const records = await this.store.load(this.sessionId);
     this._messages = records.map((r) =>
       r.role === 'user'
         ? createUserMessage(r.content, parseTimestamp(r.timestamp))
@@ -81,10 +79,10 @@ export class Session {
   async add(message: AgentMessage): Promise<void> {
     this._messages.push(message);
     const persistable = toPersistable(message);
-    const messageId = persistable
-      ? await this.db.messages.save(this.sessionId, persistable)
-      : undefined;
-    await this.recordUsageIfApplicable(message, messageId);
+    if (persistable) {
+      await this.store.save(this.sessionId, persistable);
+    }
+    await this.recordUsageIfApplicable(message);
   }
 
   async syncFromAgent(agentMessages: AgentMessage[]): Promise<void> {
@@ -101,7 +99,7 @@ export class Session {
 
   async clear(): Promise<void> {
     this._messages = [];
-    await this.db.messages.clearHistory(this.sessionId);
+    await this.store.clear(this.sessionId);
     logger.info('会话历史已清除', { sessionId: this.sessionId });
   }
 
@@ -110,7 +108,8 @@ export class Session {
       sessionId: this.sessionId,
       get: () => this.get(),
       bind: () => this.bind(),
-      db: this.db as { messages: MessagesRepository; usage?: UsageRepository },
+      store: this.store,
+      usageRepo: this.usageRepo,
     });
   }
 
@@ -118,10 +117,9 @@ export class Session {
     return this._messages.filter(pred);
   }
 
-  private async recordUsageIfApplicable(message: AgentMessage, messageId?: number): Promise<void> {
+  private async recordUsageIfApplicable(message: AgentMessage, _messageId?: number): Promise<void> {
     if (
-      this.db.usage === undefined ||
-      messageId === undefined ||
+      this.usageRepo === undefined ||
       message.role !== 'assistant' ||
       message.usage === undefined ||
       message.usage.totalTokens <= 0
@@ -129,13 +127,13 @@ export class Session {
       return;
 
     try {
-      await this.db.usage.create({
+      await this.usageRepo.create({
         model: message.model,
         provider: message.provider,
         api: message.api,
         responseId: message.responseId,
         sessionId: this.sessionId,
-        messageId,
+        messageId: undefined,
         usage: message.usage,
       });
     } catch (err) {
@@ -144,7 +142,7 @@ export class Session {
   }
 
   private async recordToolCallsFromMessages(agentMessages: AgentMessage[]): Promise<void> {
-    if (!this.db.toolUsage) return;
+    if (!this.toolUsageRepo) return;
 
     for (const message of agentMessages) {
       if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
@@ -155,7 +153,7 @@ export class Session {
 
         const toolCall = block as { name: string; arguments?: Record<string, unknown> };
         try {
-          await this.db.toolUsage.create({ name: toolCall.name, type: 'tool' });
+          await this.toolUsageRepo.create({ name: toolCall.name, type: 'tool' });
         } catch (err) {
           logger.error('记录工具调用失败', err);
         }
@@ -163,7 +161,7 @@ export class Session {
         const skillName = toolCall.arguments?.['skillName'];
         if (toolCall.name === 'load_skill' && typeof skillName === 'string') {
           try {
-            await this.db.toolUsage.create({ name: String(skillName), type: 'skill' });
+            await this.toolUsageRepo.create({ name: String(skillName), type: 'skill' });
           } catch (err) {
             logger.error('记录技能加载调用失败', err);
           }

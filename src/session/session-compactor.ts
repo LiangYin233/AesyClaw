@@ -16,7 +16,8 @@ import {
   withDefaultPromptCacheModel,
   withDefaultPromptCacheOptions,
 } from '@aesyclaw/agent/llm/cache-options';
-import type { MessagesRepository, UsageRepository } from '@aesyclaw/core/database/database-manager';
+import type { UsageRepository } from '@aesyclaw/core/database/database-manager';
+import type { SessionFileStore } from './file-store';
 import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { estimateApproximateTokens } from './token-utils';
@@ -39,7 +40,8 @@ export async function compactSession(
     sessionId: string;
     get(): readonly AgentMessage[];
     bind(): Promise<void>;
-    db?: { messages: MessagesRepository; usage?: UsageRepository };
+    store: SessionFileStore;
+    usageRepo?: UsageRepository;
   },
 ): Promise<string> {
   const model = llmResolver.resolveModel(modelIdentifier);
@@ -52,9 +54,9 @@ export async function compactSession(
 
   const { summary, message } = await summarizeConversation(model, messages, session.sessionId);
 
-  if (session.db?.usage) {
+  if (session.usageRepo) {
     try {
-      await session.db.usage.create({
+      await session.usageRepo.create({
         model: message.model,
         provider: message.provider,
         api: message.api,
@@ -67,7 +69,7 @@ export async function compactSession(
     }
   }
 
-  await session.db?.messages.replaceWithSummary(session.sessionId, summary);
+  await session.store.replaceWithSummary(session.sessionId, summary);
   await session.bind();
 
   logger.info('会话历史已压缩', {
