@@ -64,10 +64,20 @@ export function createContext(
   > {
     try {
       const records = await deps.databaseManager.sessions.findAllSummaries();
-      return records.map((s) => ({
-        ...s,
-        title: (s.firstUserMessage ?? s.chatId).slice(0, 30),
-      }));
+      // 从 JSON 文件读取 firstUserMessage 和 messageCount 等摘要信息
+      const fileSummaries = await deps.sessionManager.fileStore.findAllSummaries();
+      const fileMap = new Map(fileSummaries.map((s) => [s.id, s]));
+
+      return records.map((s) => {
+        const file = fileMap.get(s.id);
+        return {
+          ...s,
+          firstUserMessage: file?.firstUserMessage,
+          messageCount: file?.messageCount ?? 0,
+          lastActivity: file?.lastActivity,
+          title: (file?.firstUserMessage ?? s.chatId).slice(0, 30),
+        };
+      });
     } catch (err) {
       log.warn('getSessions 失败', err);
       return [];
