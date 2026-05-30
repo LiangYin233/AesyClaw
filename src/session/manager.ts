@@ -136,6 +136,11 @@ export class SessionManager {
       throw new Error('会话正在处理中，无法删除');
     }
 
+    // 先清除 JSON 文件，避免 SQLite 删除后出现孤立 JSON
+    if (session) {
+      await this.fileStore.clear(session.sessionId);
+    }
+
     const deleted = await this.databaseManager.sessions.deleteByKey(key);
     this.sessions.delete(cacheKey);
     this.pendingSessions.delete(cacheKey);
