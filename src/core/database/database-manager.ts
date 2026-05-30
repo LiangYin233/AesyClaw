@@ -140,6 +140,7 @@ export class DatabaseManager {
       create: (record) => usageRepo.createUsageRecord(db, record),
       getStats: (options) => usageRepo.getUsageStats(db, options),
       getTodaySummary: () => usageRepo.getTodayUsageSummary(db),
+      getLatestContextUsage: (sessionId) => usageRepo.getLatestContextUsage(db, sessionId),
     };
 
     this.toolUsage = {

@@ -6,7 +6,6 @@
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
-import { estimateApproximateTokens } from '@aesyclaw/session';
 import type { SessionKey } from '@aesyclaw/core/types';
 import type { ChannelContext, ChannelManagerDependencies } from './types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
@@ -30,18 +29,22 @@ export function createContext(
     try {
       const session =
         deps.sessionManager.get(sessionKey) ?? (await deps.sessionManager.create(sessionKey));
-      const messages = session.get();
-      const estimatedTokens = estimateApproximateTokens(messages);
       const record = await deps.databaseManager.sessions.findById(session.sessionId);
       if (!record?.model_id) throw new Error('会话未绑定模型');
       const modelId = record.model_id;
-      const contextWindow = deps.llmAdapter.resolveModel(modelId).contextWindow;
+      const resolved = deps.llmAdapter.resolveModel(modelId);
+
+      const usage = await deps.databaseManager.usage.getLatestContextUsage(
+        session.sessionId,
+      );
+      const inputTokens = usage?.inputTokens ?? 0;
+      const contextWindow = resolved.contextWindow;
 
       return {
-        estimatedTokens,
+        estimatedTokens: inputTokens,
         contextWindow,
         percentage:
-          contextWindow > 0 ? Math.round((estimatedTokens / contextWindow) * 10000) / 100 : 0,
+          contextWindow > 0 ? Math.round((inputTokens / contextWindow) * 10000) / 100 : 0,
       };
     } catch (err) {
       log.warn('getSessionContextUsage 失败', err);

@@ -39,6 +39,7 @@ import type {
   createUsageRecord,
   getUsageStats,
   getTodayUsageSummary,
+  getLatestContextUsage,
 } from './repositories/usage-repository';
 import type {
   createToolUsageRecord,
@@ -99,6 +100,7 @@ export type UsageRepository = {
   create: (record: Parameters<typeof createUsageRecord>[1]) => ReturnType<typeof createUsageRecord>;
   getStats: (options?: Parameters<typeof getUsageStats>[1]) => ReturnType<typeof getUsageStats>;
   getTodaySummary: () => ReturnType<typeof getTodayUsageSummary>;
+  getLatestContextUsage: (sessionId: string) => ReturnType<typeof getLatestContextUsage>;
 };
 
 /** 工具使用统计仓库 API 类型 */

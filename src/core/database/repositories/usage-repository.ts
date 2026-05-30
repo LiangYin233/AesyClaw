@@ -143,3 +143,22 @@ export async function getTodayUsageSummary(db: DatabaseSync): Promise<UsageSumma
 
   return rows.map(mapRow);
 }
+
+/** 获取会话最新一次 LLM 调用的 token 消耗（用于上下文占用显示）。 */
+export async function getLatestContextUsage(
+  db: DatabaseSync,
+  sessionId: string,
+): Promise<{ inputTokens: number; outputTokens: number } | null> {
+  const row = db
+    .prepare(
+      `SELECT input_tokens, output_tokens
+       FROM usage
+       WHERE session_id = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+    )
+    .get(sessionId) as { input_tokens: number; output_tokens: number } | undefined;
+
+  if (!row) return null;
+  return { inputTokens: row.input_tokens, outputTokens: row.output_tokens };
+}
