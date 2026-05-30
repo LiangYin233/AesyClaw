@@ -123,17 +123,13 @@ onMounted(() => {
       };
     }
     if (event.type === 'done') {
-      void syncSessionsFromBackend();
-      void requestContextUsage();
+      await syncSessionsFromBackend();
+      // done 后重新加载消息，确保 syncSessionsFromBackend 重建会话后不会丢失最终回复
       const sess = activeSession.value;
-      const last = sess?.messages[sess.messages.length - 1];
-      if (
-        last?.role === 'assistant' &&
-        typeof last.text === 'string' &&
-        last.text.startsWith('会话已压缩完成')
-      ) {
-        void reloadSessionMessages(sess.id);
+      if (activeSessionId.value && sess && !sess.streaming && sess.messages.length === 0) {
+        await loadSessionMessages(activeSessionId.value, true);
       }
+      void requestContextUsage();
     }
   });
 

@@ -173,8 +173,18 @@ function useChatImpl() {
       }
     }
     if (!resolved) {
-      // 无等待请求时，触发被动同步（如 compact 后自动刷新）
-      if (type === 'sessions') void syncSessionsFromBackend();
+      // 无等待请求时，触发被动同步（如 compact 后自动刷新 / WS 重连）
+      if (type === 'sessions') {
+        void syncSessionsFromBackend().then(() => {
+          // WS 重连后首次收到 sessions 时，补充加载当前会话消息
+          if (activeSessionId.value) {
+            const session = sessions.value.find((s) => s.id === activeSessionId.value);
+            if (session && !session.streaming && session.messages.length === 0) {
+              loadSessionMessages(activeSessionId.value, true);
+            }
+          }
+        });
+      }
     }
   }
   const activeSession = computed(
