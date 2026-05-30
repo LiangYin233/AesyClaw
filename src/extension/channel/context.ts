@@ -34,17 +34,14 @@ export function createContext(
       const modelId = record.model_id;
       const resolved = deps.llmAdapter.resolveModel(modelId);
 
-      const usage = await deps.databaseManager.usage.getLatestContextUsage(
-        session.sessionId,
-      );
+      const usage = await deps.databaseManager.usage.getLatestContextUsage(session.sessionId);
       const inputTokens = usage?.inputTokens ?? 0;
       const contextWindow = resolved.contextWindow;
 
       return {
         estimatedTokens: inputTokens,
         contextWindow,
-        percentage:
-          contextWindow > 0 ? Math.round((inputTokens / contextWindow) * 10000) / 100 : 0,
+        percentage: contextWindow > 0 ? Math.round((inputTokens / contextWindow) * 10000) / 100 : 0,
       };
     } catch (err) {
       log.warn('getSessionContextUsage 失败', err);
