@@ -285,6 +285,7 @@ watch(activeSessionId, () => {
   background: #e6e0d4;
   border-radius: 3px;
   overflow: hidden;
+  display: flex;
 }
 
 .context-fill-input {
