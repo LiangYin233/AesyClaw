@@ -468,7 +468,7 @@ function shouldShowUsage(message: AssistantMessage): boolean {
 }
 
 function formatUsage(usage: DesktopUsage): string {
-  return `Usage: ${formatNumber(usage.totalTokens)} tokens`;
+  return `IN ${formatNumber(usage.input)} / OUT ${formatNumber(usage.output)} (${formatNumber(usage.totalTokens)})`;
 }
 
 function formatNumber(value: number): string {
