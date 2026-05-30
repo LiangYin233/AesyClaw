@@ -24,6 +24,15 @@ afterEach(() => {
   vi.mocked(completeSimple).mockReset();
 });
 
+function makeStore() {
+  return {
+    load: vi.fn().mockResolvedValue([]),
+    save: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn().mockResolvedValue(undefined),
+    replaceWithSummary: vi.fn().mockResolvedValue(undefined),
+  } as any;
+}
+
 describe('Session.syncFromAgent', () => {
   it('logs total tokens over context window when compacting', async () => {
     const messagesRepo = {
@@ -39,7 +48,7 @@ describe('Session.syncFromAgent', () => {
       chatId: 'chat-1',
     };
 
-    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), undefined, undefined);
 
     await session.syncFromAgent([
       { role: 'user', content: 'abcd' } as AgentMessage,
@@ -98,7 +107,7 @@ describe('Session.syncFromAgent', () => {
       type: 'private',
       chatId: 'chat-1',
     };
-    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), undefined, undefined);
 
     await session.bind();
 
@@ -135,10 +144,7 @@ describe('Session.syncFromAgent', () => {
       type: 'private',
       chatId: 'chat-1',
     };
-    const session = new Session('session-1', sessionKey, {
-      messages: messagesRepo,
-      usage: usageRepo,
-    } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), usageRepo, undefined);
 
     await session.syncFromAgent([
       {
@@ -194,10 +200,7 @@ describe('Session.syncFromAgent', () => {
       type: 'private',
       chatId: 'chat-1',
     };
-    const session = new Session('session-1', sessionKey, {
-      messages: messagesRepo,
-      usage: usageRepo,
-    } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), usageRepo, undefined);
 
     await session.syncFromAgent([
       {
@@ -238,7 +241,7 @@ describe('Session.syncFromAgent', () => {
       chatId: 'chat-1',
     };
 
-    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), undefined, undefined);
 
     await session.syncFromAgent([
       {
@@ -270,7 +273,7 @@ describe('Session.syncFromAgent', () => {
       type: 'private',
       chatId: 'chat-1',
     };
-    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), undefined, undefined);
 
     await session.syncFromAgent([
       { role: 'user', content: 'send text and file' } as AgentMessage,
@@ -315,7 +318,7 @@ describe('Session.syncFromAgent', () => {
       type: 'private',
       chatId: 'chat-1',
     };
-    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), undefined, undefined);
 
     await session.syncFromAgent([
       { role: 'user', content: 'run other tool' } as AgentMessage,
@@ -352,7 +355,7 @@ describe('Session.syncFromAgent', () => {
       type: 'private',
       chatId: 'chat-1',
     };
-    const session = new Session('session-1', sessionKey, { messages: messagesRepo } as never);
+    const session = new Session('session-1', sessionKey, makeStore(), undefined, undefined);
     await session.add({ role: 'user', content: 'hello' } as AgentMessage);
     const model = {
       api: 'openai-responses',
