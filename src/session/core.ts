@@ -207,7 +207,7 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
     const hasToolCalls = assistantHasToolCalls(message);
     if (!hasToolCalls) {
       if (text.length === 0) return null;
-      return { role: 'assistant', content: text, timestamp: new Date().toISOString() };
+      return { role: 'assistant', content: text, timestamp: new Date().toISOString(), usage: message.usage };
     }
 
     const toolCalls = (message.content as Array<{ type: string }>)
@@ -237,6 +237,7 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
       content: text,
       toolData: JSON.stringify(wrapped),
       timestamp: new Date().toISOString(),
+      usage: message.usage,
     };
   }
 
