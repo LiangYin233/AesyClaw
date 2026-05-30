@@ -36,20 +36,27 @@
         <div class="context-bar" v-if="contextUsage">
           <div class="context-track">
             <div
-              class="context-fill"
+              class="context-fill-input"
               :style="{
-                width:
-                  Math.min((contextUsage.inputTokens / contextUsage.contextWindow) * 100, 100) +
-                  '%',
+                width: Math.min((contextUsage.inputTokens / contextUsage.contextWindow) * 100, 100) + '%',
               }"
-              :class="{
-                warning: contextUsage.inputTokens / contextUsage.contextWindow > 0.7,
-                danger: contextUsage.inputTokens / contextUsage.contextWindow > 0.9,
+            ></div>
+            <div
+              class="context-fill-output"
+              :style="{
+                width: Math.min((contextUsage.outputTokens / contextUsage.contextWindow) * 100, 100) + '%',
               }"
             ></div>
           </div>
           <span class="context-label" v-if="contextUsage.inputTokens || contextUsage.outputTokens">
-            {{ contextUsage.inputTokens + contextUsage.outputTokens }} / {{ contextUsage.contextWindow }} ({{ Math.round((contextUsage.inputTokens + contextUsage.outputTokens) / contextUsage.contextWindow * 100) }}%)
+            {{ contextUsage.inputTokens + contextUsage.outputTokens }} /
+            {{ contextUsage.contextWindow }} ({{
+              Math.round(
+                ((contextUsage.inputTokens + contextUsage.outputTokens) /
+                  contextUsage.contextWindow) *
+                  100,
+              )
+            }}%)
           </span>
           <span class="context-extra">
             <span class="context-role" v-if="contextUsage.roleId">{{ contextUsage.roleId }}</span>
@@ -276,19 +283,18 @@ watch(activeSessionId, () => {
   overflow: hidden;
 }
 
-.context-fill {
+.context-fill-input {
   height: 100%;
-  background: var(--color-accent-green);
-  border-radius: 3px;
+  background: #4a90d9;
+  border-radius: 3px 0 0 3px;
   transition: width 0.3s ease;
 }
 
-.context-fill.warning {
-  background: #d4a84b;
-}
-
-.context-fill.danger {
-  background: #c45b5b;
+.context-fill-output {
+  height: 100%;
+  background: #9b59b6;
+  border-radius: 0 3px 3px 0;
+  transition: width 0.3s ease;
 }
 
 .context-label {
