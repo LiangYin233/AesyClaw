@@ -46,11 +46,11 @@ export function insertUsageRecord(
   const result = db
     .prepare(
       `INSERT INTO usage (
-        model, provider, api, response_id, session_id, message_id, timestamp,
+        model, provider, api, response_id, session_id, timestamp,
         input_tokens, output_tokens, total_tokens,
         cache_read_tokens, cache_write_tokens,
         cost_input, cost_output, cost_cache_read, cost_cache_write, cost_total
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       record.model,
@@ -58,7 +58,6 @@ export function insertUsageRecord(
       record.api,
       record.responseId ?? null,
       record.sessionId ?? null,
-      record.messageId ?? null,
       timestamp,
       record.usage.input,
       record.usage.output,

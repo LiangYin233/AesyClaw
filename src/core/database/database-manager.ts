@@ -226,7 +226,6 @@ export class DatabaseManager {
     }
   }
 
-
   private ensureUsageDetailColumns(): void {
     if (!this.db) throw new Error('数据库尚未初始化');
     const columns = this.getTableColumns('usage');
@@ -259,7 +258,8 @@ export class DatabaseManager {
 
   private getTableColumns(table: 'usage' | 'sessions'): Set<string> {
     if (!this.db) throw new Error('数据库尚未初始化');
-    const statement = table === 'sessions' ? 'PRAGMA table_info(sessions)' : 'PRAGMA table_info(usage)';
+    const statement =
+      table === 'sessions' ? 'PRAGMA table_info(sessions)' : 'PRAGMA table_info(usage)';
     const rows = this.db.prepare(statement).all() as Array<{ name: string }>;
     return new Set(rows.map((row) => row.name));
   }

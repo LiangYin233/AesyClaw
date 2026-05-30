@@ -71,9 +71,7 @@ describe('web session service', () => {
     const deps = {
       sessionManager: {
         fileStore: {
-          load: vi.fn(async () => [
-            { role: 'assistant', content: 'Historical reply', usage },
-          ]),
+          load: vi.fn(async () => [{ role: 'assistant', content: 'Historical reply', usage }]),
         },
       },
       databaseManager: {

@@ -48,7 +48,6 @@ export type UsageRecord = {
   api: string;
   responseId?: string;
   sessionId?: string;
-  messageId?: number;
   usage: MessageUsage;
 };
 

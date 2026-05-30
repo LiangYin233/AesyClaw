@@ -148,7 +148,6 @@ export async function deleteSessionByKey(db: DatabaseSync, key: SessionKey): Pro
 
   db.exec('BEGIN');
   try {
-    db.prepare('UPDATE usage SET message_id = NULL WHERE session_id = ?').run(row.id);
     db.prepare('UPDATE usage SET session_id = NULL WHERE session_id = ?').run(row.id);
     db.prepare('DELETE FROM sessions WHERE id = ?').run(row.id);
     db.exec('COMMIT');

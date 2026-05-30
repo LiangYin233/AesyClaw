@@ -37,7 +37,6 @@ describe('Session.syncFromAgent', () => {
   it('logs total tokens over context window when compacting', async () => {
     const _store = makeStore();
 
-
     const sessionKey: SessionKey = {
       channel: 'channel-1',
       type: 'private',
@@ -85,12 +84,14 @@ describe('Session.syncFromAgent', () => {
       cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
     };
     const _store = makeStore();
-    _store.load.mockResolvedValue([{
-      role: 'assistant',
-      content: 'persisted reply',
-      timestamp: '2026-05-19T00:00:00.000Z',
-      usage,
-    }]);
+    _store.load.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'persisted reply',
+        timestamp: '2026-05-19T00:00:00.000Z',
+        usage,
+      },
+    ]);
 
     const sessionKey: SessionKey = {
       channel: 'channel-1',
@@ -154,7 +155,6 @@ describe('Session.syncFromAgent', () => {
     expect(usageRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session-1',
-        messageId: undefined,
         usage,
       }),
     );
@@ -212,7 +212,6 @@ describe('Session.syncFromAgent', () => {
   it('removes ghost tool calls before storing assistant text', async () => {
     const _store = makeStore();
 
-
     const sessionKey: SessionKey = {
       channel: 'channel-1',
       type: 'private',
@@ -240,7 +239,6 @@ describe('Session.syncFromAgent', () => {
 
   it('persists send_msg output while syncing agent messages in order', async () => {
     const _store = makeStore();
-
 
     const sessionKey: SessionKey = {
       channel: 'channel-1',
@@ -281,7 +279,6 @@ describe('Session.syncFromAgent', () => {
 
   it('does not persist assistant text metadata from non-send_msg tool results', async () => {
     const _store = makeStore();
-
 
     const sessionKey: SessionKey = {
       channel: 'channel-1',

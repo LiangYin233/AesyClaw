@@ -117,7 +117,7 @@ export class Session {
     return this._messages.filter(pred);
   }
 
-  private async recordUsageIfApplicable(message: AgentMessage, _messageId?: number): Promise<void> {
+  private async recordUsageIfApplicable(message: AgentMessage): Promise<void> {
     if (
       this.usageRepo === undefined ||
       message.role !== 'assistant' ||
@@ -133,7 +133,6 @@ export class Session {
         api: message.api,
         responseId: message.responseId,
         sessionId: this.sessionId,
-        messageId: undefined,
         usage: message.usage,
       });
     } catch (err) {
