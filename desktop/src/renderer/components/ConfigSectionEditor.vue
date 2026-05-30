@@ -104,6 +104,19 @@
                   {{ getComplexFieldError(`${props.sectionKey}.${entry.key}.${field.path}`) }}
                 </p>
               </template>
+              <select
+                v-else-if="field.path === 'defaultModel' && modelOptions.length"
+                :value="field.value"
+                class="field-input"
+                @change="
+                  setEntryField(entry.key, field.path, ($event.target as HTMLSelectElement).value)
+                "
+              >
+                <option value="" disabled>Select a model</option>
+                <option v-for="opt in modelOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
               <input
                 v-else
                 :value="field.value"
@@ -620,6 +633,26 @@ const genericFields = computed<ConfigField[]>(() => {
   return configEditor.isRecord(sectionValue.value) ? getFields(sectionValue.value) : [];
 });
 
+const rawConfig = ref<Record<string, unknown>>({});
+
+const modelOptions = computed<Array<{ value: string; label: string }>>(() => {
+  const providers = rawConfig.value['providers'];
+  const opts: Array<{ value: string; label: string }> = [];
+  if (configEditor.isRecord(providers)) {
+    for (const [providerName, providerCfg] of Object.entries(providers)) {
+      if (configEditor.isRecord(providerCfg)) {
+        const models = (providerCfg as Record<string, unknown>)['models'];
+        if (configEditor.isRecord(models)) {
+          for (const modelId of Object.keys(models)) {
+            opts.push({ value: `${providerName}/${modelId}`, label: `${providerName} / ${modelId}` });
+          }
+        }
+      }
+    }
+  }
+  return opts;
+});
+
 async function loadConfig(force = false): Promise<void> {
   if (!props.adminReady) return;
   loading.value = true;
@@ -629,6 +662,7 @@ async function loadConfig(force = false): Promise<void> {
   complexFieldErrors.value = {};
   try {
     const config = await loadSharedConfig(force);
+    rawConfig.value = config;
     sectionValue.value = configEditor.getSectionValue(config, props.sectionKey);
     extraBodyDrafts.value = {};
   } catch (err) {
