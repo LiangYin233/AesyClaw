@@ -34,8 +34,23 @@ export function createContext(
       const modelId = record.model_id;
       const resolved = deps.llmAdapter.resolveModel(modelId);
 
+      // 优先从 SQLite usage 表取实际 input_tokens
+      let inputTokens = 0;
       const usage = await deps.databaseManager.usage.getLatestContextUsage(session.sessionId);
-      const inputTokens = usage?.inputTokens ?? 0;
+      if (usage?.inputTokens != null && usage.inputTokens > 0) {
+        inputTokens = usage.inputTokens;
+      } else {
+        // 回退到会话消息中的 usage（从 JSON 绑定来的）
+        const msgs = session.get();
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          const u = (msgs[i] as unknown as { usage?: { input?: number } }).usage;
+          if (u?.input != null && u.input > 0) {
+            inputTokens = u.input;
+            break;
+          }
+        }
+      }
+
       const contextWindow = resolved.contextWindow;
 
       return {
