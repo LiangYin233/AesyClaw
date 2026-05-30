@@ -32,25 +32,11 @@
         @send="onSend"
         @cancel="onCancel"
       />
-      <Transition name="context-bar">
-        <div class="context-bar" v-if="contextUsage">
+      <Transition name="context-bar" v-if="contextUsage">
+        <div class="context-bar">
           <div class="context-track">
-            <div
-              class="context-fill-output"
-              :style="{
-                width:
-                  Math.min((contextUsage.outputTokens / contextUsage.contextWindow) * 100, 100) +
-                  '%',
-              }"
-            ></div>
-            <div
-              class="context-fill-input"
-              :style="{
-                width:
-                  Math.min((contextUsage.inputTokens / contextUsage.contextWindow) * 100, 100) +
-                  '%',
-              }"
-            ></div>
+            <div class="context-fill-output" :style="contextOutputStyle"></div>
+            <div class="context-fill-input" :style="contextInputStyle"></div>
           </div>
           <span class="context-label" v-if="contextUsage.inputTokens || contextUsage.outputTokens">
             {{ contextUsage.inputTokens + contextUsage.outputTokens }} /
