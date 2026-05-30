@@ -239,9 +239,9 @@ export class DesktopServer {
         conn.sendJson({
           type: 'context_usage',
           sessionId: msg.sessionId,
-          estimatedTokens: usage.estimatedTokens,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
           contextWindow: usage.contextWindow,
-          percentage: usage.percentage,
           modelId: modelInfo.modelId,
           roleId: modelInfo.roleId,
         } satisfies DesktopOutboundMessage);

@@ -37,17 +37,22 @@
           <div class="context-track">
             <div
               class="context-fill"
-              :style="{ width: Math.min(contextUsage.percentage, 100) + '%' }"
+              :style="{
+                width: Math.min(contextUsage.inputTokens / contextUsage.contextWindow * 100, 100) + '%',
+              }"
               :class="{
-                warning: contextUsage.percentage > 70,
-                danger: contextUsage.percentage > 90,
+                warning: contextUsage.inputTokens / contextUsage.contextWindow > 0.7,
+                danger: contextUsage.inputTokens / contextUsage.contextWindow > 0.9,
               }"
             ></div>
           </div>
-          <span class="context-label"
-            >{{ contextUsage.percentage }}% ({{ contextUsage.estimatedTokens }} /
-            {{ contextUsage.contextWindow }})</span
-          >
+          <span class="context-label">
+            <template v-if="contextUsage.inputTokens || contextUsage.outputTokens">
+              IN {{ contextUsage.inputTokens }} / OUT {{ contextUsage.outputTokens }}
+              ({{ Math.round((contextUsage.inputTokens + contextUsage.outputTokens) / contextUsage.contextWindow * 100) }}%)
+            </template>
+            <template v-else>0 tokens</template>
+          </span>
           <span class="context-extra">
             <span class="context-role" v-if="contextUsage.roleId">{{ contextUsage.roleId }}</span>
             <span class="context-model" v-if="contextUsage.modelId">{{
@@ -87,9 +92,9 @@ let unsubscribeStatus: (() => void) | null = null;
 let unsubscribeCommands: (() => void) | null = null;
 const activeCopyMenuIndex = ref<number | null>(null);
 const contextUsage = ref<{
-  estimatedTokens: number;
+  inputTokens: number;
+  outputTokens: number;
   contextWindow: number;
-  percentage: number;
   modelId?: string;
   roleId?: string;
 } | null>(null);
@@ -115,9 +120,9 @@ onMounted(() => {
     handleStreamEvent(event);
     if (event.type === 'context_usage') {
       contextUsage.value = {
-        estimatedTokens: event.estimatedTokens,
+        inputTokens: event.inputTokens,
+        outputTokens: event.outputTokens,
         contextWindow: event.contextWindow,
-        percentage: event.percentage,
         modelId: event.modelId,
         roleId: event.roleId,
       };

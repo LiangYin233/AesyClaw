@@ -65,9 +65,9 @@ export type DesktopGetContextUsageMessage = {
 export type DesktopContextUsageMessage = {
   type: 'context_usage';
   sessionId: string;
-  estimatedTokens: number;
+  inputTokens: number;
+  outputTokens: number;
   contextWindow: number;
-  percentage: number;
   modelId?: string;
   roleId?: string;
 };

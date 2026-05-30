@@ -20,11 +20,13 @@ export function createContext(
 ): ChannelContext {
   const owner = `channel:${channelName}` as const;
   const log = createScopedLogger(`ctx:${channelName}`);
-  /** 获取指定会话的上下文窗口使用率。 */
+  /** 获取指定会话的上下文占用（input/output token 数 + 模型上下文窗口）。
+   * 优先从 SQLite usage 表读取，回退到会话消息中的 usage 字段。
+   */
   async function getSessionContextUsage(sessionKey: SessionKey): Promise<{
-    estimatedTokens: number;
+    inputTokens: number;
+    outputTokens: number;
     contextWindow: number;
-    percentage: number;
   }> {
     try {
       const session =
@@ -34,33 +36,29 @@ export function createContext(
       const modelId = record.model_id;
       const resolved = deps.llmAdapter.resolveModel(modelId);
 
-      // 优先从 SQLite usage 表取实际 input_tokens
       let inputTokens = 0;
-      const usage = await deps.databaseManager.usage.getLatestContextUsage(session.sessionId);
-      if (usage?.inputTokens != null && usage.inputTokens > 0) {
-        inputTokens = usage.inputTokens;
+      let outputTokens = 0;
+      const dbUsage = await deps.databaseManager.usage.getLatestContextUsage(session.sessionId);
+      if (dbUsage && dbUsage.inputTokens > 0) {
+        inputTokens = dbUsage.inputTokens;
+        outputTokens = dbUsage.outputTokens;
       } else {
-        // 回退到会话消息中的 usage（从 JSON 绑定来的）
+        // 回退到会话消息中的 usage
         const msgs = session.get();
         for (let i = msgs.length - 1; i >= 0; i--) {
-          const u = (msgs[i] as unknown as { usage?: { input?: number } }).usage;
-          if (u?.input != null && u.input > 0) {
+          const u = (msgs[i] as unknown as { usage?: { input?: number; output?: number } }).usage;
+          if (u && u.input && u.input > 0) {
             inputTokens = u.input;
+            outputTokens = u.output ?? 0;
             break;
           }
         }
       }
 
-      const contextWindow = resolved.contextWindow;
-
-      return {
-        estimatedTokens: inputTokens,
-        contextWindow,
-        percentage: contextWindow > 0 ? Math.round((inputTokens / contextWindow) * 10000) / 100 : 0,
-      };
+      return { inputTokens, outputTokens, contextWindow: resolved.contextWindow };
     } catch (err) {
       log.warn('getSessionContextUsage 失败', err);
-      return { estimatedTokens: 0, contextWindow: 0, percentage: 0 };
+      return { inputTokens: 0, outputTokens: 0, contextWindow: 0 };
     }
   }
 
