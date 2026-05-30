@@ -46,7 +46,26 @@ export function useConfigEditor() {
       : [];
   });
 
-  const hasExtraBodyErrors = computed(() => Object.keys(extraBodyErrors.value).length > 0);
+  const modelOptions = computed<Array<{ value: string; label: string }>>(() => {
+    const providers = editableConfig.value['providers'];
+    const opts: Array<{ value: string; label: string }> = [];
+    if (isRecord(providers)) {
+      for (const [providerName, providerCfg] of Object.entries(providers)) {
+        if (isRecord(providerCfg)) {
+          const models = (providerCfg as Record<string, unknown>)['models'];
+          if (isRecord(models)) {
+            for (const modelId of Object.keys(models)) {
+              opts.push({
+                value: `${providerName}/${modelId}`,
+                label: `${providerName} / ${modelId}`,
+              });
+            }
+          }
+        }
+      }
+    }
+    return opts;
+  });
 
   async function loadSchema(): Promise<void> {
     try {
@@ -73,7 +92,7 @@ export function useConfigEditor() {
   }
 
   async function saveConfig(): Promise<void> {
-    if (hasExtraBodyErrors.value) {
+    if (extraBodyErrors.value) {
       showToast('toast-error', 'Fix invalid extra body JSON before saving');
       return;
     }
@@ -265,10 +284,11 @@ export function useConfigEditor() {
     loading,
     saving,
     error,
+    modelOptions,
     configSections,
     mcpServers,
     providerEntries,
-    hasExtraBodyErrors,
+    extraBodyErrors,
     loadConfig,
     saveConfig,
     updateConfigSection,

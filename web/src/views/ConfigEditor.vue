@@ -10,7 +10,7 @@
       <div class="flex items-center gap-2.5 flex-wrap mb-0 justify-end">
         <button
           class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-primary rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-primary text-white hover:bg-primary-hover hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(217,119,87,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
-          :disabled="saving || hasExtraBodyErrors"
+          :disabled="saving || Object.keys(extraBodyErrors).length > 0"
           @click="saveConfig"
         >
           {{ saving ? 'Saving...' : 'Save' }}
@@ -272,6 +272,7 @@
           <SchemaForm
             :schema="section.schema"
             :model-value="editableConfig[section.key]"
+            :modelOptions="modelOptions"
             @update:model-value="updateConfigSection(section.key, $event)"
           />
         </div>
@@ -453,10 +454,11 @@ const {
   loading,
   saving,
   error,
+  modelOptions,
   configSections,
   mcpServers,
   providerEntries,
-  hasExtraBodyErrors,
+  extraBodyErrors,
   loadConfig,
   saveConfig,
   updateConfigSection,

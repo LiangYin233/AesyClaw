@@ -14,6 +14,7 @@
               :model-value="modelValueObj[key]"
               :label="key"
               :path="`${path}.${key}`"
+              :modelOptions="modelOptions"
               @update:model-value="updateProperty(key, $event)"
             />
           </div>
@@ -26,6 +27,7 @@
             :model-value="modelValueObj[key]"
             :label="key"
             :path="`${path}.${key}`"
+            :modelOptions="modelOptions"
             @update:model-value="updateProperty(key, $event)"
           />
         </div>
@@ -55,6 +57,7 @@
             :model-value="entry.value"
             label=""
             :path="`${path}[${entry.key}]`"
+            :modelOptions="modelOptions"
             @update:model-value="updateRecordEntryValue(idx, $event)"
           />
           <button
@@ -92,6 +95,7 @@
             :model-value="item"
             label=""
             :path="`${path}[${idx}]`"
+            :modelOptions="modelOptions"
             @update:model-value="updateArrayItem(idx, $event)"
           />
           <button
@@ -118,7 +122,19 @@
         class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
         >{{ displayLabel }}</label
       >
+      <select
+        v-if="isModelField && modelOptions?.length"
+        :value="stringValue"
+        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+        @change="model = ($event.target as HTMLSelectElement).value"
+      >
+        <option value="" disabled>Select a model</option>
+        <option v-for="opt in modelOptions" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </option>
+      </select>
       <input
+        v-else
         :value="stringValue"
         type="text"
         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
@@ -201,6 +217,7 @@ const props = defineProps<{
   schema: JsonSchema;
   label?: string;
   path?: string;
+  modelOptions?: Array<{ value: string; label: string }>;
 }>();
 
 const model = defineModel<unknown>({ required: true });
@@ -246,6 +263,11 @@ const resolvedType = computed(() => {
 });
 
 const displayLabel = computed(() => formatLabel(props.label ?? ''));
+
+const isModelField = computed(() => {
+  const p = path.value;
+  return p.endsWith('.defaultModel') || p.endsWith('.model');
+});
 
 const sortedKeys = computed(() => {
   const propsObj = resolvedSchema.value.properties ?? {};

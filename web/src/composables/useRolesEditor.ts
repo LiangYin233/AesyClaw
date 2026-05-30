@@ -11,7 +11,6 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline';
 
-
 interface ToolInfo {
   name: string;
   description: string;
@@ -57,7 +56,6 @@ export function useRolesEditor() {
       console.error('Failed to load roles', err);
     }
   }
-
 
   async function loadTools(): Promise<void> {
     if (allTools.value.length > 0) return;
