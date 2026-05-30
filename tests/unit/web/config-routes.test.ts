@@ -52,6 +52,9 @@ describe('sessions service', () => {
     const sessionKey = { channel: 'onebot', type: 'private', chatId: '42' } as const;
     const deps = {
       sessionManager: {
+        fileStore: {
+          clear: vi.fn(async () => undefined),
+        },
         clear: vi.fn(async () => undefined),
         isLocked: vi.fn(() => false),
       },
@@ -59,16 +62,13 @@ describe('sessions service', () => {
         sessions: {
           findById: vi.fn(async () => ({ id: 'session-1', ...sessionKey })),
         },
-        messages: {
-          clearHistory: vi.fn(async () => undefined),
-        },
       },
     } as unknown as WebUiManagerDependencies;
 
     await clearSessionHistory(deps, 'session-1');
 
     expect(deps.databaseManager.sessions.findById).toHaveBeenCalledWith('session-1');
-    expect(deps.databaseManager.messages.clearHistory).toHaveBeenCalledWith('session-1');
+    expect(deps.sessionManager.fileStore.clear).toHaveBeenCalledWith('session-1');
     expect(deps.sessionManager.clear).toHaveBeenCalledWith(sessionKey);
   });
 

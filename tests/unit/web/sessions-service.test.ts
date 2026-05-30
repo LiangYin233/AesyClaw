@@ -69,6 +69,13 @@ describe('web session service', () => {
       cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
     };
     const deps = {
+      sessionManager: {
+        fileStore: {
+          load: vi.fn(async () => [
+            { role: 'assistant', content: 'Historical reply', usage },
+          ]),
+        },
+      },
       databaseManager: {
         sessions: {
           findById: vi.fn(async () => ({
@@ -77,11 +84,6 @@ describe('web session service', () => {
             type: 'private',
             chatId: 'desktop-chat-id',
           })),
-        },
-        messages: {
-          loadHistory: vi.fn(async () => [
-            { role: 'assistant', content: 'Historical reply', usage },
-          ]),
         },
       },
     } as unknown as Parameters<typeof getSessionMessages>[0];

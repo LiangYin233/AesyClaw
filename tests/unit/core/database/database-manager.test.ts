@@ -15,12 +15,7 @@ import {
   deleteSessionByKey,
   setSessionRole,
 } from '../../../../src/core/database/repositories/session-repository';
-import {
-  saveMessage,
-  loadMessageHistory,
-  clearMessageHistory,
-  replaceMessageWithSummary,
-} from '../../../../src/core/database/repositories/message-repository';
+// messages 表已移除，迁移到 SessionFileStore
 import {
   createUsageRecord,
   getTodayUsageSummary,
@@ -157,156 +152,30 @@ describe('Database Layer', () => {
       expect(result).toBeNull();
     });
 
-    it('should delete a session, messages and role binding while preserving anonymous usage', async () => {
+    it('should delete a session and role binding while preserving anonymous usage', async () => {
       const key: SessionKey = { channel: 'test', type: 'private', chatId: 'delete-me' };
       const session = await findOrCreateSession(db, key);
-      const messageId = await saveMessage(db, session.id, { role: 'assistant', content: 'bye' });
       await setSessionRole(db, session.id, 'role-1');
       await createUsageRecord(db, {
         model: 'gpt-4o',
         provider: 'openai',
         api: 'openai-responses',
         sessionId: session.id,
-        messageId,
         usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3 },
       });
 
       await expect(deleteSessionByKey(db, key)).resolves.toBe(true);
-
       await expect(findSessionByKey(db, key)).resolves.toBeNull();
-      await expect(loadMessageHistory(db, session.id)).resolves.toEqual([]);
       const recordAfterDelete = await findSessionById(db, session.id);
       expect(recordAfterDelete?.role_id).toBeUndefined();
-      const usageRow = db.prepare('SELECT session_id, message_id FROM usage').get() as {
+      const usageRow = db.prepare('SELECT session_id FROM usage').get() as {
         session_id: string | null;
-        message_id: number | null;
       };
-      expect(usageRow).toEqual({ session_id: null, message_id: null });
+      expect(usageRow).toEqual({ session_id: null });
     });
   });
 
   // ─── Message Repository Functions ────────────────────────────────
-
-  describe('MessageRepository', () => {
-    let db: DatabaseSync;
-    let sessionId: string;
-
-    beforeEach(async () => {
-      db = createTestDb();
-      const session = await findOrCreateSession(db, {
-        channel: 'msgtest',
-        type: 'group',
-        chatId: 'room1',
-      });
-      sessionId = session.id;
-    });
-
-    afterEach(() => {
-      db.close();
-    });
-
-    it('should save and load messages', async () => {
-      const userMsg: PersistableMessage = { role: 'user', content: 'Hello' };
-      const asstMsg: PersistableMessage = { role: 'assistant', content: 'Hi there' };
-
-      await saveMessage(db, sessionId, userMsg);
-      await saveMessage(db, sessionId, asstMsg);
-
-      const history = await loadMessageHistory(db, sessionId);
-      expect(history).toHaveLength(2);
-      expect(history[0].role).toBe('user');
-      expect(history[0].content).toBe('Hello');
-      expect(history[1].role).toBe('assistant');
-      expect(history[1].content).toBe('Hi there');
-    });
-
-    it('should save and load assistant message usage', async () => {
-      const usage = {
-        input: 100,
-        output: 50,
-        cacheRead: 10,
-        cacheWrite: 5,
-        totalTokens: 165,
-        cost: { input: 0.01, output: 0.02, cacheRead: 0.001, cacheWrite: 0.002, total: 0.033 },
-      };
-
-      const messageId = await saveMessage(db, sessionId, {
-        role: 'assistant',
-        content: 'Usage-bearing response',
-      });
-      await createUsageRecord(db, {
-        model: 'gpt-4o',
-        provider: 'openai',
-        api: 'openai-responses',
-        sessionId,
-        messageId,
-        usage,
-      });
-
-      const history = await loadMessageHistory(db, sessionId);
-      expect(history).toEqual([
-        expect.objectContaining({
-          role: 'assistant',
-          content: 'Usage-bearing response',
-          usage,
-        }),
-      ]);
-    });
-
-    it('should clear history', async () => {
-      await clearMessageHistory(db, sessionId);
-      const history = await loadMessageHistory(db, sessionId);
-      expect(history.length).toBe(0);
-    });
-
-    it('should replace history with summary', async () => {
-      await saveMessage(db, sessionId, { role: 'user', content: 'Long conversation...' });
-      await saveMessage(db, sessionId, { role: 'assistant', content: 'Response...' });
-      await saveMessage(db, sessionId, { role: 'user', content: 'More...' });
-
-      await replaceMessageWithSummary(db, sessionId, 'Summary of conversation');
-
-      const history = await loadMessageHistory(db, sessionId);
-      expect(history).toHaveLength(1);
-      expect(history[0]).toMatchObject({
-        role: 'assistant',
-        content: 'Summary of conversation',
-      });
-    });
-
-    it('should roll back summary replacement when insert fails', async () => {
-      const failingSession = await findOrCreateSession(db, {
-        channel: 'msgtest',
-        type: 'group',
-        chatId: 'rollback-room',
-      });
-
-      await saveMessage(db, failingSession.id, { role: 'user', content: 'Original question' });
-      await saveMessage(db, failingSession.id, { role: 'assistant', content: 'Original answer' });
-
-      db.exec(`
-        CREATE TRIGGER fail_message_summary_insert
-        BEFORE INSERT ON messages
-        WHEN NEW.session_id = '${failingSession.id}' AND NEW.content = 'BROKEN_SUMMARY'
-        BEGIN
-          SELECT RAISE(FAIL, 'summary insert failed');
-        END;
-      `);
-
-      await expect(
-        replaceMessageWithSummary(db, failingSession.id, 'BROKEN_SUMMARY'),
-      ).rejects.toThrow('summary insert failed');
-
-      const history = await loadMessageHistory(db, failingSession.id);
-      expect(history).toHaveLength(2);
-      expect(history.map(({ role, content }) => ({ role, content }))).toEqual([
-        { role: 'user', content: 'Original question' },
-        { role: 'assistant', content: 'Original answer' },
-      ]);
-    });
-  });
-
-  // ─── Session Role/Model Functions ────────────────────────────────
 
   describe('SessionRoleBinding', () => {
     let db: DatabaseSync;
