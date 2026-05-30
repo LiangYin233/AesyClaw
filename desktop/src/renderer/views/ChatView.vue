@@ -38,7 +38,9 @@
             <div
               class="context-fill"
               :style="{
-                width: Math.min(contextUsage.inputTokens / contextUsage.contextWindow * 100, 100) + '%',
+                width:
+                  Math.min((contextUsage.inputTokens / contextUsage.contextWindow) * 100, 100) +
+                  '%',
               }"
               :class="{
                 warning: contextUsage.inputTokens / contextUsage.contextWindow > 0.7,
@@ -46,12 +48,8 @@
               }"
             ></div>
           </div>
-          <span class="context-label">
-            <template v-if="contextUsage.inputTokens || contextUsage.outputTokens">
-              IN {{ contextUsage.inputTokens }} / OUT {{ contextUsage.outputTokens }}
-              ({{ Math.round((contextUsage.inputTokens + contextUsage.outputTokens) / contextUsage.contextWindow * 100) }}%)
-            </template>
-            <template v-else>0 tokens</template>
+          <span class="context-label" v-if="contextUsage.inputTokens || contextUsage.outputTokens">
+            {{ contextUsage.inputTokens + contextUsage.outputTokens }} / {{ contextUsage.contextWindow }} ({{ Math.round((contextUsage.inputTokens + contextUsage.outputTokens) / contextUsage.contextWindow * 100) }}%)
           </span>
           <span class="context-extra">
             <span class="context-role" v-if="contextUsage.roleId">{{ contextUsage.roleId }}</span>
