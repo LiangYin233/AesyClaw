@@ -20,11 +20,13 @@ import type { RoleManager } from '@aesyclaw/role/manager';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { ErrorFactory, ErrorTracker, safeExecute } from '@aesyclaw/core/errors';
 import type { AgentRegistry } from './registry';
 import { runAgentTask, type AgentRunResult } from './runner';
 import { buildPrompt as buildPromptFromBuilder, type BuildPromptResult } from './prompt/builder';
 
 const logger = createScopedLogger('agent');
+const errorTracker = ErrorTracker.getInstance();
 
 /**
  * Agent 构造选项。
@@ -179,7 +181,12 @@ export class Agent {
   ): Promise<Message> {
     const context = this.createProcessContext(options);
     if (!context) {
-      return { components: [{ type: 'Plain', text: '[错误: 无可用角色]' }] };
+      const error = ErrorFactory.agent.roleNotFound('无可用角色', {
+        sessionKey: JSON.stringify(this.session.key),
+      });
+      errorTracker.track(error, { operation: 'process', sessionKey: this.session.key });
+      logger.error('Agent 处理失败：无可用角色', { sessionKey: this.session.key });
+      return { components: [{ type: 'Plain', text: `[错误: ${error.message}]` }] };
     }
     const { role, effectiveRole, ephemeral } = context;
 
@@ -203,14 +210,38 @@ export class Agent {
           }
         : undefined;
 
-    const result = await this.callLLM(
-      effectiveRole,
-      content,
-      history,
-      this.session.key,
-      trackedSendMessage,
-      onStream,
-    );
+    let result;
+    try {
+      result = await this.callLLM(
+        effectiveRole,
+        content,
+        history,
+        this.session.key,
+        trackedSendMessage,
+        onStream,
+      );
+    } catch (error) {
+      const aesyClawError = ErrorFactory.agent.llmCallFailed(
+        'LLM 调用失败',
+        {
+          roleId: role.id,
+          sessionKey: JSON.stringify(this.session.key),
+          modelId: this.currentModelIdentifier,
+        },
+        error instanceof Error ? error : undefined,
+      );
+      errorTracker.track(aesyClawError, {
+        operation: 'callLLM',
+        roleId: role.id,
+        sessionKey: this.session.key,
+      });
+      logger.error('LLM 调用失败', {
+        error: aesyClawError.message,
+        roleId: role.id,
+        sessionKey: this.session.key,
+      });
+      return { components: [{ type: 'Plain', text: `[错误: ${aesyClawError.message}]` }] };
+    }
 
     const finalResult = await this.handleResult(
       context,

@@ -148,7 +148,7 @@ export async function loadExtensionModule<T>(
 }
 
 /**
- * 统一的扩展模块加载流程：发现目录 → 逐个加载 → 收集成功模块。
+ * 统一的扩展模块加载流程：发现目录 → 并行加载 → 收集成功模块。
  *
  * @param options - 发现与加载选项
  * @returns 成功加载的扩展模块列表
@@ -158,16 +158,27 @@ export async function discoverAndLoadExtensionModules<T>(
 ): Promise<LoadedExtensionModule<T>[]> {
   const dirs = await discoverExtensionDirs(options);
 
-  const results: LoadedExtensionModule<T>[] = [];
-  for (const dir of dirs) {
+  // 并行加载所有扩展模块
+  const loadPromises = dirs.map(async (dir) => {
     try {
       const mod = await loadExtensionModule(dir, options.kind, options.validate);
-      results.push(mod);
+      return { success: true as const, module: mod };
     } catch (err) {
       options.logger.warn(options.loadFailureMessage, {
         dir,
         error: errorMessage(err),
       });
+      return { success: false as const, dir, error: err };
+    }
+  });
+
+  const loadResults = await Promise.all(loadPromises);
+
+  // 收集成功加载的模块
+  const results: LoadedExtensionModule<T>[] = [];
+  for (const result of loadResults) {
+    if (result.success) {
+      results.push(result.module);
     }
   }
 

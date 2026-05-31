@@ -8,92 +8,9 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { SessionKey, SessionRecord } from '@aesyclaw/core/types';
+import { BaseRepository } from './base-repository';
 
-/** 按复合键查找现有会话，如不存在则创建。 */
-export async function findOrCreateSession(
-  db: DatabaseSync,
-  key: SessionKey,
-): Promise<SessionRecord> {
-  const id = randomUUID();
-
-  db.prepare('INSERT OR IGNORE INTO sessions (id, channel, type, chat_id) VALUES (?, ?, ?, ?)').run(
-    id,
-    key.channel,
-    key.type,
-    key.chatId,
-  );
-
-  const session = await findSessionByKey(db, key);
-  if (!session) {
-    throw new Error('查找或创建会话失败');
-  }
-
-  return session;
-}
-
-/** 按复合键查找会话。未找到时返回 null。 */
-export async function findSessionByKey(
-  db: DatabaseSync,
-  key: SessionKey,
-): Promise<SessionRecord | null> {
-  const row = db
-    .prepare(
-      'SELECT id, channel, type, chat_id, role_id, model_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?',
-    )
-    .get(key.channel, key.type, key.chatId) as SessionRow | undefined;
-
-  return row ? toSessionRecord(row) : null;
-}
-
-/** 获取所有会话。 */
-export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
-  const rows = db
-    .prepare('SELECT id, channel, type, chat_id, role_id, model_id FROM sessions ORDER BY id')
-    .all() as SessionRow[];
-
-  return rows.map((row) => toSessionRecord(row));
-}
-
-/** 按 ID 查找会话。未找到时返回 null。 */
-export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
-  const row = db
-    .prepare('SELECT id, channel, type, chat_id, role_id, model_id FROM sessions WHERE id = ?')
-    .get(id) as SessionRow | undefined;
-
-  return row ? toSessionRecord(row) : null;
-}
-
-/** 按 ID 删除会话及其直接关联数据。返回是否删除了会话。 */
-export async function deleteSessionById(db: DatabaseSync, id: string): Promise<boolean> {
-  const row = db.prepare('SELECT id FROM sessions WHERE id = ?').get(id) as { id: string } | undefined;
-
-  if (!row) return false;
-
-  db.exec('BEGIN');
-  try {
-    db.prepare('UPDATE usage SET session_id = NULL WHERE session_id = ?').run(id);
-    db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
-    db.exec('COMMIT');
-    return true;
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
-}
-
-/** 设置会话的角色 */
-export async function setSessionRole(db: DatabaseSync, id: string, roleId: string): Promise<void> {
-  db.prepare('UPDATE sessions SET role_id = ? WHERE id = ?').run(roleId, id);
-}
-
-/** 设置会话的模型 */
-export async function setSessionModel(
-  db: DatabaseSync,
-  id: string,
-  modelId: string,
-): Promise<void> {
-  db.prepare('UPDATE sessions SET model_id = ? WHERE id = ?').run(modelId, id);
-}
+// ─── 行类型 ─────────────────────────────────────────────────────
 
 type SessionRow = {
   id: string;
@@ -104,13 +21,145 @@ type SessionRow = {
   model_id: string | null;
 };
 
-function toSessionRecord(row: SessionRow): SessionRecord {
-  return {
-    id: row.id,
-    channel: row.channel,
-    type: row.type,
-    chatId: row.chat_id,
-    role_id: row.role_id ?? undefined,
-    model_id: row.model_id ?? undefined,
-  };
+// ─── 仓储类 ─────────────────────────────────────────────────────
+
+class SessionRepositoryImpl extends BaseRepository<SessionRecord, SessionRow> {
+  protected getTableName(): string {
+    return 'sessions';
+  }
+
+  protected getPrimaryKey(): string {
+    return 'id';
+  }
+
+  protected mapRow(row: SessionRow): SessionRecord {
+    return {
+      id: row['id'],
+      channel: row['channel'],
+      type: row['type'],
+      chatId: row['chat_id'],
+      role_id: row['role_id'] ?? undefined,
+      model_id: row['model_id'] ?? undefined,
+    };
+  }
+
+  protected mapToFields(entity: Partial<SessionRecord>): Record<string, unknown> {
+    const fields: Record<string, unknown> = {};
+    if (entity['id'] !== undefined) fields['id'] = entity['id'];
+    if (entity['channel'] !== undefined) fields['channel'] = entity['channel'];
+    if (entity['type'] !== undefined) fields['type'] = entity['type'];
+    if (entity['chatId'] !== undefined) fields['chat_id'] = entity['chatId'];
+    if (entity['role_id'] !== undefined) fields['role_id'] = entity['role_id'];
+    if (entity['model_id'] !== undefined) fields['model_id'] = entity['model_id'];
+    return fields;
+  }
+
+  /** 按复合键查找会话。未找到时返回 null。 */
+  async findByKey(key: SessionKey): Promise<SessionRecord | null> {
+    const row = this.queryOne<SessionRow>(
+      'SELECT id, channel, type, chat_id, role_id, model_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?',
+      key.channel,
+      key.type,
+      key.chatId,
+    );
+
+    return row ? this.mapRow(row) : null;
+  }
+
+  /** 按复合键查找现有会话，如不存在则创建。 */
+  async findOrCreate(key: SessionKey): Promise<SessionRecord> {
+    const id = randomUUID();
+
+    this.exec(
+      'INSERT OR IGNORE INTO sessions (id, channel, type, chat_id) VALUES (?, ?, ?, ?)',
+      id,
+      key.channel,
+      key.type,
+      key.chatId,
+    );
+
+    const session = await this.findByKey(key);
+    if (!session) {
+      throw new Error('查找或创建会话失败');
+    }
+
+    return session;
+  }
+
+  /** 按 ID 删除会话及其直接关联数据。返回是否删除了会话。 */
+  async deleteWithRelations(id: string): Promise<boolean> {
+    const row = this.queryOne<{ id: string }>('SELECT id FROM sessions WHERE id = ?', id);
+
+    if (!row) return false;
+
+    return this.transactionAsync(async () => {
+      this.exec('UPDATE usage SET session_id = NULL WHERE session_id = ?', id);
+      this.exec('DELETE FROM sessions WHERE id = ?', id);
+      return true;
+    });
+  }
+
+  /** 设置会话的角色 */
+  async setRole(id: string, roleId: string): Promise<void> {
+    this.exec('UPDATE sessions SET role_id = ? WHERE id = ?', roleId, id);
+  }
+
+  /** 设置会话的模型 */
+  async setModel(id: string, modelId: string): Promise<void> {
+    this.exec('UPDATE sessions SET model_id = ? WHERE id = ?', modelId, id);
+  }
+}
+
+// ─── 公共 API ───────────────────────────────────────────────────
+
+/** 按复合键查找现有会话，如不存在则创建。 */
+export async function findOrCreateSession(
+  db: DatabaseSync,
+  key: SessionKey,
+): Promise<SessionRecord> {
+  const repo = new SessionRepositoryImpl(db);
+  return repo.findOrCreate(key);
+}
+
+/** 按复合键查找会话。未找到时返回 null。 */
+export async function findSessionByKey(
+  db: DatabaseSync,
+  key: SessionKey,
+): Promise<SessionRecord | null> {
+  const repo = new SessionRepositoryImpl(db);
+  return repo.findByKey(key);
+}
+
+/** 获取所有会话。 */
+export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
+  const repo = new SessionRepositoryImpl(db);
+  return repo.findAll('id');
+}
+
+/** 按 ID 查找会话。未找到时返回 null。 */
+export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
+  const repo = new SessionRepositoryImpl(db);
+  return repo.findById(id);
+}
+
+/** 按 ID 删除会话及其直接关联数据。返回是否删除了会话。 */
+export async function deleteSessionById(db: DatabaseSync, id: string): Promise<boolean> {
+  const repo = new SessionRepositoryImpl(db);
+  return repo.deleteWithRelations(id);
+}
+
+/** 设置会话的角色 */
+export async function setSessionRole(db: DatabaseSync, id: string, roleId: string): Promise<void> {
+  const repo = new SessionRepositoryImpl(db);
+  return repo.setRole(id, roleId);
+}
+
+/** 设置会话的模型 */
+export async function setSessionModel(
+  db: DatabaseSync,
+  id: string,
+  modelId: string,
+): Promise<void> {
+  const repo = new SessionRepositoryImpl(db);
+  return repo.setModel(id, modelId);
 }

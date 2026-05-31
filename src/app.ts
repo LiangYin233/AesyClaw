@@ -26,6 +26,7 @@ import { ChannelManager } from './extension/channel/manager';
 import { createAutoCompactHook, createTimeInjectHook, createCommandDetectHook } from './hook/builtin';
 import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
+import { StartupProfiler, StartupProgressReporter } from './core/startup-profiler';
 import { DEFAULT_CONFIG } from './core/config/defaults';
 import path from 'node:path';
 import type { ResolvedPaths } from './core/path-resolver';
@@ -110,6 +111,7 @@ export class Application {
   private cronManager: CronManager | null = null;
   private shuttingDown = false;
   private started = false;
+  private profiler: StartupProfiler | null = null;
 
   constructor() {
     this.sub = createSubsystems();
@@ -125,8 +127,19 @@ export class Application {
       return;
     }
     logger.info('正在启动 AesyClaw...');
+    
+    // 创建性能分析器
+    this.profiler = new StartupProfiler(true);
+    
     await this.runStartupSequence();
     this.started = true;
+    
+    // 打印性能报告
+    const profiler = this.profiler;
+    if (profiler !== null) {
+      profiler.printReport();
+    }
+    
     logger.info('AesyClaw 启动成功');
   }
 
@@ -167,17 +180,54 @@ export class Application {
   }
 
   private async runStartupSequence(): Promise<void> {
-    await this.runStep('初始化核心管理器', () => this.initCoreManagers());
-    await this.runStep('初始化扩展运行时', () => this.initExtensionRuntime());
-    await this.runStep('初始化外围运行时', () => this.initPeripheralRuntime());
-    await this.runStep('安装运行时热重载', () => this.installHotReload());
+    const progressReporter = new StartupProgressReporter(4);
+    
+    await this.runStep('初始化核心管理器', async () => {
+      await this.initCoreManagers();
+      progressReporter.reportStep('核心管理器初始化完成');
+    });
+    
+    await this.runStep('初始化扩展运行时', async () => {
+      await this.initExtensionRuntime();
+      progressReporter.reportStep('扩展运行时初始化完成');
+    });
+    
+    await this.runStep('初始化外围运行时', async () => {
+      await this.initPeripheralRuntime();
+      progressReporter.reportStep('外围运行时初始化完成');
+    });
+    
+    await this.runStep('安装运行时热重载', async () => {
+      await this.installHotReload();
+      progressReporter.reportStep('热重载安装完成');
+    });
   }
 
   private async initCoreManagers(): Promise<void> {
+    // 同步操作：设置日志级别
     setLogLevel(this.sub.configManager.get('server.logLevel') as string);
-    await this.sub.databaseManager.initialize(this.paths.dbFile);
-    await this.sub.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
-    await this.sub.roleManager.initialize();
+    
+    // 并行化独立的初始化操作
+    const profiler = this.profiler;
+    if (profiler !== null) {
+      await Promise.all([
+        profiler.runStep('数据库初始化', () => 
+          this.sub.databaseManager.initialize(this.paths.dbFile)
+        ),
+        profiler.runStep('技能加载', () => 
+          this.sub.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir)
+        ),
+        profiler.runStep('角色管理器初始化', () => 
+          this.sub.roleManager.initialize()
+        ),
+      ]);
+    } else {
+      await Promise.all([
+        this.sub.databaseManager.initialize(this.paths.dbFile),
+        this.sub.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir),
+        this.sub.roleManager.initialize(),
+      ]);
+    }
   }
 
   private async initExtensionRuntime(): Promise<void> {
@@ -234,44 +284,75 @@ export class Application {
   }
 
   private async initPeripheralRuntime(): Promise<void> {
+    // 配置检查和设置
     const mcpConfig = this.sub.configManager.get('mcp') as typeof DEFAULT_CONFIG.mcp;
     if (mcpConfig.length === 0) {
       await this.sub.configManager.set('mcp', DEFAULT_CONFIG.mcp);
     }
-    await this.sub.mcpManager.connectAll();
 
-    if (!this.channelManager) throw new Error('ChannelManager 未初始化');
-    if (!this.pluginManager) throw new Error('PluginManager 未初始化');
+    if (this.channelManager === null) throw new Error('ChannelManager 未初始化');
+    if (this.pluginManager === null) throw new Error('PluginManager 未初始化');
 
+    // 创建 CronManager（同步操作）
+    const channelManager = this.channelManager;
     this.cronManager = new CronManager({
       databaseManager: this.sub.databaseManager,
       pipeline: this.sub.pipeline,
       hooksBus: this.sub.pipeline.hooksBus,
       sessionManager: this.sub.sessionManager,
-      send: async (signal) => await this.channelManager!.send(signal),
+      send: async (signal) => await channelManager.send(signal),
     });
-    await this.cronManager.initialize();
 
+    const cronManager = this.cronManager;
+    const profiler = this.profiler;
+
+    // 并行化 MCP 连接和 Cron 初始化
+    if (profiler !== null) {
+      await Promise.all([
+        profiler.runStep('MCP 服务器连接', () => 
+          this.sub.mcpManager.connectAll()
+        ),
+        profiler.runStep('定时任务初始化', () => 
+          cronManager.initialize()
+        ),
+      ]);
+    } else {
+      await Promise.all([
+        this.sub.mcpManager.connectAll(),
+        cronManager.initialize(),
+      ]);
+    }
+
+    // 注册内置工具（同步操作）
     registerBuiltinTools(this.sub.toolRegistry, {
-      cronManager: this.cronManager,
+      cronManager: cronManager,
       roleManager: this.sub.roleManager,
       skillManager: this.sub.skillManager,
       agentRegistry: this.sub.agentRegistry,
     });
 
+    // 创建并初始化 WebUI（依赖于其他服务）
     this.webUiManager = new WebUiManager({
       configManager: this.sub.configManager,
       databaseManager: this.sub.databaseManager,
       sessionManager: this.sub.sessionManager,
-      cronManager: this.cronManager,
+      cronManager: cronManager,
       roleManager: this.sub.roleManager,
-      channelManager: this.channelManager,
+      channelManager: channelManager,
       pluginManager: this.pluginManager,
       toolRegistry: this.sub.toolRegistry,
       skillManager: this.sub.skillManager,
       paths: this.paths,
     });
-    await this.webUiManager.initialize();
+
+    const webUiManager = this.webUiManager;
+    if (profiler !== null) {
+      await profiler.runStep('WebUI 初始化', () => 
+        webUiManager.initialize()
+      );
+    } else {
+      await webUiManager.initialize();
+    }
   }
 
   private async installHotReload(): Promise<void> {
@@ -292,7 +373,11 @@ export class Application {
 
   private async runStep(name: string, fn: () => Promise<void>): Promise<void> {
     try {
-      await fn();
+      if (this.profiler !== null) {
+        await this.profiler.runStep(name, fn);
+      } else {
+        await fn();
+      }
       logger.info(`✓ ${name}`);
     } catch (err) {
       logger.error(`启动步骤 "${name}" 失败`, err);

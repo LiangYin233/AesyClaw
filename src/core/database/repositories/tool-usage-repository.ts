@@ -7,44 +7,55 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 import type { ToolUsageRecord, ToolUsageSummary } from '@aesyclaw/core/types';
+import { BaseRepository } from './base-repository';
 
 // ─── 行类型辅助函数 ─────────────────────────────────────────────
 
 type ToolUsageRow = {
+  id: number;
   name: string;
   type: 'tool' | 'skill';
+  timestamp: string;
   date: string;
   count: number;
 };
 
-// ─── 公共 API ───────────────────────────────────────────────────
+// ─── 仓储类 ─────────────────────────────────────────────────────
 
-/** 插入单条工具/技能调用记录。返回生成的行 ID。 */
-export async function createToolUsageRecord(
-  db: DatabaseSync,
-  record: ToolUsageRecord,
-): Promise<number> {
-  const result = db
-    .prepare(
-      `INSERT INTO tool_usage (name, type)
-       VALUES (?, ?)`,
-    )
-    .run(record.name, record.type);
+class ToolUsageRepositoryImpl extends BaseRepository<ToolUsageRecord, ToolUsageRow> {
+  protected getTableName(): string {
+    return 'tool_usage';
+  }
 
-  return Number(result.lastInsertRowid);
-}
+  protected getPrimaryKey(): string {
+    return 'id';
+  }
 
-/** 获取按名称 + 类型 + 日期分组的聚合调用统计，支持可选过滤条件。
- *  from / to 参数为本地日期字符串 (YYYY-MM-DD)，过滤和日期输出均基于 SQLite localtime。 */
-export async function getToolUsageStats(
-  db: DatabaseSync,
-  options?: { from?: string; to?: string },
-): Promise<ToolUsageSummary[]> {
-  const fromFilter = options?.from ?? null;
-  const toFilter = options?.to ?? null;
+  protected mapRow(row: ToolUsageRow): ToolUsageRecord {
+    return {
+      name: row['name'],
+      type: row['type'],
+    };
+  }
 
-  const rows = db
-    .prepare(
+  protected mapToFields(entity: Partial<ToolUsageRecord>): Record<string, unknown> {
+    const fields: Record<string, unknown> = {};
+    if (entity['name'] !== undefined) fields['name'] = entity['name'];
+    if (entity['type'] !== undefined) fields['type'] = entity['type'];
+    return fields;
+  }
+
+  /**
+   * 获取按名称 + 类型 + 日期分组的聚合调用统计，支持可选过滤条件。
+   * from / to 参数为本地日期字符串 (YYYY-MM-DD)，过滤和日期输出均基于 SQLite localtime。
+   */
+  async getToolUsageStats(
+    options?: { from?: string; to?: string },
+  ): Promise<ToolUsageSummary[]> {
+    const fromFilter = options?.from ?? null;
+    const toFilter = options?.to ?? null;
+
+    const rows = this.query<ToolUsageRow>(
       `SELECT
         name,
         type,
@@ -55,13 +66,39 @@ export async function getToolUsageStats(
         AND (? IS NULL OR DATE(timestamp, 'localtime') <= ?)
       GROUP BY name, type, DATE(timestamp, 'localtime')
       ORDER BY count DESC, name ASC`,
-    )
-    .all(fromFilter, fromFilter, toFilter, toFilter) as unknown as ToolUsageRow[];
+      fromFilter,
+      fromFilter,
+      toFilter,
+      toFilter,
+    );
 
-  return rows.map((row) => ({
-    name: row.name,
-    type: row.type,
-    date: row.date,
-    count: row.count,
-  }));
+    return rows.map((row) => ({
+      name: row.name,
+      type: row.type,
+      date: row.date,
+      count: row.count,
+    }));
+  }
+}
+
+// ─── 公共 API ───────────────────────────────────────────────────
+
+/** 插入单条工具/技能调用记录。返回生成的行 ID。 */
+export async function createToolUsageRecord(
+  db: DatabaseSync,
+  record: ToolUsageRecord,
+): Promise<number> {
+  const repo = new ToolUsageRepositoryImpl(db);
+  const id = await repo.create(record);
+  return typeof id === 'number' ? id : Number(id);
+}
+
+/** 获取按名称 + 类型 + 日期分组的聚合调用统计，支持可选过滤条件。
+ *  from / to 参数为本地日期字符串 (YYYY-MM-DD)，过滤和日期输出均基于 SQLite localtime。 */
+export async function getToolUsageStats(
+  db: DatabaseSync,
+  options?: { from?: string; to?: string },
+): Promise<ToolUsageSummary[]> {
+  const repo = new ToolUsageRepositoryImpl(db);
+  return repo.getToolUsageStats(options);
 }

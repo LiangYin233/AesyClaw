@@ -16,6 +16,7 @@ import {
   type Message,
 } from '@aesyclaw/core/types';
 import { Agent } from '@aesyclaw/agent/agent';
+import { CommandBuilder } from '@aesyclaw/command/command-builder';
 
 /** 注册内置命令所需的完整依赖集合。 */
 export type BuiltinCommandDependencies = {
@@ -42,12 +43,12 @@ export function registerBuiltinCommands(
   deps: BuiltinCommandDependencies,
 ): void {
   // ── /help ──────────────────────────────────────────────
-  registry.register({
-    name: 'help',
-    description: '列出所有可用命令',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (): Promise<Message> => {
+  const helpCommand = new CommandBuilder()
+    .setName('help')
+    .setDescription('列出所有可用命令')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (): Promise<Message> => {
       const commands = registry.getAll();
 
       if (commands.length === 0) {
@@ -64,17 +65,19 @@ export function registerBuiltinCommands(
       }
 
       return { components: [{ type: 'Plain', text: lines.join('\n') }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(helpCommand);
 
   // ── /btw ───────────────────────────────────────────────
-  registry.register({
-    name: 'btw',
-    description: '在当前会话上下文中执行一次独立提问',
-    usage: '/btw <message>',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (args: string[], context: CommandContext): Promise<Message> => {
+  const btwCommand = new CommandBuilder()
+    .setName('btw')
+    .setDescription('在当前会话上下文中执行一次独立提问')
+    .setUsage('/btw <message>')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (args: string[], context: CommandContext): Promise<Message> => {
       const content = args.join(' ').trim();
       if (!content) {
         return { components: [{ type: 'Plain', text: '用法：/btw <message>' }] };
@@ -101,17 +104,19 @@ export function registerBuiltinCommands(
       );
 
       return { components: [{ type: 'Plain', text: getMessageText(outbound) }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(btwCommand);
 
   // ── /model ─────────────────────────────────────────────
-  registry.register({
-    name: 'model',
-    description: '查看或切换当前会话的模型',
-    usage: '/model [provider/model]',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (args: string[], context: CommandContext): Promise<Message> => {
+  const modelCommand = new CommandBuilder()
+    .setName('model')
+    .setDescription('查看或切换当前会话的模型')
+    .setUsage('/model [provider/model]')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (args: string[], context: CommandContext): Promise<Message> => {
       const newModelId = args.join(' ').trim();
 
       if (!newModelId) {
@@ -152,16 +157,18 @@ export function registerBuiltinCommands(
       }
 
       return { components: [{ type: 'Plain', text: `已切换到模型：${newModelId}` }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(modelCommand);
 
   // ── /clear ─────────────────────────────────────────────
-  registry.register({
-    name: 'clear',
-    description: '清空当前会话的历史记录',
-    scope: 'system',
-    allowDuringAgentProcessing: false,
-    execute: async (_args: string[], context: CommandContext): Promise<Message> => {
+  const clearCommand = new CommandBuilder()
+    .setName('clear')
+    .setDescription('清空当前会话的历史记录')
+    .setScope('system')
+    .allowDuringAgentProcessing(false)
+    .setExecutor(async (_args: string[], context: CommandContext): Promise<Message> => {
       const agent = deps.agentRegistry.getAgent(context.sessionKey);
       if (agent?.session.isLocked) {
         return {
@@ -174,16 +181,18 @@ export function registerBuiltinCommands(
         await deps.sessionManager.clearById(dbRecord.id);
       }
       return { components: [{ type: 'Plain', text: '会话历史已清空。' }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(clearCommand);
 
   // ── /compact ───────────────────────────────────────────
-  registry.register({
-    name: 'compact',
-    description: '压缩当前会话的历史记录',
-    scope: 'system',
-    allowDuringAgentProcessing: false,
-    execute: async (_args: string[], context: CommandContext): Promise<Message> => {
+  const compactCommand = new CommandBuilder()
+    .setName('compact')
+    .setDescription('压缩当前会话的历史记录')
+    .setScope('system')
+    .allowDuringAgentProcessing(false)
+    .setExecutor(async (_args: string[], context: CommandContext): Promise<Message> => {
       const session = await deps.sessionManager.create(context.sessionKey);
       const dbRecord = await deps.databaseManager.sessions.findByKey(context.sessionKey);
       const modelId = dbRecord!.model_id!;
@@ -192,16 +201,18 @@ export function registerBuiltinCommands(
       return {
         components: [{ type: 'Plain', text: `会话已压缩。\n\n摘要：\n${summary}` }],
       };
-    },
-  });
+    })
+    .build();
+
+  registry.register(compactCommand);
 
   // ── /stop ──────────────────────────────────────────────
-  registry.register({
-    name: 'stop',
-    description: '停止当前会话的 Agent 处理',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (_args: string[], context: CommandContext): Promise<Message> => {
+  const stopCommand = new CommandBuilder()
+    .setName('stop')
+    .setDescription('停止当前会话的 Agent 处理')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (_args: string[], context: CommandContext): Promise<Message> => {
       const session = await deps.sessionManager.create(context.sessionKey);
       if (!session.isLocked) {
         return { components: [{ type: 'Plain', text: 'Agent 未在处理中。' }] };
@@ -209,16 +220,19 @@ export function registerBuiltinCommands(
 
       session.unlock();
       return { components: [{ type: 'Plain', text: 'Agent 处理已停止。' }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(stopCommand);
 
   // ── /role:list ─────────────────────────────────────────
-  registry.register({
-    name: 'role:list',
-    description: '列出所有可用角色',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (): Promise<Message> => {
+  const roleListCommand = new CommandBuilder()
+    .setName('list')
+    .setNamespace('role')
+    .setDescription('列出所有可用角色')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (): Promise<Message> => {
       const roles = deps.roleManager.getAllRoles();
       if (roles.length === 0) {
         return { components: [{ type: 'Plain', text: '没有可用的角色。' }] };
@@ -232,17 +246,20 @@ export function registerBuiltinCommands(
       }
 
       return { components: [{ type: 'Plain', text: lines.join('\n') }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(roleListCommand);
 
   // ── /role:switch ───────────────────────────────────────
-  registry.register({
-    name: 'role:switch',
-    description: '切换当前会话的角色',
-    usage: '/role:switch <role-id>',
-    scope: 'system',
-    allowDuringAgentProcessing: false,
-    execute: async (args: string[], context: CommandContext): Promise<Message> => {
+  const roleSwitchCommand = new CommandBuilder()
+    .setName('switch')
+    .setNamespace('role')
+    .setDescription('切换当前会话的角色')
+    .setUsage('/role:switch <role-id>')
+    .setScope('system')
+    .allowDuringAgentProcessing(false)
+    .setExecutor(async (args: string[], context: CommandContext): Promise<Message> => {
       const roleId = args.join(' ').trim();
       if (!roleId) {
         return { components: [{ type: 'Plain', text: '用法：/role:switch <role-id>' }] };
@@ -265,16 +282,19 @@ export function registerBuiltinCommands(
       }
 
       return { components: [{ type: 'Plain', text: `已切换到角色：${role.id}` }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(roleSwitchCommand);
 
   // ── /role:info ─────────────────────────────────────────
-  registry.register({
-    name: 'role:info',
-    description: '查看当前会话的角色信息',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (_args: string[], context: CommandContext): Promise<Message> => {
+  const roleInfoCommand = new CommandBuilder()
+    .setName('info')
+    .setNamespace('role')
+    .setDescription('查看当前会话的角色信息')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (_args: string[], context: CommandContext): Promise<Message> => {
       const activeRoleId = await Agent.resolveActiveRoleId(context, {
         databaseManager: deps.databaseManager,
         agentRegistry: deps.agentRegistry,
@@ -289,16 +309,19 @@ export function registerBuiltinCommands(
       ].filter(Boolean);
 
       return { components: [{ type: 'Plain', text: lines.join('\n') }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(roleInfoCommand);
 
   // ── /plugin:list ───────────────────────────────────────
-  registry.register({
-    name: 'plugin:list',
-    description: '列出所有插件',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (): Promise<Message> => {
+  const pluginListCommand = new CommandBuilder()
+    .setName('list')
+    .setNamespace('plugin')
+    .setDescription('列出所有插件')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (): Promise<Message> => {
       const plugins = await deps.pluginManager.listPlugins();
       if (plugins.length === 0) {
         return { components: [{ type: 'Plain', text: '没有可用的插件。' }] };
@@ -312,17 +335,20 @@ export function registerBuiltinCommands(
       }
 
       return { components: [{ type: 'Plain', text: lines.join('\n') }] };
-    },
-  });
+    })
+    .build();
+
+  registry.register(pluginListCommand);
 
   // ── /plugin:enable ─────────────────────────────────────
-  registry.register({
-    name: 'plugin:enable',
-    description: '启用指定插件',
-    usage: '/plugin:enable <plugin-name>',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (args: string[]): Promise<Message> => {
+  const pluginEnableCommand = new CommandBuilder()
+    .setName('enable')
+    .setNamespace('plugin')
+    .setDescription('启用指定插件')
+    .setUsage('/plugin:enable <plugin-name>')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (args: string[]): Promise<Message> => {
       const pluginName = args.join(' ').trim();
       if (!pluginName) {
         return { components: [{ type: 'Plain', text: '用法：/plugin:enable <plugin-name>' }] };
@@ -341,17 +367,20 @@ export function registerBuiltinCommands(
           ],
         };
       }
-    },
-  });
+    })
+    .build();
+
+  registry.register(pluginEnableCommand);
 
   // ── /plugin:disable ────────────────────────────────────
-  registry.register({
-    name: 'plugin:disable',
-    description: '禁用指定插件',
-    usage: '/plugin:disable <plugin-name>',
-    scope: 'system',
-    allowDuringAgentProcessing: true,
-    execute: async (args: string[]): Promise<Message> => {
+  const pluginDisableCommand = new CommandBuilder()
+    .setName('disable')
+    .setNamespace('plugin')
+    .setDescription('禁用指定插件')
+    .setUsage('/plugin:disable <plugin-name>')
+    .setScope('system')
+    .allowDuringAgentProcessing(true)
+    .setExecutor(async (args: string[]): Promise<Message> => {
       const pluginName = args.join(' ').trim();
       if (!pluginName) {
         return { components: [{ type: 'Plain', text: '用法：/plugin:disable <plugin-name>' }] };
@@ -370,16 +399,19 @@ export function registerBuiltinCommands(
           ],
         };
       }
-    },
-  });
+    })
+    .build();
+
+  registry.register(pluginDisableCommand);
 
   // ── /skill:reload ──────────────────────────────────────
-  registry.register({
-    name: 'skill:reload',
-    description: '重新加载所有技能',
-    scope: 'system',
-    allowDuringAgentProcessing: false,
-    execute: async (): Promise<Message> => {
+  const skillReloadCommand = new CommandBuilder()
+    .setName('reload')
+    .setNamespace('skill')
+    .setDescription('重新加载所有技能')
+    .setScope('system')
+    .allowDuringAgentProcessing(false)
+    .setExecutor(async (): Promise<Message> => {
       try {
         await deps.skillManager.reload();
 
@@ -397,6 +429,8 @@ export function registerBuiltinCommands(
           ],
         };
       }
-    },
-  });
+    })
+    .build();
+
+  registry.register(skillReloadCommand);
 }

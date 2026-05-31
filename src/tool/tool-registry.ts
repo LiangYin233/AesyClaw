@@ -19,8 +19,10 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { AgentTool } from '@aesyclaw/contracts/llm';
 import { toAgentTool } from './tool-adapter';
+import { ErrorFactory, ErrorTracker } from '@aesyclaw/core/errors';
 
 const logger = createScopedLogger('tool-registry');
+const errorTracker = ErrorTracker.getInstance();
 
 // ─── 核心类型 ─────────────────────────────────────────────────────
 
@@ -98,11 +100,14 @@ export class ToolRegistry {
   /**
    * 注册一个工具。
    *
-   * @throws Error 如果同名工具已存在
+   * @throws ToolExecutionError 如果同名工具已存在
    */
   register(tool: AesyClawTool): void {
     if (this.tools.has(tool.name)) {
-      throw new Error(`工具 "${tool.name}" 已注册`);
+      const error = ErrorFactory.tool.duplicateName(tool.name, tool.owner);
+      errorTracker.track(error, { operation: 'register', toolName: tool.name });
+      logger.error('工具注册失败：名称重复', { toolName: tool.name, owner: tool.owner });
+      throw error;
     }
     this.tools.set(tool.name, tool);
     logger.debug(`已注册工具: ${tool.name} (owner: ${tool.owner})`);
