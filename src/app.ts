@@ -45,6 +45,7 @@ type Deps = {
   pipeline: Pipeline;
   mcpManager: McpManager;
   agentRegistry: AgentRegistry;
+  agentFactory: AgentFactory;
 };
 
 function createSubsystems(): Deps {
@@ -101,6 +102,7 @@ function createSubsystems(): Deps {
     pipeline,
     mcpManager,
     agentRegistry,
+    agentFactory,
   };
 }
 
@@ -227,6 +229,7 @@ export class Application {
         'agent.memory.compressionThreshold',
       ) as number,
       agentRegistry: this.sub.agentRegistry,
+      agentFactory: this.sub.agentFactory,
     });
 
     // 先加载插件（插件 init 期间可能注册频道），再注册磁盘频道并启动全部
