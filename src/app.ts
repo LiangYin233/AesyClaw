@@ -273,11 +273,13 @@ export class Application {
 
     const cronManager = this.cronManager;
 
-    // 并行化 MCP 连接和 Cron 初始化
-    await Promise.all([
-      this.sub.mcpManager.connectAll(),
-      cronManager.initialize(),
-    ]);
+    // Cron 初始化
+    await cronManager.initialize();
+
+    // MCP 连接异步执行，不阻塞启动
+    void this.sub.mcpManager.connectAll().catch((err) => {
+      logger.error('MCP 服务器连接失败', err);
+    });
 
     // 注册内置工具（同步操作）
     registerBuiltinTools(this.sub.toolRegistry, {
