@@ -23,6 +23,8 @@ import { registerBuiltinTools } from './tool/builtin';
 import { CronManager } from './cron/manager';
 import { PluginManager } from './extension/plugin/manager';
 import { ChannelManager } from './extension/channel/manager';
+import { createAutoCompactHook } from './pipeline/auto-compact';
+import { createTimeInjectHook } from './pipeline/time-inject';
 import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
@@ -182,6 +184,12 @@ export class Application {
 
   private async initExtensionRuntime(): Promise<void> {
     await this.sub.pipeline.initialize();
+
+    // 注册内置 Hook（通过注入而非 Pipeline 硬编码）
+    this.sub.pipeline.hooksBus.register(
+      createAutoCompactHook(this.sub.llmAdapter, this.sub.configManager.get('agent.memory.compressionThreshold') as number),
+    );
+    this.sub.pipeline.hooksBus.register(createTimeInjectHook());
 
     // ChannelManager 先于 PluginManager 构造（PluginManager 可选依赖 ChannelManager）
     this.channelManager = new ChannelManager({

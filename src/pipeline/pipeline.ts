@@ -20,8 +20,6 @@ import {
 import type { PipelineDependencies } from './types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
-import { createTimeInjectHook } from './time-inject';
-import { createAutoCompactHook } from './auto-compact';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 import { Agent } from '@aesyclaw/agent/agent';
 
@@ -45,13 +43,9 @@ export class Pipeline implements MessageProcessor {
   }
 
   /**
-   * 初始化管道，注册内置 Hook。
+   * 初始化管道。
    */
   async initialize(): Promise<void> {
-    this.hooksBus.register(
-      createAutoCompactHook(this.deps.llmAdapter, this.deps.compressionThreshold),
-    );
-    this.hooksBus.register(createTimeInjectHook());
     logger.info('Pipeline 已初始化');
   }
 
