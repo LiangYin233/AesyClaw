@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimateApproximateTokens } from '../../../src/session/token-utils';
+import { estimateApproximateTokens } from '../../../src/session/utils/token-utils';
 
 describe('estimateApproximateTokens', () => {
   it('returns 0 for empty messages array', () => {

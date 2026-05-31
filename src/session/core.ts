@@ -16,9 +16,9 @@ import type {
   ToolUsageRepository,
 } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { SessionFileStore } from './file-store';
-import { compactSession } from './session-compactor';
-import { loadAndRehydrateMessages } from './rehydrate';
+import type { SessionFileStore } from './persistence/file-store';
+import { compactSession } from './utils/compactor';
+import { loadAndRehydrateMessages } from './persistence/rehydrate';
 
 const logger = createScopedLogger('session');
 

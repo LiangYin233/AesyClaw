@@ -3,8 +3,8 @@ import { serializeSessionKey, type PersistableMessage, type SessionKey } from '@
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { Session } from './core';
-import { SessionFileStore } from './file-store';
-import { loadAndRehydrateMessages } from './rehydrate';
+import { SessionFileStore } from './persistence/file-store';
+import { loadAndRehydrateMessages } from './persistence/rehydrate';
 
 const logger = createScopedLogger('session-manager');
 

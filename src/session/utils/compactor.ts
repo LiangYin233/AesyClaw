@@ -17,7 +17,7 @@ import {
   withDefaultPromptCacheOptions,
 } from '@aesyclaw/agent/llm/cache-options';
 import type { UsageRepository } from '@aesyclaw/core/database/database-manager';
-import type { SessionFileStore } from './file-store';
+import type { SessionFileStore } from '../persistence/file-store';
 import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { estimateApproximateTokens } from './token-utils';

@@ -5,7 +5,7 @@ import { Session } from '../../../src/session/core';
 import type { AgentMessage } from '../../../src/agent/types';
 import type { PersistableMessage, SessionKey } from '../../../src/core/types';
 import { getRecentLogEntries, setLogLevel, resetLogState } from '../../../src/core/logger';
-import type { SessionFileStore } from '../../../src/session/file-store';
+import type { SessionFileStore } from '../../../src/session/persistence/file-store';
 
 vi.mock('@mariozechner/pi-ai', async () => {
   const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
