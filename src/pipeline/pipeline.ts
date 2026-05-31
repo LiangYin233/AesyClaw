@@ -60,7 +60,7 @@ export class Pipeline implements MessageProcessor {
   /**
    * 接收消息并通过管道处理。
    *
-   * 完整流程：pipeline:receive → 会话/Agent 解析 → 命令检测 → pipeline:beforeLLM → Agent 处理 → 投递。
+   * 完整流程：pipeline:receive（命令检测）→ 会话/Agent 解析 → 会话锁定 → pipeline:beforeLLM → Agent 处理 → 投递。
    * @param message - 传入的消息
    * @param sessionKey - 会话键
    * @param sender - 发送者信息（可选）
@@ -111,22 +111,7 @@ export class Pipeline implements MessageProcessor {
         ? this.deps.roleManager.getRole(activeRoleId)
         : this.deps.roleManager.getDefaultRole();
 
-      // ── Step 3: 命令检测（优先于 agent 创建，命令无需模型）───
-      const text = getMessageText(message);
-      const resolved = this.deps.commandRegistry.resolve(text);
-
-      if (resolved) {
-        if (session.isLocked && !resolved.command.allowDuringAgentProcessing) {
-          await this.message(send, busyMessage(), session.key);
-          return;
-        }
-
-        const result = await this.deps.commandRegistry.executeResolved(resolved, { sessionKey });
-        await this.message(send, result, session.key, 'command');
-        return;
-      }
-
-      // ── Step 4: Agent 创建（非命令才需要 Agent）────────────
+      // ── Step 3: Agent 创建 ────────────────────────────────
       const agentModelId =
         this.deps.agentRegistry.getAgent(sessionKey)?.modelIdentifier ??
         (await this.deps.databaseManager.sessions.findByKey(sessionKey))!.model_id!;
@@ -144,7 +129,7 @@ export class Pipeline implements MessageProcessor {
       });
       await agent.setRole(activeRole);
 
-      // ── Step 5: 非命令锁定 ───────────────────────────────
+      // ── Step 4: 会话锁定 ──────────────────────────────────
       if (!session.lock()) {
         await this.message(send, busyMessage(), session.key);
         return;
@@ -153,7 +138,7 @@ export class Pipeline implements MessageProcessor {
       let streamed = false;
 
       try {
-        // ── Step 6: pipeline:beforeLLM 链与 Agent 处理 ─────
+        // ── Step 5: pipeline:beforeLLM 链与 Agent 处理 ─────
         const beforeCtx: HookCtx = {
           message,
           sessionKey,

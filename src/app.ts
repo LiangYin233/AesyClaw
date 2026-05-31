@@ -23,7 +23,7 @@ import { registerBuiltinTools } from './tool/builtin';
 import { CronManager } from './cron/manager';
 import { PluginManager } from './extension/plugin/manager';
 import { ChannelManager } from './extension/channel/manager';
-import { createAutoCompactHook, createTimeInjectHook } from './hook/builtin';
+import { createAutoCompactHook, createTimeInjectHook, createCommandDetectHook } from './hook/builtin';
 import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
@@ -185,6 +185,7 @@ export class Application {
     await this.sub.pipeline.initialize();
 
     // 注册内置 Hook（通过注入而非 Pipeline 硬编码）
+    this.sub.pipeline.hooksBus.register(createCommandDetectHook(this.sub.commandRegistry));
     this.sub.pipeline.hooksBus.register(
       createAutoCompactHook(this.sub.llmAdapter, this.sub.configManager.get('agent.memory.compressionThreshold') as number),
     );
