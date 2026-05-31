@@ -145,7 +145,7 @@ export class CommandRegistry {
 
     const parts = trimmed.slice(1).split(/\s+/);
     const first = parts[0];
-    if (first === undefined || first === '') {
+    if (!first) {
       return null;
     }
 
@@ -159,7 +159,7 @@ export class CommandRegistry {
 
     if (args.length > 0) {
       const second = args[0];
-      if (second !== undefined) {
+      if (second) {
         const subcommandName = second.toLowerCase();
         const registryKey = CommandRegistry.registryKeyForParts(subcommandName, commandName);
         const namespaced = this.commands.get(registryKey);

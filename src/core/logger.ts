@@ -33,6 +33,7 @@ let currentLevel: LogLevel = 'info';
 let nextLogEntryId = 1;
 
 const MAX_LOG_BUFFER_SIZE = 500;
+const DEFAULT_LOG_ENTRIES_LIMIT = 200;
 const recentLogBuffer: LogEntry[] = [];
 const logSubscribers = new Set<(entry: LogEntry) => void>();
 
@@ -106,7 +107,7 @@ function log(
 }
 
 /** 获取最近 N 条日志条目 */
-export function getRecentLogEntries(limit = 200): LogEntry[] {
+export function getRecentLogEntries(limit = DEFAULT_LOG_ENTRIES_LIMIT): LogEntry[] {
   const normalizedLimit = Math.max(1, Math.min(limit, MAX_LOG_BUFFER_SIZE));
   return recentLogBuffer.slice(-normalizedLimit);
 }

@@ -240,7 +240,7 @@ export class ConfigManager {
       const path = prefix ? `${prefix}.${key}` : key;
       if (!(key in parsed)) {
         missing.push(path);
-      } else if (isNestedRecord(validated[key]) && isNestedRecord(parsed[key])) {
+      } else if (isRecord(validated[key]) && isRecord(parsed[key])) {
         missing.push(
           ...this.findMissingFields(
             parsed[key] as Record<string, unknown>,
@@ -350,9 +350,4 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
     throw new Error('配置路径解析错误：意外的 undefined 最后部分');
   }
   current[lastPart] = value;
-}
-
-/** 判断值是否为可递归遍历的记录对象（非 null、非数组的普通对象） */
-function isNestedRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
