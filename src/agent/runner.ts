@@ -16,6 +16,7 @@ import type { TSchema } from '@mariozechner/pi-ai';
 import type { AgentMessage, AgentTool, ResolvedModel } from './types';
 import { serializeSessionKey, type OutboundSignal, type SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { ErrorFactory } from '@aesyclaw/core/errors';
 import type { AgentRegistry, AgentRunHandle } from './registry';
 import {
   adaptToolForPiAgent,
@@ -67,7 +68,14 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     registry,
   } = params;
   if (!model.apiKey) {
-    throw new Error(`未为提供者 "${model.provider}" 配置 API 密钥`);
+    throw ErrorFactory.config.invalid(
+      `未为提供者 "${model.provider}" 配置 API 密钥`,
+      {
+        configKey: `providers.${model.provider}.apiKey`,
+        provider: model.provider,
+        modelId: model.id,
+      },
+    );
   }
 
   const runId = randomUUID();

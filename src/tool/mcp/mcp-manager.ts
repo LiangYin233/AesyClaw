@@ -40,7 +40,7 @@ export type ConnectedMcpServer = {
   connectedAt: Date;
 };
 
-export type McpLifecycleState = 'connected' | 'disabled' | 'disconnected' | 'failed';
+export type McpLifecycleState = 'connected' | 'connecting' | 'disabled' | 'disconnected' | 'failed';
 
 export type McpServerStatus = {
   name: string;
@@ -53,6 +53,7 @@ export type McpServerStatus = {
 
 export class McpManager {
   private readonly connectedServers = new Map<string, ConnectedMcpServer>();
+  private readonly connectingServers = new Set<string>();
   private readonly failedServers = new Map<string, string>();
 
   constructor(
@@ -100,9 +101,17 @@ export class McpManager {
       return null;
     }
 
+    if (this.connectingServers.has(serverName)) {
+      logger.info('MCP 服务器正在连接中', { server: serverName });
+      return this.connectedServers.get(serverName) ?? null;
+    }
+
     if (this.connectedServers.has(serverName)) {
       await this.disconnect(serverName);
     }
+
+    this.connectingServers.add(serverName);
+    this.failedServers.delete(serverName);
 
     const client = this.clientFactory.create(config);
     const owner: ToolOwner = `mcp:${serverName}`;
@@ -141,6 +150,8 @@ export class McpManager {
         logger.warn(`连接错误后关闭 MCP 客户端失败: ${serverName}`, err);
       }
       throw err;
+    } finally {
+      this.connectingServers.delete(serverName);
     }
   }
 
@@ -154,6 +165,7 @@ export class McpManager {
     } finally {
       this.toolRegistry.unregisterByOwner(owner);
       this.connectedServers.delete(serverName);
+      this.connectingServers.delete(serverName);
       this.failedServers.delete(serverName);
       logger.info('MCP 服务器已断开连接', { server: serverName });
     }
@@ -174,11 +186,13 @@ export class McpManager {
         enabled: config.enabled,
         state: error
           ? 'failed'
-          : connected !== undefined
-            ? 'connected'
-            : config.enabled
-              ? 'disconnected'
-              : 'disabled',
+          : this.connectingServers.has(config.name)
+            ? 'connecting'
+            : connected !== undefined
+              ? 'connected'
+              : config.enabled
+                ? 'disconnected'
+                : 'disabled',
         transport: config.transport,
         toolCount: connected?.tools.length ?? 0,
         error,

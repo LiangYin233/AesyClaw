@@ -110,7 +110,7 @@ export class AesyClawError extends Error {
     this.timestamp = new Date();
 
     // 捕获堆栈跟踪
-    if (Error.captureStackTrace) {
+    if (typeof Error.captureStackTrace === 'function') {
       Error.captureStackTrace(this, this.constructor);
     }
   }
@@ -125,7 +125,7 @@ export class AesyClawError extends Error {
       message: this.message,
       details: this.details,
       timestamp: this.timestamp.toISOString(),
-      cause: this.cause
+      cause: this.cause !== undefined
         ? {
             name: this.cause.name,
             message: this.cause.message,
@@ -142,11 +142,11 @@ export class AesyClawError extends Error {
   toString(): string {
     let result = `${this.name} [${this.code}]: ${this.message}`;
 
-    if (this.details && Object.keys(this.details).length > 0) {
+    if (this.details !== undefined && Object.keys(this.details).length > 0) {
       result += `\n详细信息: ${JSON.stringify(this.details, null, 2)}`;
     }
 
-    if (this.cause) {
+    if (this.cause !== undefined) {
       result += `\n原因: ${this.cause.message}`;
     }
 

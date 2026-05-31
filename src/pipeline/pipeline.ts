@@ -9,19 +9,20 @@
  * 5. 结果投递（含 pipeline:send 链）
  */
 import type { IHooksBus, HookCtx } from '@aesyclaw/contracts/hook';
-import {
-  getMessageText,
-  type Message,
-  type OutboundSignal,
-  type SessionKey,
-  type SenderInfo,
-  type SendFn,
+import type {
+  Message,
+  OutboundSignal,
+  SessionKey,
+  SenderInfo,
+  SendFn,
 } from '@aesyclaw/core/types';
 import type { PipelineDependencies } from './types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { ErrorFactory, ErrorTracker } from '@aesyclaw/core/errors';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 
 const logger = createScopedLogger('pipeline');
+const errorTracker = ErrorTracker.getInstance();
 
 const busyMessage = (): Message => ({
   components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }],
@@ -110,9 +111,25 @@ export class Pipeline {
         : this.deps.roleManager.getDefaultRole();
 
       // ── Step 3: Agent 创建 ────────────────────────────────
-      const agentModelId =
-        this.deps.agentRegistry.getAgent(sessionKey)?.modelIdentifier ??
-        (await this.deps.databaseManager.sessions.findByKey(sessionKey))!.model_id!;
+      const sessionRecord = await this.deps.databaseManager.sessions.findByKey(sessionKey);
+      const agentModelId = existingAgent?.modelIdentifier ?? sessionRecord?.model_id;
+      if (agentModelId === undefined) {
+        const error = ErrorFactory.agent.modelNotFound('会话模型', {
+          sessionKey: JSON.stringify(sessionKey),
+        });
+        errorTracker.track(error, { operation: 'pipeline:createAgent', sessionKey });
+        logger.error('Agent 创建失败：会话模型缺失', {
+          sessionKey,
+          error: error.message,
+        });
+        await this.message(
+          send,
+          { components: [{ type: 'Plain', text: `[错误: ${error.message}]` }] },
+          session.key,
+          'agent_final',
+        );
+        return;
+      }
 
       const agent = this.deps.agentFactory.create(session, agentModelId);
       await agent.setRole(activeRole);

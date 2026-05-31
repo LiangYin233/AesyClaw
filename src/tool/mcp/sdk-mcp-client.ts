@@ -11,6 +11,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { McpServerConfig } from '@aesyclaw/core/config/schema';
 import type { McpClient, McpClientFactory, McpToolDefinition } from './mcp-manager';
 import { APP_VERSION } from '@aesyclaw/core/types';
+import { ErrorFactory } from '@aesyclaw/core/errors';
 import { isRecord } from '@aesyclaw/core/utils';
 
 export class SdkMcpClientFactory implements McpClientFactory {
@@ -66,7 +67,10 @@ class SdkMcpClient implements McpClient {
 function createTransport(config: McpServerConfig): Transport {
   if (config.transport === 'stdio') {
     if (!config.command) {
-      throw new Error(`MCP stdio 服务器 "${config.name}" 需要一个命令`);
+      throw ErrorFactory.config.missing(`mcp.${config.name}.command`, {
+        server: config.name,
+        transport: config.transport,
+      });
     }
 
     return new StdioClientTransport({
@@ -77,10 +81,22 @@ function createTransport(config: McpServerConfig): Transport {
   }
 
   if (!config.url) {
-    throw new Error(`MCP ${config.transport} 服务器 "${config.name}" 需要一个 url`);
+    throw ErrorFactory.config.missing(`mcp.${config.name}.url`, {
+      server: config.name,
+      transport: config.transport,
+    });
   }
 
-  const url = new URL(config.url);
+  let url: URL;
+  try {
+    url = new URL(config.url);
+  } catch (err) {
+    throw ErrorFactory.config.invalid(
+      `MCP ${config.transport} 服务器 "${config.name}" 的 url 无效`,
+      { server: config.name, transport: config.transport, url: config.url },
+      err instanceof Error ? err : undefined,
+    );
+  }
   if (config.transport === 'sse') {
     return new SSEClientTransport(url);
   }

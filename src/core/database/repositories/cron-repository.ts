@@ -101,7 +101,7 @@ class CronJobRepositoryImpl extends BaseRepository<CronJobRecord, CronJobRow> {
 
   /** 按 ID 删除定时任务及其关联执行记录。 */
   async deleteWithRuns(id: string): Promise<boolean> {
-    return this.transactionAsync(async () => {
+    return await this.transactionAsync(async () => {
       this.exec('DELETE FROM cron_runs WHERE job_id = ?', id);
       const result = this.exec('DELETE FROM cron_jobs WHERE id = ?', id);
       return result.changes > 0;
@@ -234,25 +234,25 @@ export async function createCronJob(
   },
 ): Promise<string> {
   const repo = new CronJobRepositoryImpl(db);
-  return repo.createJob(params);
+  return await repo.createJob(params);
 }
 
 /** 按 ID 查找定时任务。 */
 export async function findCronJobById(db: DatabaseSync, id: string): Promise<CronJobRecord | null> {
   const repo = new CronJobRepositoryImpl(db);
-  return repo.findById(id);
+  return await repo.findById(id);
 }
 
 /** 获取所有定时任务。 */
 export async function findAllCronJobs(db: DatabaseSync): Promise<CronJobRecord[]> {
   const repo = new CronJobRepositoryImpl(db);
-  return repo.findAll('next_run ASC');
+  return await repo.findAll('next_run ASC');
 }
 
 /** 按 ID 删除定时任务及其关联执行记录。 */
 export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boolean> {
   const repo = new CronJobRepositoryImpl(db);
-  return repo.deleteWithRuns(id);
+  return await repo.deleteWithRuns(id);
 }
 
 /** 更新定时任务的 next_run 时间。 */
@@ -262,7 +262,7 @@ export async function updateCronJobNextRun(
   nextRun: Date | null,
 ): Promise<boolean> {
   const repo = new CronJobRepositoryImpl(db);
-  return repo.updateNextRun(id, nextRun);
+  return await repo.updateNextRun(id, nextRun);
 }
 
 // ─── 公共 API - 定时任务执行 ─────────────────────────────────────
@@ -270,7 +270,7 @@ export async function updateCronJobNextRun(
 /** 创建一个新的定时任务执行记录。 */
 export async function createCronRun(db: DatabaseSync, params: { jobId: string }): Promise<string> {
   const repo = new CronRunRepositoryImpl(db);
-  return repo.createRun(params);
+  return await repo.createRun(params);
 }
 
 /** 将执行记录标记为已完成。 */
@@ -280,7 +280,7 @@ export async function markCronRunCompleted(
   result: string,
 ): Promise<void> {
   const repo = new CronRunRepositoryImpl(db);
-  return repo.markCompleted(runId, result);
+  return await repo.markCompleted(runId, result);
 }
 
 /** 将执行记录标记为失败。 */
@@ -290,19 +290,19 @@ export async function markCronRunFailed(
   error: string,
 ): Promise<void> {
   const repo = new CronRunRepositoryImpl(db);
-  return repo.markFailed(runId, error);
+  return await repo.markFailed(runId, error);
 }
 
 /** 将多个执行记录标记为已放弃。 */
 export async function markCronRunsAbandoned(db: DatabaseSync, runIds: string[]): Promise<void> {
   const repo = new CronRunRepositoryImpl(db);
-  return repo.markAbandoned(runIds);
+  return await repo.markAbandoned(runIds);
 }
 
 /** 查找所有当前正在执行的运行记录。 */
 export async function findRunningCronRuns(db: DatabaseSync): Promise<CronRunRecord[]> {
   const repo = new CronRunRepositoryImpl(db);
-  return repo.findRunning();
+  return await repo.findRunning();
 }
 
 /** 查找特定任务的所有执行记录。 */
@@ -311,5 +311,5 @@ export async function findCronRunsByJobId(
   jobId: string,
 ): Promise<CronRunRecord[]> {
   const repo = new CronRunRepositoryImpl(db);
-  return repo.findByJobId(jobId);
+  return await repo.findByJobId(jobId);
 }

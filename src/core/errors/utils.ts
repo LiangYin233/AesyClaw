@@ -95,7 +95,7 @@ export async function executeWithTimeout<T>(
   timeoutMs: number,
   errorCode = ErrorCode.TOOL_TIMEOUT,
 ): Promise<T> {
-  return Promise.race([
+  return await Promise.race([
     fn(),
     new Promise<T>((_, reject) => {
       setTimeout(() => {

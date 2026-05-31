@@ -4,7 +4,7 @@
  * 收集和统计错误信息，用于监控和调试
  */
 
-import { AesyClawError, ErrorCode } from './base';
+import type { AesyClawError, ErrorCode } from './base';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('error-tracker');
@@ -70,9 +70,7 @@ export class ErrorTracker {
    * 获取单例实例
    */
   static getInstance(config?: ErrorTrackerConfig): ErrorTracker {
-    if (!ErrorTracker.instance) {
-      ErrorTracker.instance = new ErrorTracker(config);
-    }
+    ErrorTracker.instance ??= new ErrorTracker(config);
     return ErrorTracker.instance;
   }
 

@@ -57,7 +57,7 @@ export abstract class BaseRepository<T, TRow = unknown> {
       .prepare(`SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`)
       .get(id) as TRow | undefined;
 
-    return row ? this.mapRow(row) : null;
+    return row !== undefined ? this.mapRow(row) : null;
   }
 
   /**
@@ -67,7 +67,7 @@ export abstract class BaseRepository<T, TRow = unknown> {
    */
   async findAll(orderBy?: string): Promise<T[]> {
     const tableName = this.getTableName();
-    const orderClause = orderBy ? ` ORDER BY ${orderBy}` : '';
+    const orderClause = orderBy !== undefined ? ` ORDER BY ${orderBy}` : '';
 
     const rows = this.db
       .prepare(`SELECT * FROM ${tableName}${orderClause}`)

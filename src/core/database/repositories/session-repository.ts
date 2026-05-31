@@ -92,7 +92,7 @@ class SessionRepositoryImpl extends BaseRepository<SessionRecord, SessionRow> {
 
     if (!row) return false;
 
-    return this.transactionAsync(async () => {
+    return await this.transactionAsync(async () => {
       this.exec('UPDATE usage SET session_id = NULL WHERE session_id = ?', id);
       this.exec('DELETE FROM sessions WHERE id = ?', id);
       return true;
@@ -118,7 +118,7 @@ export async function findOrCreateSession(
   key: SessionKey,
 ): Promise<SessionRecord> {
   const repo = new SessionRepositoryImpl(db);
-  return repo.findOrCreate(key);
+  return await repo.findOrCreate(key);
 }
 
 /** 按复合键查找会话。未找到时返回 null。 */
@@ -127,31 +127,31 @@ export async function findSessionByKey(
   key: SessionKey,
 ): Promise<SessionRecord | null> {
   const repo = new SessionRepositoryImpl(db);
-  return repo.findByKey(key);
+  return await repo.findByKey(key);
 }
 
 /** 获取所有会话。 */
 export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
   const repo = new SessionRepositoryImpl(db);
-  return repo.findAll('id');
+  return await repo.findAll('id');
 }
 
 /** 按 ID 查找会话。未找到时返回 null。 */
 export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
   const repo = new SessionRepositoryImpl(db);
-  return repo.findById(id);
+  return await repo.findById(id);
 }
 
 /** 按 ID 删除会话及其直接关联数据。返回是否删除了会话。 */
 export async function deleteSessionById(db: DatabaseSync, id: string): Promise<boolean> {
   const repo = new SessionRepositoryImpl(db);
-  return repo.deleteWithRelations(id);
+  return await repo.deleteWithRelations(id);
 }
 
 /** 设置会话的角色 */
 export async function setSessionRole(db: DatabaseSync, id: string, roleId: string): Promise<void> {
   const repo = new SessionRepositoryImpl(db);
-  return repo.setRole(id, roleId);
+  return await repo.setRole(id, roleId);
 }
 
 /** 设置会话的模型 */
@@ -161,5 +161,5 @@ export async function setSessionModel(
   modelId: string,
 ): Promise<void> {
   const repo = new SessionRepositoryImpl(db);
-  return repo.setModel(id, modelId);
+  return await repo.setModel(id, modelId);
 }

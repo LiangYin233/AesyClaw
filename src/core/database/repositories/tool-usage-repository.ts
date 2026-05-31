@@ -100,5 +100,5 @@ export async function getToolUsageStats(
   options?: { from?: string; to?: string },
 ): Promise<ToolUsageSummary[]> {
   const repo = new ToolUsageRepositoryImpl(db);
-  return repo.getToolUsageStats(options);
+  return await repo.getToolUsageStats(options);
 }

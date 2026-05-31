@@ -20,7 +20,7 @@ import type { RoleManager } from '@aesyclaw/role/manager';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { ErrorFactory, ErrorTracker, safeExecute } from '@aesyclaw/core/errors';
+import { ErrorFactory, ErrorTracker } from '@aesyclaw/core/errors';
 import type { AgentRegistry } from './registry';
 import { runAgentTask, type AgentRunResult } from './runner';
 import { buildPrompt as buildPromptFromBuilder, type BuildPromptResult } from './prompt/builder';

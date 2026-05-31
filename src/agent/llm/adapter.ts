@@ -11,6 +11,7 @@ import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { makeExtraBodyOnPayload, type ResolvedModel, type StreamFn } from '../types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './cache-options';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import { ErrorFactory } from '@aesyclaw/core/errors';
 
 const logger = createScopedLogger('llm-adapter');
 
@@ -119,7 +120,12 @@ export class LlmAdapter {
     const hint = configuredProviders.length
       ? `可用提供者: ${configuredProviders.join(', ')}`
       : '未配置任何提供者。请在 config.json > providers 下添加提供者条目。';
-    throw new Error(`配置中未找到提供者 "${provider}"。${hint}`);
+    throw ErrorFactory.config.invalid(`配置中未找到提供者 "${provider}"。${hint}`, {
+      configKey: `providers.${provider}`,
+      provider,
+      configuredProviders,
+      hint,
+    });
   }
 
   /**
@@ -128,8 +134,9 @@ export class LlmAdapter {
    * @param provider - 提供者名称
    */
   private throwMissingApiKey(provider: string): never {
-    throw new Error(
+    throw ErrorFactory.config.invalid(
       `未为提供者 "${provider}" 配置 API 密钥。请在 config.json > providers.${provider} 下添加 apiKey。`,
+      { configKey: `providers.${provider}.apiKey`, provider },
     );
   }
 }
