@@ -5,6 +5,7 @@
  */
 
 import { AgentRegistry } from './agent/registry';
+import { AgentFactory } from './agent/agent-factory';
 import { ConfigManager } from './core/config/config-manager';
 import { DatabaseManager } from './core/database/database-manager';
 import { McpManager } from './tool/mcp/mcp-manager';
@@ -66,23 +67,23 @@ function createSubsystems(): Deps {
   );
   const hooksBus = new HooksBus();
 
+  const agentFactory = new AgentFactory({
+    llmAdapter,
+    roleManager,
+    skillManager,
+    toolRegistry,
+    hooksBus,
+    compressionThreshold,
+    registry: agentRegistry,
+  });
+
   const pipeline = new Pipeline({
     sessionManager,
-    commandRegistry,
     roleManager,
     databaseManager,
     agentRegistry,
+    agentFactory,
     hooksBus,
-    llmAdapter,
-    compressionThreshold,
-    agentDeps: {
-      llmAdapter,
-      roleManager,
-      skillManager,
-      toolRegistry,
-      hooksBus,
-      compressionThreshold,
-    },
   });
 
   const mcpManager = new McpManager(configManager, toolRegistry, new SdkMcpClientFactory());

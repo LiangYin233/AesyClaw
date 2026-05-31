@@ -21,7 +21,6 @@ import type { PipelineDependencies } from './types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
-import { Agent } from '@aesyclaw/agent/agent';
 
 const logger = createScopedLogger('pipeline');
 
@@ -116,17 +115,7 @@ export class Pipeline implements MessageProcessor {
         this.deps.agentRegistry.getAgent(sessionKey)?.modelIdentifier ??
         (await this.deps.databaseManager.sessions.findByKey(sessionKey))!.model_id!;
 
-      const agent = new Agent({
-        session,
-        llmAdapter: this.deps.agentDeps.llmAdapter,
-        roleManager: this.deps.agentDeps.roleManager,
-        skillManager: this.deps.agentDeps.skillManager,
-        toolRegistry: this.deps.agentDeps.toolRegistry,
-        hooksBus: this.deps.agentDeps.hooksBus,
-        compressionThreshold: this.deps.agentDeps.compressionThreshold,
-        registry: this.deps.agentRegistry,
-        defaultModel: agentModelId,
-      });
+      const agent = this.deps.agentFactory.create(session, agentModelId);
       await agent.setRole(activeRole);
 
       // ── Step 4: 会话锁定 ──────────────────────────────────
