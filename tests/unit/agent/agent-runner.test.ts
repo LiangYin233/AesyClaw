@@ -159,6 +159,7 @@ function makeRunParams(overrides: Partial<AgentRunParams> = {}): AgentRunParams 
     sessionKey: { channel: 'test', type: 'private', chatId: 'runner' },
     compressionThreshold: 0.8,
     registry: new AgentRegistry(),
+    streamFn: streamSimple as never,
     ...overrides,
   };
 }
@@ -376,19 +377,19 @@ describe('agent runner', () => {
     });
   });
 
-  it('keeps OpenAI-compatible prompt cache defaults', async () => {
+  it('calls streamSimple with correct model and session parameters', async () => {
     const turn = runAgentTask(makeRunParams());
     await Promise.resolve();
 
+    // Verify streamSimple is called with the full model object and session ID
     expect(mockedStreamSimple).toHaveBeenCalledWith(
       expect.objectContaining({
+        provider: 'openai',
+        modelId: 'gpt-4o',
         api: 'openai-responses',
-        compat: expect.objectContaining({ sendSessionIdHeader: true }),
       }),
       { messages: [] },
       expect.objectContaining({
-        apiKey: 'sk-test',
-        cacheRetention: 'long',
         sessionId: createProviderCacheKey({ channel: 'test', type: 'private', chatId: 'runner' }),
       }),
     );

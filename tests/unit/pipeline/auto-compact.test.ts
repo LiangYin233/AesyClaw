@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAutoCompactHook, AUTO_COMPACT_HOOK_ID } from '../../../src/pipeline/auto-compact';
+import { createAutoCompactHook, AUTO_COMPACT_HOOK_ID } from '../../../src/hook/builtin/auto-compact';
 
 describe('auto-compact', () => {
   it('returns HookRegistration with correct id and chain', () => {

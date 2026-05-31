@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createTimeInjectHook, TIME_INJECT_HOOK_ID } from '../../../src/pipeline/time-inject';
+import { createTimeInjectHook, TIME_INJECT_HOOK_ID } from '../../../src/hook/builtin/time-inject';
 
 describe('createTimeInjectHook', () => {
   it('returns a HookRegistration with the correct chain and id', () => {

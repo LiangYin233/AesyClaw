@@ -24,17 +24,30 @@ describe('calculateToolResultBudget', () => {
 
   it('reduces budget with long history', () => {
     const longHistory = [
-      { role: 'user' as const, content: 'x'.repeat(100_000), timestamp: Date.now() },
+      { 
+        role: 'user' as const, 
+        content: 'x'.repeat(100_000), 
+        timestamp: Date.now(),
+        usage: { totalTokens: 28571 } // ~100000 / 3.5
+      } as any,
     ];
     const budget = calculateToolResultBudget(model, compressionThreshold, longHistory, '');
-    // used ~= 100000 / 3.5 ≈ 28571
-    // remaining = 64000 - 28571 ≈ 35429
-    expect(budget.maxToolResultTokens).toBeLessThan(32000);
+    // compressionLimit = 128000 * 0.5 = 64000
+    // used = 28571
+    // remaining = 64000 - 28571 = 35429
+    // maxToolResultTokens = 35429 * 0.5 = 17714
+    expect(budget.maxToolResultTokens).toBe(17714);
+    expect(budget.maxToolResultChars).toBe(17714 * 3.5);
   });
 
   it('never goes below 0', () => {
     const hugeHistory = [
-      { role: 'user' as const, content: 'x'.repeat(1_000_000), timestamp: Date.now() },
+      { 
+        role: 'user' as const, 
+        content: 'x'.repeat(1_000_000), 
+        timestamp: Date.now(),
+        usage: { totalTokens: 300000 } // Way over the compression limit
+      } as any,
     ];
     const budget = calculateToolResultBudget(model, compressionThreshold, hugeHistory, '');
     expect(budget.maxToolResultTokens).toBe(0);

@@ -62,14 +62,6 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
     sessionManager: {
       create: vi.fn(async () => session),
     },
-    commandRegistry: {
-      resolve: vi.fn(() => null),
-      executeResolved: vi.fn(async () => 'command result'),
-    },
-    roleManager: {
-      getDefaultRole: vi.fn(() => role),
-      getRole: vi.fn(() => role),
-    },
     databaseManager: {
       sessions: {
         findByKey: vi.fn(async () => ({ model_id: 'openai/gpt-4o' }) as unknown as never),
@@ -77,22 +69,19 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
         setRole: vi.fn(),
       },
     },
-    llmAdapter: {} as never,
-    compressionThreshold: 0.8,
+    roleManager: {
+      getDefaultRole: vi.fn(() => role),
+      getRole: vi.fn(() => role),
+    },
     agentRegistry: {
       getAgent: vi.fn(() => undefined),
     },
-    agentDeps: {
-      llmAdapter: {} as never,
-      roleManager: {
-        getDefaultRole: vi.fn(() => role),
-        getRole: vi.fn(() => role),
-      },
-      skillManager: {} as never,
-      toolRegistry: {} as never,
-      hooksBus: {} as never,
-      compressionThreshold: 0.8,
-    },
+    agentFactory: {
+      create: vi.fn(() => ({
+        setRole: vi.fn(),
+        prompt: vi.fn(),
+      })),
+    } as any,
   };
 }
 

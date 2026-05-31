@@ -47,17 +47,17 @@ describe('Session.syncFromAgent', () => {
     const session = new Session('session-1', sessionKey, _store, undefined, undefined);
 
     await session.syncFromAgent([
-      { role: 'user', content: 'abcd' } as AgentMessage,
+      { role: 'user', content: 'abcd', usage: { ...zeroUsage(), totalTokens: 2 } } as AgentMessage,
       {
         role: 'assistant',
         content: [{ type: 'text', text: 'efgh' }],
         api: 'openai-responses',
         provider: 'openai',
         model: 'gpt-4o',
-        usage: zeroUsage(),
+        usage: { ...zeroUsage(), totalTokens: 2 },
         stopReason: 'stop',
       } as AgentMessage,
-      { role: 'user', content: 'ijklmnopqrst' } as AgentMessage,
+      { role: 'user', content: 'ijklmnopqrst', usage: { ...zeroUsage(), totalTokens: 2 } } as AgentMessage,
     ]);
 
     const llmAdapter = {
