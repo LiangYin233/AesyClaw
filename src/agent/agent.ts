@@ -258,7 +258,7 @@ export class Agent {
   private needsTextFollowUp(
     context: ProcessContext,
     result: AgentRunResult,
-    messageSent: boolean,
+    _messageSent: boolean,
   ): boolean {
     return !context.ephemeral && !result.cancelled && !result.lastAssistant;
   }

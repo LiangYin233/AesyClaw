@@ -103,7 +103,7 @@ export class LlmAdapter {
   private tryGetBuiltInModel(provider: string, modelId: string): Model<Api> | null {
     try {
       return getModel(provider as KnownProvider, modelId as never) as Model<Api>;
-    } catch (err) {
+    } catch {
       logger.debug('内置模型库中未找到模型', { provider, modelId });
       return null;
     }

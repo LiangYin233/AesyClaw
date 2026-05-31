@@ -143,7 +143,7 @@ function resolveLastAssistant(newMessages: readonly AgentMessage[]): string | nu
 function findFinalAssistant(messages: readonly AgentMessage[]): AgentMessage | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
-    if (message && message.role === 'assistant') return message;
+    if (message?.role === 'assistant') return message;
   }
   return null;
 }

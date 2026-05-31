@@ -12,7 +12,7 @@ import {
   type AgentTool as PiAgentTool,
   type StreamFn,
 } from '@mariozechner/pi-agent-core';
-import { type TSchema } from '@mariozechner/pi-ai';
+import type { TSchema } from '@mariozechner/pi-ai';
 import type { AgentMessage, AgentTool, ResolvedModel } from './types';
 import { serializeSessionKey, type OutboundSignal, type SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
