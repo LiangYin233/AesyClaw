@@ -20,7 +20,6 @@ import {
 import type { PipelineDependencies } from './types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
-import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
 
 const logger = createScopedLogger('pipeline');
 
@@ -28,7 +27,7 @@ const busyMessage = (): Message => ({
   components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }],
 });
 
-export class Pipeline implements MessageProcessor {
+export class Pipeline {
   private deps: PipelineDependencies;
   readonly hooksBus: IHooksBus;
 

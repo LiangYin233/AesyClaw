@@ -13,7 +13,7 @@ import {
 } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { IHooksBus } from '@aesyclaw/hook';
-import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { LoadedChannel } from './types';
 
 const logger = createScopedLogger('router');
@@ -76,7 +76,7 @@ export async function send(
 
 export async function receive(
   hooksBus: IHooksBus,
-  pipeline: MessageProcessor,
+  pipeline: Pipeline,
   requireLoaded: (channelName: string) => LoadedChannel,
   buffers: ChunkBuffers,
   channelName: string,

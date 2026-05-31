@@ -11,7 +11,7 @@ import type {
 } from '@aesyclaw/core/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { LoadedExtension, ExtensionLifecycleState } from '@aesyclaw/extension/types';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
@@ -98,7 +98,7 @@ export type ChannelStatus = {
 /** ChannelManager 构造函数依赖项。 */
 export type ChannelManagerDependencies = {
   configManager: ConfigManager;
-  pipeline: MessageProcessor;
+  pipeline: Pipeline;
   hooksBus: IHooksBus;
   channels?: ChannelPlugin[];
   paths: Readonly<ResolvedPaths>;

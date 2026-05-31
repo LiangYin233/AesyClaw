@@ -11,7 +11,7 @@ import type {
   CronRunsRepository,
   DatabaseManager,
 } from '@aesyclaw/core/database/database-manager';
-import type { MessageProcessor } from '@aesyclaw/contracts/pipeline';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { IHooksBus } from '@aesyclaw/contracts/hook';
 import type { SessionManager } from '@aesyclaw/session';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -23,7 +23,7 @@ const logger = createScopedLogger('cron');
 
 export type CronManagerDependencies = {
   databaseManager: DatabaseManager;
-  pipeline: MessageProcessor;
+  pipeline: Pipeline;
   hooksBus: IHooksBus;
   sessionManager: SessionManager;
   send: (signal: OutboundSignal) => Promise<void>;

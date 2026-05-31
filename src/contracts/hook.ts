@@ -5,8 +5,58 @@
  */
 
 import type { Message, SessionKey, SenderInfo, RoleConfig } from '@aesyclaw/core/types';
-import type { SessionRuntimeRef } from '@aesyclaw/contracts/session';
-import type { AgentRuntimeRef } from '@aesyclaw/contracts/agent';
+import type { AgentMessage, ModelResolver, ResolvedModel } from '@aesyclaw/contracts/llm';
+import type { OutboundSignal } from '@aesyclaw/core/types';
+
+// ─── 运行时引用类型 ──────────────────────────────────────────────
+
+/** Hook 层可用的会话运行时引用（Session 的最小视图） */
+export type SessionRuntimeRef = {
+  readonly sessionId: string;
+  readonly key: SessionKey;
+  readonly isLocked: boolean;
+  lock(): boolean;
+  unlock(): void;
+  get(): readonly AgentMessage[];
+  add(message: AgentMessage): Promise<void>;
+  bind(): Promise<void>;
+  clear(): Promise<void>;
+  compact(llmAdapter: ModelResolver, modelIdentifier: string): Promise<string>;
+};
+
+/** callLLM 的返回结果 */
+export type CallLLMResult = {
+  newMessages: AgentMessage[];
+  lastAssistant: string | null;
+  cancelled: boolean;
+};
+
+/** Hook 层可用的 Agent 运行时引用 */
+export type AgentRuntimeRef = {
+  readonly session: SessionRuntimeRef;
+  roleId?: string;
+  readonly model: ResolvedModel;
+  readonly modelIdentifier: string;
+  readonly activeRole: RoleConfig | null;
+  setModel(modelId: string): void;
+  setRole(role: RoleConfig): Promise<void>;
+  invalidatePromptCache(): void;
+  callLLM(
+    role: RoleConfig,
+    content: string,
+    history: AgentMessage[],
+    sessionKey: SessionKey,
+    sendMessage?: (message: Message) => Promise<boolean>,
+    onStream?: (event: OutboundSignal) => void,
+  ): Promise<CallLLMResult>;
+  /** 处理用户消息并返回回复 */
+  process(
+    message: Message,
+    sendMessage?: (message: Message) => Promise<boolean>,
+    options?: { ephemeral?: boolean; role?: RoleConfig },
+    onStream?: (event: OutboundSignal) => void,
+  ): Promise<Message>;
+};
 
 // ─── Hook 链标识 ────────────────────────────────────────────────
 
