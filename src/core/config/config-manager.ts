@@ -9,6 +9,7 @@ import { validateWithSchema } from './schema-utils';
 import { AppConfigSchema, type AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
 import { ConfigFileWatcher } from './file-watcher';
+import { ErrorFactory } from '@aesyclaw/core/errors';
 
 const logger = createScopedLogger('config-manager');
 
@@ -88,13 +89,13 @@ export class ConfigManager {
    */
   async patch(path: string, value: Record<string, unknown>): Promise<void> {
     if (!isRecord(value)) {
-      throw new Error('patch 值必须是对象');
+      throw ErrorFactory.config.invalid('patch 值必须是对象', { configPath: path });
     }
 
     const nextConfig = structuredClone(this.lastKnownConfig) as Record<string, unknown>;
     const current = getPathValue(nextConfig, path);
     if (current !== undefined && !isRecord(current)) {
-      throw new Error(`配置路径 "${path}" 不是对象，不能 patch`);
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不是对象，不能 patch`, { configPath: path });
     }
 
     const merged = mergeDefaults((current ?? {}) as Record<string, unknown>, value);
@@ -195,7 +196,7 @@ export class ConfigManager {
   private readValidatedConfigFromStore(store: Conf<Record<string, unknown>>): AppConfig {
     const parsed = store.store;
     if (!isRecord(parsed)) {
-      throw new Error('配置验证失败');
+      throw ErrorFactory.config.validationFailed('配置验证失败', { expected: 'object', actual: typeof parsed });
     }
 
     const merged = mergeDefaults(
@@ -269,7 +270,7 @@ export class ConfigManager {
         watch: true,
       });
     } catch (err) {
-      throw new Error('配置文件中的 JSON 无效', { cause: err });
+      throw ErrorFactory.config.parseFailed(filePath, 'JSON 无效', {}, err instanceof Error ? err : undefined);
     }
   }
 }
@@ -301,7 +302,7 @@ function buildNestedObject(key: string, value: Record<string, unknown>): Record<
 function parsePath(path: string): string[] {
   const parts = path.split('.').filter((part) => part.length > 0);
   if (parts.length === 0) {
-    throw new Error('配置路径不能为空');
+    throw ErrorFactory.config.invalid('配置路径不能为空', { configPath: path });
   }
   return parts;
 }
@@ -311,7 +312,7 @@ function getPathValue(root: Record<string, unknown>, path: string): unknown {
   let current: unknown = root;
   for (const part of parts) {
     if (Array.isArray(current)) {
-      throw new Error(`配置路径 "${path}" 不能访问数组路径`);
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, { configPath: path });
     }
     if (!isRecord(current)) {
       return undefined;
@@ -328,11 +329,11 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
     if (part === undefined) {
-      throw new Error('配置路径解析错误：意外的 undefined 部分');
+      throw ErrorFactory.config.invalid('配置路径解析错误：意外的 undefined 部分', { configPath: path });
     }
     const next = current[part];
     if (Array.isArray(next)) {
-      throw new Error(`配置路径 "${path}" 不能访问数组路径`);
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, { configPath: path });
     }
     if (next === undefined) {
       current[part] = {};
@@ -340,14 +341,14 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
       continue;
     }
     if (!isRecord(next)) {
-      throw new Error(`配置路径 "${path}" 的中间节点不是对象`);
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, { configPath: path });
     }
     current = next;
   }
 
   const lastPart = parts[parts.length - 1];
   if (lastPart === undefined) {
-    throw new Error('配置路径解析错误：意外的 undefined 最后部分');
+    throw ErrorFactory.config.invalid('配置路径解析错误：意外的 undefined 最后部分', { configPath: path });
   }
   current[lastPart] = value;
 }
