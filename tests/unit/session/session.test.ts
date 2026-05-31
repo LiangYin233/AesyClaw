@@ -5,6 +5,7 @@ import { Session } from '../../../src/session/core';
 import type { AgentMessage } from '../../../src/agent/types';
 import type { PersistableMessage, SessionKey } from '../../../src/core/types';
 import { getRecentLogEntries, setLogLevel, resetLogState } from '../../../src/core/logger';
+import type { SessionFileStore } from '../../../src/session/file-store';
 
 vi.mock('@mariozechner/pi-ai', async () => {
   const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
@@ -24,13 +25,13 @@ afterEach(() => {
   vi.mocked(completeSimple).mockReset();
 });
 
-function makeStore() {
+function makeStore(): SessionFileStore {
   return {
     load: vi.fn().mockResolvedValue([]),
     save: vi.fn().mockResolvedValue(undefined),
     clear: vi.fn().mockResolvedValue(undefined),
     replaceWithSummary: vi.fn().mockResolvedValue(undefined),
-  } as any;
+  } as unknown as SessionFileStore;
 }
 
 describe('Session.syncFromAgent', () => {

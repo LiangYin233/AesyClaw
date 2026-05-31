@@ -22,7 +22,7 @@ import { createSkillReloadCommand } from './skill-commands';
 export type BuiltinCommandDependencies = {
   roleManager: RoleManager;
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
-  sessionManager: Pick<SessionManager, 'create' | 'clear' | 'delete' | 'get'>;
+  sessionManager: Pick<SessionManager, 'create' | 'clearById' | 'deleteById' | 'get'>;
   llmAdapter: LlmAdapter;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;

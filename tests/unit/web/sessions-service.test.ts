@@ -1,41 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { getSessionMessages, getSessions } from '../../../src/web/services/sessions';
+import type { AgentMessage } from '../../../src/agent/types';
 
-function createDeps(
-  messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp?: string }>,
-) {
-  const firstUserMessage = messages.find((message) => message.role === 'user')?.content;
+function createDeps(summaries: unknown[]) {
   return {
-    databaseManager: {
-      sessions: {
-        findAllSummaries: vi.fn(async () => [
-          {
-            id: 'session-db-id',
-            channel: 'desktop',
-            type: 'private',
-            chatId: 'desktop-chat-id',
-            lastActivity: '2026-05-18T00:00:00.000Z',
-            messageCount: messages.length,
-            ...(firstUserMessage ? { firstUserMessage } : {}),
-          },
-        ]),
-      },
+    sessionManager: {
+      getSummaries: vi.fn(async () => summaries),
     },
   } as unknown as Parameters<typeof getSessions>[0];
 }
 
 describe('web session service', () => {
-  it('returns session summaries without applying desktop-specific title filtering', async () => {
-    const sessions = await getSessions(
-      createDeps([
-        {
-          role: 'user',
-          content: '<infomation>hidden metadata</infomation>Visible title',
-        },
-        { role: 'assistant', content: 'Here are the logs.' },
-      ]),
-    );
+  it('returns session summaries from SessionManager', async () => {
+    const deps = createDeps([
+      {
+        id: 'session-db-id',
+        channel: 'desktop',
+        type: 'private',
+        chatId: 'desktop-chat-id',
+        title: '<infomation>hidden metadata</i',
+        firstUserMessage: '<infomation>hidden metadata</infomation>Visible title',
+        messageCount: 2,
+        roleId: 'default',
+        modelId: 'openai/gpt-4o',
+      },
+    ]);
+
+    const sessions = await getSessions(deps);
 
     expect(sessions).toEqual([
       expect.objectContaining({
@@ -44,22 +36,18 @@ describe('web session service', () => {
         chatId: 'desktop-chat-id',
         title: '<infomation>hidden metadata</i',
         messageCount: 2,
+        roleId: 'default',
+        modelId: 'openai/gpt-4o',
       }),
     ]);
   });
 
-  it('falls back to chatId when there is no first user message', async () => {
-    const sessions = await getSessions(createDeps([{ role: 'assistant', content: 'Hello' }]));
-
-    expect(sessions).toEqual([
-      expect.objectContaining({
-        title: 'desktop-chat-id',
-        messageCount: 1,
-      }),
-    ]);
+  it('returns an empty summary list when SessionManager has no sessions', async () => {
+    const sessions = await getSessions(createDeps([]));
+    expect(sessions).toEqual([]);
   });
 
-  it('returns persisted assistant usage with session messages', async () => {
+  it('returns persisted assistant usage as session message DTOs', async () => {
     const usage = {
       input: 100,
       output: 50,
@@ -70,19 +58,14 @@ describe('web session service', () => {
     };
     const deps = {
       sessionManager: {
-        fileStore: {
-          load: vi.fn(async () => [{ role: 'assistant', content: 'Historical reply', usage }]),
-        },
-      },
-      databaseManager: {
-        sessions: {
-          findById: vi.fn(async () => ({
-            id: 'session-db-id',
-            channel: 'desktop',
-            type: 'private',
-            chatId: 'desktop-chat-id',
-          })),
-        },
+        getMessagesById: vi.fn(async () => [
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Historical reply' }],
+            usage,
+            timestamp: Date.parse('2026-05-18T00:00:00.000Z'),
+          } as AgentMessage,
+        ]),
       },
     } as unknown as Parameters<typeof getSessionMessages>[0];
 
@@ -90,8 +73,10 @@ describe('web session service', () => {
       expect.objectContaining({
         role: 'assistant',
         content: 'Historical reply',
+        timestamp: '2026-05-18T00:00:00.000Z',
         usage,
       }),
     ]);
+    expect(deps.sessionManager.getMessagesById).toHaveBeenCalledWith('session-db-id');
   });
 });

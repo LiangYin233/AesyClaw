@@ -100,9 +100,8 @@ export class DatabaseManager {
       findOrCreate: (key) => sessions.findOrCreateSession(db, key),
       findByKey: (key) => sessions.findSessionByKey(db, key),
       findAll: () => sessions.findAllSessions(db),
-      findAllSummaries: () => sessions.findAllSessionSummaries(db),
       findById: (id) => sessions.findSessionById(db, id),
-      deleteByKey: (key) => sessions.deleteSessionByKey(db, key),
+      deleteById: (id) => sessions.deleteSessionById(db, id),
       setRole: (id, roleId) => sessions.setSessionRole(db, id, roleId),
       setModel: (id, modelId) => sessions.setSessionModel(db, id, modelId),
     };

@@ -10,9 +10,8 @@ import type {
   findOrCreateSession,
   findSessionByKey,
   findAllSessions,
-  findAllSessionSummaries,
   findSessionById,
-  deleteSessionByKey,
+  deleteSessionById,
   setSessionRole,
   setSessionModel,
 } from './repositories/session-repository';
@@ -42,16 +41,11 @@ import type {
 
 /** 会话仓库 API 类型 */
 export type SessionsRepository = {
-  findOrCreate: (
-    key: Parameters<typeof findOrCreateSession>[1],
-  ) => ReturnType<typeof findOrCreateSession>;
+  findOrCreate: (key: Parameters<typeof findOrCreateSession>[1]) => ReturnType<typeof findOrCreateSession>;
   findByKey: (key: Parameters<typeof findSessionByKey>[1]) => ReturnType<typeof findSessionByKey>;
   findAll: () => ReturnType<typeof findAllSessions>;
-  findAllSummaries: () => ReturnType<typeof findAllSessionSummaries>;
   findById: (id: string) => ReturnType<typeof findSessionById>;
-  deleteByKey: (
-    key: Parameters<typeof deleteSessionByKey>[1],
-  ) => ReturnType<typeof deleteSessionByKey>;
+  deleteById: (id: string) => ReturnType<typeof deleteSessionById>;
   setRole: (id: string, roleId: string) => ReturnType<typeof setSessionRole>;
   setModel: (id: string, modelId: string) => ReturnType<typeof setSessionModel>;
 };
@@ -85,10 +79,6 @@ export type UsageRepository = {
 
 /** 工具使用统计仓库 API 类型 */
 export type ToolUsageRepository = {
-  create: (
-    record: Parameters<typeof createToolUsageRecord>[1],
-  ) => ReturnType<typeof createToolUsageRecord>;
-  getStats: (
-    options?: Parameters<typeof getToolUsageStats>[1],
-  ) => ReturnType<typeof getToolUsageStats>;
+  create: (record: Parameters<typeof createToolUsageRecord>[1]) => ReturnType<typeof createToolUsageRecord>;
+  getStats: (options?: Parameters<typeof getToolUsageStats>[1]) => ReturnType<typeof getToolUsageStats>;
 };

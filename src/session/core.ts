@@ -1,19 +1,16 @@
-import {
-  completeMessageUsage,
-  type MessageUsage,
-  type SessionKey,
-  type PersistableMessage,
-  type PersistableToolCall,
-  type PersistableToolResult,
+import type {
+  SessionKey,
+  PersistableMessage,
+  PersistableToolCall,
+  PersistableToolResult,
 } from '@aesyclaw/core/types';
 import {
   assistantHasToolCalls,
-  createUserMessage,
   extractMessageText,
   type AgentMessage,
   type ModelResolver,
 } from '@aesyclaw/contracts/llm';
-import { createPersistedAssistantMessage, ApiType } from '@aesyclaw/agent/types';
+import { createPersistedAssistantMessage } from '@aesyclaw/agent/types';
 import type {
   UsageRepository,
   ToolUsageRepository,
@@ -21,6 +18,7 @@ import type {
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { SessionFileStore } from './file-store';
 import { compactSession } from './session-compactor';
+import { loadAndRehydrateMessages } from './rehydrate';
 
 const logger = createScopedLogger('session');
 
@@ -60,20 +58,7 @@ export class Session {
   }
 
   async bind(): Promise<void> {
-    const records = await this.store.load(this.sessionId);
-    this._messages = records.map((r) =>
-      r.role === 'user'
-        ? createUserMessage(r.content, parseTimestamp(r.timestamp))
-        : r.role === 'toolResult'
-          ? reconstructToolResultMessage(r.content, r.toolData, r.timestamp)
-          : r.toolData
-            ? reconstructAssistantWithToolCalls(r.content, r.toolData, r.usage, r.timestamp)
-            : createPersistedAssistantMessage(
-                r.content,
-                parseTimestamp(r.timestamp),
-                completeMessageUsage(r.usage),
-              ),
-    );
+    this._messages = await loadAndRehydrateMessages(this.store, this.sessionId);
   }
 
   async add(message: AgentMessage): Promise<void> {
@@ -103,6 +88,10 @@ export class Session {
     logger.info('会话历史已清除', { sessionId: this.sessionId });
   }
 
+  resetMessages(): void {
+    this._messages = [];
+  }
+
   async compact(llmResolver: ModelResolver, modelIdentifier: string): Promise<string> {
     return await compactSession(llmResolver, modelIdentifier, {
       sessionId: this.sessionId,
@@ -111,10 +100,6 @@ export class Session {
       store: this.store,
       usageRepo: this.usageRepo,
     });
-  }
-
-  filter(pred: (msg: AgentMessage) => boolean): AgentMessage[] {
-    return this._messages.filter(pred);
   }
 
   private async recordUsageIfApplicable(message: AgentMessage): Promise<void> {
@@ -286,81 +271,3 @@ function getPersistedAssistantTextFromToolResult(message: AgentMessage): string 
   const text = (details as Record<string, unknown>)['persistAsAssistantText'];
   return typeof text === 'string' && text.trim().length > 0 ? text.trim() : null;
 }
-
-function parseTimestamp(timestamp?: string): number {
-  if (!timestamp) return Date.now();
-  const parsed = Date.parse(timestamp);
-  return Number.isNaN(parsed) ? Date.now() : parsed;
-}
-
-// ─── 绑定重构辅助函数 ────────────────────────────────────────────
-
-function reconstructAssistantWithToolCalls(
-  content: string,
-  toolData: string | undefined,
-  usage: MessageUsage | undefined,
-  timestamp: string | undefined,
-): AgentMessage {
-  let tcs: PersistableToolCall[] = [];
-  let stopReason: string = 'stop';
-  if (toolData) {
-    try {
-      const parsed = JSON.parse(toolData);
-      if (Array.isArray(parsed)) {
-        tcs = parsed as PersistableToolCall[];
-      } else {
-        tcs = (parsed as { toolCalls: PersistableToolCall[] }).toolCalls ?? [];
-        stopReason = (parsed as { stopReason?: string }).stopReason ?? 'stop';
-      }
-    } catch {
-      logger.warn('解析助理消息 toolData 失败，将使用空工具调用', { toolData });
-    }
-  }
-  const textContent: { type: 'text'; text: string } = { type: 'text', text: content };
-  const toolCallContents = tcs.map((tc) => ({
-    type: 'toolCall' as const,
-    id: tc.id,
-    name: tc.name,
-    arguments: tc.arguments,
-  }));
-  return {
-    role: 'assistant',
-    content: [textContent, ...toolCallContents],
-    api: ApiType.OPENAI_RESPONSES,
-    provider: 'persisted-history',
-    model: 'persisted-history',
-    usage: completeMessageUsage(usage),
-    stopReason: stopReason as 'stop' | 'toolUse' | 'length' | 'error' | 'aborted',
-    timestamp: parseTimestamp(timestamp),
-  } as AgentMessage;
-}
-
-function reconstructToolResultMessage(
-  content: string,
-  toolData: string | undefined,
-  timestamp: string | undefined,
-): AgentMessage {
-  let meta: PersistableToolResult;
-  if (toolData) {
-    try {
-      meta = JSON.parse(toolData) as PersistableToolResult;
-    } catch {
-      logger.warn('解析 toolResult 消息 toolData 失败，将使用默认值', { toolData });
-      meta = { toolCallId: '', toolName: '', isError: false };
-    }
-  } else {
-    meta = { toolCallId: '', toolName: '', isError: false };
-  }
-  return {
-    role: 'toolResult',
-    toolCallId: meta.toolCallId,
-    toolName: meta.toolName,
-    isError: meta.isError,
-    content: [{ type: 'text', text: content }],
-    ...(meta.details !== undefined ? { details: meta.details } : {}),
-    timestamp: parseTimestamp(timestamp),
-  } as AgentMessage;
-}
-
-import { estimateApproximateTokens } from './token-utils';
-export { estimateApproximateTokens };

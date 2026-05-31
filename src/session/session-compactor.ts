@@ -24,12 +24,6 @@ import { estimateApproximateTokens } from './token-utils';
 
 const logger = createScopedLogger('session-compactor');
 
-export type CompactorSession = {
-  readonly sessionId: string;
-  get(): readonly AgentMessage[];
-  bind(): Promise<void>;
-};
-
 /**
  * 使用 LLM 压缩会话历史。
  */

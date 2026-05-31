@@ -108,7 +108,7 @@ function makeManager(options: {
     llmAdapter: { resolveModel: vi.fn(() => ({ contextWindow: 128_000 })) },
     databaseManager: {
       sessions: {
-        findAllSummaries: vi.fn(async () => []),
+        findAll: vi.fn(async () => []),
         findById: vi.fn(async () => null),
       },
       messages: {

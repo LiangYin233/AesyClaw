@@ -267,8 +267,9 @@ function useChatImpl() {
       if (message.role === 'assistant') {
         const { text, attachments } = parseAttachmentsFromText(message.content);
         const cleanText = stripInformationTags(text);
+        const toolCalls = parseToolCallsFromMessage(message);
         // 纯文本 assistant
-        if (!message.toolData) {
+        if (toolCalls.length === 0) {
           converted.push({
             role: 'assistant',
             text: cleanText,
@@ -288,7 +289,7 @@ function useChatImpl() {
           });
         }
         // 为每个工具调用创建卡片，注册到索引中，待 toolResult 更新
-        parseToolCallsFromData(message.toolData).forEach((tc) => {
+        toolCalls.forEach((tc) => {
           const card: ToolMessage = { role: 'tool', toolCall: tc };
           converted.push(card);
           toolCallIndex.set(tc.toolCallId, tc);
@@ -297,7 +298,7 @@ function useChatImpl() {
       }
 
       if (message.role === 'toolResult') {
-        const tc = parseToolResultFromData(message.toolData, message.content);
+        const tc = parseToolResultFromMessage(message);
         // 通过 toolCallId 匹配已有的调用卡片，合并结果
         const existing = toolCallIndex.get(tc.toolCallId);
         if (existing) {
@@ -518,8 +519,23 @@ function useChatImpl() {
 
   // ── 历史消息工具数据解析 ──────────────────────────────────
 
-  /** 从 assistant 消息的 toolData 中解析 ToolCallState 列表（兼容新旧格式） */
-  function parseToolCallsFromData(toolData: string): ToolCallState[] {
+  /** 从历史 assistant 消息中读取工具调用（优先新 DTO，兼容旧 toolData） */
+  function parseToolCallsFromMessage(message: DesktopHistoryMessage): ToolCallState[] {
+    if (message.toolCalls && message.toolCalls.length > 0) {
+      return message.toolCalls.map((tc) => ({
+        toolCallId: tc.id,
+        toolName: tc.name,
+        args: tc.arguments ?? {},
+        status: 'done' as const,
+        expanded: false,
+      }));
+    }
+    return parseToolCallsFromData(message.toolData);
+  }
+
+  /** 从 assistant 消息的 toolData 中解析 ToolCallState 列表（兼容旧格式） */
+  function parseToolCallsFromData(toolData: string | undefined): ToolCallState[] {
+    if (!toolData) return [];
     try {
       const parsed = JSON.parse(toolData);
       const calls: Array<{ id?: string; name: string; arguments?: Record<string, unknown> }> =
@@ -544,6 +560,22 @@ function useChatImpl() {
     } catch {
       return [];
     }
+  }
+
+  /** 从历史 toolResult 消息中读取工具结果（优先新 DTO，兼容旧 toolData） */
+  function parseToolResultFromMessage(message: DesktopHistoryMessage): ToolCallState {
+    if (message.toolResult) {
+      return {
+        toolCallId: message.toolResult.toolCallId,
+        toolName: message.toolResult.toolName,
+        args: {},
+        result: message.content,
+        isError: message.toolResult.isError,
+        status: message.toolResult.isError ? 'error' : 'done',
+        expanded: false,
+      };
+    }
+    return parseToolResultFromData(message.toolData, message.content);
   }
 
   /** 从 toolResult 消息的 toolData 中解析 ToolCallState */

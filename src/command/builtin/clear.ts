@@ -4,12 +4,12 @@ import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
 /**
  * 创建 /clear 命令，用于清除当前会话历史；/clear delete 删除当前会话。
- * @param sessionManager - 会话管理器（需 clear / delete 方法）
+ * @param sessionManager - 会话管理器
  * @param agentRegistry - Agent 注册表，用于删除会话后清理 Agent 缓存
  * @returns 命令定义
  */
 export function createClearCommand(
-  sessionManager: Pick<SessionManager, 'clear' | 'delete'>,
+  sessionManager: Pick<SessionManager, 'create' | 'clearById' | 'deleteById'>,
   agentRegistry: Pick<AgentRegistry, 'unregisterAgent'>,
 ): CommandDefinition {
   return {
@@ -17,8 +17,10 @@ export function createClearCommand(
     description: '清除当前会话历史；使用 /clear delete 删除当前会话',
     scope: 'system',
     execute: async (args: string[], context: CommandContext): Promise<Message> => {
+      const session = await sessionManager.create(context.sessionKey);
+
       if (args[0]?.toLowerCase() === 'delete') {
-        const deleted = await sessionManager.delete(context.sessionKey);
+        const deleted = await sessionManager.deleteById(session.sessionId);
         agentRegistry.unregisterAgent(context.sessionKey);
         return {
           components: [
@@ -27,7 +29,7 @@ export function createClearCommand(
         };
       }
 
-      await sessionManager.clear(context.sessionKey);
+      await sessionManager.clearById(session.sessionId);
       return { components: [{ type: 'Plain', text: '当前会话历史已清除。' }] };
     },
   };

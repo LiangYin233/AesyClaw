@@ -346,7 +346,18 @@ function toggleToolDetail(key: string | number): void {
 type ToolCallShape = { id?: string; name: string; arguments?: Record<string, unknown> };
 type ToolResultShape = { toolCallId?: string; toolName?: string; isError?: boolean };
 
-/** 解析 assistant 消息的 toolData（兼容新旧格式） */
+/** 读取 assistant 消息的工具调用（优先新 DTO，兼容旧 toolData） */
+function getToolCalls(msg: PersistableMessage): ToolCallShape[] {
+  if (msg.toolCalls && msg.toolCalls.length > 0) return msg.toolCalls;
+  return parseToolCalls(msg.toolData);
+}
+
+/** 读取 toolResult 消息元数据（优先新 DTO，兼容旧 toolData） */
+function getToolResult(msg: PersistableMessage): ToolResultShape {
+  return msg.toolResult ?? parseToolResult(msg.toolData);
+}
+
+/** 解析 assistant 消息的 toolData（兼容旧格式） */
 function parseToolCalls(toolData: string | undefined): ToolCallShape[] {
   if (!toolData) return [];
   try {
@@ -404,14 +415,15 @@ function buildDisplayMessages(raw: PersistableMessage[]): DisplayItem[] {
     }
 
     if (msg.role === 'assistant') {
-      if (!msg.toolData) {
+      const toolCalls = getToolCalls(msg);
+      if (toolCalls.length === 0) {
         result.push({ kind: 'msg', role: 'assistant', content: msg.content, timestamp: ts });
         continue;
       }
       if (msg.content) {
         result.push({ kind: 'msg', role: 'assistant', content: msg.content, timestamp: ts });
       }
-      for (const tc of parseToolCalls(msg.toolData)) {
+      for (const tc of toolCalls) {
         const id = tc.id || tc.name;
         const item: DisplayItem = {
           kind: 'tool',
@@ -428,7 +440,7 @@ function buildDisplayMessages(raw: PersistableMessage[]): DisplayItem[] {
     }
 
     if (msg.role === 'toolResult') {
-      const meta = parseToolResult(msg.toolData);
+      const meta = getToolResult(msg);
       const callId = meta.toolCallId ?? '';
       const isErr = meta.isError ?? false;
       const existing = toolIndex.get(callId);

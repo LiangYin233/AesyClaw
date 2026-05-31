@@ -16,7 +16,7 @@ import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { LoadedExtension, ExtensionLifecycleState } from '@aesyclaw/extension/types';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import type { SessionManager } from '@aesyclaw/session';
+import type { SessionSummary, SessionMessageDto, SessionManager } from '@aesyclaw/session';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
@@ -52,22 +52,9 @@ export type ChannelContext = {
   /** 获取指定会话绑定的模型和角色 ID */
   getSessionModel(sessionKey: SessionKey): Promise<{ modelId?: string; roleId?: string }>;
   /** 获取所有会话列表（用于 Desktop 同步） */
-  getSessions(): Promise<
-    Array<{
-      id: string;
-      channel: string;
-      type: string;
-      chatId: string;
-      title: string;
-      firstUserMessage?: string;
-      messageCount?: number;
-      lastActivity?: string;
-    }>
-  >;
+  getSessions(): Promise<SessionSummary[]>;
   /** 获取指定会话的消息历史 */
-  getSessionMessages(
-    sessionKey: SessionKey,
-  ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>>;
+  getSessionMessages(sessionKey: SessionKey): Promise<SessionMessageDto[]>;
   /** 运行时状态容器（框架自动管理生命周期，stop 时清空） */
   state: Record<string, unknown>;
   /** 根据 "provider/model" 标识符解析完整的模型配置（含 API 密钥、baseUrl 等） */

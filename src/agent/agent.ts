@@ -192,7 +192,7 @@ export class Agent {
       ephemeral,
     });
 
-    const history = await this.loadHistory(role, ephemeral);
+    const history = this.session.get() as AgentMessage[];
 
     let messageSent = false;
     const trackedSendMessage =
@@ -337,10 +337,6 @@ export class Agent {
         : role,
       ephemeral,
     };
-  }
-
-  private async loadHistory(_role: RoleConfig, _ephemeral: boolean): Promise<AgentMessage[]> {
-    return this.session.get() as AgentMessage[];
   }
 
   private async ensureAssistantText(

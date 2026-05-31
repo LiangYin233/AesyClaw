@@ -9,11 +9,6 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { SessionKey, SessionRecord } from '@aesyclaw/core/types';
 
-export type SessionSummaryRecord = SessionRecord & {
-  firstUserMessage?: string;
-  messageCount: number;
-};
-
 /** 按复合键查找现有会话，如不存在则创建。 */
 export async function findOrCreateSession(
   db: DatabaseSync,
@@ -45,111 +40,39 @@ export async function findSessionByKey(
     .prepare(
       'SELECT id, channel, type, chat_id, role_id, model_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?',
     )
-    .get(key.channel, key.type, key.chatId) as
-    | {
-        id: string;
-        channel: string;
-        type: string;
-        chat_id: string;
-        role_id: string | null;
-        model_id: string | null;
-      }
-    | undefined;
+    .get(key.channel, key.type, key.chatId) as SessionRow | undefined;
 
-  if (!row) {
-    return null;
-  }
-
-  return {
-    id: row.id,
-    channel: row.channel,
-    type: row.type,
-    chatId: row.chat_id,
-    role_id: row.role_id ?? undefined,
-    model_id: row.model_id ?? undefined,
-  };
+  return row ? toSessionRecord(row) : null;
 }
 
 /** 获取所有会话。 */
 export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
   const rows = db
-    .prepare('SELECT id, channel, type, chat_id FROM sessions ORDER BY id')
-    .all() as Array<{
-    id: string;
-    channel: string;
-    type: string;
-    chat_id: string;
-  }>;
+    .prepare('SELECT id, channel, type, chat_id, role_id, model_id FROM sessions ORDER BY id')
+    .all() as SessionRow[];
 
-  return rows.map((row) => ({
-    id: row.id,
-    channel: row.channel,
-    type: row.type,
-    chatId: row.chat_id,
-  }));
-}
-
-/** 获取所有会话摘要。消息统计由 JSON 文件提供。 */
-export async function findAllSessionSummaries(db: DatabaseSync): Promise<SessionSummaryRecord[]> {
-  const rows = db
-    .prepare('SELECT id, channel, type, chat_id FROM sessions ORDER BY id')
-    .all() as Array<{
-    id: string;
-    channel: string;
-    type: string;
-    chat_id: string;
-  }>;
-
-  return rows.map((row) => ({
-    id: row.id,
-    channel: row.channel,
-    type: row.type,
-    chatId: row.chat_id,
-    messageCount: 0,
-  }));
+  return rows.map((row) => toSessionRecord(row));
 }
 
 /** 按 ID 查找会话。未找到时返回 null。 */
 export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
   const row = db
     .prepare('SELECT id, channel, type, chat_id, role_id, model_id FROM sessions WHERE id = ?')
-    .get(id) as
-    | {
-        id: string;
-        channel: string;
-        type: string;
-        chat_id: string;
-        role_id: string | null;
-        model_id: string | null;
-      }
-    | undefined;
+    .get(id) as SessionRow | undefined;
 
-  if (!row) {
-    return null;
-  }
-
-  return {
-    id: row.id,
-    channel: row.channel,
-    type: row.type,
-    chatId: row.chat_id,
-    role_id: row.role_id ?? undefined,
-    model_id: row.model_id ?? undefined,
-  };
+  return row ? toSessionRecord(row) : null;
 }
 
-/** 按复合键删除会话及其直接关联数据。返回是否删除了会话。 */
-export async function deleteSessionByKey(db: DatabaseSync, key: SessionKey): Promise<boolean> {
-  const row = db
-    .prepare('SELECT id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?')
-    .get(key.channel, key.type, key.chatId) as { id: string } | undefined;
+/** 按 ID 删除会话及其直接关联数据。返回是否删除了会话。 */
+export async function deleteSessionById(db: DatabaseSync, id: string): Promise<boolean> {
+  const row = db.prepare('SELECT id FROM sessions WHERE id = ?').get(id) as { id: string } | undefined;
 
   if (!row) return false;
 
   db.exec('BEGIN');
   try {
-    db.prepare('UPDATE usage SET session_id = NULL WHERE session_id = ?').run(row.id);
-    db.prepare('DELETE FROM sessions WHERE id = ?').run(row.id);
+    db.prepare('UPDATE usage SET session_id = NULL WHERE session_id = ?').run(id);
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     db.exec('COMMIT');
     return true;
   } catch (error) {
@@ -170,4 +93,24 @@ export async function setSessionModel(
   modelId: string,
 ): Promise<void> {
   db.prepare('UPDATE sessions SET model_id = ? WHERE id = ?').run(modelId, id);
+}
+
+type SessionRow = {
+  id: string;
+  channel: string;
+  type: string;
+  chat_id: string;
+  role_id: string | null;
+  model_id: string | null;
+};
+
+function toSessionRecord(row: SessionRow): SessionRecord {
+  return {
+    id: row.id,
+    channel: row.channel,
+    type: row.type,
+    chatId: row.chat_id,
+    role_id: row.role_id ?? undefined,
+    model_id: row.model_id ?? undefined,
+  };
 }

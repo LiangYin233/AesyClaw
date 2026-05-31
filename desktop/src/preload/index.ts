@@ -61,6 +61,9 @@ export type DesktopHistoryMessage = {
   content: string;
   timestamp?: string;
   usage?: DesktopUsage;
+  toolCalls?: Array<{ id: string; name: string; arguments?: Record<string, unknown> }>;
+  toolResult?: { toolCallId: string; toolName: string; isError: boolean; details?: unknown };
+  /** 兼容旧协议 */
   toolData?: string;
 };
 

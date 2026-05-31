@@ -24,7 +24,10 @@ export interface PersistableMessage {
   role: 'user' | 'assistant' | 'toolResult';
   content: string;
   timestamp?: string;
-  /** 工具调用/结果的 JSON 序列化数据 */
+  /** 工具调用/结果的结构化数据 */
+  toolCalls?: Array<{ id: string; name: string; arguments?: Record<string, unknown> }>;
+  toolResult?: { toolCallId: string; toolName: string; isError: boolean; details?: unknown };
+  /** 兼容旧协议 */
   toolData?: string;
 }
 

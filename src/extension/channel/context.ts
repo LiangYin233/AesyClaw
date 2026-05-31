@@ -7,6 +7,7 @@
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { SessionKey } from '@aesyclaw/core/types';
+import { toSessionMessageDto } from '@aesyclaw/session';
 import type { ChannelContext, ChannelManagerDependencies } from './types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 
@@ -39,7 +40,7 @@ export function createContext(
       let inputTokens = 0;
       let outputTokens = 0;
       const dbUsage = await deps.databaseManager.usage.getLatestContextUsage(session.sessionId);
-      if (dbUsage && dbUsage.inputTokens > 0) {
+      if (dbUsage?.inputTokens !== undefined && dbUsage.inputTokens > 0) {
         inputTokens = dbUsage.inputTokens;
         outputTokens = dbUsage.outputTokens;
       } else {
@@ -47,7 +48,7 @@ export function createContext(
         const msgs = session.get();
         for (let i = msgs.length - 1; i >= 0; i--) {
           const u = (msgs[i] as unknown as { usage?: { input?: number; output?: number } }).usage;
-          if (u && u.input && u.input > 0) {
+          if (u?.input !== undefined && u.input > 0) {
             inputTokens = u.input;
             outputTokens = u.output ?? 0;
             break;
@@ -63,34 +64,9 @@ export function createContext(
   }
 
   /** 获取所有会话列表 */
-  async function getSessions(): Promise<
-    Array<{
-      id: string;
-      channel: string;
-      type: string;
-      chatId: string;
-      title: string;
-      firstUserMessage?: string;
-      messageCount?: number;
-      lastActivity?: string;
-    }>
-  > {
+  async function getSessions(): ReturnType<ChannelContext['getSessions']> {
     try {
-      const records = await deps.databaseManager.sessions.findAllSummaries();
-      // 从 JSON 文件读取 firstUserMessage 和 messageCount 等摘要信息
-      const fileSummaries = await deps.sessionManager.fileStore.findAllSummaries();
-      const fileMap = new Map(fileSummaries.map((s) => [s.id, s]));
-
-      return records.map((s) => {
-        const file = fileMap.get(s.id);
-        return {
-          ...s,
-          firstUserMessage: file?.firstUserMessage,
-          messageCount: file?.messageCount ?? 0,
-          lastActivity: file?.lastActivity,
-          title: (file?.firstUserMessage ?? s.chatId).slice(0, 30),
-        };
-      });
+      return await deps.sessionManager.getSummaries();
     } catch (err) {
       log.warn('getSessions 失败', err);
       return [];
@@ -100,11 +76,12 @@ export function createContext(
   /** 获取指定会话的消息历史 */
   async function getSessionMessages(
     sessionKey: SessionKey,
-  ): Promise<Array<{ role: string; content: string; timestamp?: string; toolData?: string }>> {
+  ): ReturnType<ChannelContext['getSessionMessages']> {
     try {
       const session =
         deps.sessionManager.get(sessionKey) ?? (await deps.sessionManager.create(sessionKey));
-      return await deps.sessionManager.fileStore.load(session.sessionId);
+      const messages = await deps.sessionManager.getMessagesById(session.sessionId);
+      return toSessionMessageDto(messages);
     } catch (err) {
       log.warn('getSessionMessages 失败', err);
       return [];

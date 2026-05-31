@@ -1,10 +1,32 @@
-import { serializeSessionKey, type SessionKey } from '@aesyclaw/core/types';
+import type { AgentMessage } from '@aesyclaw/contracts/llm';
+import { serializeSessionKey, type PersistableMessage, type SessionKey } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { Session } from './core';
 import { SessionFileStore } from './file-store';
+import { loadAndRehydrateMessages } from './rehydrate';
 
 const logger = createScopedLogger('session-manager');
+
+export type SessionSummary = {
+  id: string;
+  channel: string;
+  type: string;
+  chatId: string;
+  title: string;
+  firstUserMessage?: string;
+  messageCount: number;
+  lastActivity?: string;
+  roleId?: string;
+  modelId?: string;
+};
+
+type FileSummary = {
+  id: string;
+  firstUserMessage?: string;
+  messageCount: number;
+  lastActivity?: string;
+};
 
 /**
  * SessionManager — 会话生命周期管理。
@@ -15,7 +37,7 @@ const logger = createScopedLogger('session-manager');
 export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private pendingSessions: Map<string, Promise<Session>> = new Map();
-  readonly fileStore: SessionFileStore;
+  private readonly fileStore: SessionFileStore;
 
   /**
    * @param databaseManager - 数据库管理器
@@ -100,35 +122,67 @@ export class SessionManager {
     return s ? s.isLocked : false;
   }
 
-  /**
-   * 清除指定会话的消息历史并从缓存中移除。
-   *
-   * 若会话正在被 Agent 处理（已锁定），则拒绝操作并抛出错误。
-   * @param key - 会话键
-   * @throws 会话已锁定时抛出
-   */
-  async clear(key: SessionKey): Promise<void> {
-    const cacheKey = serializeSessionKey(key);
-    const session = this.sessions.get(cacheKey);
-    if (session) {
-      if (session.isLocked) {
-        logger.warn('无法清除已锁定的会话', { cacheKey });
-        throw new Error('会话正在处理中，无法清除历史');
-      }
-      await session.clear();
-      this.sessions.delete(cacheKey);
-    }
+  async getSummaries(): Promise<SessionSummary[]> {
+    const records = await this.databaseManager.sessions.findAll();
+    const fileSummaries = await this.readFileSummaries();
+    const fileMap = new Map(fileSummaries.map((summary) => [summary.id, summary]));
+
+    return records
+      .map((record) => {
+        const file = fileMap.get(record.id);
+        const title = makeSessionTitle(file?.firstUserMessage ?? '', record.chatId);
+        return {
+          id: record.id,
+          channel: record.channel,
+          type: record.type,
+          chatId: record.chatId,
+          title,
+          ...(file?.firstUserMessage !== undefined
+            ? { firstUserMessage: file.firstUserMessage }
+            : {}),
+          messageCount: file?.messageCount ?? 0,
+          ...(file?.lastActivity !== undefined ? { lastActivity: file.lastActivity } : {}),
+          ...(record.role_id !== undefined ? { roleId: record.role_id } : {}),
+          ...(record.model_id !== undefined ? { modelId: record.model_id } : {}),
+        } satisfies SessionSummary;
+      })
+      .sort((a, b) => (b.lastActivity ?? '').localeCompare(a.lastActivity ?? ''));
   }
 
-  /**
-   * 删除指定会话的数据库记录、历史消息和本地缓存。
-   *
-   * 若会话正在被 Agent 处理（已锁定），则拒绝操作并抛出错误。
-   * @param key - 会话键
-   * @returns true 表示删除了持久化会话，false 表示会话不存在
-   */
-  async delete(key: SessionKey): Promise<boolean> {
-    const cacheKey = serializeSessionKey(key);
+  async getMessagesById(id: string): Promise<AgentMessage[]> {
+    const record = await this.databaseManager.sessions.findById(id);
+    if (!record) {
+      throw new Error('会话未找到');
+    }
+    return await loadAndRehydrateMessages(this.fileStore, id);
+  }
+
+  async clearById(id: string): Promise<void> {
+    const record = await this.databaseManager.sessions.findById(id);
+    if (!record) {
+      throw new Error('会话未找到');
+    }
+
+    const cacheKey = serializeSessionKey(toSessionKey(record));
+    const pending = this.pendingSessions.get(cacheKey);
+    const session = this.sessions.get(cacheKey) ?? (pending ? await pending : undefined);
+    if (session?.isLocked) {
+      logger.warn('无法清除已锁定的会话', { cacheKey });
+      throw new Error('会话正在处理中，无法清除历史');
+    }
+
+    await this.fileStore.clear(id);
+    session?.resetMessages();
+    this.sessions.delete(cacheKey);
+    this.pendingSessions.delete(cacheKey);
+    logger.info('会话历史已清除', { sessionId: id });
+  }
+
+  async deleteById(id: string): Promise<boolean> {
+    const record = await this.databaseManager.sessions.findById(id);
+    if (!record) return false;
+
+    const cacheKey = serializeSessionKey(toSessionKey(record));
     const pending = this.pendingSessions.get(cacheKey);
     const session = this.sessions.get(cacheKey) ?? (pending ? await pending : undefined);
     if (session?.isLocked) {
@@ -136,12 +190,8 @@ export class SessionManager {
       throw new Error('会话正在处理中，无法删除');
     }
 
-    // 先清除 JSON 文件，避免 SQLite 删除后出现孤立 JSON
-    if (session) {
-      await this.fileStore.clear(session.sessionId);
-    }
-
-    const deleted = await this.databaseManager.sessions.deleteByKey(key);
+    await this.fileStore.clear(id);
+    const deleted = await this.databaseManager.sessions.deleteById(id);
     this.sessions.delete(cacheKey);
     this.pendingSessions.delete(cacheKey);
 
@@ -172,4 +222,39 @@ export class SessionManager {
     logger.info('会话已创建', { cacheKey });
     return session;
   }
+
+  private async readFileSummaries(): Promise<FileSummary[]> {
+    const ids = await this.fileStore.listSessionIds();
+    const summaries: FileSummary[] = [];
+    for (const id of ids) {
+      const messages = await this.fileStore.load(id);
+      const summary = createFileSummary(id, messages);
+      if (summary) summaries.push(summary);
+    }
+    return summaries;
+  }
+}
+
+function createFileSummary(id: string, messages: readonly PersistableMessage[]): FileSummary | null {
+  const firstUser = messages.find((message) => message.role === 'user');
+  const last = messages[messages.length - 1];
+  return {
+    id,
+    ...(firstUser !== undefined ? { firstUserMessage: firstUser.content } : {}),
+    messageCount: messages.length,
+    ...(last?.timestamp !== undefined ? { lastActivity: last.timestamp } : {}),
+  };
+}
+
+function makeSessionTitle(text: string, fallback: string): string {
+  const source = text.length > 0 ? text : fallback;
+  return source.slice(0, 30);
+}
+
+function toSessionKey(record: { channel: string; type: string; chatId: string }): SessionKey {
+  return {
+    channel: record.channel,
+    type: record.type,
+    chatId: record.chatId,
+  };
 }

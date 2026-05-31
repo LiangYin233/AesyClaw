@@ -12,7 +12,7 @@ import {
   findOrCreateSession,
   findSessionByKey,
   findSessionById,
-  deleteSessionByKey,
+  deleteSessionById,
   setSessionRole,
 } from '../../../../src/core/database/repositories/session-repository';
 // messages 表已移除，迁移到 SessionFileStore
@@ -33,7 +33,7 @@ import {
   markCronRunsAbandoned,
   findRunningCronRuns,
 } from '../../../../src/core/database/repositories/cron-repository';
-import type { SessionKey, PersistableMessage } from '../../../../src/core/types';
+import type { SessionKey } from '../../../../src/core/types';
 
 // Helper to create an in-memory test database with schema
 function createTestDb() {
@@ -164,7 +164,7 @@ describe('Database Layer', () => {
         usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3 },
       });
 
-      await expect(deleteSessionByKey(db, key)).resolves.toBe(true);
+      await expect(deleteSessionById(db, session.id)).resolves.toBe(true);
       await expect(findSessionByKey(db, key)).resolves.toBeNull();
       const recordAfterDelete = await findSessionById(db, session.id);
       expect(recordAfterDelete?.role_id).toBeUndefined();
