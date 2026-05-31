@@ -10,6 +10,9 @@ import type { ProviderConfig } from '@aesyclaw/core/config/schema';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { makeExtraBodyOnPayload, type ResolvedModel, type StreamFn } from '../types';
 import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './cache-options';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+
+const logger = createScopedLogger('llm-adapter');
 
 /**
  * LLM 适配器，负责解析模型配置和创建流式调用函数。
@@ -34,12 +37,7 @@ export class LlmAdapter {
     const providerConfig: ProviderConfig | undefined = providers[provider];
 
     if (providerConfig === undefined) {
-      const configuredProviders = Object.keys(providers);
-      const hint = configuredProviders.length
-        ? `可用提供者: ${configuredProviders.join(', ')}`
-        : '未配置任何提供者。请在 config.json > providers 下添加提供者条目。';
-
-      throw new Error(`配置中未找到提供者 "${provider}"。${hint}`);
+      this.throwProviderNotFound(provider, Object.keys(providers));
     }
 
     const preset = providerConfig.models?.[modelId];
@@ -48,9 +46,7 @@ export class LlmAdapter {
     const apiKey = providerConfig.apiKey;
 
     if (!apiKey) {
-      throw new Error(
-        `未为提供者 "${provider}" 配置 API 密钥。请在 config.json > providers.${provider} 下添加 apiKey。`,
-      );
+      this.throwMissingApiKey(provider);
     }
 
     return {
@@ -82,9 +78,7 @@ export class LlmAdapter {
     return (model, context, options) => {
       const runtimeModel = model as ResolvedModel;
       if (!runtimeModel.apiKey) {
-        throw new Error(
-          `未为提供者 "${runtimeModel.provider}" 配置 API 密钥。请在 config.json > providers.${runtimeModel.provider} 下添加 apiKey。`,
-        );
+        this.throwMissingApiKey(runtimeModel.provider);
       }
       const cacheModel = withDefaultPromptCacheModel(runtimeModel);
       return streamSimple(
@@ -109,8 +103,33 @@ export class LlmAdapter {
   private tryGetBuiltInModel(provider: string, modelId: string): Model<Api> | null {
     try {
       return getModel(provider as KnownProvider, modelId as never) as Model<Api>;
-    } catch {
+    } catch (err) {
+      logger.debug('内置模型库中未找到模型', { provider, modelId });
       return null;
     }
+  }
+
+  /**
+   * 抛出提供者未找到的错误。
+   *
+   * @param provider - 提供者名称
+   * @param configuredProviders - 已配置的提供者列表
+   */
+  private throwProviderNotFound(provider: string, configuredProviders: string[]): never {
+    const hint = configuredProviders.length
+      ? `可用提供者: ${configuredProviders.join(', ')}`
+      : '未配置任何提供者。请在 config.json > providers 下添加提供者条目。';
+    throw new Error(`配置中未找到提供者 "${provider}"。${hint}`);
+  }
+
+  /**
+   * 抛出 API 密钥未配置的错误。
+   *
+   * @param provider - 提供者名称
+   */
+  private throwMissingApiKey(provider: string): never {
+    throw new Error(
+      `未为提供者 "${provider}" 配置 API 密钥。请在 config.json > providers.${provider} 下添加 apiKey。`,
+    );
   }
 }

@@ -9,6 +9,40 @@ import type { MessageUsage } from '@aesyclaw/core/types';
 import { assistantHasToolCalls } from '@aesyclaw/contracts/llm';
 import { isRecord } from '@aesyclaw/core/utils';
 
+/**
+ * AgentMessage 的扩展类型，包含运行时可能存在的额外字段。
+ */
+type AgentMessageWithMeta = AgentMessage & {
+  stopReason?: string;
+  errorMessage?: string;
+  usage?: unknown;
+};
+
+/**
+ * 类型守卫：检查 AgentMessage 是否包含元数据字段。
+ */
+function hasMessageMeta(message: AgentMessage): message is AgentMessageWithMeta {
+  return typeof message === 'object' && message !== null;
+}
+
+/**
+ * 安全地从 AgentMessage 中提取字符串字段。
+ */
+function getStringField(message: AgentMessage, field: string): string | undefined {
+  if (!hasMessageMeta(message)) return undefined;
+  const value = (message as unknown as Record<string, unknown>)[field];
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * 安全地从 AgentMessage 中提取 usage 字段。
+ */
+function getUsageField(message: AgentMessage): Record<string, unknown> | undefined {
+  if (!hasMessageMeta(message)) return undefined;
+  const meta = message as AgentMessageWithMeta;
+  return isRecord(meta.usage) ? meta.usage : undefined;
+}
+
 export function createAgentRunResult(newMessages: readonly AgentMessage[]): {
   newMessages: AgentMessage[];
   lastAssistant: string | null;
@@ -32,11 +66,10 @@ export function createCancelledRunResult(): {
 export function getFinalAssistantMeta(messages: readonly AgentMessage[]): Record<string, unknown> {
   const finalAssistant = findFinalAssistant(messages);
   if (!finalAssistant) return { lastAssistantRole: null };
-  const record = finalAssistant as unknown as Record<string, unknown>;
   return {
     lastAssistantRole: finalAssistant.role,
-    lastAssistantStopReason: record['stopReason'],
-    lastAssistantErrorMessage: record['errorMessage'],
+    lastAssistantStopReason: getStringField(finalAssistant, 'stopReason'),
+    lastAssistantErrorMessage: getStringField(finalAssistant, 'errorMessage'),
     lastAssistantTextLength: extractAssistantText(finalAssistant).length,
   };
 }
@@ -46,8 +79,8 @@ export function getFinalAssistantUsage(
 ): MessageUsage | undefined {
   const finalAssistant = findFinalAssistant(messages);
   if (!finalAssistant || assistantHasToolCalls(finalAssistant)) return undefined;
-  const usage = (finalAssistant as unknown as { usage?: unknown }).usage;
-  if (!isRecord(usage)) return undefined;
+  const usage = getUsageField(finalAssistant);
+  if (!usage) return undefined;
 
   const input = numberField(usage, 'input');
   const output = numberField(usage, 'output');
@@ -108,18 +141,20 @@ function resolveLastAssistant(newMessages: readonly AgentMessage[]): string | nu
 }
 
 function findFinalAssistant(messages: readonly AgentMessage[]): AgentMessage | null {
-  for (const message of [...messages].reverse()) {
-    if (message.role === 'assistant') return message;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message && message.role === 'assistant') return message;
   }
   return null;
 }
 
 function getAssistantErrorMessage(message: AgentMessage): string | null {
   if (message.role !== 'assistant') return null;
-  const record = message as unknown as Record<string, unknown>;
-  if (record['stopReason'] !== 'error') return null;
-  return typeof record['errorMessage'] === 'string' && record['errorMessage'].trim().length > 0
-    ? record['errorMessage'].trim()
+  const stopReason = getStringField(message, 'stopReason');
+  if (stopReason !== 'error') return null;
+  const errorMessage = getStringField(message, 'errorMessage');
+  return errorMessage && errorMessage.trim().length > 0
+    ? errorMessage.trim()
     : '模型调用失败但未返回错误详情';
 }
 

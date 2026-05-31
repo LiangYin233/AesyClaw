@@ -20,7 +20,7 @@ import type { UsageRepository } from '@aesyclaw/core/database/database-manager';
 import type { SessionFileStore } from '../persistence/file-store';
 import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { estimateApproximateTokens } from './token-utils';
+import { calculateActualTokens } from './token-utils';
 
 const logger = createScopedLogger('session-compactor');
 
@@ -43,7 +43,7 @@ export async function compactSession(
   logger.info('正在压缩会话历史', {
     sessionId: session.sessionId,
     messageCount: messages.length,
-    totalTokens: `${estimateApproximateTokens(messages)}/${model.contextWindow}`,
+    totalTokens: `${calculateActualTokens(messages)}/${model.contextWindow}`,
   });
 
   const { summary, message } = await summarizeConversation(model, messages, session.sessionId);

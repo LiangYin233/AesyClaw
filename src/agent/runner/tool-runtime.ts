@@ -5,12 +5,17 @@
  */
 
 import type { AgentTool, AgentToolResult, AgentMessage } from '../types';
-import { extractMessageText } from '../types';
 import type { AfterToolCallContext, AfterToolCallResult } from '@mariozechner/pi-agent-core';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord } from '@aesyclaw/core/utils';
 import { throwIfCancelled, AgentRunCancelledError } from './shared';
 const logger = createScopedLogger('tool-runtime');
+
+/** 每个 token 的平均字符数（用于粗略估算） */
+const CHARS_PER_TOKEN = 3.5;
+
+/** 工具结果可使用的剩余 token 预算比例 */
+const TOOL_RESULT_BUDGET_RATIO = 0.5;
 
 type PiAgentToolAdapter = {
   name: string;
@@ -32,13 +37,9 @@ export function adaptToolForPiAgent(tool: AgentTool, signal: AbortSignal): PiAge
       piSignal?: AbortSignal,
     ): Promise<AgentToolResult> => {
       const toolSignal = piSignal ?? signal;
-      throwIfCancelled(signal);
       throwIfCancelled(toolSignal);
 
       const result = await tool.execute(toolCallId, params, toolSignal);
-
-      throwIfCancelled(signal);
-      throwIfCancelled(toolSignal);
 
       if (result.isError) {
         const errorContent = result.content.map((content) => content.text).join('\n');
@@ -57,24 +58,24 @@ export function calculateToolResultBudget(
   content: string,
 ): { maxToolResultTokens: number; maxToolResultChars: number } {
   const compressionLimitTokens = Math.floor(model.contextWindow * compressionThreshold);
-  // 与 token-utils.ts 的 estimateApproximateTokens 保持口径一致
-  let charCount = 0;
+  
+  // 使用实际 token 计数（从 message.usage 累加）
+  let usedTokens = 0;
   for (const message of history) {
-    charCount += extractMessageText(message).length;
-    if (message.role === 'assistant' && Array.isArray(message.content)) {
-      for (const block of message.content as unknown as Array<Record<string, unknown>>) {
-        if (block['type'] === 'toolCall') {
-          charCount += JSON.stringify(block['arguments'] ?? {}).length;
-        }
-      }
+    const usage = (message as unknown as { usage?: { totalTokens?: number } }).usage;
+    if (usage && typeof usage.totalTokens === 'number') {
+      usedTokens += usage.totalTokens;
     }
   }
-  const usedTokens = Math.ceil(charCount / 3.5) + Math.ceil(content.length / 3.5);
+  
+  // 对于当前用户输入，使用粗略估算（因为还没有发送给 LLM）
+  usedTokens += Math.ceil(content.length / CHARS_PER_TOKEN);
+  
   const remainingTokens = Math.max(0, compressionLimitTokens - usedTokens);
-  const maxToolResultTokens = Math.floor(remainingTokens * 0.5);
+  const maxToolResultTokens = Math.floor(remainingTokens * TOOL_RESULT_BUDGET_RATIO);
   return {
     maxToolResultTokens,
-    maxToolResultChars: Math.floor(maxToolResultTokens * 3.5),
+    maxToolResultChars: Math.floor(maxToolResultTokens * CHARS_PER_TOKEN),
   };
 }
 

@@ -12,17 +12,9 @@ import {
   type AgentTool as PiAgentTool,
   type StreamFn,
 } from '@mariozechner/pi-agent-core';
-import {
-  streamSimple,
-  type Api,
-  type Context,
-  type Model,
-  type SimpleStreamOptions,
-  type TSchema,
-} from '@mariozechner/pi-ai';
+import { type TSchema } from '@mariozechner/pi-ai';
 import type { AgentMessage, AgentTool, ResolvedModel } from './types';
 import { serializeSessionKey, type OutboundSignal, type SessionKey } from '@aesyclaw/core/types';
-import { withDefaultPromptCacheModel, withDefaultPromptCacheOptions } from './llm/cache-options';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { AgentRegistry, AgentRunHandle } from './registry';
 import {
@@ -49,6 +41,7 @@ export type AgentRunParams = {
   sessionKey: SessionKey;
   compressionThreshold: number;
   registry: AgentRegistry;
+  streamFn: StreamFn;
   onEvent?: (event: OutboundSignal) => void;
 };
 
@@ -88,7 +81,7 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
       tools: agentTools as unknown as PiAgentTool<TSchema, unknown>[],
       messages: history,
     },
-    streamFn: createStreamFn(model.apiKey, model.extraBody),
+    streamFn: params.streamFn,
     getApiKey: () => model.apiKey,
     sessionId: createProviderCacheKey(sessionKey),
     afterToolCall: createToolResultBudgetHandler(toolResultBudget),
@@ -143,25 +136,4 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
   }
 }
 
-function createStreamFn(apiKey: string, extraBody?: Record<string, unknown>): StreamFn {
-  const hasExtra = extraBody !== undefined && Object.keys(extraBody).length > 0;
-  const onPayload = hasExtra
-    ? (p: unknown): unknown =>
-        typeof p === 'object' && p !== null
-          ? { ...(p as Record<string, unknown>), ...extraBody }
-          : p
-    : undefined;
 
-  return (m: Model<Api>, ctx: Context, opts?: SimpleStreamOptions) => {
-    const cacheModel = withDefaultPromptCacheModel(m);
-    return streamSimple(
-      cacheModel,
-      ctx,
-      withDefaultPromptCacheOptions(cacheModel, {
-        ...opts,
-        apiKey,
-        ...(onPayload ? { onPayload } : {}),
-      }),
-    );
-  };
-}

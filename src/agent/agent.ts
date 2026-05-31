@@ -15,7 +15,7 @@ import type {
   ToolRegistry,
 } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm/adapter';
-import { estimateApproximateTokens, type Session } from '@aesyclaw/session';
+import { calculateActualTokens, type Session } from '@aesyclaw/session';
 import type { RoleManager } from '@aesyclaw/role/manager';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { IHooksBus } from '@aesyclaw/hook';
@@ -61,10 +61,10 @@ export class Agent {
 
   private compressionThreshold: number;
 
-  private _model!: ResolvedModel;
-  private _modelIdentifier = 'openai/gpt-4o';
-  private _activeRole: RoleConfig | null = null;
-  private _allowedTools: AesyClawTool[] = [];
+  private resolvedModel!: ResolvedModel;
+  private currentModelIdentifier = 'openai/gpt-4o';
+  private currentActiveRole: RoleConfig | null = null;
+  private currentAllowedTools: AesyClawTool[] = [];
 
   private llmAdapter: LlmAdapter;
   private roleManager: RoleManager;
@@ -73,7 +73,7 @@ export class Agent {
   private hooksBus: IHooksBus;
   private registry: AgentRegistry;
 
-  private _cachedSystemPrompt: string | null = null;
+  private cachedSystemPrompt: string | null = null;
 
   static async resolveActiveRoleId(
     context: CommandContext,
@@ -104,29 +104,29 @@ export class Agent {
     this.compressionThreshold = options.compressionThreshold;
     this.registry = options.registry;
 
-    this._modelIdentifier = options.defaultModel;
-    this._model = this.llmAdapter.resolveModel(options.defaultModel);
+    this.currentModelIdentifier = options.defaultModel;
+    this.resolvedModel = this.llmAdapter.resolveModel(options.defaultModel);
     this.registry.registerAgent(this.session.key, this);
   }
 
   /** 当前解析后的模型配置 */
   get model(): ResolvedModel {
-    return this._model;
+    return this.resolvedModel;
   }
 
   /** 当前模型标识符（provider/model 格式） */
   get modelIdentifier(): string {
-    return this._modelIdentifier;
+    return this.currentModelIdentifier;
   }
 
   /** 当前角色允许使用的工具列表 */
   get allowedTools(): AesyClawTool[] {
-    return this._allowedTools;
+    return this.currentAllowedTools;
   }
 
   /** 当前激活的角色配置 */
   get activeRole(): RoleConfig | null {
-    return this._activeRole;
+    return this.currentActiveRole;
   }
 
   /**
@@ -135,21 +135,21 @@ export class Agent {
    * @param modelId - 模型标识符，例如 "openai/gpt-4o"
    */
   setModel(modelId: string): void {
-    this._modelIdentifier = modelId;
-    this._model = this.llmAdapter.resolveModel(modelId);
+    this.currentModelIdentifier = modelId;
+    this.resolvedModel = this.llmAdapter.resolveModel(modelId);
     logger.info('模型已切换', {
-      provider: this._model.provider,
-      modelId: this._model.modelId,
+      provider: this.resolvedModel.provider,
+      modelId: this.resolvedModel.modelId,
     });
   }
 
   async setRole(role: RoleConfig): Promise<void> {
-    this._activeRole = role;
+    this.currentActiveRole = role;
 
-    this._allowedTools = this.toolRegistry.getForRole(role);
+    this.currentAllowedTools = this.toolRegistry.getForRole(role);
 
     this.roleId = role.id;
-    this._cachedSystemPrompt = null;
+    this.cachedSystemPrompt = null;
   }
 
   /**
@@ -158,7 +158,7 @@ export class Agent {
    * 在技能重新加载后调用，确保 Prompt 包含最新的技能列表。
    */
   invalidatePromptCache(): void {
-    this._cachedSystemPrompt = null;
+    this.cachedSystemPrompt = null;
     logger.debug('Prompt 缓存已失效');
   }
 
@@ -253,17 +253,14 @@ export class Agent {
   }
 
   /**
-   * 判断是否需要后续追文 — 条件为：非临时、未取消、未通过流式产生文本、LLM 未返回文字。
+   * 判断是否需要后续追文 — 条件为：非临时、未取消、LLM 未返回文字。
    */
   private needsTextFollowUp(
     context: ProcessContext,
     result: AgentRunResult,
     messageSent: boolean,
   ): boolean {
-    if (context.ephemeral) return false;
-    if (result.cancelled) return false;
-    if (messageSent && !result.lastAssistant) return false;
-    return !result.lastAssistant;
+    return !context.ephemeral && !result.cancelled && !result.lastAssistant;
   }
 
   /**
@@ -291,9 +288,9 @@ export class Agent {
     };
 
     const { prompt: builtPrompt, tools } = this.buildPrompt(role, executionContext);
-    const prompt = this._cachedSystemPrompt ?? builtPrompt;
-    this._cachedSystemPrompt ??= builtPrompt;
-    const model = this._model;
+    const prompt = this.cachedSystemPrompt ?? builtPrompt;
+    this.cachedSystemPrompt ??= builtPrompt;
+    const model = this.resolvedModel;
 
     return await runAgentTask({
       roleId: role.id,
@@ -305,6 +302,7 @@ export class Agent {
       sessionKey,
       compressionThreshold: this.compressionThreshold,
       registry: this.registry,
+      streamFn: this.llmAdapter.createStreamFn(),
       onEvent: onStream,
     });
   }
@@ -327,7 +325,7 @@ export class Agent {
 
   private createProcessContext(options?: ProcessOptions): ProcessContext | null {
     const ephemeral = options?.ephemeral === true;
-    const role = ephemeral ? options?.role : this._activeRole;
+    const role = ephemeral ? options?.role : this.currentActiveRole;
     if (!role) return null;
 
     return {
@@ -351,15 +349,15 @@ export class Agent {
     let followUpHistory = combinedHistory;
 
     if (
-      estimateApproximateTokens(combinedHistory) >=
-      this.compressionThreshold * this._model.contextWindow
+      calculateActualTokens(combinedHistory) >=
+      this.compressionThreshold * this.resolvedModel.contextWindow
     ) {
       logger.info('Agent 追加文本前压缩上下文', {
         role: role.id,
-        estimatedTokens: estimateApproximateTokens(combinedHistory),
-        contextWindow: this._model.contextWindow,
+        actualTokens: calculateActualTokens(combinedHistory),
+        contextWindow: this.resolvedModel.contextWindow,
       });
-      await this.session.compact(this.llmAdapter, this._modelIdentifier);
+      await this.session.compact(this.llmAdapter, this.currentModelIdentifier);
       followUpHistory = [...this.session.get()].concat(result.newMessages);
     }
 

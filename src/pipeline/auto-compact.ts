@@ -5,7 +5,7 @@
  * 作为 pipeline:beforeLLM 中间件运行，可被禁用或替换。
  */
 import type { Middleware, HookRegistration, HookResult, HookCtx } from '@aesyclaw/hook';
-import { estimateApproximateTokens } from '@aesyclaw/session';
+import { calculateActualTokens } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 
 const AUTO_COMPACT_HOOK_ID = 'core:auto-compact';
@@ -25,7 +25,7 @@ function createAutoCompactMiddleware(
       return next !== undefined ? await next() : { action: 'next' };
     }
 
-    if (estimateApproximateTokens(history) >= model.contextWindow * compressionThreshold) {
+    if (calculateActualTokens(history) >= model.contextWindow * compressionThreshold) {
       await ctx.session.compact(llmAdapter, ctx.agent?.modelIdentifier ?? '');
     }
 
