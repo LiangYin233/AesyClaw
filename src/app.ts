@@ -16,7 +16,6 @@ import { LlmAdapter } from './agent/llm/adapter';
 import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { RoleManager } from './role/manager';
-import { RoleStore } from './role/store';
 import { SkillManager } from './skill/manager';
 import { ToolRegistry } from './tool/tool-registry';
 import { registerBuiltinCommands } from './command/builtin';
@@ -35,7 +34,6 @@ const logger = createScopedLogger('app');
 type Deps = {
   configManager: ConfigManager;
   databaseManager: DatabaseManager;
-  roleStore: RoleStore;
   roleManager: RoleManager;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
@@ -52,8 +50,7 @@ function createSubsystems(): Deps {
   const agentRegistry = new AgentRegistry();
   const configManager = new ConfigManager();
   const databaseManager = new DatabaseManager();
-  const roleStore = new RoleStore(configManager.resolvedPaths.rolesFile);
-  const roleManager = new RoleManager(roleStore);
+  const roleManager = new RoleManager(configManager.resolvedPaths.rolesFile);
   const skillManager = new SkillManager();
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
@@ -92,7 +89,6 @@ function createSubsystems(): Deps {
   return {
     configManager,
     databaseManager,
-    roleStore,
     roleManager,
     skillManager,
     toolRegistry,
@@ -142,7 +138,7 @@ export class Application {
     const steps: Array<() => Promise<void> | void> = [
       // 1. 停止配置热重载
       () => this.sub.configManager.stopHotReload(),
-      () => this.sub.roleStore.stopHotReload(),
+      () => this.sub.roleManager.stopHotReload(),
       // 2. 停止外围运行时（依赖 pipeline 的子系统）
       () => this.webUiManager?.destroy(),
       () => this.cronManager?.destroy(),
@@ -281,7 +277,7 @@ export class Application {
   private async installHotReload(): Promise<void> {
     await this.sub.configManager.syncDefaults();
     this.sub.configManager.startHotReload();
-    this.sub.roleStore.startHotReload();
+    this.sub.roleManager.startHotReload();
 
     // 配置文件变更后自动热重载插件和频道配置
     this.sub.configManager.onConfigReloaded = () => {
