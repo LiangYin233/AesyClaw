@@ -6,7 +6,7 @@
  */
 
 import { pathToFileURL } from 'node:url';
-import { Application } from './app';
+import type { Application } from './app';
 import { createScopedLogger } from './core/logger';
 
 const logger = createScopedLogger('app');
@@ -53,14 +53,19 @@ export function registerProcessHandlers(
   });
 }
 
+async function createDefaultApplication(): Promise<AppLifecycle> {
+  const { Application } = await import('./app');
+  return new Application();
+}
+
 export async function main(
-  app: AppLifecycle = new Application(),
+  app?: AppLifecycle,
   processRef: Pick<NodeJS.Process, 'on' | 'exit'> = process,
 ): Promise<void> {
-  registerProcessHandlers(app, processRef);
-
   try {
-    await app.start();
+    const runningApp = app ?? (await createDefaultApplication());
+    registerProcessHandlers(runningApp, processRef);
+    await runningApp.start();
   } catch (err) {
     logger.error('启动 AesyClaw 失败', err);
     processRef.exit(1);

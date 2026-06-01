@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const logger = {
   debug: vi.fn(),
@@ -10,13 +10,6 @@ const logger = {
 vi.mock('../../src/core/logger', () => ({
   createScopedLogger: () => logger,
 }));
-
-beforeAll(async () => {
-  // Warm the ESM module cache — the first dynamic import resolves
-  // the full module graph (index → app → 18 subsystems) and can
-  // take several seconds on Windows. Subsequent calls are instant.
-  await import('../../src/index');
-});
 
 beforeEach(() => {
   vi.clearAllMocks();
