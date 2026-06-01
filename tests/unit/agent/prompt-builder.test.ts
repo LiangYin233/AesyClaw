@@ -11,7 +11,7 @@ import { createSkillPromptHook } from '../../../src/hook/builtin/skill-prompt';
 import { createRolePromptHook } from '../../../src/hook/builtin/role-prompt';
 import type { Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/manager';
-import type { AesyClawTool } from '../../../src/tool/tool-registry';
+import { ToolRegistry, type AesyClawTool } from '../../../src/tool/tool-registry';
 import type { AgentTool } from '../../../src/agent/types';
 import { makeRole } from '../../helpers/role';
 import { Type } from '@sinclair/typebox';
@@ -69,10 +69,13 @@ describe('PromptBuilder', () => {
       getSkillsForRole: vi.fn().mockReturnValue([makeSkill()]),
       ...(overrides.skillManager ?? {}),
     };
-    const toolRegistry = {
-      resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
-      ...(overrides.toolRegistry ?? {}),
-    };
+    const toolRegistry =
+      overrides.toolRegistry instanceof ToolRegistry
+        ? overrides.toolRegistry
+        : {
+            resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
+            ...(overrides.toolRegistry ?? {}),
+          };
     const hooksBus = {
       dispatch: vi.fn(
         async (
@@ -237,6 +240,23 @@ describe('PromptBuilder', () => {
       expect(result.prompt).toContain('**second**: Greeting skill');
       expect(result.prompt).not.toContain('First content.');
       expect(result.prompt).not.toContain('Second content.');
+    });
+
+    it('should return API tools filtered by role permissions', async () => {
+      const toolRegistry = new ToolRegistry();
+      toolRegistry.register(makeTool({ name: 'allowed' }));
+      toolRegistry.register(makeTool({ name: 'blocked' }));
+      const deps = makeDeps({ toolRegistry });
+      const agent = makeAgent(deps, agentRegistry);
+      const role = makeRole({
+        toolPermission: { mode: 'allowlist', list: ['allowed'] },
+      });
+
+      const result = await agent.buildPrompt(role);
+
+      expect(result.tools.map((tool) => tool.name)).toEqual(['allowed']);
+      expect(result.prompt).not.toContain('allowed');
+      expect(result.prompt).not.toContain('blocked');
     });
 
     it('should leave API tools out of final prompt content', async () => {

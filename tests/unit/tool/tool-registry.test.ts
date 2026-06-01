@@ -174,6 +174,25 @@ describe('ToolRegistry', () => {
       expect(agentTools.map((t) => t.name)).toContain('create_cron');
     });
 
+    it('should return internal tools and AgentTools from the same filtered set', () => {
+      registry.register(makeTool({ name: 'send_msg' }));
+      registry.register(makeTool({ name: 'run_sub_agent' }));
+      registry.register(makeTool({ name: 'create_cron' }));
+
+      const role = makeRole({
+        toolPermission: { mode: 'allowlist', list: ['send_msg', 'create_cron'] },
+      });
+
+      const { tools, agentTools } = registry.resolveForRole(role, hooksBus, {});
+      const toolNames = tools.map((tool) => tool.name);
+      const agentToolNames = agentTools.map((tool) => tool.name);
+
+      expect(agentToolNames).toEqual(toolNames);
+      expect(agentToolNames).toEqual(['send_msg', 'create_cron']);
+      expect(agentTools[0]?.parameters).toBe(tools[0]?.parameters);
+      expect(agentTools[1]?.parameters).toBe(tools[1]?.parameters);
+    });
+
     it('should return all AgentTools for allowlist wildcard *', async () => {
       registry.register(makeTool({ name: 'send_msg' }));
       registry.register(makeTool({ name: 'run_sub_agent' }));
