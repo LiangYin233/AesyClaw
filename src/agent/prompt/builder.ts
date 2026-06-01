@@ -50,7 +50,6 @@ export async function buildPrompt(
 
   const prompt = buildAgentPrompt({
     role,
-    availableTools: resolvedTools.tools,
     promptSections,
   });
 

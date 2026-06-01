@@ -135,7 +135,6 @@ describe('PromptBuilder', () => {
     it('should replace template variables and include prompt sections', () => {
       const prompt = buildAgentPrompt({
         role: makeRole({ systemPrompt: 'Today is {{os}} using {{systemLang}}.' }),
-        availableTools: [makeTool({ name: 'send-msg' })],
         promptSections: [
           '## 技能\n- **greeting**: Greeting skill',
           '## 用户沟通',
@@ -145,8 +144,7 @@ describe('PromptBuilder', () => {
 
       expect(prompt).not.toContain('{{os}}');
       expect(prompt).not.toContain('{{systemLang}}');
-      expect(prompt).toContain('## Available Tools');
-      expect(prompt).toContain('**send-msg**: A test tool');
+      expect(prompt).not.toContain('## Available Tools');
       expect(prompt).toContain('**greeting**: Greeting skill');
       expect(prompt).toContain('## 用户沟通');
       expect(prompt).toContain('**helper** — A helpful assistant');
@@ -155,7 +153,6 @@ describe('PromptBuilder', () => {
     it('should omit communication and role sections for sub agents', () => {
       const prompt = buildAgentPrompt({
         role: makeRole(),
-        availableTools: [],
         promptSections: [],
       });
 
@@ -166,7 +163,6 @@ describe('PromptBuilder', () => {
     it('should render caller-provided role sections', () => {
       const prompt = buildAgentPrompt({
         role: makeRole(),
-        availableTools: [],
         promptSections: ['## 角色\n- **helper** — A helpful assistant'],
       });
 
@@ -243,7 +239,7 @@ describe('PromptBuilder', () => {
       expect(result.prompt).not.toContain('Second content.');
     });
 
-    it('should include filtered internal tools in final prompt content', async () => {
+    it('should leave API tools out of final prompt content', async () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
@@ -256,11 +252,11 @@ describe('PromptBuilder', () => {
 
       const result = await agent.buildPrompt(role);
 
-      expect(result.prompt).toContain('## Available Tools');
-      expect(result.prompt).toContain('**send-msg**: A test tool');
+      expect(result.prompt).not.toContain('## Available Tools');
+      expect(result.prompt).not.toContain('**send-msg**: A test tool');
     });
 
-    it('should filter tools by role permissions', async () => {
+    it('should pass role permissions to tool resolution without duplicating tools in prompt', async () => {
       const allowedTool = makeTool({ name: 'allowed' });
 
       const deps = makeDeps({
@@ -275,7 +271,8 @@ describe('PromptBuilder', () => {
 
       const result = await agent.buildPrompt(role);
 
-      expect(result.prompt).toContain('**allowed**: A test tool');
+      expect(deps.toolRegistry.resolveForRole).toHaveBeenCalledWith(role, deps.hooksBus, {});
+      expect(result.prompt).not.toContain('**allowed**: A test tool');
     });
 
     it('should pass all enabled roles into the prompt', async () => {

@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildAgentPrompt } from '../../../src/agent/prompt/template';
 
-const makeTool = (name: string, description: string) => ({
-  name,
-  description,
-  parameters: {} as never,
-  owner: 'system' as const,
-  execute: async () => ({ content: '' }),
-});
-
 describe('buildAgentPrompt', () => {
   it('includes system prompt', () => {
     const result = buildAgentPrompt({
@@ -21,29 +13,9 @@ describe('buildAgentPrompt', () => {
         skills: [],
         enabled: true,
       },
-      availableTools: [],
       promptSections: [],
     });
     expect(result).toContain('You are a helpful assistant.');
-  });
-
-  it('includes tool section when tools are available', () => {
-    const result = buildAgentPrompt({
-      role: {
-        id: 'test',
-        description: '',
-        systemPrompt: 'You are a bot.',
-        model: 'gpt-4o',
-        toolPermission: { mode: 'denylist', list: [] },
-        skills: [],
-        enabled: true,
-      },
-      availableTools: [makeTool('search', 'Search the web')],
-      promptSections: [],
-    });
-    expect(result).toContain('## Available Tools');
-    expect(result).toContain('search');
-    expect(result).toContain('Search the web');
   });
 
   it('includes skill section when skills are present', () => {
@@ -57,7 +29,6 @@ describe('buildAgentPrompt', () => {
         skills: ['skill-a'],
         enabled: true,
       },
-      availableTools: [],
       promptSections: ['## 技能\n- **skill-a**: Skill skill-a'],
     });
     expect(result).toContain('skill-a');
@@ -74,8 +45,7 @@ describe('buildAgentPrompt', () => {
         skills: [],
         enabled: true,
       },
-      availableTools: [makeTool('send_msg', 'Send message to user')],
-      promptSections: ['## 用户沟通'],
+      promptSections: ['## 用户沟通\n1. **主动通报** — 使用 `send_msg` 主动向用户通报当前进展。'],
     });
     expect(result).toContain('send_msg');
     expect(result).toContain('用户沟通');
@@ -92,7 +62,6 @@ describe('buildAgentPrompt', () => {
         skills: [],
         enabled: true,
       },
-      availableTools: [makeTool('search', 'Search')],
       promptSections: [],
     });
     expect(result).not.toContain('用户沟通');
@@ -109,7 +78,6 @@ describe('buildAgentPrompt', () => {
         skills: [],
         enabled: true,
       },
-      availableTools: [makeTool('search', 'Search')],
       promptSections: [],
     });
     expect(result).not.toContain('用户沟通');
@@ -126,7 +94,6 @@ describe('buildAgentPrompt', () => {
         skills: [],
         enabled: true,
       },
-      availableTools: [],
       promptSections: ['## 角色\n- **helper** — Helper role'],
     });
     expect(result).toContain('helper');
@@ -144,7 +111,6 @@ describe('buildAgentPrompt', () => {
         skills: [],
         enabled: true,
       },
-      availableTools: [],
       promptSections: [],
     });
     expect(result).not.toContain('{{os}}');
