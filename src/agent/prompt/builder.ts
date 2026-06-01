@@ -4,18 +4,16 @@
  * 从 Agent 类中提取，专注系统提示、工具列表、技能和角色信息的拼接。
  */
 
-import type { RoleConfig } from '@aesyclaw/core/types';
+import type { Message, RoleConfig, SessionKey } from '@aesyclaw/core/types';
 import type { AgentTool } from '@aesyclaw/contracts/llm';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
-import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { RoleManager } from '@aesyclaw/role/manager';
-import type { IHooksBus } from '@aesyclaw/contracts/hook';
+import type { HookCtx, HookResult, IHooksBus } from '@aesyclaw/contracts/hook';
 import { buildAgentPrompt } from './template';
 
 export type PromptBuilderDeps = {
   roleManager: RoleManager;
-  skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hooksBus: IHooksBus;
 };
@@ -28,27 +26,49 @@ export type BuildPromptResult = {
 /**
  * 构建发送给 LLM 的完整 Prompt。
  */
-export function buildPrompt(
+export async function buildPrompt(
   role: RoleConfig,
   executionContext: Partial<ToolExecutionContext> | undefined,
   deps: PromptBuilderDeps,
-): BuildPromptResult {
+): Promise<BuildPromptResult> {
   const allRoles = deps.roleManager.getEnabledRoles();
-  const skills = deps.skillManager.getSkillsForRole(role);
   const resolvedTools = deps.toolRegistry.resolveForRole(
     role,
     deps.hooksBus,
     executionContext ?? {},
   );
+  const promptSections: string[] = [];
+  const promptCtx: HookCtx = {
+    message: EMPTY_PROMPT_MESSAGE,
+    sessionKey: executionContext?.sessionKey ?? createPromptSessionKey(role),
+    role,
+    promptSections,
+  };
+  const hookResult = await deps.hooksBus.dispatch('prompt:build', promptCtx);
+  assertPromptHookResult(hookResult);
+
   const prompt = buildAgentPrompt({
     role,
     availableTools: resolvedTools.tools,
-    skills,
+    promptSections,
     allRoles,
-    skillDirs: deps.skillManager.getSkillDirs(),
     isSubAgent: executionContext !== undefined && executionContext.sendMessage === undefined,
     isCron: executionContext?.sessionKey?.channel === 'cron',
   });
 
   return { prompt, tools: resolvedTools.agentTools };
+}
+
+const EMPTY_PROMPT_MESSAGE: Message = { components: [] };
+
+function createPromptSessionKey(role: RoleConfig): SessionKey {
+  return { channel: 'system', type: 'prompt', chatId: role.id };
+}
+
+function assertPromptHookResult(result: HookResult): void {
+  if (result.action === 'next') return;
+  if (result.action === 'error') {
+    throw new Error(`prompt:build 钩子执行错误: ${result.reason}`);
+  }
+  throw new Error(`prompt:build 钩子返回了不支持的动作: ${result.action}`);
 }

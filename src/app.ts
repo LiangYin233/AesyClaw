@@ -23,7 +23,12 @@ import { registerBuiltinTools } from './tool/builtin';
 import { CronManager } from './cron/manager';
 import { PluginManager } from './extension/plugin/manager';
 import { ChannelManager } from './extension/channel/manager';
-import { createAutoCompactHook, createTimeInjectHook, createCommandDetectHook } from './hook/builtin';
+import {
+  createAutoCompactHook,
+  createTimeInjectHook,
+  createCommandDetectHook,
+  createSkillPromptHook,
+} from './hook/builtin';
 import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
@@ -68,7 +73,6 @@ function createSubsystems(): Deps {
   const agentFactory = new AgentFactory({
     llmAdapter,
     roleManager,
-    skillManager,
     toolRegistry,
     hooksBus,
     compressionThreshold,
@@ -125,10 +129,10 @@ export class Application {
       return;
     }
     logger.info('正在启动 AesyClaw...');
-    
+
     await this.runStartupSequence();
     this.started = true;
-    
+
     logger.info('AesyClaw 启动成功');
   }
 
@@ -172,15 +176,15 @@ export class Application {
     await this.runStep('初始化核心管理器', async () => {
       await this.initCoreManagers();
     });
-    
+
     await this.runStep('初始化扩展运行时', async () => {
       await this.initExtensionRuntime();
     });
-    
+
     await this.runStep('初始化外围运行时', async () => {
       await this.initPeripheralRuntime();
     });
-    
+
     await this.runStep('安装运行时热重载', async () => {
       await this.installHotReload();
     });
@@ -189,7 +193,7 @@ export class Application {
   private async initCoreManagers(): Promise<void> {
     // 同步操作：设置日志级别
     setLogLevel(this.sub.configManager.get('server.logLevel') as string);
-    
+
     // 并行化独立的初始化操作
     await Promise.all([
       this.sub.databaseManager.initialize(this.paths.dbFile),
@@ -204,11 +208,15 @@ export class Application {
     // 注册内置 Hook（通过注入而非 Pipeline 硬编码）
     this.sub.pipeline.hooksBus.register(createCommandDetectHook(this.sub.commandRegistry));
     this.sub.pipeline.hooksBus.register(
-      createAutoCompactHook(this.sub.llmAdapter, this.sub.configManager.get('agent.memory.compressionThreshold') as number),
+      createAutoCompactHook(
+        this.sub.llmAdapter,
+        this.sub.configManager.get('agent.memory.compressionThreshold') as number,
+      ),
     );
     this.sub.pipeline.hooksBus.register(createTimeInjectHook());
+    this.sub.pipeline.hooksBus.register(createSkillPromptHook(this.sub.skillManager));
 
-    // ChannelManager 先于 PluginManager 构造（PluginManager 可选依赖 ChannelManager）
+    // ChannelManager 先于 PluginManager 构造，插件不再注册 Channel。
     this.channelManager = new ChannelManager({
       configManager: this.sub.configManager,
       pipeline: this.sub.pipeline,
@@ -225,7 +233,6 @@ export class Application {
       toolRegistry: this.sub.toolRegistry,
       commandRegistry: this.sub.commandRegistry,
       hooksBus: this.sub.pipeline.hooksBus,
-      channelManager: this.channelManager,
       paths: this.paths,
       llmAdapter: this.sub.llmAdapter,
     });
@@ -311,13 +318,16 @@ export class Application {
     this.sub.configManager.startHotReload();
     this.sub.roleManager.startHotReload();
 
-    // 配置文件变更后自动热重载插件和频道配置
+    // 配置变更后自动热重载运行时组件。
     this.sub.configManager.onConfigReloaded = () => {
       void this.pluginManager?.handleConfigReload().catch((err) => {
         logger.error('插件配置热重载失败', err);
       });
       void this.channelManager?.handleConfigReload().catch((err) => {
         logger.error('频道配置热重载失败', err);
+      });
+      void this.sub.mcpManager.handleConfigReload().catch((err) => {
+        logger.error('MCP 配置热重载失败', err);
       });
     };
   }

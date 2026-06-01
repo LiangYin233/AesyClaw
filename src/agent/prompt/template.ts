@@ -1,28 +1,25 @@
-import type { RoleConfig, Skill } from '@aesyclaw/core/types';
+import type { RoleConfig } from '@aesyclaw/core/types';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import { buildRoleSection, buildSkillSection } from './sections';
+import { buildRoleSection } from './sections';
 
 export type BuildAgentPromptInput = {
   role: RoleConfig;
   availableTools: AesyClawTool[];
-  skills: Skill[];
+  promptSections: string[];
   allRoles: RoleConfig[];
-  skillDirs: Record<string, string>;
   isSubAgent: boolean;
   isCron: boolean;
 };
 
 export function buildAgentPrompt(input: BuildAgentPromptInput): string {
-  const { role, availableTools, skills, allRoles, skillDirs, isSubAgent, isCron } = input;
+  const { role, availableTools, promptSections, allRoles, isSubAgent, isCron } = input;
   const sections: string[] = [replaceTemplateVariables(role.systemPrompt)];
 
   if (availableTools.length > 0) {
     sections.push(buildToolSection(availableTools));
   }
 
-  if (skills.length > 0) {
-    sections.push(buildSkillSection(skills, skillDirs));
-  }
+  sections.push(...promptSections);
 
   if (!isSubAgent && !isCron) {
     sections.push(

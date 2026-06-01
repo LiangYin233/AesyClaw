@@ -17,7 +17,6 @@ import type {
 import type { LlmAdapter } from './llm/adapter';
 import { calculateActualTokens, type Session } from '@aesyclaw/session';
 import type { RoleManager } from '@aesyclaw/role/manager';
-import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { ErrorFactory, ErrorTracker } from '@aesyclaw/core/errors';
@@ -35,7 +34,6 @@ export type AgentOptions = {
   session: Session;
   llmAdapter: LlmAdapter;
   roleManager: RoleManager;
-  skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hooksBus: IHooksBus;
   compressionThreshold: number;
@@ -70,12 +68,11 @@ export class Agent {
 
   private llmAdapter: LlmAdapter;
   private roleManager: RoleManager;
-  private skillManager: SkillManager;
   private toolRegistry: ToolRegistry;
   private hooksBus: IHooksBus;
   private registry: AgentRegistry;
 
-  private cachedSystemPrompt: string | null = null;
+  private cachedSystemPrompt: { key: string; prompt: string } | null = null;
 
   static async resolveActiveRoleId(
     context: CommandContext,
@@ -100,7 +97,6 @@ export class Agent {
     this.session = options.session;
     this.llmAdapter = options.llmAdapter;
     this.roleManager = options.roleManager;
-    this.skillManager = options.skillManager;
     this.toolRegistry = options.toolRegistry;
     this.hooksBus = options.hooksBus;
     this.compressionThreshold = options.compressionThreshold;
@@ -315,12 +311,17 @@ export class Agent {
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
       sendMessage,
+      role,
       toolPermission: role.toolPermission,
     };
 
-    const { prompt: builtPrompt, tools } = this.buildPrompt(role, executionContext);
-    const prompt = this.cachedSystemPrompt ?? builtPrompt;
-    this.cachedSystemPrompt ??= builtPrompt;
+    const { prompt: builtPrompt, tools } = await this.buildPrompt(role, executionContext);
+    const promptCacheKey = createPromptCacheKey(role, executionContext);
+    const prompt =
+      this.cachedSystemPrompt?.key === promptCacheKey
+        ? this.cachedSystemPrompt.prompt
+        : builtPrompt;
+    this.cachedSystemPrompt = { key: promptCacheKey, prompt };
     const model = this.resolvedModel;
 
     return await runAgentTask({
@@ -342,13 +343,12 @@ export class Agent {
    * 构建发送给 LLM 的完整 Prompt。
    * 委托给 prompt-builder 模块。
    */
-  buildPrompt(
+  async buildPrompt(
     role: RoleConfig,
     executionContext?: Partial<ToolExecutionContext>,
-  ): BuildPromptResult {
-    return buildPromptFromBuilder(role, executionContext, {
+  ): Promise<BuildPromptResult> {
+    return await buildPromptFromBuilder(role, executionContext, {
       roleManager: this.roleManager,
-      skillManager: this.skillManager,
       toolRegistry: this.toolRegistry,
       hooksBus: this.hooksBus,
     });
@@ -423,4 +423,13 @@ export class Agent {
     logger.warn('Agent 未生成助手文本回复', { role: roleId });
     return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
   }
+}
+
+function createPromptCacheKey(
+  role: RoleConfig,
+  executionContext: Partial<ToolExecutionContext>,
+): string {
+  const agentKind = executionContext.sendMessage === undefined ? 'sub-agent' : 'agent';
+  const channel = executionContext.sessionKey?.channel ?? 'unknown';
+  return `${role.id}:${agentKind}:${channel}`;
 }

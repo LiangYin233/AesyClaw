@@ -12,7 +12,7 @@ import {
   createRunTempSubAgentTool,
 } from '../../../src/tool/builtin/run-sub-agent';
 import { registerBuiltinTools } from '../../../src/tool/builtin';
-import type { Skill } from '../../../src/core/types';
+import type { RoleConfig, Skill } from '../../../src/core/types';
 
 vi.mock('@mariozechner/pi-ai', async () => {
   const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
@@ -36,20 +36,26 @@ function makeSkillManager(skills: Skill[] = []) {
   };
 }
 
+function makeRole(skills: RoleConfig['skills'] = ['*']): RoleConfig {
+  return {
+    id: 'test-role',
+    description: 'Test role',
+    systemPrompt: 'Test',
+    toolPermission: { mode: 'allowlist', list: ['*'] },
+    skills,
+    enabled: true,
+  };
+}
+
+function makeToolContext(role: RoleConfig = makeRole()) {
+  return { sessionKey: SESSION_KEY, role };
+}
+
 describe('built-in tools', () => {
   it('send_msg returns a truthful error when no send callback is available', async () => {
     const tool = createSendMsgTool();
 
-    await expect(
-      tool.execute(
-        { text: 'hello' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
-    ).resolves.toEqual(
+    await expect(tool.execute({ text: 'hello' }, makeToolContext())).resolves.toEqual(
       expect.objectContaining({
         isError: true,
       }),
@@ -162,11 +168,7 @@ describe('built-in tools', () => {
     await expect(
       tool.execute(
         { skillName: 'example-skill', relativePath: 'references/guide.txt' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
+        makeToolContext(),
       ),
     ).resolves.toEqual({ content: 'Helpful reference' });
   });
@@ -187,30 +189,16 @@ describe('built-in tools', () => {
       ]),
     });
 
-    await expect(
-      tool.execute(
-        { skillName: 'example-skill' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
-    ).resolves.toEqual({ content: '# Default Skill\n' });
+    await expect(tool.execute({ skillName: 'example-skill' }, makeToolContext())).resolves.toEqual({
+      content: '# Default Skill\n',
+    });
   });
 
   it('load_skill returns a structured error for unknown skills', async () => {
     const tool = createLoadSkillTool({ skillManager: makeSkillManager() });
 
     await expect(
-      tool.execute(
-        { skillName: 'missing-skill', relativePath: 'SKILL.md' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
+      tool.execute({ skillName: 'missing-skill', relativePath: 'SKILL.md' }, makeToolContext()),
     ).resolves.toEqual({
       content: '技能 "missing-skill" 未加载。',
       isError: true,
@@ -219,6 +207,54 @@ describe('built-in tools', () => {
         skillName: 'missing-skill',
         relativePath: 'SKILL.md',
       },
+    });
+  });
+
+  it('load_skill rejects user skills outside the current role', async () => {
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(os.tmpdir(), 'example-skill', 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute({ skillName: 'example-skill' }, makeToolContext(makeRole([]))),
+    ).resolves.toEqual({
+      content: '角色无权读取技能 "example-skill"。',
+      isError: true,
+      details: {
+        code: 'SKILL_NOT_ALLOWED',
+        skillName: 'example-skill',
+        relativePath: 'SKILL.md',
+      },
+    });
+  });
+
+  it('load_skill allows system skills without a role context', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# System Skill\n', 'utf-8');
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'system-skill',
+          description: 'System skill',
+          content: 'Skill body',
+          isSystem: true,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute({ skillName: 'system-skill' }, { sessionKey: SESSION_KEY }),
+    ).resolves.toEqual({
+      content: '# System Skill\n',
     });
   });
 
@@ -237,14 +273,7 @@ describe('built-in tools', () => {
     });
 
     await expect(
-      tool.execute(
-        { skillName: 'example-skill', relativePath: 'missing.txt' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
+      tool.execute({ skillName: 'example-skill', relativePath: 'missing.txt' }, makeToolContext()),
     ).resolves.toEqual({
       content: '文件 "missing.txt" 在技能 "example-skill" 中不存在。',
       isError: true,
@@ -274,11 +303,7 @@ describe('built-in tools', () => {
 
     const result = await tool.execute(
       { skillName: 'example-skill', relativePath: '../secret.txt' },
-      {
-        sessionKey: SESSION_KEY,
-        agentEngine: null,
-        cronManager: null,
-      },
+      makeToolContext(),
     );
 
     expect(result).toEqual({
@@ -310,14 +335,7 @@ describe('built-in tools', () => {
     });
 
     await expect(
-      tool.execute(
-        { skillName: 'example-skill', relativePath: absolutePath },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
+      tool.execute({ skillName: 'example-skill', relativePath: absolutePath }, makeToolContext()),
     ).resolves.toEqual({
       content: `路径 "${absolutePath}" 必须相对于技能 "example-skill"。`,
       isError: true,
@@ -351,11 +369,7 @@ describe('built-in tools', () => {
     await expect(
       tool.execute(
         { skillName: 'example-skill', relativePath: 'linked/secret.txt' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
+        makeToolContext(),
       ),
     ).resolves.toEqual({
       content: '路径 "linked/secret.txt" 逃逸出技能 "example-skill" 目录。',
@@ -386,14 +400,7 @@ describe('built-in tools', () => {
     });
 
     await expect(
-      tool.execute(
-        { skillName: 'example-skill', relativePath: 'binary.bin' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
-      ),
+      tool.execute({ skillName: 'example-skill', relativePath: 'binary.bin' }, makeToolContext()),
     ).resolves.toEqual({
       content: '技能 "example-skill" 中的文件 "binary.bin" 不是可读的 UTF-8 文本文件。',
       isError: true,
@@ -421,11 +428,7 @@ describe('built-in tools', () => {
     await expect(
       tool.execute(
         { skillName: 'flat-skill', relativePath: 'references/guide.txt' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
+        makeToolContext(),
       ),
     ).resolves.toEqual({
       content: '技能 "flat-skill" 没有专用目录上下文。',
@@ -496,11 +499,7 @@ describe('built-in tools', () => {
     await expect(
       tool.execute(
         { systemPrompt: 'You are concise.', prompt: 'Summarize this.' },
-        {
-          sessionKey: SESSION_KEY,
-          agentEngine: null,
-          cronManager: null,
-        },
+        makeToolContext(),
       ),
     ).resolves.toEqual({
       content: '临时子代理执行失败: sandbox offline',

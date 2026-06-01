@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Agent } from '../../../src/agent/agent';
 import { buildAgentPrompt } from '../../../src/agent/prompt/template';
+import { buildSkillSection } from '../../../src/agent/prompt/sections';
 import { AgentRegistry } from '../../../src/agent/registry';
+import { HooksBus } from '../../../src/hook/hooks-bus';
+import { createSkillPromptHook } from '../../../src/hook/builtin/skill-prompt';
 import type { Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/manager';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
@@ -63,7 +66,6 @@ describe('PromptBuilder', () => {
     };
     const skillManager = {
       getSkillsForRole: vi.fn().mockReturnValue([makeSkill()]),
-      getSkillDirs: vi.fn().mockReturnValue({}),
       ...(overrides.skillManager ?? {}),
     };
     const toolRegistry = {
@@ -71,6 +73,19 @@ describe('PromptBuilder', () => {
       ...(overrides.toolRegistry ?? {}),
     };
     const hooksBus = {
+      dispatch: vi.fn(async (chain: string, ctx: { role?: unknown; promptSections?: string[] }) => {
+        if (
+          chain === 'prompt:build' &&
+          ctx.promptSections !== undefined &&
+          ctx.role !== undefined
+        ) {
+          const skills = skillManager.getSkillsForRole(ctx.role as never);
+          if (skills.length > 0) {
+            ctx.promptSections.push(buildSkillSection(skills));
+          }
+        }
+        return { action: 'next' as const };
+      }),
       dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
       dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
       ...(overrides.hooksBus ?? {}),
@@ -91,7 +106,6 @@ describe('PromptBuilder', () => {
       } as never,
       llmAdapter: { resolveModel: vi.fn() } as never,
       roleManager: deps.roleManager as never,
-      skillManager: deps.skillManager as never,
       toolRegistry: deps.toolRegistry as never,
       hooksBus: deps.hooksBus as never,
       compressionThreshold: 0.8,
@@ -104,9 +118,8 @@ describe('PromptBuilder', () => {
       const prompt = buildAgentPrompt({
         role: makeRole({ systemPrompt: 'Today is {{os}} using {{systemLang}}.' }),
         availableTools: [makeTool({ name: 'send-msg' })],
-        skills: [makeSkill()],
+        promptSections: ['## 技能\n- **greeting**: Greeting skill'],
         allRoles: [makeRole({ id: 'helper' })],
-        skillDirs: {},
         isSubAgent: false,
         isCron: false,
       });
@@ -124,9 +137,8 @@ describe('PromptBuilder', () => {
       const prompt = buildAgentPrompt({
         role: makeRole(),
         availableTools: [],
-        skills: [],
+        promptSections: [],
         allRoles: [makeRole({ id: 'helper' })],
-        skillDirs: {},
         isSubAgent: true,
         isCron: false,
       });
@@ -139,9 +151,8 @@ describe('PromptBuilder', () => {
       const prompt = buildAgentPrompt({
         role: makeRole(),
         availableTools: [],
-        skills: [],
+        promptSections: [],
         allRoles: [makeRole({ id: 'helper' })],
-        skillDirs: {},
         isSubAgent: false,
         isCron: true,
       });
@@ -152,13 +163,13 @@ describe('PromptBuilder', () => {
   });
 
   describe('buildPrompt', () => {
-    it('should build a prompt with role, tools, and skills', () => {
+    it('should build a prompt with role, tools, and skills', async () => {
       const deps = makeDeps();
       const agent = makeAgent(deps, agentRegistry);
 
       const role = makeRole();
 
-      const result = agent.buildPrompt(role);
+      const result = await agent.buildPrompt(role);
 
       expect(result.prompt).toContain('You are {{role}}.');
       expect(result.prompt).toContain('**greeting**: Greeting skill');
@@ -168,7 +179,7 @@ describe('PromptBuilder', () => {
       expect(deps.roleManager.getEnabledRoles).toHaveBeenCalled();
     });
 
-    it('should return resolved AgentTools', () => {
+    it('should return resolved AgentTools', async () => {
       const agentTool = makeAgentTool({ name: 'custom-tool' });
       const deps = makeDeps({
         toolRegistry: {
@@ -179,13 +190,13 @@ describe('PromptBuilder', () => {
 
       const role = makeRole();
 
-      const result = agent.buildPrompt(role);
+      const result = await agent.buildPrompt(role);
 
       expect(result.tools).toEqual([agentTool]);
       expect(result.tools).toHaveLength(1);
     });
 
-    it('should omit skill sections when no skills are available', () => {
+    it('should omit skill sections when no skills are available', async () => {
       const deps = makeDeps({
         skillManager: {
           getSkillsForRole: vi.fn().mockReturnValue([]),
@@ -193,12 +204,12 @@ describe('PromptBuilder', () => {
       });
       const agent = makeAgent(deps, agentRegistry);
 
-      const result = agent.buildPrompt(makeRole({ skills: [] }));
+      const result = await agent.buildPrompt(makeRole({ skills: [] }));
 
       expect(result.prompt).not.toContain('## 技能');
     });
 
-    it('should format multiple skill sections directly in the agent prompt', () => {
+    it('should format multiple skill sections directly in the agent prompt', async () => {
       const deps = makeDeps({
         skillManager: {
           getSkillsForRole: vi
@@ -211,7 +222,7 @@ describe('PromptBuilder', () => {
       });
       const agent = makeAgent(deps, agentRegistry);
 
-      const result = agent.buildPrompt(makeRole({ skills: ['first', 'second'] }));
+      const result = await agent.buildPrompt(makeRole({ skills: ['first', 'second'] }));
 
       expect(result.prompt).toContain('**first**: Greeting skill');
       expect(result.prompt).toContain('**second**: Greeting skill');
@@ -219,7 +230,7 @@ describe('PromptBuilder', () => {
       expect(result.prompt).not.toContain('Second content.');
     });
 
-    it('should include filtered internal tools in final prompt content', () => {
+    it('should include filtered internal tools in final prompt content', async () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
@@ -230,13 +241,13 @@ describe('PromptBuilder', () => {
 
       const role = makeRole();
 
-      const result = agent.buildPrompt(role);
+      const result = await agent.buildPrompt(role);
 
       expect(result.prompt).toContain('## Available Tools');
       expect(result.prompt).toContain('**send-msg**: A test tool');
     });
 
-    it('should filter tools by role permissions', () => {
+    it('should filter tools by role permissions', async () => {
       const allowedTool = makeTool({ name: 'allowed' });
 
       const deps = makeDeps({
@@ -249,12 +260,12 @@ describe('PromptBuilder', () => {
         toolPermission: { mode: 'allowlist', list: ['allowed'] },
       });
 
-      const result = agent.buildPrompt(role);
+      const result = await agent.buildPrompt(role);
 
       expect(result.prompt).toContain('**allowed**: A test tool');
     });
 
-    it('should pass all enabled roles into the prompt', () => {
+    it('should pass all enabled roles into the prompt', async () => {
       const roles = [makeRole({ id: 'admin' }), makeRole({ id: 'user' })];
       const deps = makeDeps({
         roleManager: {
@@ -263,18 +274,18 @@ describe('PromptBuilder', () => {
       });
       const agent = makeAgent(deps, agentRegistry);
 
-      const result = agent.buildPrompt(makeRole());
+      const result = await agent.buildPrompt(makeRole());
 
       expect(result.prompt).toContain('**admin** — A helpful assistant');
       expect(result.prompt).toContain('**user** — A helpful assistant');
     });
 
-    it('should pass execution context to tool resolution', () => {
+    it('should pass execution context to tool resolution', async () => {
       const deps = makeDeps();
       const agent = makeAgent(deps, agentRegistry);
       const ctx = { sessionKey: { channel: 'test', type: 'private', chatId: '1' } };
 
-      agent.buildPrompt(makeRole(), ctx);
+      await agent.buildPrompt(makeRole(), ctx);
 
       expect(deps.toolRegistry.resolveForRole).toHaveBeenCalledWith(
         expect.any(Object),
@@ -327,26 +338,24 @@ Blocked content.`,
         getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),
       };
       const registry = new AgentRegistry();
+      const hooksBus = new HooksBus();
+      hooksBus.register(createSkillPromptHook(skillManager));
       const agent = new Agent({
         session: {
           key: { channel: 'test', type: 'private', chatId: 'prompt-builder-skills' },
         } as never,
         llmAdapter: { resolveModel: vi.fn() } as never,
         roleManager: roleManager as never,
-        skillManager,
         toolRegistry: {
           resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
         } as never,
-        hooksBus: {
-          dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
-          dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
-        } as never,
+        hooksBus,
         compressionThreshold: 0.8,
         registry,
       });
 
       try {
-        const result = agent.buildPrompt(makeRole({ skills: ['allowed-skill'] }));
+        const result = await agent.buildPrompt(makeRole({ skills: ['allowed-skill'] }));
 
         expect(result.prompt).toContain('**system-skill**: System');
         expect(result.prompt).toContain('**allowed-skill**: Allowed');

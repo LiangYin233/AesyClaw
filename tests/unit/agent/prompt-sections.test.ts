@@ -83,25 +83,6 @@ describe('buildSkillSection', () => {
     expect(result).toContain('无描述');
   });
 
-  it('includes path section when skillDirs are provided', () => {
-    const result = buildSkillSection([makeSkill('research', 'Research')], {
-      systemDir: '/skills/system',
-      userDir: '/skills/user',
-    });
-    expect(result).toContain('6. **路径**');
-    expect(result).toContain('系统技能');
-    expect(result).toContain('`/skills/system`');
-    expect(result).toContain('用户技能');
-    expect(result).toContain('`/skills/user`');
-  });
-
-  it('includes only systemDir when userDir is absent', () => {
-    const result = buildSkillSection([makeSkill('test', 'Test')], { systemDir: '/skills/system' });
-    expect(result).toContain('6. **路径**');
-    expect(result).toContain('系统技能');
-    expect(result).not.toContain('用户技能');
-  });
-
   it('handles empty skills array', () => {
     const result = buildSkillSection([]);
     expect(result).toContain('## 技能');

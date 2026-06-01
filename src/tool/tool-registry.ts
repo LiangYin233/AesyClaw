@@ -50,6 +50,8 @@ export type ToolExecutionContext = {
   sessionKey: SessionKey;
   /** 在可用时通过管道的 onSend 感知传递路径发送 */
   sendMessage?: (message: Message) => Promise<boolean>;
+  /** 调用者角色配置，工具可用于执行角色级权限检查 */
+  role?: RoleConfig;
   /** 调用者角色的工具权限，子代理用于继承限制 */
   toolPermission?: ToolPermissionConfig;
 };

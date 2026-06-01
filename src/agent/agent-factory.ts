@@ -5,7 +5,6 @@ import { Agent } from './agent';
 import type { Session } from '@aesyclaw/session';
 import type { LlmAdapter } from './llm/adapter';
 import type { RoleManager } from '@aesyclaw/role/manager';
-import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { IHooksBus } from '@aesyclaw/hook';
 import type { AgentRegistry } from './registry';
@@ -13,7 +12,6 @@ import type { AgentRegistry } from './registry';
 export type AgentFactoryDependencies = {
   llmAdapter: LlmAdapter;
   roleManager: RoleManager;
-  skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hooksBus: IHooksBus;
   compressionThreshold: number;
@@ -39,7 +37,6 @@ export class AgentFactory {
       session,
       llmAdapter: this.deps.llmAdapter,
       roleManager: this.deps.roleManager,
-      skillManager: this.deps.skillManager,
       toolRegistry: this.deps.toolRegistry,
       hooksBus: this.deps.hooksBus,
       compressionThreshold: this.deps.compressionThreshold,

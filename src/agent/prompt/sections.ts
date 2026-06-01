@@ -40,22 +40,9 @@ export function buildRoleSection(allRoles: RoleConfig[]): string {
  * 构建技能列表的 Prompt 段落，包含可用技能描述和使用规则。
  *
  * @param skills - 可用技能列表
- * @param skillDirs - 可选的技能目录路径（用户 / 系统）
  * @returns Markdown 格式的技能段落
  */
-export function buildSkillSection(
-  skills: Skill[],
-  skillDirs?: { userDir?: string; systemDir?: string },
-): string {
+export function buildSkillSection(skills: Skill[]): string {
   const lines = skills.map((s) => `- **${s.name}**: ${s.description || '无描述'}`);
-  const rules =
-    skillDirs?.systemDir || skillDirs?.userDir ? buildSkillRulesWithPaths(skillDirs) : SKILL_RULES;
-  return `${SKILL_HEADER}\n${lines.join('\n')}\n\n${rules}`;
-}
-
-function buildSkillRulesWithPaths(dirs: { userDir?: string; systemDir?: string }): string {
-  const paths: string[] = [];
-  if (dirs.systemDir) paths.push(`- 系统技能: \`${dirs.systemDir}\``);
-  if (dirs.userDir) paths.push(`- 用户技能: \`${dirs.userDir}\``);
-  return `${SKILL_RULES}\n\n6. **路径**\n${paths.join('\n')}`;
+  return `${SKILL_HEADER}\n${lines.join('\n')}\n\n${SKILL_RULES}`;
 }

@@ -83,12 +83,11 @@ export default plugin;
 
 ### 注册能力
 
-| 方法                       | 说明                                           |
-| -------------------------- | ---------------------------------------------- |
-| `registerTool(tool)`       | 注册一个工具，作用域自动限定为 `plugin:{name}` |
-| `unregisterTool(name)`     | 注销已注册的工具（只能注销自己的）             |
-| `registerCommand(cmd)`     | 注册一个斜杠命令，作用域同上                   |
-| `registerChannel(channel)` | 注册一个消息频道（ChannelPlugin 接口）         |
+| 方法                   | 说明                                           |
+| ---------------------- | ---------------------------------------------- |
+| `registerTool(tool)`   | 注册一个工具，作用域自动限定为 `plugin:{name}` |
+| `unregisterTool(name)` | 注销已注册的工具（只能注销自己的）             |
+| `registerCommand(cmd)` | 注册一个斜杠命令，作用域同上                   |
 
 ### 日志与模型
 
@@ -108,13 +107,14 @@ export default plugin;
 ### 可用 Hook 链
 
 ```
-pipeline:receive → pipeline:beforeLLM → pipeline:send
+pipeline:receive → pipeline:beforeLLM → prompt:build → pipeline:send
 ```
 
 | Hook 链              | 触发时机                   | 上下文 `ctx`                                        |
 | -------------------- | -------------------------- | --------------------------------------------------- |
 | `pipeline:receive`   | 收到用户消息后，命令检测前 | `message`, `sessionKey`, `sender`                   |
 | `pipeline:beforeLLM` | LLM 调用前，会话锁定后     | `message`, `sessionKey`, `session`, `agent`, `role` |
+| `prompt:build`       | 构建系统提示词时           | `role`, `promptSections`, `sessionKey`              |
 | `pipeline:send`      | 出站消息投递前             | `message`, `sessionKey`                             |
 
 ### Hook 返回值
@@ -124,6 +124,8 @@ pipeline:receive → pipeline:beforeLLM → pipeline:send
 | `next`    | 继续执行下一个 Hook                                |
 | `respond` | 跳过后续 Hooks，直接以 `result.message` 为最终消息 |
 | `block`   | 阻止消息投递（仅 `pipeline:send` 支持）            |
+
+`prompt:build` 用于追加 `ctx.promptSections`，应返回 `next`；其他返回值会被视为 Prompt 构建错误。
 
 ### middleware 格式
 

@@ -117,7 +117,7 @@ User content.`,
       expect(skills.find((s) => s.name === 'user-skill')).toBeDefined();
     });
 
-    it('should give system skills priority over user skills on name collision', async () => {
+    it('should reject duplicate skill names', async () => {
       writeSkill(
         systemDir,
         'conflict',
@@ -138,13 +138,9 @@ description: User version
 User content.`,
       );
 
-      await manager.loadAll(userDir, systemDir);
-
-      const skill = manager.getSkill('conflict');
-      const conflictSkill = expectSkill(skill, 'conflict');
-      expect(conflictSkill.isSystem).toBe(true);
-      expect(conflictSkill.description).toBe('System version');
-      expect(conflictSkill.content).toBe('System content.');
+      await expect(manager.loadAll(userDir, systemDir)).rejects.toThrow(
+        '技能名称 "conflict" 重复，请重命名后再加载',
+      );
     });
 
     it('should skip malformed skill files gracefully', async () => {
@@ -176,6 +172,52 @@ Valid content.`,
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(0);
+    });
+  });
+
+  describe('reload', () => {
+    it('keeps the previous skill set when reload fails on duplicate names', async () => {
+      writeSkill(
+        systemDir,
+        'conflict',
+        `---
+name: conflict
+description: System
+---
+System content.`,
+      );
+
+      writeSkill(
+        userDir,
+        'user-skill',
+        `---
+name: user-skill
+description: Original
+---
+Original content.`,
+      );
+
+      await manager.loadAll(userDir, systemDir);
+      writeSkill(
+        userDir,
+        'conflict',
+        `---
+name: conflict
+description: User conflict
+---
+User content.`,
+      );
+
+      await expect(manager.reload()).rejects.toThrow('技能名称 "conflict" 重复，请重命名后再加载');
+
+      expect(
+        manager
+          .getAllSkills()
+          .map((skill) => skill.name)
+          .sort(),
+      ).toEqual(['conflict', 'user-skill']);
+      expect(manager.getSkill('user-skill')?.description).toBe('Original');
+      expect(manager.getSkill('conflict')?.isSystem).toBe(true);
     });
   });
 

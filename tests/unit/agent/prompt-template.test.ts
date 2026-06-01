@@ -9,14 +9,6 @@ const makeTool = (name: string, description: string) => ({
   execute: async () => ({ content: '' }),
 });
 
-const makeSkill = (name: string) => ({
-  name,
-  description: `Skill ${name}`,
-  content: 'content',
-  isSystem: true,
-  filePath: `/skills/${name}.md`,
-});
-
 describe('buildAgentPrompt', () => {
   it('includes system prompt', () => {
     const result = buildAgentPrompt({
@@ -30,9 +22,8 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [],
-      skills: [],
+      promptSections: [],
       allRoles: [],
-      skillDirs: {},
       isSubAgent: false,
       isCron: false,
     });
@@ -51,9 +42,8 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [makeTool('search', 'Search the web')],
-      skills: [],
+      promptSections: [],
       allRoles: [],
-      skillDirs: {},
       isSubAgent: false,
       isCron: false,
     });
@@ -74,9 +64,8 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [],
-      skills: [makeSkill('skill-a')],
+      promptSections: ['## 技能\n- **skill-a**: Skill skill-a'],
       allRoles: [],
-      skillDirs: { 'skill-a': '/skills/skill-a.md' },
       isSubAgent: false,
       isCron: false,
     });
@@ -95,9 +84,8 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [makeTool('send_msg', 'Send message to user')],
-      skills: [],
+      promptSections: [],
       allRoles: [],
-      skillDirs: {},
       isSubAgent: false,
       isCron: false,
     });
@@ -117,9 +105,8 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [makeTool('search', 'Search')],
-      skills: [],
+      promptSections: [],
       allRoles: [],
-      skillDirs: {},
       isSubAgent: true,
       isCron: false,
     });
@@ -138,9 +125,8 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [makeTool('search', 'Search')],
-      skills: [],
+      promptSections: [],
       allRoles: [],
-      skillDirs: {},
       isSubAgent: false,
       isCron: true,
     });
@@ -159,7 +145,7 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [],
-      skills: [],
+      promptSections: [],
       allRoles: [
         {
           id: 'helper',
@@ -171,7 +157,6 @@ describe('buildAgentPrompt', () => {
           enabled: true,
         },
       ],
-      skillDirs: {},
       isSubAgent: false,
       isCron: false,
     });
@@ -191,9 +176,8 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [],
-      skills: [],
+      promptSections: [],
       allRoles: [],
-      skillDirs: {},
       isSubAgent: false,
       isCron: false,
     });

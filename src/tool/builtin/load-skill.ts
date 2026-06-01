@@ -9,7 +9,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from '@sinclair/typebox';
 import type { Skill, ToolOwner } from '@aesyclaw/core/types';
-import type { SkillManager } from '@aesyclaw/skill/manager';
+import { isSkillAllowedForRole, type SkillManager } from '@aesyclaw/skill/manager';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   AesyClawTool,
@@ -45,7 +45,7 @@ export function createLoadSkillTool(deps: {
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
-      _context: ToolExecutionContext,
+      context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
       const { skillName, relativePath: rawRelativePath } = params as {
         skillName: string;
@@ -58,6 +58,15 @@ export function createLoadSkillTool(deps: {
         return errorResult(
           `技能 "${skillName}" 未加载。`,
           'SKILL_NOT_FOUND',
+          skillName,
+          relativePath,
+        );
+      }
+
+      if (!isSkillAllowedForRole(skill, context.role)) {
+        return errorResult(
+          `角色无权读取技能 "${skillName}"。`,
+          'SKILL_NOT_ALLOWED',
           skillName,
           relativePath,
         );
@@ -188,7 +197,8 @@ function errorResult(
     | 'SKILL_PATH_TRAVERSAL_REJECTED'
     | 'SKILL_FILE_NOT_FOUND'
     | 'SKILL_FILE_UNREADABLE'
-    | 'SKILL_FILE_NOT_TEXT',
+    | 'SKILL_FILE_NOT_TEXT'
+    | 'SKILL_NOT_ALLOWED',
   skillName: string,
   relativePath: string,
 ): ToolExecutionResult {

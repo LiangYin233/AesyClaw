@@ -20,7 +20,6 @@ const logger = createScopedLogger('skill');
 export class SkillManager {
   private skills: Map<string, Skill> = new Map();
   private lastUserDir?: string;
-  private lastSystemDir?: string;
 
   /**
    * 从用户目录和系统目录加载所有技能文件。
@@ -30,7 +29,6 @@ export class SkillManager {
    */
   async loadAll(userDir: string, systemDir: string): Promise<void> {
     this.lastUserDir = userDir;
-    this.lastSystemDir = systemDir;
     this.skills.clear();
     this.loadFromDirectory(userDir, false);
     this.loadFromDirectory(systemDir, true);
@@ -48,8 +46,10 @@ export class SkillManager {
     if (!this.lastUserDir) {
       throw new Error('技能尚未加载，无法重载');
     }
-    this.removeUserSkills();
-    this.loadFromDirectory(this.lastUserDir, false);
+    const nextSkills = new Map(this.skills);
+    this.removeUserSkills(nextSkills);
+    this.loadFromDirectory(this.lastUserDir, false, nextSkills);
+    this.skills = nextSkills;
     logger.info(`已重新加载用户技能，当前共 ${this.skills.size} 个技能`);
   }
 
@@ -61,14 +61,6 @@ export class SkillManager {
    */
   getAllSkills(): Skill[] {
     return [...this.skills.values()];
-  }
-
-  /**
-   * 返回用户和系统技能目录的绝对路径。
-   * @returns 包含 userDir 和 systemDir 的对象
-   */
-  getSkillDirs(): { userDir?: string; systemDir?: string } {
-    return { userDir: this.lastUserDir, systemDir: this.lastSystemDir };
   }
 
   /**
@@ -90,24 +82,15 @@ export class SkillManager {
    * @returns 适用于该角色的技能数组
    */
   getSkillsForRole(role: RoleConfig): Skill[] {
-    const isWildcard = role.skills.length === 1 && role.skills[0] === '*';
-    const skillSet = isWildcard ? null : new Set(role.skills);
-
-    const result: Skill[] = [];
-    for (const skill of this.skills.values()) {
-      if (skill.isSystem || isWildcard || skillSet?.has(skill.name)) {
-        result.push(skill);
-      }
-    }
-    return result;
+    return [...this.skills.values()].filter((skill) => isSkillAllowedForRole(skill, role));
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
 
-  private removeUserSkills(): void {
-    for (const [name, skill] of this.skills) {
+  private removeUserSkills(skills: Map<string, Skill> = this.skills): void {
+    for (const [name, skill] of skills) {
       if (!skill.isSystem) {
-        this.skills.delete(name);
+        skills.delete(name);
       }
     }
   }
@@ -122,7 +105,11 @@ export class SkillManager {
    * @param dir      - 要扫描的目录
    * @param isSystem - 这些是否为系统技能
    */
-  private loadFromDirectory(dir: string, isSystem: boolean): void {
+  private loadFromDirectory(
+    dir: string,
+    isSystem: boolean,
+    target: Map<string, Skill> = this.skills,
+  ): void {
     if (!fs.existsSync(dir)) {
       logger.debug(`技能目录不存在: ${dir}`);
       return;
@@ -149,11 +136,19 @@ export class SkillManager {
 
       const skill = parseSkillFile(skillFile, isSystem);
       if (skill) {
-        if (this.skills.has(skill.name)) {
-          logger.warn(`技能名称 "${skill.name}" 重复 — 覆盖之前的定义`);
+        if (target.has(skill.name)) {
+          throw new Error(`技能名称 "${skill.name}" 重复，请重命名后再加载`);
         }
-        this.skills.set(skill.name, skill);
+        target.set(skill.name, skill);
       }
     }
   }
+}
+
+export function isSkillAllowedForRole(skill: Skill, role?: Pick<RoleConfig, 'skills'>): boolean {
+  if (skill.isSystem) return true;
+  if (!role) return false;
+  if (role.skills.length === 1 && role.skills[0] === '*') return true;
+  const allowedSkills: readonly string[] = role.skills;
+  return allowedSkills.includes(skill.name);
 }
