@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Agent } from '../../../src/agent/agent';
 import { buildAgentPrompt } from '../../../src/agent/prompt/template';
-import { buildSkillSection } from '../../../src/agent/prompt/sections';
+import { buildRoleSection, buildSkillSection } from '../../../src/agent/prompt/sections';
 import { AgentRegistry } from '../../../src/agent/registry';
 import { HooksBus } from '../../../src/hook/hooks-bus';
 import { createSkillPromptHook } from '../../../src/hook/builtin/skill-prompt';
+import { createRolePromptHook } from '../../../src/hook/builtin/role-prompt';
 import type { Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/manager';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
@@ -73,19 +74,34 @@ describe('PromptBuilder', () => {
       ...(overrides.toolRegistry ?? {}),
     };
     const hooksBus = {
-      dispatch: vi.fn(async (chain: string, ctx: { role?: unknown; promptSections?: string[] }) => {
-        if (
-          chain === 'prompt:build' &&
-          ctx.promptSections !== undefined &&
-          ctx.role !== undefined
-        ) {
-          const skills = skillManager.getSkillsForRole(ctx.role as never);
-          if (skills.length > 0) {
-            ctx.promptSections.push(buildSkillSection(skills));
+      dispatch: vi.fn(
+        async (
+          chain: string,
+          ctx: {
+            role?: unknown;
+            promptSections?: string[];
+            finalPromptSections?: string[];
+            isSubAgent?: boolean;
+          },
+        ) => {
+          if (chain === 'prompt:build' && ctx.role !== undefined) {
+            if (ctx.promptSections !== undefined) {
+              const skills = skillManager.getSkillsForRole(ctx.role as never);
+              if (skills.length > 0) {
+                ctx.promptSections.push(buildSkillSection(skills));
+              }
+            }
+
+            if (ctx.finalPromptSections !== undefined && ctx.isSubAgent !== true) {
+              const roles = roleManager.getEnabledRoles();
+              if (roles.length > 0) {
+                ctx.finalPromptSections.push(buildRoleSection(roles));
+              }
+            }
           }
-        }
-        return { action: 'next' as const };
-      }),
+          return { action: 'next' as const };
+        },
+      ),
       dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
       dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
       ...(overrides.hooksBus ?? {}),
@@ -105,7 +121,6 @@ describe('PromptBuilder', () => {
         key: { channel: 'test', type: 'private', chatId: 'prompt-builder' },
       } as never,
       llmAdapter: { resolveModel: vi.fn() } as never,
-      roleManager: deps.roleManager as never,
       toolRegistry: deps.toolRegistry as never,
       hooksBus: deps.hooksBus as never,
       compressionThreshold: 0.8,
@@ -119,7 +134,7 @@ describe('PromptBuilder', () => {
         role: makeRole({ systemPrompt: 'Today is {{os}} using {{systemLang}}.' }),
         availableTools: [makeTool({ name: 'send-msg' })],
         promptSections: ['## 技能\n- **greeting**: Greeting skill'],
-        allRoles: [makeRole({ id: 'helper' })],
+        finalPromptSections: ['## 角色\n- **helper** — A helpful assistant'],
         isSubAgent: false,
         isCron: false,
       });
@@ -138,7 +153,7 @@ describe('PromptBuilder', () => {
         role: makeRole(),
         availableTools: [],
         promptSections: [],
-        allRoles: [makeRole({ id: 'helper' })],
+        finalPromptSections: [],
         isSubAgent: true,
         isCron: false,
       });
@@ -152,7 +167,7 @@ describe('PromptBuilder', () => {
         role: makeRole(),
         availableTools: [],
         promptSections: [],
-        allRoles: [makeRole({ id: 'helper' })],
+        finalPromptSections: ['## 角色\n- **helper** — A helpful assistant'],
         isSubAgent: false,
         isCron: true,
       });
@@ -340,12 +355,12 @@ Blocked content.`,
       const registry = new AgentRegistry();
       const hooksBus = new HooksBus();
       hooksBus.register(createSkillPromptHook(skillManager));
+      hooksBus.register(createRolePromptHook(roleManager));
       const agent = new Agent({
         session: {
           key: { channel: 'test', type: 'private', chatId: 'prompt-builder-skills' },
         } as never,
         llmAdapter: { resolveModel: vi.fn() } as never,
-        roleManager: roleManager as never,
         toolRegistry: {
           resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
         } as never,

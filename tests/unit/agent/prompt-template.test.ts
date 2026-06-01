@@ -23,7 +23,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [],
       promptSections: [],
-      allRoles: [],
+      finalPromptSections: [],
       isSubAgent: false,
       isCron: false,
     });
@@ -43,7 +43,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [makeTool('search', 'Search the web')],
       promptSections: [],
-      allRoles: [],
+      finalPromptSections: [],
       isSubAgent: false,
       isCron: false,
     });
@@ -65,7 +65,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [],
       promptSections: ['## 技能\n- **skill-a**: Skill skill-a'],
-      allRoles: [],
+      finalPromptSections: [],
       isSubAgent: false,
       isCron: false,
     });
@@ -85,7 +85,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [makeTool('send_msg', 'Send message to user')],
       promptSections: [],
-      allRoles: [],
+      finalPromptSections: [],
       isSubAgent: false,
       isCron: false,
     });
@@ -106,7 +106,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [makeTool('search', 'Search')],
       promptSections: [],
-      allRoles: [],
+      finalPromptSections: [],
       isSubAgent: true,
       isCron: false,
     });
@@ -126,7 +126,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [makeTool('search', 'Search')],
       promptSections: [],
-      allRoles: [],
+      finalPromptSections: [],
       isSubAgent: false,
       isCron: true,
     });
@@ -146,17 +146,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [],
       promptSections: [],
-      allRoles: [
-        {
-          id: 'helper',
-          description: 'Helper role',
-          systemPrompt: 'You help.',
-          model: 'gpt-4o-mini',
-          toolPermission: { mode: 'denylist', list: [] },
-          skills: [],
-          enabled: true,
-        },
-      ],
+      finalPromptSections: ['## 角色\n- **helper** — Helper role'],
       isSubAgent: false,
       isCron: false,
     });
@@ -177,7 +167,7 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [],
       promptSections: [],
-      allRoles: [],
+      finalPromptSections: [],
       isSubAgent: false,
       isCron: false,
     });

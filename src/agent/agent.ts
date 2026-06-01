@@ -16,7 +16,6 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm/adapter';
 import { calculateActualTokens, type Session } from '@aesyclaw/session';
-import type { RoleManager } from '@aesyclaw/role/manager';
 import type { IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { ErrorFactory, ErrorTracker } from '@aesyclaw/core/errors';
@@ -33,7 +32,6 @@ const errorTracker = ErrorTracker.getInstance();
 export type AgentOptions = {
   session: Session;
   llmAdapter: LlmAdapter;
-  roleManager: RoleManager;
   toolRegistry: ToolRegistry;
   hooksBus: IHooksBus;
   compressionThreshold: number;
@@ -67,7 +65,6 @@ export class Agent {
   private currentAllowedTools: AesyClawTool[] = [];
 
   private llmAdapter: LlmAdapter;
-  private roleManager: RoleManager;
   private toolRegistry: ToolRegistry;
   private hooksBus: IHooksBus;
   private registry: AgentRegistry;
@@ -96,7 +93,6 @@ export class Agent {
   constructor(options: AgentOptions) {
     this.session = options.session;
     this.llmAdapter = options.llmAdapter;
-    this.roleManager = options.roleManager;
     this.toolRegistry = options.toolRegistry;
     this.hooksBus = options.hooksBus;
     this.compressionThreshold = options.compressionThreshold;
@@ -348,7 +344,6 @@ export class Agent {
     executionContext?: Partial<ToolExecutionContext>,
   ): Promise<BuildPromptResult> {
     return await buildPromptFromBuilder(role, executionContext, {
-      roleManager: this.roleManager,
       toolRegistry: this.toolRegistry,
       hooksBus: this.hooksBus,
     });

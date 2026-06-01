@@ -8,12 +8,10 @@ import type { Message, RoleConfig, SessionKey } from '@aesyclaw/core/types';
 import type { AgentTool } from '@aesyclaw/contracts/llm';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { RoleManager } from '@aesyclaw/role/manager';
 import type { HookCtx, HookResult, IHooksBus } from '@aesyclaw/contracts/hook';
 import { buildAgentPrompt } from './template';
 
 export type PromptBuilderDeps = {
-  roleManager: RoleManager;
   toolRegistry: ToolRegistry;
   hooksBus: IHooksBus;
 };
@@ -31,18 +29,23 @@ export async function buildPrompt(
   executionContext: Partial<ToolExecutionContext> | undefined,
   deps: PromptBuilderDeps,
 ): Promise<BuildPromptResult> {
-  const allRoles = deps.roleManager.getEnabledRoles();
   const resolvedTools = deps.toolRegistry.resolveForRole(
     role,
     deps.hooksBus,
     executionContext ?? {},
   );
+  const isSubAgent = executionContext !== undefined && executionContext.sendMessage === undefined;
+  const isCron = executionContext?.sessionKey?.channel === 'cron';
   const promptSections: string[] = [];
+  const finalPromptSections: string[] = [];
   const promptCtx: HookCtx = {
     message: EMPTY_PROMPT_MESSAGE,
     sessionKey: executionContext?.sessionKey ?? createPromptSessionKey(role),
     role,
     promptSections,
+    finalPromptSections,
+    isSubAgent,
+    isCron,
   };
   const hookResult = await deps.hooksBus.dispatch('prompt:build', promptCtx);
   assertPromptHookResult(hookResult);
@@ -51,9 +54,9 @@ export async function buildPrompt(
     role,
     availableTools: resolvedTools.tools,
     promptSections,
-    allRoles,
-    isSubAgent: executionContext !== undefined && executionContext.sendMessage === undefined,
-    isCron: executionContext?.sessionKey?.channel === 'cron',
+    finalPromptSections,
+    isSubAgent,
+    isCron,
   });
 
   return { prompt, tools: resolvedTools.agentTools };

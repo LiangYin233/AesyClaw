@@ -86,7 +86,7 @@ export type HookToolExecutionResult = {
  * - pipeline:receive — message / sessionKey / sender
  * - pipeline:beforeLLM — 额外填充 session / agent / role
  * - pipeline:send — message / sessionKey
- * - prompt:build — 填充 role / promptSections
+ * - prompt:build — 填充 role / promptSections / finalPromptSections
  * - tool:beforeCall — 填充 toolName / toolParams
  * - tool:afterCall — 额外填充 toolResult
  */
@@ -97,8 +97,13 @@ export type HookCtx = {
   session?: SessionRuntimeRef;
   agent?: AgentRuntimeRef;
   role?: RoleConfig;
-  /** prompt:build 链可追加的系统提示片段 */
+  /** prompt:build 链可追加的系统提示片段，位于工具说明之后 */
   promptSections?: string[];
+  /** prompt:build 链可追加的尾部系统提示片段，位于用户沟通说明之后 */
+  finalPromptSections?: string[];
+  /** prompt:build 链可读取的 prompt 构建模式 */
+  isSubAgent?: boolean;
+  isCron?: boolean;
   toolName?: string;
   toolParams?: unknown;
   toolResult?: HookToolExecutionResult;

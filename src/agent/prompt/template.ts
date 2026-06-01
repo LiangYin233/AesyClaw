@@ -1,18 +1,17 @@
 import type { RoleConfig } from '@aesyclaw/core/types';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import { buildRoleSection } from './sections';
 
 export type BuildAgentPromptInput = {
   role: RoleConfig;
   availableTools: AesyClawTool[];
   promptSections: string[];
-  allRoles: RoleConfig[];
+  finalPromptSections: string[];
   isSubAgent: boolean;
   isCron: boolean;
 };
 
 export function buildAgentPrompt(input: BuildAgentPromptInput): string {
-  const { role, availableTools, promptSections, allRoles, isSubAgent, isCron } = input;
+  const { role, availableTools, promptSections, finalPromptSections, isSubAgent, isCron } = input;
   const sections: string[] = [replaceTemplateVariables(role.systemPrompt)];
 
   if (availableTools.length > 0) {
@@ -32,9 +31,7 @@ export function buildAgentPrompt(input: BuildAgentPromptInput): string {
     );
   }
 
-  if (allRoles.length > 0 && !isSubAgent) {
-    sections.push(buildRoleSection(allRoles));
-  }
+  sections.push(...finalPromptSections);
 
   return sections.join('\n\n');
 }
