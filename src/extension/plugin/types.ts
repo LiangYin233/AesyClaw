@@ -12,11 +12,9 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { IHooksBus, HookRegistration } from '@aesyclaw/hook';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import type { ChannelManager } from '@aesyclaw/extension/channel/manager';
 import type { Logger } from '@aesyclaw/core/logger';
 
 import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { ChannelPlugin } from '@aesyclaw/extension/channel/types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
 import {
@@ -35,7 +33,6 @@ export type PluginContext = {
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
   registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
-  registerChannel(channel: ChannelPlugin): void;
   logger: Logger;
   /** 根据 "provider/model" 标识符解析完整的模型配置（含 API 密钥、baseUrl 等） */
   resolveModel(providerModel: string): ResolvedModel;
@@ -88,7 +85,6 @@ export type PluginManagerDependencies = {
   commandRegistry: CommandRegistry;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
   hooksBus: IHooksBus;
-  channelManager?: ChannelManager;
   paths: Readonly<ResolvedPaths>;
 };
 

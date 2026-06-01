@@ -48,4 +48,6 @@ export async function updateConfig(
   if (body.channels !== undefined) await deps.configManager.set('channels', body.channels);
   if (body.mcp !== undefined) await deps.configManager.set('mcp', body.mcp);
   if (body.plugins !== undefined) await deps.configManager.set('plugins', body.plugins);
+
+  deps.configManager.onConfigReloaded?.();
 }

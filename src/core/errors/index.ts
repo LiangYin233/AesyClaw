@@ -17,7 +17,12 @@ export { ValidationError } from './validation';
 export { ErrorFactory, wrapAsync, wrapSync } from './factory';
 
 // 错误追踪
-export { ErrorTracker, type ErrorRecord, type ErrorStats, type ErrorTrackerConfig } from './tracker';
+export {
+  ErrorTracker,
+  type ErrorRecord,
+  type ErrorStats,
+  type ErrorTrackerConfig,
+} from './tracker';
 
 // 错误处理中间件
 export {
@@ -30,7 +35,6 @@ export {
 export {
   safeExecute,
   safeExecuteSync,
-  retryExecute,
   executeWithTimeout,
   logAndThrow,
   isErrorCode,

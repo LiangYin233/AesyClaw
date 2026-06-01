@@ -2,11 +2,10 @@
  * 错误工具函数测试
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   safeExecute,
   safeExecuteSync,
-  retryExecute,
   executeWithTimeout,
   isErrorCode,
   isErrorType,
@@ -59,55 +58,6 @@ describe('错误工具函数', () => {
       if (!result.success) {
         expect(result.error).toBeInstanceOf(AesyClawError);
       }
-    });
-  });
-
-  describe('retryExecute', () => {
-    it('应该在成功时立即返回', async () => {
-      const fn = vi.fn(async () => 'success');
-      const result = await retryExecute(fn, { maxRetries: 3 });
-
-      expect(result).toBe('success');
-      expect(fn).toHaveBeenCalledTimes(1);
-    });
-
-    it('应该重试失败的操作', async () => {
-      let attempts = 0;
-      const fn = async () => {
-        attempts++;
-        if (attempts < 3) {
-          throw new Error('失败');
-        }
-        return 'success';
-      };
-
-      const result = await retryExecute(fn, { maxRetries: 3, delayMs: 10 });
-
-      expect(result).toBe('success');
-      expect(attempts).toBe(3);
-    });
-
-    it('应该在达到最大重试次数后抛出错误', async () => {
-      const fn = async () => {
-        throw new Error('失败');
-      };
-
-      await expect(retryExecute(fn, { maxRetries: 2, delayMs: 10 })).rejects.toThrow(
-        AesyClawError,
-      );
-    });
-
-    it('应该调用重试回调', async () => {
-      const onRetry = vi.fn();
-      const fn = async () => {
-        throw new Error('失败');
-      };
-
-      await expect(
-        retryExecute(fn, { maxRetries: 2, delayMs: 10, onRetry }),
-      ).rejects.toThrow();
-
-      expect(onRetry).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -30,12 +30,6 @@ export function createPluginContext(
     paths,
     configManager: deps.configManager,
     ...registryActions,
-    registerChannel: (channel) => {
-      if (!deps.channelManager) {
-        throw new Error('ChannelManager 对插件不可用');
-      }
-      deps.channelManager.register(channel, owner);
-    },
     logger: createScopedLogger(owner),
     state,
     resolveModel: (providerModel) => deps.llmAdapter.resolveModel(providerModel),

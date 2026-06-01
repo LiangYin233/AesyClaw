@@ -42,47 +42,6 @@ export function safeExecuteSync<T>(
 }
 
 /**
- * 重试执行函数，失败时自动重试
- *
- * @param fn - 要执行的函数
- * @param options - 重试选项
- * @returns 执行结果
- */
-export async function retryExecute<T>(
-  fn: () => Promise<T>,
-  options: {
-    maxRetries?: number;
-    delayMs?: number;
-    onRetry?: (error: AesyClawError, attempt: number) => void;
-  } = {},
-): Promise<T> {
-  const { maxRetries = 3, delayMs = 1000, onRetry } = options;
-
-  let lastError: AesyClawError | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = AesyClawError.from(error);
-
-      if (attempt < maxRetries) {
-        if (onRetry) {
-          onRetry(lastError, attempt);
-        }
-        logger.debug(`重试执行 (${attempt}/${maxRetries})`, {
-          error: lastError.message,
-          delayMs,
-        });
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-
-  throw lastError;
-}
-
-/**
  * 带超时的执行函数
  *
  * @param fn - 要执行的函数
@@ -99,9 +58,7 @@ export async function executeWithTimeout<T>(
     fn(),
     new Promise<T>((_, reject) => {
       setTimeout(() => {
-        reject(
-          new AesyClawError(errorCode, `操作超时 (${timeoutMs}ms)`, { timeoutMs }),
-        );
+        reject(new AesyClawError(errorCode, `操作超时 (${timeoutMs}ms)`, { timeoutMs }));
       }, timeoutMs);
     }),
   ]);

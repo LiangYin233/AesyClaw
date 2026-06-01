@@ -53,7 +53,7 @@ export class CronExecutor {
       };
 
       await this.pipeline.receiveWithSend(inbound, contextSessionKey, undefined, async (signal) => {
-        await this.send(signal);
+        await this.send({ ...signal, session: targetSessionKey });
         if (signal.kind === 'message') {
           outboundMessages.push(signal.content);
         }

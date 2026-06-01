@@ -48,8 +48,7 @@ export class RoleManager {
   getRole(roleId: string): RoleConfig {
     const role = this.getAllRoles().find((candidate) => candidate.id === roleId);
     if (role) return role;
-    logger.warn(`未找到角色 "${roleId}" — 回退到默认角色`);
-    return this.getDefaultRole();
+    throw new Error(`未找到角色 "${roleId}"`);
   }
 
   getDefaultRole(): RoleConfig {

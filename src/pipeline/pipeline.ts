@@ -9,13 +9,7 @@
  * 5. 结果投递（含 pipeline:send 链）
  */
 import type { IHooksBus, HookCtx } from '@aesyclaw/contracts/hook';
-import type {
-  Message,
-  OutboundSignal,
-  SessionKey,
-  SenderInfo,
-  SendFn,
-} from '@aesyclaw/core/types';
+import type { Message, OutboundSignal, SessionKey, SenderInfo, SendFn } from '@aesyclaw/core/types';
 import type { PipelineDependencies } from './types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { ErrorFactory, ErrorTracker } from '@aesyclaw/core/errors';
@@ -72,8 +66,9 @@ export class Pipeline {
     send: SendFn,
   ): Promise<void> {
     try {
-      // ── Step 1: pipeline:receive 链 ───────────────────────
-      const receiveCtx: HookCtx = { message, sessionKey, sender };
+      // ── Step 1: 会话解析 + pipeline:receive 链 ─────────────
+      const session = await this.deps.sessionManager.create(sessionKey);
+      const receiveCtx: HookCtx = { message, sessionKey, sender, session };
       const receiveResult = await this.hooksBus.dispatch('pipeline:receive', receiveCtx);
       if (receiveResult.action !== 'next') {
         if (receiveResult.action === 'respond') {
@@ -92,9 +87,7 @@ export class Pipeline {
         return;
       }
 
-      // ── Step 2: 会话与角色解析 ────────────────────────────
-      const session = await this.deps.sessionManager.create(sessionKey);
-
+      // ── Step 2: 角色解析 ──────────────────────────────────
       let activeRoleId: string | undefined;
       const existingAgent = this.deps.agentRegistry.getAgent(sessionKey);
       if (existingAgent?.roleId) {
@@ -106,9 +99,26 @@ export class Pipeline {
         }
       }
 
-      const activeRole = activeRoleId
-        ? this.deps.roleManager.getRole(activeRoleId)
-        : this.deps.roleManager.getDefaultRole();
+      let activeRole;
+      try {
+        activeRole = activeRoleId
+          ? this.deps.roleManager.getRole(activeRoleId)
+          : this.deps.roleManager.getDefaultRole();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error('Agent 创建失败：会话绑定角色不可用', {
+          sessionKey,
+          activeRoleId,
+          error: message,
+        });
+        await this.message(
+          send,
+          { components: [{ type: 'Plain', text: `[错误: ${message}]` }] },
+          session.key,
+          'agent_final',
+        );
+        return;
+      }
 
       // ── Step 3: Agent 创建 ────────────────────────────────
       const sessionRecord = await this.deps.databaseManager.sessions.findByKey(sessionKey);

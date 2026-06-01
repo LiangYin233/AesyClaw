@@ -203,7 +203,7 @@ export class DatabaseManager {
 
     this.ensureSessionColumns();
 
-    this.ensureUsageDetailColumns();
+    this.ensureUsageColumns();
   }
 
   /**
@@ -225,29 +225,33 @@ export class DatabaseManager {
     }
   }
 
-  private ensureUsageDetailColumns(): void {
+  private ensureUsageColumns(): void {
     if (!this.db) throw new Error('数据库尚未初始化');
     const columns = this.getTableColumns('usage');
-
-    if (!columns.has('session_id')) {
-      this.db.exec(
-        'ALTER TABLE usage ADD COLUMN session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL',
+    const requiredColumns = [
+      'id',
+      'model',
+      'provider',
+      'api',
+      'response_id',
+      'session_id',
+      'timestamp',
+      'input_tokens',
+      'output_tokens',
+      'total_tokens',
+      'cache_read_tokens',
+      'cache_write_tokens',
+      'cost_input',
+      'cost_output',
+      'cost_cache_read',
+      'cost_cache_write',
+      'cost_total',
+    ];
+    const missing = requiredColumns.filter((column) => !columns.has(column));
+    if (missing.length > 0) {
+      throw new Error(
+        `usage 表结构不完整，缺少列：${missing.join(', ')}。请手动迁移或清理旧数据库。`,
       );
-    }
-    if (!columns.has('cost_input')) {
-      this.db.exec('ALTER TABLE usage ADD COLUMN cost_input REAL NOT NULL DEFAULT 0');
-    }
-    if (!columns.has('cost_output')) {
-      this.db.exec('ALTER TABLE usage ADD COLUMN cost_output REAL NOT NULL DEFAULT 0');
-    }
-    if (!columns.has('cost_cache_read')) {
-      this.db.exec('ALTER TABLE usage ADD COLUMN cost_cache_read REAL NOT NULL DEFAULT 0');
-    }
-    if (!columns.has('cost_cache_write')) {
-      this.db.exec('ALTER TABLE usage ADD COLUMN cost_cache_write REAL NOT NULL DEFAULT 0');
-    }
-    if (!columns.has('cost_total')) {
-      this.db.exec('ALTER TABLE usage ADD COLUMN cost_total REAL NOT NULL DEFAULT 0');
     }
 
     this.db.exec(`

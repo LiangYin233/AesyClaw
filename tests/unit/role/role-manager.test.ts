@@ -60,10 +60,10 @@ describe('RoleManager', () => {
       expect(manager.getRole('my-role').id).toBe('my-role');
     });
 
-    it('falls back to default role when ID is not found', async () => {
+    it('throws when ID is not found', async () => {
       await initializeWithRoles([makeRole({ id: 'default' })]);
 
-      expect(manager.getRole('nonexistent').id).toBe('default');
+      expect(() => manager.getRole('nonexistent')).toThrow('未找到角色 "nonexistent"');
     });
   });
 

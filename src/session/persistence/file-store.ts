@@ -30,8 +30,11 @@ export class SessionFileStore {
       const data = await fs.readFile(this.filePath(sessionId), 'utf-8');
       const file: SessionFile = JSON.parse(data);
       return file.messages;
-    } catch {
-      return [];
+    } catch (error) {
+      if (isNodeError(error, 'ENOENT')) {
+        return [];
+      }
+      throw error;
     }
   }
 
@@ -67,4 +70,8 @@ export class SessionFileStore {
       'utf-8',
     );
   }
+}
+
+function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === code;
 }

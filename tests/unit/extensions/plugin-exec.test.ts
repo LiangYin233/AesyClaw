@@ -50,7 +50,6 @@ describe('plugin_exec', () => {
       },
       unregisterTool() {},
       registerCommand() {},
-      registerChannel() {},
       logger: makeSilentLogger(),
     });
 

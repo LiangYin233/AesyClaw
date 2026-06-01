@@ -10,9 +10,9 @@ import type {
   PluginStatus,
   PluginManagerDependencies,
 } from './types';
-import { pluginOwner, discoverPluginDefinition } from './types';
+import { discoverPluginDefinition } from './types';
 import { discoverPluginDirs, safeLoadModule } from './loader';
-import { getPluginConfig, isDirectoryEnabled } from './config';
+import { getPluginConfig } from './config';
 import type { LoadedExtension } from '@aesyclaw/extension/types';
 
 // ─── PluginManager ────────────────────────────────────────────
@@ -26,7 +26,6 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
   protected readonly configKey = 'plugins';
   protected readonly dirPrefix = 'plugin_';
 
-  private readonly channelManager?: PluginManagerDependencies['channelManager'];
   private readonly extensionsDir: string;
 
   constructor(private readonly deps: PluginManagerDependencies) {
@@ -36,7 +35,6 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
       commandRegistry: deps.commandRegistry,
       hooksBus: deps.hooksBus,
     });
-    this.channelManager = deps.channelManager;
     this.extensionsDir = deps.paths.extensionsDir;
   }
 
@@ -86,22 +84,15 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
     this.hooksBus.unregisterByPrefix(`plugin:${definition.name}:`);
   }
 
-  protected async onAfterUnload(name: string): Promise<void> {
-    await super.onAfterUnload(name);
-    // 注销插件注册的频道
-    await this.channelManager?.unregisterByOwner(pluginOwner(name));
-  }
-
   protected async findExtensionOnDisk(
     name: string,
   ): Promise<{ definition: PluginDefinition; directory?: string } | null> {
     // 先查磁盘
     const pluginDirs = await discoverPluginDirs(this.extensionsDir);
     for (const pluginDir of pluginDirs) {
-      const directoryName = path.basename(pluginDir);
       const module = await safeLoadModule(pluginDir, this.failedExtensions);
       if (!module) continue;
-      if (directoryName === name || module.definition.name === name) {
+      if (module.definition.name === name) {
         return { definition: module.definition, directory: pluginDir };
       }
     }
@@ -184,8 +175,7 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
 
       const module = await safeLoadModule(pluginDir, this.failedExtensions);
       const configLookup = module ? getPluginConfig(this.getConfigRecord(), module) : null;
-      const enabled =
-        configLookup?.enabled ?? isDirectoryEnabled(this.configManager, directoryName);
+      const enabled = configLookup?.enabled ?? true;
       const name = module?.definition.name ?? directoryName;
       const error = this.failedExtensions.get(name) ?? this.failedExtensions.get(directoryName);
       statuses.set(directoryName, {

@@ -39,7 +39,7 @@ type ProviderConfig = Static<typeof ProviderConfigSchema>;
 // ─── Server ──────────────────────────────────────────────────────
 
 const ServerConfigSchema = Type.Object({
-  port: Type.Number({ default: DEFAULTS.port }),
+  port: Type.Integer({ default: DEFAULTS.port, minimum: 1, maximum: 65535 }),
   host: Type.String({ default: DEFAULTS.host }),
   logLevel: Type.String({ default: DEFAULTS.logLevel }),
   authToken: Type.Optional(Type.String()),
@@ -48,7 +48,11 @@ const ServerConfigSchema = Type.Object({
 // ─── Agent ───────────────────────────────────────────────────────
 
 const MemoryConfigSchema = Type.Object({
-  compressionThreshold: Type.Number({ default: DEFAULTS.compressionThreshold }),
+  compressionThreshold: Type.Number({
+    default: DEFAULTS.compressionThreshold,
+    exclusiveMinimum: 0,
+    maximum: 1,
+  }),
 });
 
 const AgentConfigSchema = Type.Object({
