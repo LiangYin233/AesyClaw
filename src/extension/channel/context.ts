@@ -5,7 +5,10 @@
  */
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
+import {
+  createScopedRegistryActions,
+  stripEnabledField,
+} from '@aesyclaw/extension/extension-utils';
 import type { SessionKey } from '@aesyclaw/core/types';
 import { toSessionMessageDto } from '@aesyclaw/session';
 import type { ChannelContext, ChannelManagerDependencies } from './types';
@@ -21,6 +24,7 @@ export function createContext(
 ): ChannelContext {
   const owner = `channel:${channelName}` as const;
   const log = createScopedLogger(`ctx:${channelName}`);
+  const registryActions = createScopedRegistryActions(deps, owner);
   /** 获取指定会话的上下文占用（input/output token 数 + 模型上下文窗口）。
    * 优先从 SQLite usage 表读取，回退到会话消息中的 usage 字段。
    */
@@ -114,18 +118,7 @@ export function createContext(
     configManager: deps.configManager,
     paths,
     receive: receiveHook,
-    registerTool: (tool) => {
-      deps.toolRegistry.register({ ...tool, owner });
-    },
-    unregisterTool: (name) => {
-      const existing = deps.toolRegistry.get(name);
-      if (!existing) return;
-      if (existing.owner !== owner) return;
-      deps.toolRegistry.unregister(name);
-    },
-    registerCommand: (command) => {
-      deps.commandRegistry.register({ ...command, scope: owner });
-    },
+    ...registryActions,
     getCommands: () =>
       deps.commandRegistry.getAll().map(({ execute: _execute, ...command }) => command),
     logger: createScopedLogger(`channel:${channelName}`),

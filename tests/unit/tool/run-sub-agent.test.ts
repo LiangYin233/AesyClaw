@@ -68,6 +68,26 @@ describe('createRunSubAgentTool', () => {
 });
 
 describe('createRunTempSubAgentTool', () => {
+  it('does not expose a model override parameter', () => {
+    const tool = createRunTempSubAgentTool({
+      roleManager: {
+        getDefaultRole: vi.fn(() => ({
+          id: 'temp',
+          description: '',
+          systemPrompt: 'Temp',
+          toolPermission: { mode: 'denylist', list: [] },
+          skills: [],
+          enabled: true,
+        })),
+      },
+      callLLM: vi.fn(),
+    });
+
+    expect(
+      (tool.parameters as { properties?: Record<string, unknown> }).properties,
+    ).not.toHaveProperty('model');
+  });
+
   it('runs temp sub-agent with inline system prompt', async () => {
     const callLLM = vi.fn(async () => ({
       newMessages: [

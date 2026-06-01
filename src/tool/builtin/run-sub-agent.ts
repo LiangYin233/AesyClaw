@@ -18,7 +18,6 @@ const RUN_SUB_AGENT_SCHEMA = Type.Object({
 
 const RUN_TEMP_SUB_AGENT_SCHEMA = Type.Object({
   systemPrompt: Type.String({ description: '子代理的系统提示' }),
-  model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
   prompt: Type.String({ description: '子代理的输入提示' }),
   enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
 });
@@ -31,15 +30,17 @@ const RUN_TEMP_SUB_AGENT_SCHEMA = Type.Object({
  * @param deps - 依赖项，包含 roleManager 和 callLLM
  * @returns run_sub_agent 工具的 AesyClawTool 定义
  */
+type SubAgentCallLLM = (
+  role: RoleConfig,
+  content: string,
+  history: AgentMessage[],
+  sessionKey: SessionKey,
+  sendMessage?: (message: Message) => Promise<boolean>,
+) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+
 export function createRunSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getRole'>;
-  callLLM: (
-    role: RoleConfig,
-    content: string,
-    history: AgentMessage[],
-    sessionKey: SessionKey,
-    sendMessage?: (message: Message) => Promise<boolean>,
-  ) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+  callLLM: SubAgentCallLLM;
 }): AesyClawTool {
   return {
     name: 'run_sub_agent',
@@ -75,21 +76,15 @@ export function createRunSubAgentTool(deps: {
 /**
  * 创建 run_temp_sub_agent 工具定义。
  *
- * 以自定义系统提示和可选模型为基础创建临时角色，
- * 委托子代理执行，默认继承调用者工具权限。
+ * 以自定义系统提示创建临时角色，
+ * 委托当前 Agent 执行，模型继承当前会话正在使用的模型，默认继承调用者工具权限。
  *
  * @param deps - 依赖项，包含 roleManager 和 callLLM
  * @returns run_temp_sub_agent 工具的 AesyClawTool 定义
  */
 export function createRunTempSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getDefaultRole'>;
-  callLLM: (
-    role: RoleConfig,
-    content: string,
-    history: AgentMessage[],
-    sessionKey: SessionKey,
-    sendMessage?: (message: Message) => Promise<boolean>,
-  ) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+  callLLM: SubAgentCallLLM;
 }): AesyClawTool {
   return {
     name: 'run_temp_sub_agent',
@@ -100,9 +95,8 @@ export function createRunTempSubAgentTool(deps: {
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { systemPrompt, model, prompt, enableTools } = params as {
+      const { systemPrompt, prompt, enableTools } = params as {
         systemPrompt: string;
-        model?: string;
         prompt: string;
         enableTools?: boolean;
       };
@@ -111,7 +105,7 @@ export function createRunTempSubAgentTool(deps: {
         const baseRole = deps.roleManager.getDefaultRole();
         const roleWithPerms = createTempSubAgentRole(
           baseRole,
-          { systemPrompt, model },
+          { systemPrompt },
           context.toolPermission,
         );
         const role = applyToolOverride(roleWithPerms, enableTools);
@@ -162,7 +156,7 @@ function applyToolOverride(role: RoleConfig, enableTools?: boolean): RoleConfig 
 
 function createTempSubAgentRole(
   baseRole: RoleConfig,
-  params: { systemPrompt: string; model?: string },
+  params: { systemPrompt: string },
   toolPermission?: RoleConfig['toolPermission'],
 ): RoleConfig {
   return {

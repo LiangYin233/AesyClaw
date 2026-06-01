@@ -7,6 +7,7 @@ import type { TSchema } from '@sinclair/typebox';
  */
 
 import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
+import type { ExtensionHealthStatus, ExtensionLifecycleState } from '@aesyclaw/extension/types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { IHooksBus, HookRegistration } from '@aesyclaw/hook';
@@ -55,14 +56,10 @@ export type PluginDefinition = {
 };
 
 /** 插件健康检查结果。 */
-export type PluginHealthStatus = {
-  ok: boolean;
-  error?: string;
-  latencyMs?: number;
-};
+export type PluginHealthStatus = ExtensionHealthStatus;
 
 /** 插件生命周期的 4 种状态。 */
-export type PluginLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
+export type PluginLifecycleState = ExtensionLifecycleState;
 
 /** 前端查询单个插件时的状态快照。 */
 export type PluginStatus = {
@@ -93,13 +90,6 @@ export type PluginManagerDependencies = {
   hooksBus: IHooksBus;
   channelManager?: ChannelManager;
   paths: Readonly<ResolvedPaths>;
-};
-
-/** 从配置中查找插件启用/禁用状态和配置的结果。 */
-export type PluginConfigLookup = {
-  exists: boolean;
-  enabled: boolean;
-  config: Record<string, unknown>;
 };
 
 export type { HookRegistration };

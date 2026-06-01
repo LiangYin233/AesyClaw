@@ -148,13 +148,6 @@ export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelC
     return this.definitions.has(channelName);
   }
 
-  /**
-   * 增量热重载：仅重启配置变更的频道，加载新增频道，卸载禁用的频道。
-   */
-  async handleConfigReload(): Promise<void> {
-    await super.handleConfigReload();
-  }
-
   // ─── 消息路由 ───────────────────────────────────────────────
 
   /**
@@ -191,10 +184,7 @@ export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelC
    * 列出所有已注册频道的状态。
    */
   listChannels(): ChannelStatus[] {
-    return this.listExtensions().map((ext) => ({
-      ...ext,
-      state: ext.state,
-    }));
+    return this.listExtensions();
   }
 
   /**

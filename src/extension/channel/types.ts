@@ -13,7 +13,11 @@ import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
-import type { LoadedExtension, ExtensionLifecycleState } from '@aesyclaw/extension/types';
+import type {
+  LoadedExtension,
+  ExtensionHealthStatus,
+  ExtensionLifecycleState,
+} from '@aesyclaw/extension/types';
 import type { ToolRegistry, AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { SessionSummary, SessionMessageDto, SessionManager } from '@aesyclaw/session';
@@ -109,24 +113,6 @@ export type ChannelManagerDependencies = {
   databaseManager: Pick<DatabaseManager, 'sessions' | 'usage'>;
 };
 
-/** 从磁盘加载完成后的频道模块。 */
-export type ChannelModule = {
-  definition: ChannelPlugin;
-  directory: string;
-  directoryName: string;
-  entryPath: string;
-};
-
-/**
- * 检查频道配置是否已启用。
- *
- * @param config - 频道配置对象
- * @returns 如果 enabled 不为 false 则返回 true
- */
-export function isChannelEnabled(config: Record<string, unknown> | undefined): boolean {
-  return config?.['enabled'] !== false;
-}
-
 /**
  * 校验未知值是否符合 ChannelPlugin 结构。
  */
@@ -148,8 +134,4 @@ export function discoverChannelDefinition(imported: unknown): ChannelPlugin | nu
   return isChannelPlugin(base) ? base : null;
 }
 
-export type ChannelHealthStatus = {
-  ok: boolean;
-  error?: string;
-  latencyMs?: number;
-};
+export type ChannelHealthStatus = ExtensionHealthStatus;

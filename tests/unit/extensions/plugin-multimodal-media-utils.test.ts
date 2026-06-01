@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSource } from '../../../src/tool/builtin/media-utils';
+import { parseSource } from '../../../extensions/plugin_multimodal/media-utils';
 
 describe('parseSource', () => {
   it('parses data URIs', () => {

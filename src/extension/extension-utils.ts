@@ -1,6 +1,9 @@
 /** 频道和插件扩展共享的运行时校验工具。 */
 
 import { isRecord } from '@aesyclaw/core/utils';
+import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
+import type { CommandRegistry } from '@aesyclaw/command/command-registry';
+import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 
 /**
  * 校验未知值的扩展基础结构（name、version、init、destroy 等）。
@@ -42,6 +45,40 @@ export function validateExtension<T>(value: unknown): T | false {
 export function stripEnabledField<T extends Record<string, unknown>>(value: T): Omit<T, 'enabled'> {
   const { enabled: _enabled, ...rest } = value;
   return rest;
+}
+
+export type ScopedRegistryActions = {
+  registerTool(tool: AesyClawTool): void;
+  unregisterTool(name: string): void;
+  registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
+};
+
+/**
+ * 创建带扩展所有者作用域的工具/命令注册能力。
+ *
+ * 插件和频道共享同一套作用域规则：注册时写入 owner/scope，注销时只能移除自身 owner 的工具。
+ */
+export function createScopedRegistryActions(
+  deps: {
+    toolRegistry: Pick<ToolRegistry, 'register' | 'get' | 'unregister'>;
+    commandRegistry: Pick<CommandRegistry, 'register'>;
+  },
+  owner: ToolOwner,
+): ScopedRegistryActions {
+  return {
+    registerTool: (tool) => {
+      deps.toolRegistry.register({ ...tool, owner });
+    },
+    unregisterTool: (name) => {
+      const existing = deps.toolRegistry.get(name);
+      if (!existing) return;
+      if (existing.owner !== owner) return;
+      deps.toolRegistry.unregister(name);
+    },
+    registerCommand: (command) => {
+      deps.commandRegistry.register({ ...command, scope: owner });
+    },
+  };
 }
 
 /**

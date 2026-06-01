@@ -1,7 +1,7 @@
 /**
  * plugin_multimodal/media-utils — 媒体加载工具函数。
  *
- * 从 src/tool/builtin/media-utils.ts 复制，插件独立维护。
+ * 插件独立维护的媒体加载工具。
  */
 
 import fs from 'node:fs/promises';

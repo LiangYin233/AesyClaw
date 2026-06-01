@@ -5,7 +5,10 @@
  */
 
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
+import {
+  createScopedRegistryActions,
+  stripEnabledField,
+} from '@aesyclaw/extension/extension-utils';
 import { pluginOwner, type PluginContext, type PluginManagerDependencies } from './types';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 
@@ -17,6 +20,7 @@ export function createPluginContext(
   state: Record<string, unknown>,
 ): PluginContext {
   const owner = pluginOwner(pluginName);
+  const registryActions = createScopedRegistryActions(deps, owner);
   return {
     name: pluginName,
     get config() {
@@ -25,18 +29,7 @@ export function createPluginContext(
     },
     paths,
     configManager: deps.configManager,
-    registerTool: (tool) => {
-      deps.toolRegistry.register({ ...tool, owner });
-    },
-    unregisterTool: (name) => {
-      const existing = deps.toolRegistry.get(name);
-      if (!existing) return;
-      if (existing.owner !== owner) return;
-      deps.toolRegistry.unregister(name);
-    },
-    registerCommand: (command) => {
-      deps.commandRegistry.register({ ...command, scope: owner });
-    },
+    ...registryActions,
     registerChannel: (channel) => {
       if (!deps.channelManager) {
         throw new Error('ChannelManager 对插件不可用');

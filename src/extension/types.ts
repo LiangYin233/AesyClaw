@@ -8,13 +8,10 @@
 import type { TSchema } from '@sinclair/typebox';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
-import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
-import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
-import type { IHooksBus } from '@aesyclaw/hook';
 
 // ─── 扩展健康检查结果 ─────────────────────────────────────────
 
@@ -97,15 +94,4 @@ export type ExtensionStatus = {
   enabled: boolean;
   state: ExtensionLifecycleState;
   error?: string;
-};
-
-// ─── 共享的管理器依赖 ─────────────────────────────────────────
-
-export type BaseExtensionManagerDependencies = {
-  configManager: ConfigManager;
-  toolRegistry: ToolRegistry;
-  commandRegistry: CommandRegistry;
-  hooksBus: IHooksBus;
-  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
-  paths: Readonly<ResolvedPaths>;
 };

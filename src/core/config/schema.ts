@@ -102,7 +102,6 @@ export {
   /** 服务器配置模式 */
   ServerConfigSchema,
   /** 代理配置模式 */
-  /** 代理配置模式 */
   AgentConfigSchema,
   /** 记忆压缩配置模式 */
   MemoryConfigSchema,
