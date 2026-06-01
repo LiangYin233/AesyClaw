@@ -1,7 +1,7 @@
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { defineCommand } from '@aesyclaw/command/command-builder';
 import type { CommandContext, Message } from '@aesyclaw/core/types';
-import type { BuiltinCommandDependencies } from './builtin-types';
+import type { BuiltinCommandDependencies } from './types';
 
 export function registerSessionBuiltinCommands(
   registry: CommandRegistry,

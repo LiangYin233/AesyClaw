@@ -2,7 +2,7 @@ import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { defineCommand } from '@aesyclaw/command/command-builder';
 import { getMessageText, type CommandContext, type Message } from '@aesyclaw/core/types';
 import { Agent } from '@aesyclaw/agent/agent';
-import type { BuiltinCommandDependencies } from './builtin-types';
+import type { BuiltinCommandDependencies } from './types';
 
 export function registerGeneralBuiltinCommands(
   registry: CommandRegistry,

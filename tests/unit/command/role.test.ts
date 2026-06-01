@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { registerRoleBuiltinCommands } from '../../../src/command/builtin-role';
+import { registerRoleBuiltinCommands } from '../../../src/command/builtin/role';
 import { CommandRegistry } from '../../../src/command/command-registry';
-import type { BuiltinCommandDependencies } from '../../../src/command/builtin-types';
+import type { BuiltinCommandDependencies } from '../../../src/command/builtin/types';
 import type { CommandContext, Message } from '../../../src/core/types';
 
 const KEY = { channel: 'desktop' as const, type: 'private' as const, chatId: 'test' };

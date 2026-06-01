@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { registerBuiltinCommands } from '../../../src/command/builtin';
 import { CommandRegistry } from '../../../src/command/command-registry';
-import type { BuiltinCommandDependencies } from '../../../src/command/builtin-types';
+import type { BuiltinCommandDependencies } from '../../../src/command/builtin/types';
 import type { CommandContext } from '../../../src/core/types';
 
 const KEY = { channel: 'desktop' as const, type: 'private' as const, chatId: 'test' };
