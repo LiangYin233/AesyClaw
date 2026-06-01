@@ -11,7 +11,6 @@ function makeCtx(overrides: Partial<HookCtx> = {}): HookCtx {
     sessionKey,
     role: makeRole(),
     promptSections: [],
-    finalPromptSections: [],
     isSubAgent: false,
     isCron: false,
     ...overrides,
@@ -27,7 +26,7 @@ describe('createRolePromptHook', () => {
     expect(hook.enabled).toBe(true);
   });
 
-  it('appends enabled roles to final prompt sections', async () => {
+  it('appends enabled roles to prompt sections', async () => {
     const getEnabledRoles = vi
       .fn()
       .mockReturnValue([makeRole({ id: 'researcher', description: 'Research role' })]);
@@ -37,8 +36,8 @@ describe('createRolePromptHook', () => {
     await expect(hook.handler(ctx)).resolves.toEqual({ action: 'next' });
 
     expect(getEnabledRoles).toHaveBeenCalled();
-    expect(ctx.finalPromptSections).toHaveLength(1);
-    expect(ctx.finalPromptSections?.[0]).toContain('**researcher** — Research role');
+    expect(ctx.promptSections).toHaveLength(1);
+    expect(ctx.promptSections?.[0]).toContain('**researcher** — Research role');
   });
 
   it('skips role injection for sub agents', async () => {
@@ -49,6 +48,6 @@ describe('createRolePromptHook', () => {
     await hook.handler(ctx);
 
     expect(getEnabledRoles).not.toHaveBeenCalled();
-    expect(ctx.finalPromptSections).toEqual([]);
+    expect(ctx.promptSections).toEqual([]);
   });
 });

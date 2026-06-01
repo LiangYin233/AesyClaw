@@ -29,6 +29,7 @@ import {
   createCommandDetectHook,
   createSkillPromptHook,
   createRolePromptHook,
+  createCommunicationPromptHook,
 } from './hook/builtin';
 import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
@@ -215,6 +216,7 @@ export class Application {
     );
     this.sub.pipeline.hooksBus.register(createTimeInjectHook());
     this.sub.pipeline.hooksBus.register(createSkillPromptHook(this.sub.skillManager));
+    this.sub.pipeline.hooksBus.register(createCommunicationPromptHook());
     this.sub.pipeline.hooksBus.register(createRolePromptHook(this.sub.roleManager));
 
     // ChannelManager 先于 PluginManager 构造，插件不再注册 Channel。

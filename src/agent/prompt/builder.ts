@@ -37,13 +37,11 @@ export async function buildPrompt(
   const isSubAgent = executionContext !== undefined && executionContext.sendMessage === undefined;
   const isCron = executionContext?.sessionKey?.channel === 'cron';
   const promptSections: string[] = [];
-  const finalPromptSections: string[] = [];
   const promptCtx: HookCtx = {
     message: EMPTY_PROMPT_MESSAGE,
     sessionKey: executionContext?.sessionKey ?? createPromptSessionKey(role),
     role,
     promptSections,
-    finalPromptSections,
     isSubAgent,
     isCron,
   };
@@ -54,9 +52,6 @@ export async function buildPrompt(
     role,
     availableTools: resolvedTools.tools,
     promptSections,
-    finalPromptSections,
-    isSubAgent,
-    isCron,
   });
 
   return { prompt, tools: resolvedTools.agentTools };

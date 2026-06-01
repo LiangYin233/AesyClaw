@@ -110,12 +110,12 @@ export default plugin;
 pipeline:receive → pipeline:beforeLLM → prompt:build → pipeline:send
 ```
 
-| Hook 链              | 触发时机                   | 上下文 `ctx`                                                  |
-| -------------------- | -------------------------- | ------------------------------------------------------------- |
-| `pipeline:receive`   | 收到用户消息后，命令检测前 | `message`, `sessionKey`, `sender`                             |
-| `pipeline:beforeLLM` | LLM 调用前，会话锁定后     | `message`, `sessionKey`, `session`, `agent`, `role`           |
-| `prompt:build`       | 构建系统提示词时           | `role`, `promptSections`, `finalPromptSections`, `sessionKey` |
-| `pipeline:send`      | 出站消息投递前             | `message`, `sessionKey`                                       |
+| Hook 链              | 触发时机                   | 上下文 `ctx`                                        |
+| -------------------- | -------------------------- | --------------------------------------------------- |
+| `pipeline:receive`   | 收到用户消息后，命令检测前 | `message`, `sessionKey`, `sender`                   |
+| `pipeline:beforeLLM` | LLM 调用前，会话锁定后     | `message`, `sessionKey`, `session`, `agent`, `role` |
+| `prompt:build`       | 构建系统提示词时           | `role`, `promptSections`, `sessionKey`              |
+| `pipeline:send`      | 出站消息投递前             | `message`, `sessionKey`                             |
 
 ### Hook 返回值
 
@@ -125,7 +125,7 @@ pipeline:receive → pipeline:beforeLLM → prompt:build → pipeline:send
 | `respond` | 跳过后续 Hooks，直接以 `result.message` 为最终消息 |
 | `block`   | 阻止消息投递（仅 `pipeline:send` 支持）            |
 
-`prompt:build` 用于追加 `ctx.promptSections` 或 `ctx.finalPromptSections`，应返回 `next`；其他返回值会被视为 Prompt 构建错误。
+`prompt:build` 用于按 priority 追加 `ctx.promptSections`，应返回 `next`；其他返回值会被视为 Prompt 构建错误。
 
 ### middleware 格式
 

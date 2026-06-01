@@ -23,9 +23,6 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [],
       promptSections: [],
-      finalPromptSections: [],
-      isSubAgent: false,
-      isCron: false,
     });
     expect(result).toContain('You are a helpful assistant.');
   });
@@ -43,9 +40,6 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [makeTool('search', 'Search the web')],
       promptSections: [],
-      finalPromptSections: [],
-      isSubAgent: false,
-      isCron: false,
     });
     expect(result).toContain('## Available Tools');
     expect(result).toContain('search');
@@ -65,9 +59,6 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [],
       promptSections: ['## 技能\n- **skill-a**: Skill skill-a'],
-      finalPromptSections: [],
-      isSubAgent: false,
-      isCron: false,
     });
     expect(result).toContain('skill-a');
   });
@@ -84,10 +75,7 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [makeTool('send_msg', 'Send message to user')],
-      promptSections: [],
-      finalPromptSections: [],
-      isSubAgent: false,
-      isCron: false,
+      promptSections: ['## 用户沟通'],
     });
     expect(result).toContain('send_msg');
     expect(result).toContain('用户沟通');
@@ -106,9 +94,6 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [makeTool('search', 'Search')],
       promptSections: [],
-      finalPromptSections: [],
-      isSubAgent: true,
-      isCron: false,
     });
     expect(result).not.toContain('用户沟通');
   });
@@ -126,9 +111,6 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [makeTool('search', 'Search')],
       promptSections: [],
-      finalPromptSections: [],
-      isSubAgent: false,
-      isCron: true,
     });
     expect(result).not.toContain('用户沟通');
   });
@@ -145,10 +127,7 @@ describe('buildAgentPrompt', () => {
         enabled: true,
       },
       availableTools: [],
-      promptSections: [],
-      finalPromptSections: ['## 角色\n- **helper** — Helper role'],
-      isSubAgent: false,
-      isCron: false,
+      promptSections: ['## 角色\n- **helper** — Helper role'],
     });
     expect(result).toContain('helper');
     expect(result).toContain('Helper role');
@@ -167,9 +146,6 @@ describe('buildAgentPrompt', () => {
       },
       availableTools: [],
       promptSections: [],
-      finalPromptSections: [],
-      isSubAgent: false,
-      isCron: false,
     });
     expect(result).not.toContain('{{os}}');
     expect(result).not.toContain('{{systemLang}}');

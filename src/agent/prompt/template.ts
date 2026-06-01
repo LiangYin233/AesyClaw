@@ -5,13 +5,10 @@ export type BuildAgentPromptInput = {
   role: RoleConfig;
   availableTools: AesyClawTool[];
   promptSections: string[];
-  finalPromptSections: string[];
-  isSubAgent: boolean;
-  isCron: boolean;
 };
 
 export function buildAgentPrompt(input: BuildAgentPromptInput): string {
-  const { role, availableTools, promptSections, finalPromptSections, isSubAgent, isCron } = input;
+  const { role, availableTools, promptSections } = input;
   const sections: string[] = [replaceTemplateVariables(role.systemPrompt)];
 
   if (availableTools.length > 0) {
@@ -19,19 +16,6 @@ export function buildAgentPrompt(input: BuildAgentPromptInput): string {
   }
 
   sections.push(...promptSections);
-
-  if (!isSubAgent && !isCron) {
-    sections.push(
-      [
-        '## 用户沟通',
-        '',
-        '1. **主动通报** — 使用 `send_msg` 主动向用户通报当前进展。',
-        '2. **禁止询问** — `send_msg` 仅用于单向通知，不要提问或征求确认。',
-      ].join('\n'),
-    );
-  }
-
-  sections.push(...finalPromptSections);
 
   return sections.join('\n\n');
 }

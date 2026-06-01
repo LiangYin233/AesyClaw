@@ -9,10 +9,10 @@ const ROLE_PROMPT_HOOK_ID = 'core:role-prompt';
 
 function createRolePromptMiddleware(roleManager: Pick<RoleManager, 'getEnabledRoles'>): Middleware {
   return async (ctx: HookCtx, next?: () => Promise<HookResult>): Promise<HookResult> => {
-    if (ctx.isSubAgent !== true && ctx.finalPromptSections) {
+    if (ctx.isSubAgent !== true && ctx.promptSections) {
       const roles = roleManager.getEnabledRoles();
       if (roles.length > 0) {
-        ctx.finalPromptSections.push(buildRoleSection(roles));
+        ctx.promptSections.push(buildRoleSection(roles));
       }
     }
 

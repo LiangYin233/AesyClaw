@@ -80,8 +80,8 @@ describe('PromptBuilder', () => {
           ctx: {
             role?: unknown;
             promptSections?: string[];
-            finalPromptSections?: string[];
             isSubAgent?: boolean;
+            isCron?: boolean;
           },
         ) => {
           if (chain === 'prompt:build' && ctx.role !== undefined) {
@@ -92,10 +92,13 @@ describe('PromptBuilder', () => {
               }
             }
 
-            if (ctx.finalPromptSections !== undefined && ctx.isSubAgent !== true) {
+            if (ctx.promptSections !== undefined && ctx.isSubAgent !== true) {
+              if (ctx.isCron !== true) {
+                ctx.promptSections.push('## 用户沟通');
+              }
               const roles = roleManager.getEnabledRoles();
               if (roles.length > 0) {
-                ctx.finalPromptSections.push(buildRoleSection(roles));
+                ctx.promptSections.push(buildRoleSection(roles));
               }
             }
           }
@@ -133,10 +136,11 @@ describe('PromptBuilder', () => {
       const prompt = buildAgentPrompt({
         role: makeRole({ systemPrompt: 'Today is {{os}} using {{systemLang}}.' }),
         availableTools: [makeTool({ name: 'send-msg' })],
-        promptSections: ['## 技能\n- **greeting**: Greeting skill'],
-        finalPromptSections: ['## 角色\n- **helper** — A helpful assistant'],
-        isSubAgent: false,
-        isCron: false,
+        promptSections: [
+          '## 技能\n- **greeting**: Greeting skill',
+          '## 用户沟通',
+          '## 角色\n- **helper** — A helpful assistant',
+        ],
       });
 
       expect(prompt).not.toContain('{{os}}');
@@ -153,23 +157,17 @@ describe('PromptBuilder', () => {
         role: makeRole(),
         availableTools: [],
         promptSections: [],
-        finalPromptSections: [],
-        isSubAgent: true,
-        isCron: false,
       });
 
       expect(prompt).not.toContain('## 用户沟通');
       expect(prompt).not.toContain('## 角色');
     });
 
-    it('should omit only the communication section for cron prompts', () => {
+    it('should render caller-provided role sections', () => {
       const prompt = buildAgentPrompt({
         role: makeRole(),
         availableTools: [],
-        promptSections: [],
-        finalPromptSections: ['## 角色\n- **helper** — A helpful assistant'],
-        isSubAgent: false,
-        isCron: true,
+        promptSections: ['## 角色\n- **helper** — A helpful assistant'],
       });
 
       expect(prompt).not.toContain('## 用户沟通');
