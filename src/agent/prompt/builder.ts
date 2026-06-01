@@ -42,6 +42,7 @@ export async function buildPrompt(
     sessionKey: executionContext?.sessionKey ?? createPromptSessionKey(role),
     role,
     promptSections,
+    availableToolNames: resolvedTools.agentTools.map((tool) => tool.name),
     isSubAgent,
     isCron,
   };

@@ -73,7 +73,15 @@ describe('PromptBuilder', () => {
       overrides.toolRegistry instanceof ToolRegistry
         ? overrides.toolRegistry
         : {
-            resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
+            resolveForRole: vi.fn().mockReturnValue({
+              tools: [],
+              agentTools: [
+                makeAgentTool({ name: 'load_skill' }),
+                makeAgentTool({ name: 'send_msg' }),
+                makeAgentTool({ name: 'run_sub_agent' }),
+                makeAgentTool({ name: 'run_temp_sub_agent' }),
+              ],
+            }),
             ...(overrides.toolRegistry ?? {}),
           };
     const hooksBus = {
@@ -83,12 +91,16 @@ describe('PromptBuilder', () => {
           ctx: {
             role?: unknown;
             promptSections?: string[];
+            availableToolNames?: string[];
             isSubAgent?: boolean;
             isCron?: boolean;
           },
         ) => {
           if (chain === 'prompt:build' && ctx.role !== undefined) {
-            if (ctx.promptSections !== undefined) {
+            if (
+              ctx.promptSections !== undefined &&
+              ctx.availableToolNames?.includes('load_skill')
+            ) {
               const skills = skillManager.getSkillsForRole(ctx.role as never);
               if (skills.length > 0) {
                 ctx.promptSections.push(buildSkillSection(skills));
@@ -96,12 +108,19 @@ describe('PromptBuilder', () => {
             }
 
             if (ctx.promptSections !== undefined && ctx.isSubAgent !== true) {
-              if (ctx.isCron !== true) {
+              if (ctx.isCron !== true && ctx.availableToolNames?.includes('send_msg')) {
                 ctx.promptSections.push('## 用户沟通');
               }
-              const roles = roleManager.getEnabledRoles();
-              if (roles.length > 0) {
-                ctx.promptSections.push(buildRoleSection(roles));
+              const canRunSubAgent = ctx.availableToolNames?.includes('run_sub_agent') ?? false;
+              const canRunTempSubAgent =
+                ctx.availableToolNames?.includes('run_temp_sub_agent') ?? false;
+              if (canRunSubAgent || canRunTempSubAgent) {
+                const roles = roleManager.getEnabledRoles();
+                if (roles.length > 0) {
+                  ctx.promptSections.push(
+                    buildRoleSection(roles, { canRunSubAgent, canRunTempSubAgent }),
+                  );
+                }
               }
             }
           }
@@ -186,7 +205,6 @@ describe('PromptBuilder', () => {
       expect(result.prompt).toContain('You are {{role}}.');
       expect(result.prompt).toContain('**greeting**: Greeting skill');
       expect(result.prompt).toContain('## 角色');
-      expect(result.tools).toEqual([]);
       expect(deps.skillManager.getSkillsForRole).toHaveBeenCalledWith(role);
       expect(deps.roleManager.getEnabledRoles).toHaveBeenCalled();
     });
@@ -377,7 +395,14 @@ Blocked content.`,
         } as never,
         llmAdapter: { resolveModel: vi.fn() } as never,
         toolRegistry: {
-          resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
+          resolveForRole: vi.fn().mockReturnValue({
+            tools: [],
+            agentTools: [
+              makeAgentTool({ name: 'load_skill' }),
+              makeAgentTool({ name: 'run_sub_agent' }),
+              makeAgentTool({ name: 'run_temp_sub_agent' }),
+            ],
+          }),
         } as never,
         hooksBus,
         compressionThreshold: 0.8,

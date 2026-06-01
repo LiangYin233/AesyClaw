@@ -51,6 +51,28 @@ describe('buildRoleSection', () => {
     expect(result.indexOf('**coder**')).toBeLessThan(result.indexOf('**writer**'));
   });
 
+  it('builds role rules only for available delegation tools', () => {
+    const roles = [
+      {
+        id: 'coder',
+        description: 'Writes code',
+        systemPrompt: '',
+        model: 'gpt-4o',
+        toolPermission: { mode: 'denylist' as const, list: [] },
+        skills: [],
+        enabled: true,
+      },
+    ];
+
+    const result = buildRoleSection(roles, {
+      canRunSubAgent: true,
+      canRunTempSubAgent: false,
+    });
+
+    expect(result).toContain('run_sub_agent');
+    expect(result).not.toContain('run_temp_sub_agent');
+  });
+
   it('handles empty role array', () => {
     const result = buildRoleSection([]);
     expect(result).toContain('## 角色');

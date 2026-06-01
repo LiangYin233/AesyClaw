@@ -99,6 +99,8 @@ export type HookCtx = {
   role?: RoleConfig;
   /** prompt:build 链可按 priority 追加的系统提示片段，位于工具说明之后 */
   promptSections?: string[];
+  /** prompt:build 链可读取的本次 API tools 名称 */
+  availableToolNames?: string[];
   /** prompt:build 链可读取的 prompt 构建模式 */
   isSubAgent?: boolean;
   isCron?: boolean;

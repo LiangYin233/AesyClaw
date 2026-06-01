@@ -14,6 +14,7 @@ function makeCtx(overrides: Partial<HookCtx> = {}): HookCtx {
     sessionKey,
     role: makeRole(),
     promptSections: [],
+    availableToolNames: ['send_msg'],
     isSubAgent: false,
     isCron: false,
     ...overrides,
@@ -38,6 +39,15 @@ describe('createCommunicationPromptHook', () => {
     expect(ctx.promptSections).toHaveLength(1);
     expect(ctx.promptSections?.[0]).toContain('## 用户沟通');
     expect(ctx.promptSections?.[0]).toContain('send_msg');
+  });
+
+  it('skips communication rules when send_msg is unavailable', async () => {
+    const hook = createCommunicationPromptHook();
+    const ctx = makeCtx({ availableToolNames: [] });
+
+    await hook.handler(ctx);
+
+    expect(ctx.promptSections).toEqual([]);
   });
 
   it('skips communication rules for sub agents and cron prompts', async () => {

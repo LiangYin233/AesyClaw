@@ -11,6 +11,7 @@ function makeCtx(overrides: Partial<HookCtx> = {}): HookCtx {
     sessionKey,
     role: makeRole(),
     promptSections: [],
+    availableToolNames: ['run_sub_agent', 'run_temp_sub_agent'],
     isSubAgent: false,
     isCron: false,
     ...overrides,
@@ -38,6 +39,17 @@ describe('createRolePromptHook', () => {
     expect(getEnabledRoles).toHaveBeenCalled();
     expect(ctx.promptSections).toHaveLength(1);
     expect(ctx.promptSections?.[0]).toContain('**researcher** — Research role');
+  });
+
+  it('skips role injection when delegation tools are unavailable', async () => {
+    const getEnabledRoles = vi.fn().mockReturnValue([makeRole({ id: 'helper' })]);
+    const hook = createRolePromptHook({ getEnabledRoles });
+    const ctx = makeCtx({ availableToolNames: [] });
+
+    await hook.handler(ctx);
+
+    expect(getEnabledRoles).not.toHaveBeenCalled();
+    expect(ctx.promptSections).toEqual([]);
   });
 
   it('skips role injection for sub agents', async () => {

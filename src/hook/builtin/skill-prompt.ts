@@ -11,7 +11,7 @@ function createSkillPromptMiddleware(
   skillManager: Pick<SkillManager, 'getSkillsForRole'>,
 ): Middleware {
   return async (ctx: HookCtx, next?: () => Promise<HookResult>): Promise<HookResult> => {
-    if (ctx.role && ctx.promptSections) {
+    if (ctx.role && ctx.promptSections && ctx.availableToolNames?.includes('load_skill')) {
       const skills = skillManager.getSkillsForRole(ctx.role);
       if (skills.length > 0) {
         ctx.promptSections.push(buildSkillSection(skills));

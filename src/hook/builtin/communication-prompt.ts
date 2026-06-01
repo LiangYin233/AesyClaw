@@ -16,7 +16,12 @@ const communicationPromptMiddleware: Middleware = async (
   ctx: HookCtx,
   next?: () => Promise<HookResult>,
 ): Promise<HookResult> => {
-  if (ctx.isSubAgent !== true && ctx.isCron !== true && ctx.promptSections) {
+  if (
+    ctx.isSubAgent !== true &&
+    ctx.isCron !== true &&
+    ctx.promptSections &&
+    ctx.availableToolNames?.includes('send_msg')
+  ) {
     ctx.promptSections.push(COMMUNICATION_SECTION);
   }
 

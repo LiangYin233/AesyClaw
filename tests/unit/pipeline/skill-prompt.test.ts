@@ -14,6 +14,7 @@ function makeCtx(overrides: Partial<HookCtx> = {}): HookCtx {
     sessionKey,
     role: makeRole({ skills: ['research'] }),
     promptSections: [],
+    availableToolNames: ['load_skill'],
     ...overrides,
   };
 }
@@ -45,6 +46,25 @@ describe('createSkillPromptHook', () => {
     expect(getSkillsForRole).toHaveBeenCalledWith(ctx.role);
     expect(ctx.promptSections).toHaveLength(1);
     expect(ctx.promptSections?.[0]).toContain('**research**: Deep research');
+  });
+
+  it('skips skill prompts when load_skill is unavailable', async () => {
+    const getSkillsForRole = vi.fn().mockReturnValue([
+      {
+        name: 'research',
+        description: 'Deep research',
+        content: 'full instructions',
+        isSystem: false,
+        filePath: '/skills/research/SKILL.md',
+      },
+    ]);
+    const hook = createSkillPromptHook({ getSkillsForRole });
+    const ctx = makeCtx({ availableToolNames: [] });
+
+    await hook.handler(ctx);
+
+    expect(getSkillsForRole).not.toHaveBeenCalled();
+    expect(ctx.promptSections).toEqual([]);
   });
 
   it('does nothing when no skills are available', async () => {
