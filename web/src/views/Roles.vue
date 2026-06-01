@@ -148,7 +148,7 @@
                   v-model="form.systemPrompt"
                   class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[160px] resize-y leading-relaxed font-mono"
                   rows="8"
-                />
+                ></textarea>
               </div>
 
                 <div class="flex flex-col items-start gap-2">
@@ -168,7 +168,6 @@
                     ></span>
                   </button>
                 </div>
-              </div>
 
               <div class="mb-5">
                 <label
