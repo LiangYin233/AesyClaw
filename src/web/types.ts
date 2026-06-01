@@ -15,6 +15,7 @@ import type { PluginManager } from '@aesyclaw/extension/plugin/manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { SkillManager } from '@aesyclaw/skill/manager';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
+import type { AgentRegistry } from '@aesyclaw/agent/registry';
 
 /** Web 运行时需要的所有依赖项 */
 export type WebRuntimeDependencies = {
@@ -27,5 +28,6 @@ export type WebRuntimeDependencies = {
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable' | 'getPluginDefinitions'>;
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
+  agentRegistry: AgentRegistry;
   paths: Readonly<ResolvedPaths>;
 };

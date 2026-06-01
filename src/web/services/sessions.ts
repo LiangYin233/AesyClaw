@@ -1,7 +1,12 @@
 /** 会话 Service。 */
 
-import { toSessionMessageDto, type SessionMessageDto, type SessionSummary } from '@aesyclaw/session';
+import {
+  toSessionMessageDto,
+  type SessionMessageDto,
+  type SessionSummary,
+} from '@aesyclaw/session';
 import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
+import type { SessionKey } from '@aesyclaw/core/types';
 
 /**
  * 获取所有会话列表。
@@ -40,5 +45,13 @@ export async function clearSessionHistory(
   deps: WebRuntimeDependencies,
   sessionId: string,
 ): Promise<void> {
+  const record = await deps.databaseManager.sessions.findById(sessionId);
   await deps.sessionManager.clearById(sessionId);
+  if (record !== null) {
+    deps.agentRegistry.unregisterAgent(toSessionKey(record));
+  }
+}
+
+function toSessionKey(record: { channel: string; type: string; chatId: string }): SessionKey {
+  return { channel: record.channel, type: record.type, chatId: record.chatId };
 }

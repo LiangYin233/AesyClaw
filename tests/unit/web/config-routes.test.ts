@@ -50,23 +50,43 @@ describe('config service', () => {
 describe('sessions service', () => {
   it('clears message history for an existing session', async () => {
     const clearById = vi.fn(async () => undefined);
+    const findById = vi.fn(async () => ({ channel: 'desktop', type: 'private', chatId: 'test' }));
+    const unregisterAgent = vi.fn();
     const deps = {
+      databaseManager: {
+        sessions: { findById },
+      },
       sessionManager: {
         clearById,
+      },
+      agentRegistry: {
+        unregisterAgent,
       },
     } as unknown as WebUiManagerDependencies;
 
     await clearSessionHistory(deps, 'session-1');
 
+    expect(findById).toHaveBeenCalledWith('session-1');
     expect(clearById).toHaveBeenCalledWith('session-1');
+    expect(unregisterAgent).toHaveBeenCalledWith({
+      channel: 'desktop',
+      type: 'private',
+      chatId: 'test',
+    });
   });
 
   it('propagates missing session errors from SessionManager', async () => {
     const deps = {
+      databaseManager: {
+        sessions: { findById: vi.fn(async () => null) },
+      },
       sessionManager: {
         clearById: vi.fn(async () => {
           throw new Error('会话未找到');
         }),
+      },
+      agentRegistry: {
+        unregisterAgent: vi.fn(),
       },
     } as unknown as WebUiManagerDependencies;
 

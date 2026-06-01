@@ -310,6 +310,7 @@ export class Application {
       pluginManager: this.pluginManager,
       toolRegistry: this.sub.toolRegistry,
       skillManager: this.sub.skillManager,
+      agentRegistry: this.sub.agentRegistry,
       paths: this.paths,
     });
 

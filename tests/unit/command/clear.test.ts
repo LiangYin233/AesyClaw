@@ -12,20 +12,22 @@ describe('clear command', () => {
     const clearById = vi.fn(async () => undefined);
     const findByKey = vi.fn(async () => ({ id: 'session-1' }));
     const getAgent = vi.fn(() => ({ session: { isLocked: false } }));
+    const unregisterAgent = vi.fn();
 
     registerBuiltinCommands(registry, {
       sessionManager: { clearById } as any,
       databaseManager: { sessions: { findByKey } } as any,
-      agentRegistry: { getAgent } as any,
+      agentRegistry: { getAgent, unregisterAgent } as any,
     } as any);
 
-    const cmd = registry.getAll().find(c => c.name === 'clear')!;
+    const cmd = registry.getAll().find((c) => c.name === 'clear')!;
     const context: CommandContext = { sessionKey: KEY };
     const result = await cmd.execute([], context);
 
     expect(result).toEqual({ components: [{ type: 'Plain', text: '会话历史已清空。' }] });
     expect(findByKey).toHaveBeenCalledWith(KEY);
     expect(clearById).toHaveBeenCalledWith('session-1');
+    expect(unregisterAgent).toHaveBeenCalledWith(KEY);
   });
 
   it('prevents clearing when agent is locked', async () => {
@@ -39,7 +41,7 @@ describe('clear command', () => {
       agentRegistry: { getAgent } as any,
     } as any);
 
-    const cmd = registry.getAll().find(c => c.name === 'clear')!;
+    const cmd = registry.getAll().find((c) => c.name === 'clear')!;
     const context: CommandContext = { sessionKey: KEY };
     const result = await cmd.execute([], context);
 
@@ -54,18 +56,20 @@ describe('clear command', () => {
     const clearById = vi.fn();
     const findByKey = vi.fn(async () => null);
     const getAgent = vi.fn(() => ({ session: { isLocked: false } }));
+    const unregisterAgent = vi.fn();
 
     registerBuiltinCommands(registry, {
       sessionManager: { clearById } as any,
       databaseManager: { sessions: { findByKey } } as any,
-      agentRegistry: { getAgent } as any,
+      agentRegistry: { getAgent, unregisterAgent } as any,
     } as any);
 
-    const cmd = registry.getAll().find(c => c.name === 'clear')!;
+    const cmd = registry.getAll().find((c) => c.name === 'clear')!;
     const context: CommandContext = { sessionKey: KEY };
     const result = await cmd.execute([], context);
 
     expect(result).toEqual({ components: [{ type: 'Plain', text: '会话历史已清空。' }] });
     expect(clearById).not.toHaveBeenCalled();
+    expect(unregisterAgent).not.toHaveBeenCalled();
   });
 });
