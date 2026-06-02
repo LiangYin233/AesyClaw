@@ -5,7 +5,8 @@
  * 作为 agent:beforeLLM 中间件运行，可被禁用或替换。
  */
 import type { Middleware, HookRegistration, HookResult, HookCtx } from '@aesyclaw/hook';
-import { calculateActualTokens } from '@aesyclaw/session';
+import { getMessageText } from '@aesyclaw/core/types';
+import { calculateEstimatedContextTokens } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm/adapter';
 
 const AUTO_COMPACT_HOOK_ID = 'core:auto-compact';
@@ -26,7 +27,10 @@ function createAutoCompactMiddleware(
       return next !== undefined ? await next() : { action: 'next' };
     }
 
-    if (calculateActualTokens(history) >= model.contextWindow * compressionThreshold) {
+    const currentContent = ctx.llmContent ?? getMessageText(ctx.message);
+    const estimatedTokens = calculateEstimatedContextTokens(history, currentContent);
+
+    if (estimatedTokens >= model.contextWindow * compressionThreshold) {
       const transientHistory = history.slice(sessionHistory.length);
       await ctx.session.compact(llmAdapter, ctx.agent?.modelIdentifier ?? '');
       ctx.llmHistory = [...ctx.session.get(), ...transientHistory];

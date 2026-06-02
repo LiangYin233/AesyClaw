@@ -8,12 +8,13 @@ import type { AgentTool, AgentToolResult, AgentMessage } from '../types';
 import type { AfterToolCallContext, AfterToolCallResult } from '@earendil-works/pi-agent-core';
 import type { IHooksBus, ToolResultBudget } from '@aesyclaw/hook';
 import type { SessionKey } from '@aesyclaw/core/types';
+import {
+  CHARS_PER_TOKEN,
+  calculateEstimatedContextTokens,
+} from '@aesyclaw/session/utils/token-utils';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { throwIfCancelled } from './shared';
 const logger = createScopedLogger('tool-runtime');
-
-/** 每个 token 的平均字符数（用于粗略估算） */
-const CHARS_PER_TOKEN = 3.5;
 
 /** 工具结果可使用的剩余 token 预算比例 */
 const TOOL_RESULT_BUDGET_RATIO = 0.5;
@@ -60,17 +61,7 @@ export function calculateToolResultBudget(
 ): ToolResultBudget {
   const compressionLimitTokens = Math.floor(model.contextWindow * compressionThreshold);
 
-  // 使用实际 token 计数（从 message.usage 累加）
-  let usedTokens = 0;
-  for (const message of history) {
-    const usage = (message as unknown as { usage?: { totalTokens?: number } }).usage;
-    if (usage && typeof usage.totalTokens === 'number') {
-      usedTokens += usage.totalTokens;
-    }
-  }
-
-  // 对于当前用户输入，使用粗略估算（因为还没有发送给 LLM）
-  usedTokens += Math.ceil(content.length / CHARS_PER_TOKEN);
+  const usedTokens = calculateEstimatedContextTokens(history, content);
 
   const remainingTokens = Math.max(0, compressionLimitTokens - usedTokens);
   const maxToolResultTokens = Math.floor(remainingTokens * TOOL_RESULT_BUDGET_RATIO);

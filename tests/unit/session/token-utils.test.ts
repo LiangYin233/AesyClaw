@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentMessage } from '../../../src/contracts/llm';
-import { calculateActualTokens } from '../../../src/session/utils/token-utils';
+import {
+  calculateActualTokens,
+  calculateEstimatedContextTokens,
+  calculateEstimatedMessageTokens,
+  estimateTextTokens,
+} from '../../../src/session/utils/token-utils';
 
 function agentMessage(message: unknown): AgentMessage {
   return message as AgentMessage;
 }
+
+describe('estimateTextTokens', () => {
+  it('returns 0 for empty text', () => {
+    expect(estimateTextTokens('')).toBe(0);
+  });
+
+  it('estimates tokens from text length', () => {
+    expect(estimateTextTokens('x'.repeat(7))).toBe(2);
+  });
+});
 
 describe('calculateActualTokens', () => {
   it('returns 0 for empty messages array', () => {
@@ -92,5 +107,68 @@ describe('calculateActualTokens', () => {
     ];
     // Only the first message with usage is counted
     expect(calculateActualTokens(messages)).toBe(4);
+  });
+});
+
+describe('calculateEstimatedMessageTokens', () => {
+  it('prefers actual usage when available', () => {
+    const message = agentMessage({
+      role: 'user',
+      content: 'x'.repeat(3_500),
+      timestamp: Date.now(),
+      usage: { totalTokens: 12 },
+    });
+
+    expect(calculateEstimatedMessageTokens(message)).toBe(12);
+  });
+
+  it('estimates user messages without usage', () => {
+    const message = agentMessage({
+      role: 'user',
+      content: 'x'.repeat(35),
+      timestamp: Date.now(),
+    });
+
+    expect(calculateEstimatedMessageTokens(message)).toBe(10);
+  });
+
+  it('estimates tool results without usage', () => {
+    const message = agentMessage({
+      role: 'toolResult',
+      content: [{ type: 'text' as const, text: 'x'.repeat(70) }],
+      timestamp: Date.now(),
+    });
+
+    expect(calculateEstimatedMessageTokens(message)).toBe(20);
+  });
+
+  it('estimates hand-written messages with string content', () => {
+    const message = agentMessage({
+      role: 'toolResult',
+      content: 'x'.repeat(14),
+      timestamp: Date.now(),
+    });
+
+    expect(calculateEstimatedMessageTokens(message)).toBe(4);
+  });
+});
+
+describe('calculateEstimatedContextTokens', () => {
+  it('combines actual usage, estimated history, and current content', () => {
+    const messages = [
+      agentMessage({
+        role: 'assistant',
+        content: [{ type: 'text' as const, text: 'ignored because usage exists' }],
+        timestamp: Date.now(),
+        usage: { totalTokens: 30 },
+      }),
+      agentMessage({
+        role: 'user',
+        content: 'x'.repeat(35),
+        timestamp: Date.now(),
+      }),
+    ];
+
+    expect(calculateEstimatedContextTokens(messages, 'x'.repeat(7))).toBe(42);
   });
 });
