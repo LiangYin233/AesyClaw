@@ -4,8 +4,8 @@
  * 此模块应保持轻量，只依赖外部 pi 包。不依赖任何内部模块。
  */
 
-import type { AgentMessage as PiAgentMessage, StreamFn } from '@mariozechner/pi-agent-core';
-import type { Api, Model, TextContent, ToolCall } from '@mariozechner/pi-ai';
+import type { AgentMessage as PiAgentMessage, StreamFn } from '@earendil-works/pi-agent-core';
+import type { Api, Model, TextContent, ToolCall } from '@earendil-works/pi-ai';
 
 // ─── 消息类型 ─────────────────────────────────────────────────────
 

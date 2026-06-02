@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { streamSimple } from '@mariozechner/pi-ai';
-import type * as PiAiModule from '@mariozechner/pi-ai';
+import { streamSimple } from '@earendil-works/pi-ai';
+import type * as PiAiModule from '@earendil-works/pi-ai';
 import { AgentRegistry } from '../../../src/agent/registry';
 import { createProviderCacheKey, type AgentRunParams } from '../../../src/agent/runner';
 import { runAgentTask } from '../../../src/agent/runner';
@@ -122,12 +122,12 @@ const runnerMock = vi.hoisted(() => {
   };
 });
 
-vi.mock('@mariozechner/pi-agent-core', () => ({
+vi.mock('@earendil-works/pi-agent-core', () => ({
   Agent: runnerMock.MockPiAgent,
 }));
 
-vi.mock('@mariozechner/pi-ai', async () => {
-  const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
+vi.mock('@earendil-works/pi-ai', async () => {
+  const actual = await vi.importActual<typeof PiAiModule>('@earendil-works/pi-ai');
   return {
     ...actual,
     streamSimple: runnerMock.streamSimple,

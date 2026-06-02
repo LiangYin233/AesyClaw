@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "katex": "^0.17.0",
-    "marked": "^18.0.3",
-    "playwright": "^1.59.1"
+    "marked": "^18.0.4",
+    "playwright": "^1.60.0"
   }
 }

@@ -5,7 +5,7 @@
  */
 
 import { createZeroMessageUsage } from '@aesyclaw/core/types';
-import type { Usage } from '@mariozechner/pi-ai';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { AgentMessage } from '@aesyclaw/contracts/llm';
 import { ApiType } from '@aesyclaw/contracts/llm';
 

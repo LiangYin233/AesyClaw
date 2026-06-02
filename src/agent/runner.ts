@@ -11,8 +11,8 @@ import {
   type AgentEvent,
   type AgentTool as PiAgentTool,
   type StreamFn,
-} from '@mariozechner/pi-agent-core';
-import type { TSchema } from '@mariozechner/pi-ai';
+} from '@earendil-works/pi-agent-core';
+import type { TSchema } from '@earendil-works/pi-ai';
 import type { AgentMessage, AgentTool, ResolvedModel } from './types';
 import { serializeSessionKey, type OutboundSignal, type SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';

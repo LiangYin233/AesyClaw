@@ -2,7 +2,7 @@
  * runner/event-converter — Agent 事件 → OutboundSignal 转换。
  */
 
-import type { AgentEvent } from '@mariozechner/pi-agent-core';
+import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { OutboundSignal, SessionKey } from '@aesyclaw/core/types';
 import { getFinalAssistantUsage } from './run-parser';
 

@@ -18,7 +18,7 @@ import {
 } from '@aesyclaw/agent/llm/cache-options';
 import type { UsageRepository } from '@aesyclaw/core/database/database-manager';
 import type { SessionFileStore } from '../persistence/file-store';
-import { completeSimple, type AssistantMessage } from '@mariozechner/pi-ai';
+import { completeSimple, type AssistantMessage } from '@earendil-works/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { calculateActualTokens } from './token-utils';
 

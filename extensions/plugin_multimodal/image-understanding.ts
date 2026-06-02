@@ -6,7 +6,7 @@
  */
 
 import { Type } from '@sinclair/typebox';
-import { completeSimple } from '@mariozechner/pi-ai';
+import { completeSimple } from '@earendil-works/pi-ai';
 import { extractMessageText, makeExtraBodyOnPayload } from '@aesyclaw/contracts/llm';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/sdk';

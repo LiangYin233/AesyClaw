@@ -1,6 +1,6 @@
 {
   "name": "aesyclaw-webui",
-  "version": "2026.5.27",
+  "version": "2026.6.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,16 +13,16 @@
     "@tailwindcss/postcss": "^4.3.0",
     "chart.js": "^4.5.1",
     "pinia": "^3.0.4",
-    "vue": "^3.5.34",
-    "vue-router": "^5.0.6"
+    "vue": "^3.5.35",
+    "vue-router": "^5.1.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.6",
+    "@vitejs/plugin-vue": "^6.0.7",
     "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.14",
+    "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
-    "vite": "^8.0.11",
-    "vue-tsc": "^3.2.8"
+    "vite": "^8.0.16",
+    "vue-tsc": "^3.3.3"
   }
 }

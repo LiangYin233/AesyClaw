@@ -5,7 +5,7 @@
  */
 
 import type { AgentTool, AgentToolResult, AgentMessage } from '../types';
-import type { AfterToolCallContext, AfterToolCallResult } from '@mariozechner/pi-agent-core';
+import type { AfterToolCallContext, AfterToolCallResult } from '@earendil-works/pi-agent-core';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord } from '@aesyclaw/core/utils';
 import { throwIfCancelled, AgentRunCancelledError } from './shared';

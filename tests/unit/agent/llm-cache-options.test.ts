@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Api, Model, SimpleStreamOptions } from '@mariozechner/pi-ai';
+import type { Api, Model, SimpleStreamOptions } from '@earendil-works/pi-ai';
 import {
   withDefaultPromptCacheModel,
   withDefaultPromptCacheOptions,

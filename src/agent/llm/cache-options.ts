@@ -1,4 +1,4 @@
-import type { Api, Model, SimpleStreamOptions } from '@mariozechner/pi-ai';
+import type { Api, Model, SimpleStreamOptions } from '@earendil-works/pi-ai';
 import { ApiType } from '../types';
 
 type CompatRecord = Record<string, unknown> & {

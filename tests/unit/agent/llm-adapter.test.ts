@@ -6,14 +6,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { streamSimple } from '@mariozechner/pi-ai';
+import { streamSimple } from '@earendil-works/pi-ai';
 import { LlmAdapter } from '../../../src/agent/llm/adapter';
-import type * as PiAiModule from '@mariozechner/pi-ai';
+import type * as PiAiModule from '@earendil-works/pi-ai';
 import type { ConfigManager } from '../../../src/core/config/config-manager';
 import type { AppConfig } from '../../../src/core/config/schema';
 
-vi.mock('@mariozechner/pi-ai', async () => {
-  const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
+vi.mock('@earendil-works/pi-ai', async () => {
+  const actual = await vi.importActual<typeof PiAiModule>('@earendil-works/pi-ai');
   return {
     ...actual,
     streamSimple: vi.fn(),

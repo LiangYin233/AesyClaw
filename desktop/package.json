@@ -1,7 +1,7 @@
 {
   "name": "aesyclaw-desktop",
   "author": "AesyClaw",
-  "version": "2026.5.27",
+  "version": "2026.6.2",
   "description": "AesyClaw Desktop — Electron 桌面客户端",
   "private": true,
   "main": "./out/main/index.js",
@@ -13,22 +13,22 @@
     "package": "electron-builder"
   },
   "dependencies": {
-    "marked": "^18.0.3",
-    "vue": "^3.5.0",
+    "marked": "^18.0.4",
+    "vue": "^3.5.35",
     "vue-router": "^4.5.0",
-    "ws": "^8.20.0"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/ws": "^8.18.1",
-    "@vitejs/plugin-vue": "^5.2.0",
-    "electron": "^42.1.0",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "electron": "^42.3.1",
     "electron-builder": "26.8.1",
-    "electron-vite": "^2.3.0",
+    "electron-vite": "^5.0.0",
     "typescript": "^6.0.3",
     "vite": "^6.0.0"
   },
   "build": {
-    "electronVersion": "42.1.0",
+    "electronVersion": "42.3.1",
     "appId": "com.aesyclaw.desktop",
     "productName": "AesyClaw Desktop",
     "directories": {

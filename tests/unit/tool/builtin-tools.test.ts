@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { completeSimple } from '@mariozechner/pi-ai';
-import type * as PiAiModule from '@mariozechner/pi-ai';
+import { completeSimple } from '@earendil-works/pi-ai';
+import type * as PiAiModule from '@earendil-works/pi-ai';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { createSendMsgTool } from '../../../src/tool/builtin/send-msg';
 import { createLoadSkillTool } from '../../../src/tool/builtin/load-skill';
@@ -14,8 +14,8 @@ import {
 import { registerBuiltinTools } from '../../../src/tool/builtin';
 import type { RoleConfig, Skill } from '../../../src/core/types';
 
-vi.mock('@mariozechner/pi-ai', async () => {
-  const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
+vi.mock('@earendil-works/pi-ai', async () => {
+  const actual = await vi.importActual<typeof PiAiModule>('@earendil-works/pi-ai');
   return {
     ...actual,
     completeSimple: vi.fn(),
