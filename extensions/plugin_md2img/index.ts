@@ -1,11 +1,11 @@
-import { marked } from 'marked';
+import { Marked } from 'marked';
+import markedKatex from 'marked-katex-extension';
 import { chromium } from 'playwright';
 import type { Browser } from 'playwright';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import katex from 'katex';
 import { getMessageText } from '@aesyclaw/sdk';
 import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
 import type { HookCtx, HookResult } from '@aesyclaw/sdk';
@@ -15,6 +15,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');
 const FONT_PATH = resolve(__dirname, 'SourceHanSerif-VF.otf.woff2');
 const require = createRequire(import.meta.url);
+const markdownRenderer = new Marked(
+  {
+    async: false,
+    breaks: true,
+    gfm: true,
+  },
+  markedKatex({ throwOnError: false }),
+);
 
 // ─── Content detection ──────────────────────────────────────────
 
@@ -38,33 +46,10 @@ export function isLatex(text: string): boolean {
   return LATEX_RE.test(text);
 }
 
-// ─── LaTeX pre-processor ────────────────────────────────────────
+// ─── Markdown renderer ──────────────────────────────────────────
 
-/**
- * Pre-process markdown text to replace $...$ and $$...$$ delimiters
- * with KaTeX-rendered HTML before marked.parse().
- *
- * Display math ($$...$$) is processed first to avoid greedy matching
- * by the inline math ($...$) pass.
- */
-export function preprocessLatex(markdown: string): string {
-  // Display math first
-  let result = markdown.replace(/(?<!\\)\$\$([\s\S]*?)\$\$/g, (_match: string, tex: string) => {
-    try {
-      return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false });
-    } catch {
-      return `$${tex}$$`;
-    }
-  });
-  // Inline math
-  result = result.replace(/(?<!\\)\$([\s\S]*?)\$/g, (_match: string, tex: string) => {
-    try {
-      return katex.renderToString(tex.trim(), { throwOnError: false });
-    } catch {
-      return `$${tex}$`;
-    }
-  });
-  return result;
+function renderMarkdown(markdown: string): string {
+  return markdownRenderer.parse(markdown, { async: false }) as string;
 }
 
 // ─── Document builder ───────────────────────────────────────────
@@ -163,8 +148,7 @@ async function renderToPng(
 ): Promise<Buffer> {
   let html: string;
   if (options?.asMarkdown) {
-    const processed = preprocessLatex(content);
-    html = marked.parse(processed, { async: false }) as string;
+    html = renderMarkdown(content);
   } else {
     html = content;
   }
@@ -236,8 +220,6 @@ export async function handleMd2ImgSend(
     return { action: 'next' };
   }
 
-  // LaTeX-only content (no markdown, no HTML) still needs marked.parse()
-  // so the preprocessed KaTeX HTML is properly wrapped in a paragraph.
   const shouldRenderAsMarkdown = isMarkdownContent || hasLatex;
 
   try {

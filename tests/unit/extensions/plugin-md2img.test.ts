@@ -8,7 +8,6 @@ import {
   handleMd2ImgSend,
   isLatex,
   PlaywrightMarkdownRenderer,
-  preprocessLatex,
 } from '../../../extensions/plugin_md2img/index';
 
 function createLogger() {
@@ -18,6 +17,17 @@ function createLogger() {
     warn: vi.fn(),
     error: vi.fn(),
   };
+}
+
+async function renderMarkdownHtml(markdown: string): Promise<string> {
+  let html = '';
+  await convertMarkdownToImage(markdown, '<div id="md2img-root">{{content}}</div>', {
+    renderHtmlToPng: async (htmlDocument) => {
+      html = htmlDocument;
+      return Buffer.from('png-bytes');
+    },
+  });
+  return html;
 }
 
 function createFakeBrowserHarness() {
@@ -410,35 +420,37 @@ describe('plugin_md2img', () => {
     });
   });
 
-  // ─── LaTeX pre-processor ────────────────────────────────────────────
+  // ─── LaTeX Markdown rendering ───────────────────────────────────────
 
-  describe('preprocessLatex', () => {
-    it('replaces inline $...$ with KaTeX-rendered HTML', () => {
-      const result = preprocessLatex('The formula $E=mc^2$ is famous.');
+  describe('LaTeX Markdown rendering', () => {
+    it('replaces inline $...$ with KaTeX-rendered HTML', async () => {
+      const result = await renderMarkdownHtml('The formula $E=mc^2$ is famous.');
       expect(result).not.toContain('$');
       expect(result).toContain('katex');
       expect(result).toContain('katex-html');
     });
 
-    it('replaces display math $$...$$ with KaTeX display HTML', () => {
-      const result = preprocessLatex('$$\\frac{1}{2}$$');
+    it('replaces display math $$...$$ with KaTeX display HTML', async () => {
+      const result = await renderMarkdownHtml('$$\\frac{1}{2}$$');
       expect(result).not.toContain('$$');
       expect(result).toContain('katex-display');
     });
 
-    it('handles both inline and display math in the same text', () => {
-      const result = preprocessLatex('Inline $a=b$ and display $$\\sum_{i=1}^{n} i$$.');
+    it('handles both inline and display math in the same text', async () => {
+      const result = await renderMarkdownHtml('Inline $a=b$ and display $$\\sum_{i=1}^{n} i$$.');
       expect(result).toContain('katex');
       expect(result).toContain('katex-display');
-      // Verify no raw delimiters remain
       expect(result.match(/\$/g)).toBeNull();
     });
 
-    it('falls back to original text on bad LaTeX (throwOnError: false)', () => {
-      // Bad LaTeX: unmatched braces cause KaTeX to throw
-      const result = preprocessLatex('Bad: $\\invalid$$');
-      // With throwOnError: false, KaTeX either handles it or fallback preserves raw
-      // Since it might still try to format, just verify no crash
+    it('does not render math delimiters inside code spans', async () => {
+      const result = await renderMarkdownHtml('Use `$not_math$` and $x$.');
+      expect(result).toContain('<code>$not_math$</code>');
+      expect(result).toContain('katex');
+    });
+
+    it('does not crash on bad LaTeX', async () => {
+      const result = await renderMarkdownHtml('Bad: $\\invalid$$');
       expect(typeof result).toBe('string');
     });
   });
