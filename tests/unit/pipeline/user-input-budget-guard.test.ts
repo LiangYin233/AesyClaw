@@ -10,7 +10,7 @@ describe('createUserInputBudgetGuardHook', () => {
   });
 
   it('returns a HookRegistration with the correct chain, priority, and id', () => {
-    const hook = createUserInputBudgetGuardHook(0.8);
+    const hook = createUserInputBudgetGuardHook();
 
     expect(hook.id).toBe(USER_INPUT_BUDGET_GUARD_HOOK_ID);
     expect(hook.chain).toBe('pipeline:beforeAgent');
@@ -19,7 +19,7 @@ describe('createUserInputBudgetGuardHook', () => {
   });
 
   it('passes through when current user input is within budget', async () => {
-    const hook = createUserInputBudgetGuardHook(0.8);
+    const hook = createUserInputBudgetGuardHook();
     const next = vi.fn(async () => ({ action: 'next' as const }));
 
     const result = await hook.handler(
@@ -31,9 +31,26 @@ describe('createUserInputBudgetGuardHook', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('responds and logs a warning when current user input exceeds budget', async () => {
+  it('passes through when total usage exceeds compression threshold but still fits context window', async () => {
+    const hook = createUserInputBudgetGuardHook();
+    const next = vi.fn(async () => ({ action: 'next' as const }));
+
+    const result = await hook.handler(
+      createCtx({
+        currentText: 'x'.repeat(42),
+        contextWindow: 100,
+        history: [{ role: 'assistant', content: '', usage: { totalTokens: 70 } }],
+      }),
+      next,
+    );
+
+    expect(result).toEqual({ action: 'next' });
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('responds and logs a warning when current user input fills the whole context window', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const hook = createUserInputBudgetGuardHook(0.8);
+    const hook = createUserInputBudgetGuardHook();
     const next = vi.fn(async () => ({ action: 'next' as const }));
 
     const result = await hook.handler(
@@ -57,13 +74,38 @@ describe('createUserInputBudgetGuardHook', () => {
     expect(String(warnSpy.mock.calls[0]?.[0])).toContain('[user-input-budget]');
     expect(warnSpy.mock.calls[0]?.[1]).toMatchObject({
       currentChars: 350,
+      availableTokens: 100,
       currentTokens: 100,
-      limitTokens: 80,
+      limitTokens: 100,
+    });
+  });
+
+  it('responds when history leaves too little absolute context for the current input', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const hook = createUserInputBudgetGuardHook();
+    const next = vi.fn(async () => ({ action: 'next' as const }));
+
+    const result = await hook.handler(
+      createCtx({
+        currentText: 'x'.repeat(35),
+        contextWindow: 100,
+        history: [{ role: 'assistant', content: '', usage: { totalTokens: 95 } }],
+      }),
+      next,
+    );
+
+    expect(result).toMatchObject({ action: 'respond' });
+    expect(next).not.toHaveBeenCalled();
+    expect(warnSpy.mock.calls[0]?.[1]).toMatchObject({
+      historyTokens: 95,
+      availableTokens: 5,
+      currentTokens: 10,
+      totalTokens: 105,
     });
   });
 
   it('skips safely when session is unavailable', async () => {
-    const hook = createUserInputBudgetGuardHook(0.8);
+    const hook = createUserInputBudgetGuardHook();
     const next = vi.fn(async () => ({ action: 'next' as const }));
     const ctx = createCtx({ currentText: 'x'.repeat(350), contextWindow: 100 }) as Record<
       string,
@@ -78,7 +120,7 @@ describe('createUserInputBudgetGuardHook', () => {
   });
 
   it('skips safely when agent model is unavailable', async () => {
-    const hook = createUserInputBudgetGuardHook(0.8);
+    const hook = createUserInputBudgetGuardHook();
     const next = vi.fn(async () => ({ action: 'next' as const }));
     const ctx = createCtx({ currentText: 'x'.repeat(350), contextWindow: 100 }) as Record<
       string,
@@ -93,12 +135,12 @@ describe('createUserInputBudgetGuardHook', () => {
   });
 });
 
-function createCtx(options: { currentText: string; contextWindow: number }) {
+function createCtx(options: { currentText: string; contextWindow: number; history?: unknown[] }) {
   return {
     message: { components: [{ type: 'Plain' as const, text: options.currentText }] },
     sessionKey: { channel: 'test', type: 'private', chatId: '1' },
     session: {
-      get: () => [],
+      get: () => options.history ?? [],
     },
     agent: {
       model: { contextWindow: options.contextWindow },

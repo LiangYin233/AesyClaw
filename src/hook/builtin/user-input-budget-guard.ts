@@ -22,20 +22,21 @@ type ContextBudget = {
   historyTokens: number;
   currentTokens: number;
   totalTokens: number;
-  currentExceedsLimit: boolean;
+  availableTokens: number;
+  currentExceedsAvailableBudget: boolean;
 };
 
-export function createUserInputBudgetGuardHook(compressionThreshold: number): HookRegistration {
+export function createUserInputBudgetGuardHook(): HookRegistration {
   return {
     id: USER_INPUT_BUDGET_GUARD_HOOK_ID,
     chain: 'pipeline:beforeAgent',
     priority: 90,
     enabled: true,
-    handler: createUserInputBudgetGuardMiddleware(compressionThreshold),
+    handler: createUserInputBudgetGuardMiddleware(),
   };
 }
 
-function createUserInputBudgetGuardMiddleware(compressionThreshold: number): Middleware {
+function createUserInputBudgetGuardMiddleware(): Middleware {
   return async (ctx: HookCtx, next?: () => Promise<HookResult>): Promise<HookResult> => {
     const model = ctx.agent?.model;
     if (!ctx.session || !model) {
@@ -47,10 +48,9 @@ function createUserInputBudgetGuardMiddleware(compressionThreshold: number): Mid
       history: ctx.session.get(),
       currentContent,
       contextWindow: model.contextWindow,
-      compressionThreshold,
     });
 
-    if (!budget.currentExceedsLimit) {
+    if (!budget.currentExceedsAvailableBudget) {
       return next !== undefined ? await next() : { action: 'next' };
     }
 
@@ -60,6 +60,7 @@ function createUserInputBudgetGuardMiddleware(compressionThreshold: number): Mid
       contextWindow: model.contextWindow,
       limitTokens: budget.limitTokens,
       historyTokens: budget.historyTokens,
+      availableTokens: budget.availableTokens,
       currentTokens: budget.currentTokens,
       totalTokens: budget.totalTokens,
       currentChars: currentContent.length,
@@ -76,18 +77,19 @@ function calculateContextBudget(params: {
   history: readonly AgentMessage[];
   currentContent: string;
   contextWindow: number;
-  compressionThreshold: number;
 }): ContextBudget {
-  const limitTokens = Math.floor(params.contextWindow * params.compressionThreshold);
+  const limitTokens = Math.floor(params.contextWindow);
   const historyTokens = calculateEstimatedContextTokens(params.history);
   const currentTokens = estimateTextTokens(params.currentContent);
   const totalTokens = historyTokens + currentTokens;
+  const availableTokens = Math.max(0, limitTokens - historyTokens);
 
   return {
     limitTokens,
     historyTokens,
     currentTokens,
     totalTokens,
-    currentExceedsLimit: currentTokens >= limitTokens,
+    availableTokens,
+    currentExceedsAvailableBudget: currentTokens > 0 && currentTokens >= availableTokens,
   };
 }

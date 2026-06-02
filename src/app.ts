@@ -259,11 +259,7 @@ function builtinHookService(): RuntimeService {
       const sub = ctx.sub;
       const hooksBus = sub.pipeline.hooksBus;
       hooksBus.register(createCommandDetectHook(sub.commandRegistry));
-      hooksBus.register(
-        createUserInputBudgetGuardHook(
-          sub.configManager.get('agent.memory.compressionThreshold') as number,
-        ),
-      );
+      hooksBus.register(createUserInputBudgetGuardHook());
       hooksBus.register(
         createAutoCompactHook(
           sub.llmAdapter,
