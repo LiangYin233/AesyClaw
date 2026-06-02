@@ -17,45 +17,32 @@ export function registerProcessHandlers(
   app: Pick<AppLifecycle, 'shutdown'>,
   processRef: Pick<NodeJS.Process, 'on' | 'exit'> = process,
 ): void {
-  const shutdown = async (signal: string): Promise<void> => {
-    logger.info(`收到 ${signal}，正在关闭…`);
-    await app.shutdown();
-    processRef.exit(0);
+  const exitAfterShutdown = async (label: string, code: number): Promise<void> => {
+    try {
+      await app.shutdown();
+      processRef.exit(code);
+    } catch (err) {
+      logger.error(`${label} 关闭过程中失败`, err);
+      processRef.exit(1);
+    }
   };
 
-  const handleSignal = (signal: string): Promise<void> =>
-    shutdown(signal).catch((err) => {
-      logger.error(`${signal} 关闭过程中失败`, err);
-      processRef.exit(1);
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    processRef.on(signal, () => {
+      logger.info(`收到 ${signal}，正在关闭…`);
+      void exitAfterShutdown(signal, 0);
     });
-
-  processRef.on('SIGINT', () => {
-    void handleSignal('SIGINT');
-  });
-  processRef.on('SIGTERM', () => {
-    void handleSignal('SIGTERM');
-  });
+  }
 
   processRef.on('uncaughtException', (err) => {
-    void (async () => {
-      logger.error('未捕获的异常', err);
-      await app.shutdown();
-      processRef.exit(1);
-    })();
+    logger.error('未捕获的异常', err);
+    void exitAfterShutdown('uncaughtException', 1);
   });
 
   processRef.on('unhandledRejection', (reason) => {
-    void (async () => {
-      logger.error('未处理的 Promise 拒绝', reason);
-      await app.shutdown();
-      processRef.exit(1);
-    })();
+    logger.error('未处理的 Promise 拒绝', reason);
+    void exitAfterShutdown('unhandledRejection', 1);
   });
-}
-
-async function createDefaultApplication(): Promise<AppLifecycle> {
-  const { Application } = await import('./app');
-  return new Application();
 }
 
 export async function main(
@@ -63,7 +50,7 @@ export async function main(
   processRef: Pick<NodeJS.Process, 'on' | 'exit'> = process,
 ): Promise<void> {
   try {
-    const runningApp = app ?? (await createDefaultApplication());
+    const runningApp = app ?? new (await import('./app')).Application();
     registerProcessHandlers(runningApp, processRef);
     await runningApp.start();
   } catch (err) {

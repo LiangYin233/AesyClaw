@@ -35,7 +35,6 @@ import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
 import path from 'node:path';
-import type { ResolvedPaths } from './core/path-resolver';
 const logger = createScopedLogger('app');
 
 type Deps = {
@@ -107,243 +106,352 @@ function createSubsystems(): Deps {
   };
 }
 
-export class Application {
-  private sub: Deps;
-  private pluginManager: PluginManager | null = null;
-  private channelManager: ChannelManager | null = null;
-  private webUiManager: WebUiManager | null = null;
-  private cronManager: CronManager | null = null;
-  private shuttingDown = false;
-  private started = false;
+type ExtensionRuntime = {
+  channelManager: ChannelManager;
+  pluginManager: PluginManager;
+};
 
-  constructor() {
-    this.sub = createSubsystems();
-  }
+type RuntimeService = {
+  name: string;
+  priority: number;
+  start: (ctx: RuntimeContext) => Promise<void> | void;
+};
 
-  private get paths(): Readonly<ResolvedPaths> {
-    return this.sub.configManager.resolvedPaths;
-  }
+type Runtime = {
+  dispose: () => Promise<void>;
+};
 
-  async start(): Promise<void> {
-    if (this.started) {
-      logger.warn('应用已启动');
-      return;
+class RuntimeContext {
+  private readonly values = new Map<string, unknown>();
+  private readonly disposers: Array<() => Promise<void> | void> = [];
+  private disposed = false;
+
+  constructor(readonly sub: Deps) {}
+
+  get<T>(key: string): T {
+    if (!this.values.has(key)) {
+      throw new Error(`运行时服务 "${key}" 未初始化`);
     }
-    logger.info('正在启动 AesyClaw...');
-
-    await this.runStartupSequence();
-    this.started = true;
-
-    logger.info('AesyClaw 启动成功');
+    return this.values.get(key) as T;
   }
 
-  async shutdown(): Promise<void> {
-    if (this.shuttingDown) return;
-    this.shuttingDown = true;
-    logger.info('正在关闭 AesyClaw...');
+  own<T>(key: string, value: T, dispose: (value: T) => Promise<void> | void): T {
+    this.values.set(key, value);
+    this.defer(() => dispose(value));
+    return value;
+  }
 
-    const steps: Array<() => Promise<void> | void> = [
-      // 1. 停止配置热重载
-      () => this.sub.configManager.stopHotReload(),
-      () => this.sub.roleManager.stopHotReload(),
-      // 2. 停止外围运行时（依赖 pipeline 的子系统）
-      () => this.webUiManager?.destroy(),
-      () => this.cronManager?.destroy(),
-      () => this.sub.roleManager.destroy(),
-      // 3. 停止扩展（频道+插件）：此时 pipeline/hooksBus 仍可用，
-      //    但频道 destroy 中不应有出站消息发送
-      () => this.channelManager?.destroy(),
-      () => this.pluginManager?.destroy(),
-      // 4. 断开 MCP（MCP 工具已不再被调用）
-      () => this.sub.mcpManager.disconnectAll(),
-      // 5. 销毁 pipeline（清空 hooksBus）
-      () => this.sub.pipeline.destroy(),
-      // 6. 关闭数据库
-      () => this.sub.databaseManager.destroy(),
-    ];
+  defer(dispose: () => Promise<void> | void): void {
+    this.disposers.push(dispose);
+  }
 
-    for (const step of steps) {
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
+    this.disposed = true;
+
+    for (const dispose of [...this.disposers].reverse()) {
       try {
-        await step();
+        await dispose();
       } catch (err) {
         logger.error('关闭步骤失败', err);
       }
     }
-    logger.info('AesyClaw 关闭完成');
-    this.started = false;
   }
+}
 
-  private async runStartupSequence(): Promise<void> {
-    await this.runStep('初始化核心管理器', async () => {
-      await this.initCoreManagers();
-    });
+class RuntimeRunner {
+  private constructor(private readonly ctx: RuntimeContext) {}
 
-    await this.runStep('初始化扩展运行时', async () => {
-      await this.initExtensionRuntime();
-    });
+  static async start(services: RuntimeService[]): Promise<RuntimeRunner> {
+    const ctx = new RuntimeContext(createSubsystems());
+    const ordered = [...services].sort((a, b) => a.priority - b.priority);
 
-    await this.runStep('初始化外围运行时', async () => {
-      await this.initPeripheralRuntime();
-    });
-
-    await this.runStep('安装运行时热重载', async () => {
-      await this.installHotReload();
-    });
-  }
-
-  private async initCoreManagers(): Promise<void> {
-    // 同步操作：设置日志级别
-    setLogLevel(this.sub.configManager.get('server.logLevel') as string);
-
-    // 并行化独立的初始化操作
-    await Promise.all([
-      this.sub.databaseManager.initialize(this.paths.dbFile),
-      this.sub.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir),
-      this.sub.roleManager.initialize(),
-    ]);
-  }
-
-  private async initExtensionRuntime(): Promise<void> {
-    await this.sub.pipeline.initialize();
-
-    // 注册内置 Hook（通过注入而非 Pipeline 硬编码）
-    this.sub.pipeline.hooksBus.register(createCommandDetectHook(this.sub.commandRegistry));
-    this.sub.pipeline.hooksBus.register(
-      createAutoCompactHook(
-        this.sub.llmAdapter,
-        this.sub.configManager.get('agent.memory.compressionThreshold') as number,
-      ),
-    );
-    this.sub.pipeline.hooksBus.register(createTimeInjectHook());
-    this.sub.pipeline.hooksBus.register(createSkillPromptHook(this.sub.skillManager));
-    this.sub.pipeline.hooksBus.register(createCommunicationPromptHook());
-    this.sub.pipeline.hooksBus.register(createRolePromptHook(this.sub.roleManager));
-
-    // ChannelManager 先于 PluginManager 构造，插件不再注册 Channel。
-    this.channelManager = new ChannelManager({
-      configManager: this.sub.configManager,
-      pipeline: this.sub.pipeline,
-      hooksBus: this.sub.pipeline.hooksBus,
-      paths: this.paths,
-      toolRegistry: this.sub.toolRegistry,
-      commandRegistry: this.sub.commandRegistry,
-      sessionManager: this.sub.sessionManager,
-      llmAdapter: this.sub.llmAdapter,
-      databaseManager: this.sub.databaseManager,
-    });
-    this.pluginManager = new PluginManager({
-      configManager: this.sub.configManager,
-      toolRegistry: this.sub.toolRegistry,
-      commandRegistry: this.sub.commandRegistry,
-      hooksBus: this.sub.pipeline.hooksBus,
-      paths: this.paths,
-      llmAdapter: this.sub.llmAdapter,
-    });
-
-    registerBuiltinCommands(this.sub.commandRegistry, {
-      roleManager: this.sub.roleManager,
-      pluginManager: this.pluginManager,
-      sessionManager: this.sub.sessionManager,
-      llmAdapter: this.sub.llmAdapter,
-      skillManager: this.sub.skillManager,
-      toolRegistry: this.sub.toolRegistry,
-      hooksBus: this.sub.pipeline.hooksBus,
-      databaseManager: this.sub.databaseManager,
-      compressionThreshold: this.sub.configManager.get(
-        'agent.memory.compressionThreshold',
-      ) as number,
-      agentRegistry: this.sub.agentRegistry,
-      agentFactory: this.sub.agentFactory,
-    });
-
-    // 先加载插件（插件 init 期间可能注册频道），再注册磁盘频道并启动全部
-    await this.pluginManager.setup();
-    await this.channelManager.setup();
-  }
-
-  private async initPeripheralRuntime(): Promise<void> {
-    // 配置检查和设置
-    const mcpConfig = this.sub.configManager.get('mcp') as typeof DEFAULT_CONFIG.mcp;
-    if (mcpConfig.length === 0) {
-      await this.sub.configManager.set('mcp', DEFAULT_CONFIG.mcp);
-    }
-
-    if (this.channelManager === null) throw new Error('ChannelManager 未初始化');
-    if (this.pluginManager === null) throw new Error('PluginManager 未初始化');
-
-    // 创建 CronManager（同步操作）
-    const channelManager = this.channelManager;
-    this.cronManager = new CronManager({
-      databaseManager: this.sub.databaseManager,
-      pipeline: this.sub.pipeline,
-      hooksBus: this.sub.pipeline.hooksBus,
-      sessionManager: this.sub.sessionManager,
-      send: async (signal) => await channelManager.send(signal),
-    });
-
-    const cronManager = this.cronManager;
-
-    // Cron 初始化
-    await cronManager.initialize();
-
-    // MCP 连接异步执行，不阻塞启动
-    void this.sub.mcpManager.connectAll().catch((err) => {
-      logger.error('MCP 服务器连接失败', err);
-    });
-
-    // 注册内置工具（同步操作）
-    registerBuiltinTools(this.sub.toolRegistry, {
-      cronManager: cronManager,
-      roleManager: this.sub.roleManager,
-      skillManager: this.sub.skillManager,
-      agentRegistry: this.sub.agentRegistry,
-    });
-
-    // 创建并初始化 WebUI（依赖于其他服务）
-    this.webUiManager = new WebUiManager({
-      configManager: this.sub.configManager,
-      databaseManager: this.sub.databaseManager,
-      sessionManager: this.sub.sessionManager,
-      cronManager: cronManager,
-      roleManager: this.sub.roleManager,
-      channelManager: channelManager,
-      pluginManager: this.pluginManager,
-      toolRegistry: this.sub.toolRegistry,
-      skillManager: this.sub.skillManager,
-      agentRegistry: this.sub.agentRegistry,
-      paths: this.paths,
-    });
-
-    await this.webUiManager.initialize();
-  }
-
-  private async installHotReload(): Promise<void> {
-    await this.sub.configManager.syncDefaults();
-    this.sub.configManager.startHotReload();
-    this.sub.roleManager.startHotReload();
-
-    // 配置变更后自动热重载运行时组件。
-    this.sub.configManager.onConfigReloaded = () => {
-      void this.pluginManager?.handleConfigReload().catch((err) => {
-        logger.error('插件配置热重载失败', err);
-      });
-      void this.channelManager?.handleConfigReload().catch((err) => {
-        logger.error('频道配置热重载失败', err);
-      });
-      void this.sub.mcpManager.handleConfigReload().catch((err) => {
-        logger.error('MCP 配置热重载失败', err);
-      });
-    };
-  }
-
-  private async runStep(name: string, fn: () => Promise<void>): Promise<void> {
     try {
-      await fn();
-      logger.info(`✓ ${name}`);
+      for (const service of ordered) {
+        await runStep(service.name, async () => {
+          await service.start(ctx);
+        });
+      }
     } catch (err) {
-      logger.error(`启动步骤 "${name}" 失败`, err);
-      await this.shutdown();
+      await ctx.dispose();
       throw err;
     }
+
+    return new RuntimeRunner(ctx);
+  }
+
+  async dispose(): Promise<void> {
+    await this.ctx.dispose();
+  }
+}
+
+export class Application {
+  private runtime: Runtime | null = null;
+  private shuttingDown = false;
+
+  async start(): Promise<void> {
+    if (this.runtime) {
+      logger.warn('应用已启动');
+      return;
+    }
+
+    logger.info('正在启动 AesyClaw...');
+    this.runtime = await RuntimeRunner.start(defaultRuntimeServices());
+    logger.info('AesyClaw 启动成功');
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.shuttingDown || !this.runtime) return;
+
+    this.shuttingDown = true;
+    logger.info('正在关闭 AesyClaw...');
+    try {
+      await this.runtime.dispose();
+      this.runtime = null;
+      logger.info('AesyClaw 关闭完成');
+    } finally {
+      this.shuttingDown = false;
+    }
+  }
+}
+
+function defaultRuntimeServices(): RuntimeService[] {
+  return [
+    coreService(),
+    builtinHookService(),
+    extensionService(),
+    cronService(),
+    builtinToolService(),
+    mcpService(),
+    webService(),
+    hotReloadService(),
+  ];
+}
+
+function coreService(): RuntimeService {
+  return {
+    name: '初始化核心管理器',
+    priority: 0,
+    async start(ctx) {
+      const sub = ctx.sub;
+      ctx.defer(() => sub.databaseManager.destroy());
+      ctx.defer(() => sub.pipeline.destroy());
+      ctx.defer(() => sub.roleManager.destroy());
+
+      setLogLevel(sub.configManager.get('server.logLevel') as string);
+
+      const paths = sub.configManager.resolvedPaths;
+      await Promise.all([
+        sub.databaseManager.initialize(paths.dbFile),
+        sub.skillManager.loadAll(paths.userSkillsDir, paths.skillsDir),
+      ]);
+    },
+  };
+}
+
+function builtinHookService(): RuntimeService {
+  return {
+    name: '安装内置 Hook',
+    priority: 10,
+    start(ctx) {
+      const sub = ctx.sub;
+      const hooksBus = sub.pipeline.hooksBus;
+      hooksBus.register(createCommandDetectHook(sub.commandRegistry));
+      hooksBus.register(
+        createAutoCompactHook(
+          sub.llmAdapter,
+          sub.configManager.get('agent.memory.compressionThreshold') as number,
+        ),
+      );
+      hooksBus.register(createTimeInjectHook());
+      hooksBus.register(createSkillPromptHook(sub.skillManager));
+      hooksBus.register(createCommunicationPromptHook());
+      hooksBus.register(createRolePromptHook(sub.roleManager));
+    },
+  };
+}
+
+function extensionService(): RuntimeService {
+  return {
+    name: '初始化扩展运行时',
+    priority: 20,
+    async start(ctx) {
+      const sub = ctx.sub;
+      const paths = sub.configManager.resolvedPaths;
+      const channelManager = new ChannelManager({
+        configManager: sub.configManager,
+        pipeline: sub.pipeline,
+        hooksBus: sub.pipeline.hooksBus,
+        paths,
+        toolRegistry: sub.toolRegistry,
+        commandRegistry: sub.commandRegistry,
+        sessionManager: sub.sessionManager,
+        llmAdapter: sub.llmAdapter,
+        databaseManager: sub.databaseManager,
+      });
+      const pluginManager = new PluginManager({
+        configManager: sub.configManager,
+        toolRegistry: sub.toolRegistry,
+        commandRegistry: sub.commandRegistry,
+        hooksBus: sub.pipeline.hooksBus,
+        paths,
+        llmAdapter: sub.llmAdapter,
+      });
+      const extensions = ctx.own<ExtensionRuntime>(
+        'extensions',
+        { channelManager, pluginManager },
+        async ({ channelManager, pluginManager }) => {
+          await channelManager.destroy();
+          await pluginManager.destroy();
+        },
+      );
+
+      registerBuiltinCommands(sub.commandRegistry, {
+        roleManager: sub.roleManager,
+        pluginManager,
+        sessionManager: sub.sessionManager,
+        llmAdapter: sub.llmAdapter,
+        skillManager: sub.skillManager,
+        toolRegistry: sub.toolRegistry,
+        hooksBus: sub.pipeline.hooksBus,
+        databaseManager: sub.databaseManager,
+        compressionThreshold: sub.configManager.get('agent.memory.compressionThreshold') as number,
+        agentRegistry: sub.agentRegistry,
+        agentFactory: sub.agentFactory,
+      });
+
+      await extensions.pluginManager.setup();
+      await extensions.channelManager.setup();
+    },
+  };
+}
+
+function cronService(): RuntimeService {
+  return {
+    name: '初始化定时任务',
+    priority: 30,
+    async start(ctx) {
+      const sub = ctx.sub;
+      const { channelManager } = ctx.get<ExtensionRuntime>('extensions');
+      const cronManager = ctx.own(
+        'cronManager',
+        new CronManager({
+          databaseManager: sub.databaseManager,
+          pipeline: sub.pipeline,
+          hooksBus: sub.pipeline.hooksBus,
+          sessionManager: sub.sessionManager,
+          send: async (signal) => await channelManager.send(signal),
+        }),
+        async (cronManager) => {
+          await cronManager.destroy();
+        },
+      );
+      await cronManager.initialize();
+    },
+  };
+}
+
+function builtinToolService(): RuntimeService {
+  return {
+    name: '注册内置工具',
+    priority: 40,
+    start(ctx) {
+      const sub = ctx.sub;
+      registerBuiltinTools(sub.toolRegistry, {
+        cronManager: ctx.get<CronManager>('cronManager'),
+        roleManager: sub.roleManager,
+        skillManager: sub.skillManager,
+        agentRegistry: sub.agentRegistry,
+      });
+    },
+  };
+}
+
+function mcpService(): RuntimeService {
+  return {
+    name: '连接 MCP',
+    priority: 50,
+    async start(ctx) {
+      const sub = ctx.sub;
+      const mcpConfig = sub.configManager.get('mcp') as typeof DEFAULT_CONFIG.mcp;
+      if (mcpConfig.length === 0) {
+        await sub.configManager.set('mcp', DEFAULT_CONFIG.mcp);
+      }
+
+      ctx.defer(() => sub.mcpManager.disconnectAll());
+      void sub.mcpManager.connectAll().catch((err) => {
+        logger.error('MCP 服务器连接失败', err);
+      });
+    },
+  };
+}
+
+function webService(): RuntimeService {
+  return {
+    name: '启动 WebUI',
+    priority: 60,
+    async start(ctx) {
+      const sub = ctx.sub;
+      const { channelManager, pluginManager } = ctx.get<ExtensionRuntime>('extensions');
+      const webUiManager = ctx.own(
+        'webUiManager',
+        new WebUiManager({
+          configManager: sub.configManager,
+          databaseManager: sub.databaseManager,
+          sessionManager: sub.sessionManager,
+          cronManager: ctx.get<CronManager>('cronManager'),
+          roleManager: sub.roleManager,
+          channelManager,
+          pluginManager,
+          toolRegistry: sub.toolRegistry,
+          skillManager: sub.skillManager,
+          agentRegistry: sub.agentRegistry,
+          paths: sub.configManager.resolvedPaths,
+        }),
+        async (webUiManager) => {
+          await webUiManager.destroy();
+        },
+      );
+      await webUiManager.initialize();
+    },
+  };
+}
+
+function hotReloadService(): RuntimeService {
+  return {
+    name: '安装运行时热重载',
+    priority: 70,
+    async start(ctx) {
+      const sub = ctx.sub;
+      const extensions = ctx.get<ExtensionRuntime>('extensions');
+      ctx.defer(() => sub.configManager.stopHotReload());
+      ctx.defer(() => sub.roleManager.stopHotReload());
+
+      await sub.configManager.syncDefaults();
+      sub.configManager.startHotReload();
+      sub.roleManager.startHotReload();
+
+      sub.configManager.onConfigReloaded = () => {
+        void extensions.pluginManager.handleConfigReload().catch((err) => {
+          logger.error('插件配置热重载失败', err);
+        });
+        void extensions.channelManager.handleConfigReload().catch((err) => {
+          logger.error('频道配置热重载失败', err);
+        });
+        void sub.mcpManager.handleConfigReload().catch((err) => {
+          logger.error('MCP 配置热重载失败', err);
+        });
+      };
+    },
+  };
+}
+
+async function runStep(name: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+    logger.info(`✓ ${name}`);
+  } catch (err) {
+    logger.error(`启动步骤 "${name}" 失败`, err);
+    throw err;
   }
 }

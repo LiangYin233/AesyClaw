@@ -19,16 +19,21 @@ async function importEntrypoint() {
   return await import('../../src/index');
 }
 
+function makeProcessRef() {
+  const handlers = new Map<string, (...args: unknown[]) => unknown>();
+  const processRef = {
+    on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
+      handlers.set(event, handler);
+      return processRef;
+    }),
+    exit: vi.fn(),
+  };
+  return { handlers, processRef };
+}
+
 describe('index entrypoint', () => {
   it('logs graceful shutdowns through the scoped logger', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>();
-    const processRef = {
-      on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
-        handlers.set(event, handler);
-        return processRef;
-      }),
-      exit: vi.fn(),
-    };
+    const { handlers, processRef } = makeProcessRef();
     const app = {
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
@@ -44,14 +49,7 @@ describe('index entrypoint', () => {
   });
 
   it('logs uncaught exceptions through the scoped logger before shutdown', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => unknown>();
-    const processRef = {
-      on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
-        handlers.set(event, handler);
-        return processRef;
-      }),
-      exit: vi.fn(),
-    };
+    const { handlers, processRef } = makeProcessRef();
     const app = {
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
@@ -65,6 +63,24 @@ describe('index entrypoint', () => {
 
     expect(logger.error).toHaveBeenCalledWith('未捕获的异常', error);
     expect(app.shutdown).toHaveBeenCalledTimes(1);
+    expect(processRef.exit).toHaveBeenCalledWith(1);
+  });
+
+  it('exits with failure when shutdown fails', async () => {
+    const { handlers, processRef } = makeProcessRef();
+    const error = new Error('shutdown failed');
+    const app = {
+      shutdown: vi.fn().mockRejectedValue(error),
+    };
+
+    const { registerProcessHandlers } = await importEntrypoint();
+    registerProcessHandlers(app, processRef);
+
+    await handlers.get('SIGTERM')?.();
+    await Promise.resolve();
+
+    expect(logger.info).toHaveBeenCalledWith('收到 SIGTERM，正在关闭…');
+    expect(logger.error).toHaveBeenCalledWith('SIGTERM 关闭过程中失败', error);
     expect(processRef.exit).toHaveBeenCalledWith(1);
   });
 

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
 import { ChannelManager } from '../../src/extension/channel/manager';
+import { PluginManager } from '../../src/extension/plugin/manager';
 import { CronManager } from '../../src/cron/manager';
 import { McpManager } from '../../src/tool/mcp/mcp-manager';
 import { WebUiManager } from '../../src/web/webui-manager';
@@ -166,6 +167,42 @@ describe('Application', () => {
     } finally {
       await app.shutdown();
     }
+  });
+
+  it('cleans up extension managers when extension startup fails', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    const error = new Error('plugin setup failed');
+    const pluginSetup = vi.spyOn(PluginManager.prototype, 'setup').mockRejectedValue(error);
+    const pluginDestroy = vi.spyOn(PluginManager.prototype, 'destroy').mockResolvedValue();
+    const channelDestroy = vi.spyOn(ChannelManager.prototype, 'destroy').mockResolvedValue();
+
+    const app = new Application();
+
+    await expect(app.start()).rejects.toThrow(error);
+    expect(pluginSetup).toHaveBeenCalledTimes(1);
+    expect(channelDestroy).toHaveBeenCalledTimes(1);
+    expect(pluginDestroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up peripheral managers when WebUI startup fails', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    const error = new Error('webui startup failed');
+    const webInitialize = vi.spyOn(WebUiManager.prototype, 'initialize').mockRejectedValue(error);
+    const webDestroy = vi.spyOn(WebUiManager.prototype, 'destroy').mockResolvedValue();
+    const cronDestroy = vi.spyOn(CronManager.prototype, 'destroy').mockResolvedValue();
+
+    const app = new Application();
+
+    await expect(app.start()).rejects.toThrow(error);
+    expect(webInitialize).toHaveBeenCalledTimes(1);
+    expect(webDestroy).toHaveBeenCalledTimes(1);
+    expect(cronDestroy).toHaveBeenCalledTimes(1);
   });
 
   it('injects the real MCP client factory', async () => {
