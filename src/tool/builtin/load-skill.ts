@@ -9,7 +9,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from '@sinclair/typebox';
 import type { Skill, ToolOwner } from '@aesyclaw/core/types';
-import { isSkillAllowedForRole, type SkillManager } from '@aesyclaw/skill/manager';
+import type { SkillManager } from '@aesyclaw/skill/manager';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   AesyClawTool,
@@ -36,7 +36,7 @@ const LOAD_SKILL_SCHEMA = Type.Object({
  * @returns load_skill 工具的 AesyClawTool 定义
  */
 export function createLoadSkillTool(deps: {
-  skillManager: Pick<SkillManager, 'getSkill'>;
+  skillManager: Pick<SkillManager, 'getSkill' | 'getSkillsForRole'>;
 }): AesyClawTool {
   return {
     name: 'load_skill',
@@ -63,7 +63,8 @@ export function createLoadSkillTool(deps: {
         );
       }
 
-      if (!isSkillAllowedForRole(skill, context.role)) {
+      const allowedSkills = deps.skillManager.getSkillsForRole(context.role);
+      if (!allowedSkills.some((allowedSkill) => allowedSkill.name === skill.name)) {
         return errorResult(
           `角色无权读取技能 "${skillName}"。`,
           'SKILL_NOT_ALLOWED',

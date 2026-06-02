@@ -180,7 +180,18 @@ export class ToolRegistry {
    * 返回在运行时适配前角色可用的内部工具。
    */
   getForRole(role: RoleConfig): AesyClawTool[] {
-    return filterToolsByRole(this.getAll(), role);
+    const tools = this.getAll();
+    const { mode, list } = role.toolPermission;
+
+    if (mode === 'allowlist') {
+      if (list.includes('*')) {
+        return tools;
+      }
+      return tools.filter((tool) => list.includes(tool.name));
+    }
+
+    // 黑名单模式
+    return tools.filter((tool) => !list.includes(tool.name));
   }
 
   /**
@@ -205,26 +216,4 @@ export class ToolRegistry {
   ): AgentTool[] {
     return tools.map((tool) => toAgentTool(tool, hooksBus, executionContext));
   }
-}
-
-// ─── 工具函数 ─────────────────────────────────────────────────────
-
-/**
- * 基于角色权限过滤工具。
- *
- * - allowlist 模式：仅保留列表中的工具名称
- * - denylist 模式：排除列表中的工具名称
- */
-export function filterToolsByRole(tools: AesyClawTool[], role: RoleConfig): AesyClawTool[] {
-  const { mode, list } = role.toolPermission;
-
-  if (mode === 'allowlist') {
-    if (list.includes('*')) {
-      return tools;
-    }
-    return tools.filter((tool) => list.includes(tool.name));
-  }
-
-  // 黑名单模式
-  return tools.filter((tool) => !list.includes(tool.name));
 }

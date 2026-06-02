@@ -81,8 +81,14 @@ export class SkillManager {
    * @param role - 角色配置
    * @returns 适用于该角色的技能数组
    */
-  getSkillsForRole(role: RoleConfig): Skill[] {
-    return [...this.skills.values()].filter((skill) => isSkillAllowedForRole(skill, role));
+  getSkillsForRole(role?: RoleConfig): Skill[] {
+    return [...this.skills.values()].filter((skill) => {
+      if (skill.isSystem) return true;
+      if (!role) return false;
+      if (role.skills.length === 1 && role.skills[0] === '*') return true;
+      const allowedSkills: readonly string[] = role.skills;
+      return allowedSkills.includes(skill.name);
+    });
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
@@ -143,12 +149,4 @@ export class SkillManager {
       }
     }
   }
-}
-
-export function isSkillAllowedForRole(skill: Skill, role?: Pick<RoleConfig, 'skills'>): boolean {
-  if (skill.isSystem) return true;
-  if (!role) return false;
-  if (role.skills.length === 1 && role.skills[0] === '*') return true;
-  const allowedSkills: readonly string[] = role.skills;
-  return allowedSkills.includes(skill.name);
 }

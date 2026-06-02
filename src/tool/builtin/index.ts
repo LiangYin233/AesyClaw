@@ -17,7 +17,7 @@ import { createLoadSkillTool } from './load-skill';
 export type BuiltinToolDependencies = {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
-  skillManager: Pick<SkillManager, 'getSkill'>;
+  skillManager: Pick<SkillManager, 'getSkill' | 'getSkillsForRole'>;
   agentRegistry: AgentRegistry;
 };
 

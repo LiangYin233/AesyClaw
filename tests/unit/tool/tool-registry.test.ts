@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ToolRegistry, filterToolsByRole } from '../../../src/tool/tool-registry';
+import { ToolRegistry } from '../../../src/tool/tool-registry';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { IHooksBus } from '../../../src/hook';
 import { makeRole } from '../../helpers/role';
@@ -246,20 +246,22 @@ describe('ToolRegistry', () => {
   });
 });
 
-// ─── filterToolsByRole ──────────────────────────────────────────────
+// ─── getForRole ─────────────────────────────────────────────────────
 
-describe('filterToolsByRole', () => {
-  const tools = [
-    makeTool({ name: 'send_msg' }),
-    makeTool({ name: 'run_sub_agent' }),
-    makeTool({ name: 'create_cron' }),
-  ];
+describe('ToolRegistry.getForRole', () => {
+  function makeRegistryWithTools(): ToolRegistry {
+    const registry = new ToolRegistry();
+    registry.register(makeTool({ name: 'send_msg' }));
+    registry.register(makeTool({ name: 'run_sub_agent' }));
+    registry.register(makeTool({ name: 'create_cron' }));
+    return registry;
+  }
 
   it('should keep only allowlisted tools in allowlist mode', () => {
     const role = makeRole({
       toolPermission: { mode: 'allowlist', list: ['send_msg', 'create_cron'] },
     });
-    const filtered = filterToolsByRole(tools, role);
+    const filtered = makeRegistryWithTools().getForRole(role);
     expect(filtered).toHaveLength(2);
     expect(filtered.map((t) => t.name)).toEqual(['send_msg', 'create_cron']);
   });
@@ -268,7 +270,7 @@ describe('filterToolsByRole', () => {
     const role = makeRole({
       toolPermission: { mode: 'denylist', list: ['create_cron'] },
     });
-    const filtered = filterToolsByRole(tools, role);
+    const filtered = makeRegistryWithTools().getForRole(role);
     expect(filtered).toHaveLength(2);
     expect(filtered.map((t) => t.name)).toEqual(['send_msg', 'run_sub_agent']);
   });
@@ -277,7 +279,7 @@ describe('filterToolsByRole', () => {
     const role = makeRole({
       toolPermission: { mode: 'allowlist', list: ['nonexistent'] },
     });
-    const filtered = filterToolsByRole(tools, role);
+    const filtered = makeRegistryWithTools().getForRole(role);
     expect(filtered).toHaveLength(0);
   });
 
@@ -285,7 +287,7 @@ describe('filterToolsByRole', () => {
     const role = makeRole({
       toolPermission: { mode: 'denylist', list: ['nonexistent'] },
     });
-    const filtered = filterToolsByRole(tools, role);
+    const filtered = makeRegistryWithTools().getForRole(role);
     expect(filtered).toHaveLength(3);
   });
 
@@ -293,7 +295,7 @@ describe('filterToolsByRole', () => {
     const role = makeRole({
       toolPermission: { mode: 'allowlist', list: ['*'] },
     });
-    const filtered = filterToolsByRole(tools, role);
+    const filtered = makeRegistryWithTools().getForRole(role);
     expect(filtered).toHaveLength(3);
     expect(filtered.map((t) => t.name)).toEqual(['send_msg', 'run_sub_agent', 'create_cron']);
   });

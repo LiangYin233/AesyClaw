@@ -33,6 +33,15 @@ function makeSkillManager(skills: Skill[] = []) {
   const skillMap = new Map(skills.map((skill) => [skill.name, skill]));
   return {
     getSkill: vi.fn((name: string) => skillMap.get(name)),
+    getSkillsForRole: vi.fn((role?: RoleConfig) =>
+      skills.filter((skill) => {
+        if (skill.isSystem) return true;
+        if (!role) return false;
+        if (role.skills.length === 1 && role.skills[0] === '*') return true;
+        const allowedSkills: readonly string[] = role.skills;
+        return allowedSkills.includes(skill.name);
+      }),
+    ),
   };
 }
 
