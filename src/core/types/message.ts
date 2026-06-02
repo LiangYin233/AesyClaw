@@ -86,10 +86,6 @@ export type MessageUsage = {
 export type MessageUsageCost = NonNullable<MessageUsage['cost']>;
 export type CompleteMessageUsage = MessageUsage & { cost: MessageUsageCost };
 
-export function createZeroMessageUsage(): CompleteMessageUsage {
-  return completeMessageUsage();
-}
-
 export function completeMessageUsage(usage?: MessageUsage): CompleteMessageUsage {
   return {
     input: usage?.input ?? 0,

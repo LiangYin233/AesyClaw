@@ -15,7 +15,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('webui:ws');
 
-type Handler = (data: unknown, deps: WebRuntimeDependencies) => Promise<unknown>;
+type Handler = (data: unknown, deps: WebRuntimeDependencies) => unknown | Promise<unknown>;
 
 const handlers = new Map<string, Handler>();
 
@@ -25,51 +25,41 @@ function on(type: string, handler: Handler): void {
 
 // ── 会话 ──
 on('get_sessions', (_, deps) => sessionService.getSessions(deps));
-on('get_messages', async (data, deps) => {
-  return await sessionService.getSessionMessages(deps, extractStringData(data, 'sessionId'));
-});
-on('clear_session', async (data, deps) => {
-  await sessionService.clearSessionHistory(deps, extractStringData(data, 'sessionId'));
-});
+on('get_messages', (data, deps) =>
+  sessionService.getSessionMessages(deps, extractStringData(data, 'sessionId')),
+);
+on('clear_session', (data, deps) =>
+  sessionService.clearSessionHistory(deps, extractStringData(data, 'sessionId')),
+);
 
 // ── 配置 ──
-on('get_config', (_, deps) => Promise.resolve(configService.getConfig(deps)));
-on('get_config_schema', () => Promise.resolve(configService.getConfigSchema()));
+on('get_config', (_, deps) => configService.getConfig(deps));
+on('get_config_schema', () => configService.getConfigSchema());
 on('update_config', async (data, deps) => {
   await configService.updateConfig(deps, data as Record<string, unknown>);
 });
 
 // ── Cron ──
 on('get_cron', (_, deps) => cronService.getCronJobs(deps));
-on('get_cron_runs', async (data, deps) => {
-  return await cronService.getCronJobRuns(deps, extractStringData(data, 'jobId'));
-});
+on('get_cron_runs', (data, deps) =>
+  cronService.getCronJobRuns(deps, extractStringData(data, 'jobId')),
+);
 
 // ── 角色 ──
-on('get_roles', (_, deps) => Promise.resolve(roleService.getRoles(deps)));
-on('get_role', (data, deps) =>
-  Promise.resolve(roleService.getRole(deps, extractStringData(data, 'id'))),
+on('get_roles', (_, deps) => roleService.getRoles(deps));
+on('get_role', (data, deps) => roleService.getRole(deps, extractStringData(data, 'id')));
+on('create_role', (data, deps) =>
+  roleService.createRole(deps, data as Parameters<typeof roleService.createRole>[1]),
 );
-on('create_role', async (data, deps) => {
-  return await roleService.createRole(deps, data as Parameters<typeof roleService.createRole>[1]);
-});
-on('update_role', async (data, deps) => {
+on('update_role', (data, deps) => {
   const { id, ...body } = data as { id: string } & Record<string, unknown>;
-  return await roleService.updateRole(
-    deps,
-    id,
-    body as Parameters<typeof roleService.updateRole>[2],
-  );
+  return roleService.updateRole(deps, id, body as Parameters<typeof roleService.updateRole>[2]);
 });
-on('delete_role', async (data, deps) => {
-  await roleService.deleteRole(deps, extractStringData(data, 'id'));
-});
+on('delete_role', (data, deps) => roleService.deleteRole(deps, extractStringData(data, 'id')));
 
 // ── 渠道 / 插件 ──
-on('get_channels', (_, deps) => Promise.resolve(deps.channelManager.getRegisteredChannels()));
-on('get_plugins', async (_, deps) => {
-  return await deps.pluginManager.getPluginDefinitions();
-});
+on('get_channels', (_, deps) => deps.channelManager.getRegisteredChannels());
+on('get_plugins', (_, deps) => deps.pluginManager.getPluginDefinitions());
 on('set_channel_enabled', async (data, deps) => {
   const { name, enabled } = extractToggleData(data);
   if (enabled) await deps.channelManager.enable(name);
@@ -82,7 +72,7 @@ on('set_plugin_enabled', async (data, deps) => {
 });
 
 // ── 状态 / 用量 ──
-on('get_status', (_, deps) => Promise.resolve(statusService.getStatus(deps)));
+on('get_status', (_, deps) => statusService.getStatus(deps));
 on('get_usage', (data, deps) =>
   usageService.getUsage(deps, data as Parameters<typeof usageService.getUsage>[1]),
 );
@@ -92,31 +82,25 @@ on('get_usage_tools', (data, deps) =>
 );
 
 // ── 日志 ──
-on('get_logs', (data) =>
-  Promise.resolve(logService.getLogs(data as Parameters<typeof logService.getLogs>[0])),
-);
+on('get_logs', (data) => logService.getLogs(data as Parameters<typeof logService.getLogs>[0]));
 
 // ── 工具 ──
 on('get_tools', (_, deps) =>
-  Promise.resolve(
-    deps.toolRegistry.getAll().map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      owner: tool.owner,
-      parameters: JSON.parse(JSON.stringify(tool.parameters)),
-    })),
-  ),
+  deps.toolRegistry.getAll().map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    owner: tool.owner,
+    parameters: JSON.parse(JSON.stringify(tool.parameters)),
+  })),
 );
 
 // ── 技能 ──
 on('get_skills', (_, deps) =>
-  Promise.resolve(
-    deps.skillManager.getAllSkills().map((skill) => ({
-      name: skill.name,
-      description: skill.description,
-      isSystem: skill.isSystem,
-    })),
-  ),
+  deps.skillManager.getAllSkills().map((skill) => ({
+    name: skill.name,
+    description: skill.description,
+    isSystem: skill.isSystem,
+  })),
 );
 on('reload_skills', async (_, deps) => {
   const reloadCount = deps.skillManager.getAllSkills().length;
@@ -129,7 +113,7 @@ on('get_skill_content', (data, deps) => {
   if (!name) throw new Error('缺少技能名称');
   const skill = deps.skillManager.getSkill(name);
   if (!skill) throw new Error(`技能 "${name}" 未找到`);
-  return Promise.resolve({ name: skill.name, content: skill.content });
+  return { name: skill.name, content: skill.content };
 });
 
 /**

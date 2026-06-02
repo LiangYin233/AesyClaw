@@ -39,7 +39,6 @@ export type {
 
 export {
   getMessageText,
-  createZeroMessageUsage,
   completeMessageUsage,
   parseMessageUsageJson,
   isMessageUsage,

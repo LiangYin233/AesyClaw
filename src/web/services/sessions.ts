@@ -14,8 +14,8 @@ import type { SessionKey } from '@aesyclaw/core/types';
  * @param deps - WebUI 管理器依赖项
  * @returns 会话列表
  */
-export async function getSessions(deps: WebRuntimeDependencies): Promise<SessionSummary[]> {
-  return await deps.sessionManager.getSummaries();
+export function getSessions(deps: WebRuntimeDependencies): Promise<SessionSummary[]> {
+  return deps.sessionManager.getSummaries();
 }
 
 /**
