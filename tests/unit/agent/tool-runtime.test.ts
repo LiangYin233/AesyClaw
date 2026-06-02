@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentMessage } from '../../../src/agent/types';
-import {
-  calculateToolResultBudget,
-  limitToolResultContent,
-} from '../../../src/agent/runner/tool-runtime';
+import { calculateToolResultBudget } from '../../../src/agent/runner/tool-runtime';
+import { limitToolResultContent } from '../../../src/hook/builtin/tool-result-truncation';
 
 function textContent(text: string) {
   return { type: 'text' as const, text };
@@ -84,7 +82,7 @@ describe('limitToolResultContent', () => {
     expect(limitToolResultContent(result, budget)).toBe(result);
   });
 
-  it('truncates content when over budget', () => {
+  it('truncates content with head, tail, and a visible notice', () => {
     const result = {
       content: [textContent('a'.repeat(1000))],
       details: {},
@@ -93,12 +91,15 @@ describe('limitToolResultContent', () => {
     };
     const budget = { maxToolResultTokens: 10, maxToolResultChars: 20 };
     const limited = limitToolResultContent(result, budget);
-    expect(limited.content[0].text.length).toBe(20);
+    expect(limited.content).toHaveLength(1);
+    expect(limited.content[0].text).toContain('...[中间内容已截断]...');
+    expect(limited.content[0].text).toContain('[工具结果已截断：原始 1000 字符，保留 20 字符。]');
     expect((limited.details as Record<string, unknown>).truncated).toBe(true);
     expect((limited.details as Record<string, unknown>).originalContentLength).toBe(1000);
+    expect((limited.details as Record<string, unknown>).retainedContentLength).toBe(20);
   });
 
-  it('truncates across multiple content blocks', () => {
+  it('truncates across multiple content blocks as one readable text result', () => {
     const result = {
       content: [textContent('a'.repeat(15)), textContent('b'.repeat(15))],
       details: {},
@@ -107,12 +108,13 @@ describe('limitToolResultContent', () => {
     };
     const budget = { maxToolResultTokens: 10, maxToolResultChars: 20 };
     const limited = limitToolResultContent(result, budget);
-    // first block takes 15 chars, remaining 5 go to second
-    expect(limited.content[0].text.length).toBe(15);
-    expect(limited.content[1].text.length).toBe(5);
+    expect(limited.content).toHaveLength(1);
+    expect(limited.content[0].text.startsWith('a'.repeat(14))).toBe(true);
+    expect(limited.content[0].text).toContain('b'.repeat(6));
+    expect((limited.details as Record<string, unknown>).originalContentLength).toBe(31);
   });
 
-  it('preserves isError and terminate flags', () => {
+  it('truncates error results while preserving isError and terminate flags', () => {
     const result = {
       content: [textContent('a'.repeat(100))],
       details: {},
@@ -121,6 +123,7 @@ describe('limitToolResultContent', () => {
     };
     const budget = { maxToolResultTokens: 10, maxToolResultChars: 10 };
     const limited = limitToolResultContent(result, budget);
+    expect(limited.content[0].text).toContain('[工具结果已截断：原始 100 字符，保留 10 字符。]');
     expect(limited.isError).toBe(true);
     expect(limited.terminate).toBe(true);
   });
@@ -136,5 +139,17 @@ describe('limitToolResultContent', () => {
     const limited = limitToolResultContent(result, budget);
     expect((limited.details as Record<string, unknown>).source).toBe('api');
     expect((limited.details as Record<string, unknown>).truncated).toBe(true);
+  });
+
+  it('keeps a visible notice when the content budget is zero', () => {
+    const result = {
+      content: [textContent('a'.repeat(100))],
+      details: {},
+      isError: false,
+      terminate: false,
+    };
+    const limited = limitToolResultContent(result, { maxToolResultTokens: 0, maxToolResultChars: 0 });
+    expect(limited.content[0].text).toBe('[工具结果已截断：原始 100 字符，保留 0 字符。]');
+    expect((limited.details as Record<string, unknown>).retainedContentLength).toBe(0);
   });
 });

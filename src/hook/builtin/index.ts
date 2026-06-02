@@ -10,3 +10,8 @@ export {
   createCommunicationPromptHook,
   COMMUNICATION_PROMPT_HOOK_ID,
 } from './communication-prompt';
+export {
+  createToolResultTruncationHook,
+  TOOL_RESULT_TRUNCATION_HOOK_ID,
+  limitToolResultContent,
+} from './tool-result-truncation';

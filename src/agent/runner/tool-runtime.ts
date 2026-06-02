@@ -6,9 +6,10 @@
 
 import type { AgentTool, AgentToolResult, AgentMessage } from '../types';
 import type { AfterToolCallContext, AfterToolCallResult } from '@earendil-works/pi-agent-core';
+import type { IHooksBus, ToolResultBudget } from '@aesyclaw/hook';
+import type { SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { isRecord } from '@aesyclaw/core/utils';
-import { throwIfCancelled, AgentRunCancelledError } from './shared';
+import { throwIfCancelled } from './shared';
 const logger = createScopedLogger('tool-runtime');
 
 /** 每个 token 的平均字符数（用于粗略估算） */
@@ -56,7 +57,7 @@ export function calculateToolResultBudget(
   compressionThreshold: number,
   history: readonly AgentMessage[],
   content: string,
-): { maxToolResultTokens: number; maxToolResultChars: number } {
+): ToolResultBudget {
   const compressionLimitTokens = Math.floor(model.contextWindow * compressionThreshold);
 
   // 使用实际 token 计数（从 message.usage 累加）
@@ -79,52 +80,30 @@ export function calculateToolResultBudget(
   };
 }
 
-export function limitToolResultContent<T extends AgentToolResult>(
-  result: T,
-  budget: { maxToolResultTokens: number; maxToolResultChars: number },
-): T {
-  const originalContentLength = result.content.reduce(
-    (total, block) => total + block.text.length,
-    0,
-  );
-  if (originalContentLength <= budget.maxToolResultChars) return result;
-
-  let remainingChars = budget.maxToolResultChars;
-  const content = result.content.map((block) => {
-    const text = block.text.slice(0, Math.max(0, remainingChars));
-    remainingChars -= text.length;
-    return { ...block, text };
-  });
-
-  return {
-    ...result,
-    content,
-    details: {
-      ...(isRecord(result.details) ? result.details : {}),
-      truncated: true,
-      originalContentLength,
-      truncatedContentLength: content.reduce((total, block) => total + block.text.length, 0),
-      maxToolResultTokens: budget.maxToolResultTokens,
-    },
-  };
-}
-
-export function createToolResultBudgetHandler(toolResultBudget: {
-  maxToolResultTokens: number;
-  maxToolResultChars: number;
-}): (
+export function createToolResultBudgetHandler(
+  toolResultBudget: ToolResultBudget,
+  hooksBus: IHooksBus,
+  sessionKey: SessionKey,
+): (
   context: AfterToolCallContext,
   signal?: AbortSignal,
 ) => Promise<AfterToolCallResult | undefined> {
-  return async (context, signal) => {
-    if (signal?.aborted) {
-      throw signal.reason instanceof Error ? signal.reason : new AgentRunCancelledError();
+  return async (context) => {
+    const result = context.result as AgentToolResult;
+    const ctx = {
+      message: { components: [] },
+      sessionKey,
+      agentToolResult: result,
+      toolResultBudget,
+    };
+
+    const hookResult = await hooksBus.dispatch('agent:afterToolCall', ctx);
+    if (hookResult.action === 'error') {
+      logger.error('agent:afterToolCall 钩子执行错误', hookResult.reason);
+      return undefined;
     }
 
-    const result = context.result as AgentToolResult;
-    if (context.isError || result.isError) return undefined;
-
-    const limited = limitToolResultContent(result, toolResultBudget);
+    const limited = ctx.agentToolResult;
     if (limited === result) return undefined;
 
     const override: AfterToolCallResult = {

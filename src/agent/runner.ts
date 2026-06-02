@@ -14,6 +14,7 @@ import {
 } from '@earendil-works/pi-agent-core';
 import type { TSchema } from '@earendil-works/pi-ai';
 import type { AgentMessage, AgentTool, ResolvedModel } from './types';
+import type { IHooksBus } from '@aesyclaw/hook';
 import { serializeSessionKey, type OutboundSignal, type SessionKey } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { ErrorFactory } from '@aesyclaw/core/errors';
@@ -42,6 +43,7 @@ export type AgentRunParams = {
   sessionKey: SessionKey;
   compressionThreshold: number;
   registry: AgentRegistry;
+  hooksBus: IHooksBus;
   streamFn: StreamFn;
   onEvent?: (event: OutboundSignal) => void;
 };
@@ -66,6 +68,7 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     sessionKey,
     compressionThreshold,
     registry,
+    hooksBus,
   } = params;
   if (!model.apiKey) {
     throw ErrorFactory.config.invalid(`未为提供者 "${model.provider}" 配置 API 密钥`, {
@@ -89,7 +92,7 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     streamFn: params.streamFn,
     getApiKey: () => model.apiKey,
     sessionId: createProviderCacheKey(sessionKey),
-    afterToolCall: createToolResultBudgetHandler(toolResultBudget),
+    afterToolCall: createToolResultBudgetHandler(toolResultBudget, hooksBus, sessionKey),
   });
   const runHandle: AgentRunHandle = {
     cancel: () => {

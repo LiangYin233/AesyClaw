@@ -15,8 +15,8 @@ import type {
   ToolRegistry,
 } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm/adapter';
-import { calculateActualTokens, type Session } from '@aesyclaw/session';
-import type { IHooksBus } from '@aesyclaw/hook';
+import type { Session } from '@aesyclaw/session';
+import type { HookCtx, IHooksBus } from '@aesyclaw/hook';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { ErrorFactory, ErrorTracker } from '@aesyclaw/core/errors';
 import type { AgentRegistry } from './registry';
@@ -304,6 +304,24 @@ export class Agent {
     sendMessage?: (message: Message) => Promise<boolean>,
     onStream?: (event: OutboundSignal) => void,
   ): Promise<AgentRunResult> {
+    const beforeCtx: HookCtx = {
+      message: { components: [{ type: 'Plain', text: content }] },
+      sessionKey,
+      session: this.session,
+      agent: this,
+      role,
+      llmContent: content,
+      llmHistory: history,
+    };
+    const beforeResult = await this.hooksBus.dispatch('agent:beforeLLM', beforeCtx);
+    if (beforeResult.action !== 'next') {
+      const reason = beforeResult.action === 'error' ? beforeResult.reason : beforeResult.action;
+      throw new Error(`[Hook Error] agent:beforeLLM returned ${reason}`);
+    }
+
+    const nextContent = beforeCtx.llmContent ?? getMessageText(beforeCtx.message);
+    const nextHistory = beforeCtx.llmHistory ?? history;
+
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
       sendMessage,
@@ -325,11 +343,12 @@ export class Agent {
       model,
       prompt,
       tools,
-      history,
-      content,
+      history: nextHistory,
+      content: nextContent,
       sessionKey,
       compressionThreshold: this.compressionThreshold,
       registry: this.registry,
+      hooksBus: this.hooksBus,
       streamFn: this.llmAdapter.createStreamFn(),
       onEvent: onStream,
     });
@@ -371,21 +390,7 @@ export class Agent {
   ): Promise<AgentRunResult> {
     if (result.lastAssistant) return result;
 
-    const combinedHistory = history.concat(result.newMessages);
-    let followUpHistory = combinedHistory;
-
-    if (
-      calculateActualTokens(combinedHistory) >=
-      this.compressionThreshold * this.resolvedModel.contextWindow
-    ) {
-      logger.info('Agent 追加文本前压缩上下文', {
-        role: role.id,
-        actualTokens: calculateActualTokens(combinedHistory),
-        contextWindow: this.resolvedModel.contextWindow,
-      });
-      await this.session.compact(this.llmAdapter, this.currentModelIdentifier);
-      followUpHistory = [...this.session.get()].concat(result.newMessages);
-    }
+    const followUpHistory = history.concat(result.newMessages);
 
     logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: role.id });
     const followUpResult = await this.callLLM(

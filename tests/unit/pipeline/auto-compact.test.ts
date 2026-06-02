@@ -8,7 +8,7 @@ describe('auto-compact', () => {
   it('returns HookRegistration with correct id and chain', () => {
     const hook = createAutoCompactHook({} as never, 0.8);
     expect(hook.id).toBe(AUTO_COMPACT_HOOK_ID);
-    expect(hook.chain).toBe('pipeline:beforeLLM');
+    expect(hook.chain).toBe('agent:beforeLLM');
     expect(hook.enabled).toBe(true);
   });
 
@@ -35,12 +35,33 @@ describe('auto-compact', () => {
     expect(result).toEqual({ action: 'next' });
   });
 
-  it('calls next and returns its result', async () => {
+  it('refreshes llmHistory after compacting persisted session history', async () => {
+    const persisted = [{ role: 'assistant', usage: { totalTokens: 90 } }];
+    const summary = [{ role: 'assistant', usage: { totalTokens: 10 } }];
+    const transient = [{ role: 'toolResult', content: 'large result' }];
+    const session = {
+      get: () => persisted,
+      compact: async () => undefined,
+    };
     const hook = createAutoCompactHook({} as never, 0.8);
-    const result = await hook.handler({} as never, async () => ({
-      action: 'respond' as const,
+    let compacted = false;
+    session.compact = async () => {
+      compacted = true;
+      session.get = () => summary;
+    };
+
+    const ctx = {
       message: { components: [] },
-    }));
-    expect(result).toEqual({ action: 'respond', message: { components: [] } });
+      sessionKey: { channel: 't', type: 'p', chatId: '1' },
+      session,
+      agent: { model: { contextWindow: 100 }, modelIdentifier: 'p/m' },
+      role: { id: 'assistant' },
+      llmHistory: persisted.concat(transient),
+    } as never;
+    const result = await hook.handler(ctx, async () => ({ action: 'next' as const }));
+
+    expect(result).toEqual({ action: 'next' });
+    expect(compacted).toBe(true);
+    expect((ctx as { llmHistory: unknown[] }).llmHistory).toEqual(summary.concat(transient));
   });
 });

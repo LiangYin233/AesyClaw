@@ -5,7 +5,7 @@
  */
 
 import type { Message, SessionKey, SenderInfo, RoleConfig } from '@aesyclaw/core/types';
-import type { AgentMessage, ModelResolver, ResolvedModel } from '@aesyclaw/contracts/llm';
+import type { AgentMessage, AgentToolResult, ModelResolver, ResolvedModel } from '@aesyclaw/contracts/llm';
 import type { OutboundSignal } from '@aesyclaw/core/types';
 
 // ─── 运行时引用类型 ──────────────────────────────────────────────
@@ -67,7 +67,9 @@ export type HookChain =
   | 'pipeline:send'
   | 'prompt:build'
   | 'tool:beforeCall'
-  | 'tool:afterCall';
+  | 'tool:afterCall'
+  | 'agent:beforeLLM'
+  | 'agent:afterToolCall';
 
 // ─── 统一上下文 ─────────────────────────────────────────────────
 
@@ -77,6 +79,11 @@ export type HookToolExecutionResult = {
   details?: unknown;
   isError?: boolean;
   terminate?: boolean;
+};
+
+export type ToolResultBudget = {
+  maxToolResultTokens: number;
+  maxToolResultChars: number;
 };
 
 /**
@@ -89,6 +96,8 @@ export type HookToolExecutionResult = {
  * - prompt:build — 填充 role / promptSections
  * - tool:beforeCall — 填充 toolName / toolParams
  * - tool:afterCall — 额外填充 toolResult
+ * - agent:beforeLLM — 额外填充 llmContent / llmHistory
+ * - agent:afterToolCall — 额外填充 agentToolResult / toolResultBudget
  */
 export type HookCtx = {
   message: Message;
@@ -107,6 +116,10 @@ export type HookCtx = {
   toolName?: string;
   toolParams?: unknown;
   toolResult?: HookToolExecutionResult;
+  llmContent?: string;
+  llmHistory?: AgentMessage[];
+  agentToolResult?: AgentToolResult;
+  toolResultBudget?: ToolResultBudget;
 };
 
 // ─── 统一结果 ───────────────────────────────────────────────────

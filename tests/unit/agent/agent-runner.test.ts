@@ -4,6 +4,8 @@ import type * as PiAiModule from '@earendil-works/pi-ai';
 import { AgentRegistry } from '../../../src/agent/registry';
 import { createProviderCacheKey, type AgentRunParams } from '../../../src/agent/runner';
 import { runAgentTask } from '../../../src/agent/runner';
+import { HooksBus } from '../../../src/hook';
+import { createToolResultTruncationHook } from '../../../src/hook/builtin';
 
 const runnerMock = vi.hoisted(() => {
   function defer<T>() {
@@ -134,6 +136,12 @@ vi.mock('@earendil-works/pi-ai', async () => {
   };
 });
 
+function createRunnerHooksBus(): HooksBus {
+  const hooksBus = new HooksBus();
+  hooksBus.register(createToolResultTruncationHook());
+  return hooksBus;
+}
+
 function makeRunParams(overrides: Partial<AgentRunParams> = {}): AgentRunParams {
   return {
     roleId: 'assistant',
@@ -159,6 +167,7 @@ function makeRunParams(overrides: Partial<AgentRunParams> = {}): AgentRunParams 
     sessionKey: { channel: 'test', type: 'private', chatId: 'runner' },
     compressionThreshold: 0.8,
     registry: new AgentRegistry(),
+    hooksBus: createRunnerHooksBus(),
     streamFn: streamSimple as never,
     ...overrides,
   };
@@ -248,12 +257,17 @@ describe('agent runner', () => {
 
     await expect(turn).resolves.toMatchObject({ lastAssistant: 'tool done' });
     expect(receivedSignal).toBeInstanceOf(AbortSignal);
+    const limitedText = (runnerMock.instances[0]?.toolResult as { content: Array<{ text: string }> })
+      .content[0].text;
+    expect(limitedText.startsWith('x'.repeat(118))).toBe(true);
+    expect(limitedText).toContain('...[中间内容已截断]...');
+    expect(limitedText).toContain('x'.repeat(50));
+    expect(limitedText).toContain('[工具结果已截断：原始 400 字符，保留 168 字符。]');
     expect(runnerMock.instances[0]?.toolResult).toMatchObject({
-      content: [{ type: 'text', text: 'x'.repeat(168) }],
       details: expect.objectContaining({
         truncated: true,
         originalContentLength: 400,
-        truncatedContentLength: 168,
+        retainedContentLength: 168,
       }),
     });
     expect(runnerMock.instances[0]?.rawToolResult).toMatchObject({
@@ -262,16 +276,15 @@ describe('agent runner', () => {
     });
     expect(runnerMock.instances[0]?.afterToolCallCalls).toHaveLength(1);
     expect(runnerMock.instances[0]?.afterToolCallCalls[0]?.override).toMatchObject({
-      content: [{ type: 'text', text: 'x'.repeat(168) }],
       details: expect.objectContaining({
         truncated: true,
         originalContentLength: 400,
-        truncatedContentLength: 168,
+        retainedContentLength: 168,
       }),
     });
   });
 
-  it('does not trim oversized tool error results in afterToolCall', async () => {
+  it('trims oversized tool error results in afterToolCall', async () => {
     const turn = runAgentTask(
       makeRunParams({
         content: 'call-tool',
@@ -297,9 +310,13 @@ describe('agent runner', () => {
     );
 
     await expect(turn).resolves.toMatchObject({ lastAssistant: 'tool done' });
+    const limitedText = (runnerMock.instances[0]?.toolResult as { content: Array<{ text: string }> })
+      .content[0].text;
+    expect(limitedText.startsWith('e'.repeat(118))).toBe(true);
+    expect(limitedText).toContain('...[中间内容已截断]...');
+    expect(limitedText).toContain('[工具结果已截断：原始 400 字符，保留 168 字符。]');
     expect(runnerMock.instances[0]?.toolResult).toMatchObject({
-      content: [{ type: 'text', text: 'e'.repeat(400) }],
-      details: { source: 'test' },
+      details: expect.objectContaining({ source: 'test', truncated: true }),
       isError: true,
     });
   });

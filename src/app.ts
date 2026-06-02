@@ -30,6 +30,7 @@ import {
   createSkillPromptHook,
   createRolePromptHook,
   createCommunicationPromptHook,
+  createToolResultTruncationHook,
 } from './hook/builtin';
 import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
@@ -267,6 +268,7 @@ function builtinHookService(): RuntimeService {
       hooksBus.register(createSkillPromptHook(sub.skillManager));
       hooksBus.register(createCommunicationPromptHook());
       hooksBus.register(createRolePromptHook(sub.roleManager));
+      hooksBus.register(createToolResultTruncationHook());
     },
   };
 }
