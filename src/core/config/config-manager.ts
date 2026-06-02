@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
 
 import Conf from 'conf';
+import { getProperty, setProperty } from 'dot-prop';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { resolvePaths, type ResolvedPaths } from '@aesyclaw/core/path-resolver';
@@ -276,26 +277,13 @@ export class ConfigManager {
 }
 
 function buildNestedObject(key: string, value: Record<string, unknown>): Record<string, unknown> {
-  const parts = key.split('.');
-  if (parts.length === 0 || parts[0] === '') {
+  const parts = key.split('.').filter((part) => part.length > 0);
+  if (parts.length === 0) {
     return value;
   }
 
   const result: Record<string, unknown> = {};
-  let current = result;
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (part === undefined || part === '') continue;
-
-    if (i === parts.length - 1) {
-      current[part] = value;
-    } else {
-      current[part] = {};
-      current = current[part] as Record<string, unknown>;
-    }
-  }
-
+  setProperty(result, parts, value);
   return result;
 }
 
@@ -309,46 +297,50 @@ function parsePath(path: string): string[] {
 
 function getPathValue(root: Record<string, unknown>, path: string): unknown {
   const parts = parsePath(path);
-  let current: unknown = root;
-  for (const part of parts) {
-    if (Array.isArray(current)) {
-      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, { configPath: path });
-    }
-    if (!isRecord(current)) {
-      return undefined;
-    }
-    current = current[part];
-  }
-  return current;
+  assertObjectPath(root, parts, path);
+  return getProperty(root, parts);
 }
 
 function setPathValue(root: Record<string, unknown>, path: string, value: unknown): void {
   const parts = parsePath(path);
-  let current: Record<string, unknown> = root;
+  assertObjectPath(root, parts, path, { allowMissing: true });
+  setProperty(root, parts, value);
+}
 
-  for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
-    if (part === undefined) {
-      throw ErrorFactory.config.invalid('配置路径解析错误：意外的 undefined 部分', { configPath: path });
+function assertObjectPath(
+  root: Record<string, unknown>,
+  parts: string[],
+  path: string,
+  options: { allowMissing?: boolean } = {},
+): void {
+  let current: unknown = root;
+  for (const part of parts.slice(0, -1)) {
+    if (Array.isArray(current)) {
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, { configPath: path });
     }
+    if (!isRecord(current)) {
+      if (options.allowMissing) {
+        throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, { configPath: path });
+      }
+      return;
+    }
+
     const next = current[part];
     if (Array.isArray(next)) {
       throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, { configPath: path });
     }
     if (next === undefined) {
-      current[part] = {};
-      current = current[part] as Record<string, unknown>;
-      continue;
+      if (options.allowMissing) {
+        return;
+      }
+      return;
     }
     if (!isRecord(next)) {
-      throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, { configPath: path });
+      if (options.allowMissing) {
+        throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, { configPath: path });
+      }
+      return;
     }
     current = next;
   }
-
-  const lastPart = parts[parts.length - 1];
-  if (lastPart === undefined) {
-    throw ErrorFactory.config.invalid('配置路径解析错误：意外的 undefined 最后部分', { configPath: path });
-  }
-  current[lastPart] = value;
 }

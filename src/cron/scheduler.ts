@@ -1,5 +1,6 @@
 /** 定时任务调度器 — 计算下次运行时间并管理计时器句柄。 */
 
+import { Cron } from 'croner';
 import type { CronJobRecord } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
@@ -9,13 +10,11 @@ export type CronScheduleType = 'once' | 'daily' | 'interval';
 
 export type CronCallback = (job: CronJobRecord) => void | Promise<void>;
 
-const MAX_TIMEOUT_MS = 2_147_483_647;
-
 /**
  * 定时任务调度器 — 计算下次运行时间并管理计时器句柄。
  */
 export class CronScheduler {
-  private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly jobs = new Map<string, Cron>();
 
   /**
    * 调度一个定时任务，在 nextRun 到达时执行 callback。
@@ -37,18 +36,17 @@ export class CronScheduler {
       });
       return;
     }
-    const delay = Math.max(0, nextRun.getTime() - Date.now());
-    const timeout = Math.min(delay, MAX_TIMEOUT_MS);
-    const timer = setTimeout(() => {
-      this.timers.delete(job.id);
-      if (delay > MAX_TIMEOUT_MS) {
-        this.schedule(job, callback);
-        return;
-      }
-      void callback(job);
-    }, timeout);
 
-    this.timers.set(job.id, timer);
+    const cronerJob = new Cron(
+      nextRun.getTime() <= Date.now() ? new Date() : nextRun,
+      { maxRuns: 1 },
+      () => {
+        this.jobs.delete(job.id);
+        void callback(job);
+      },
+    );
+
+    this.jobs.set(job.id, cronerJob);
     logger.debug('定时任务已调度', { jobId: job.id, nextRun: job.nextRun });
   }
 
@@ -58,25 +56,25 @@ export class CronScheduler {
    * @param jobId - 要取消的定时任务 ID
    */
   cancel(jobId: string): void {
-    const timer = this.timers.get(jobId);
-    if (!timer) {
+    const job = this.jobs.get(jobId);
+    if (!job) {
       return;
     }
-    clearTimeout(timer);
-    this.timers.delete(jobId);
+    job.stop();
+    this.jobs.delete(jobId);
   }
 
   /** 取消所有已调度的定时任务。 */
   clearAll(): void {
-    for (const timer of this.timers.values()) {
-      clearTimeout(timer);
+    for (const job of this.jobs.values()) {
+      job.stop();
     }
-    this.timers.clear();
+    this.jobs.clear();
   }
 
   /** 获取当前已调度的任务数量。 */
   count(): number {
-    return this.timers.size;
+    return this.jobs.size;
   }
 }
 
@@ -95,11 +93,12 @@ export function computeNextRun(
 ): Date | null {
   if (scheduleType === 'once') {
     const runAt = parseDate(scheduleValue);
-    return runAt && runAt.getTime() > from.getTime() ? runAt : null;
+    return runAt ? getNextCronRun(runAt, from) : null;
   }
 
   if (scheduleType === 'daily') {
-    return computeNextDailyRun(scheduleValue, from);
+    const pattern = dailyPattern(scheduleValue);
+    return pattern ? getNextCronRun(pattern, from) : null;
   }
 
   if (scheduleType === 'interval') {
@@ -110,7 +109,18 @@ export function computeNextRun(
   return null;
 }
 
-function computeNextDailyRun(value: string, from: Date): Date | null {
+function getNextCronRun(pattern: ConstructorParameters<typeof Cron>[0], from: Date): Date | null {
+  try {
+    const job = new Cron(pattern, { paused: true, maxRuns: 1 });
+    const nextRun = job.nextRun(from);
+    job.stop();
+    return nextRun;
+  } catch {
+    return null;
+  }
+}
+
+function dailyPattern(value: string): string | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
   if (!match) {
     return null;
@@ -122,12 +132,7 @@ function computeNextDailyRun(value: string, from: Date): Date | null {
     return null;
   }
 
-  const next = new Date(from);
-  next.setHours(hour, minute, 0, 0);
-  if (next.getTime() <= from.getTime()) {
-    next.setDate(next.getDate() + 1);
-  }
-  return next;
+  return `${minute} ${hour} * * *`;
 }
 
 function parseIntervalMs(value: string): number {

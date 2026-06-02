@@ -151,7 +151,7 @@ describe('plugin_exec', () => {
     const result = await executeCommand(
       {
         command: childProcessTimeoutCommand(readyPath, markerPath),
-        timeoutMs: isWindows ? 1_000 : 200,
+        timeoutMs: 4_000,
       },
       { workspaceDir: path.join(repoRoot, '.aesyclaw', 'workspace') },
     );
@@ -160,9 +160,9 @@ describe('plugin_exec', () => {
     expect(details.timedOut).toBe(true);
     await expect(waitForFileExists(readyPath)).resolves.toBe(true);
 
-    await delay(2_500);
+    await delay(CHILD_SURVIVAL_MARKER_DELAY_MS + 500);
     await expect(fileExists(markerPath)).resolves.toBe(false);
-  });
+  }, 20_000);
 
   it('preserves Chinese command and output text', async () => {
     const repoRoot = await makeRepoRoot();
@@ -242,10 +242,12 @@ function timeoutCommand(): string {
     : "printf 'start\\n'; sleep 5; printf 'end\\n'";
 }
 
+const CHILD_SURVIVAL_MARKER_DELAY_MS = 8_000;
+
 function childProcessTimeoutCommand(readyPath: string, markerPath: string): string {
   const childScript =
     `require("node:fs").writeFileSync(${JSON.stringify(readyPath)},"ready");` +
-    `setTimeout(()=>require("node:fs").writeFileSync(${JSON.stringify(markerPath)},"survived"),2000);`;
+    `setTimeout(()=>require("node:fs").writeFileSync(${JSON.stringify(markerPath)},"survived"),${CHILD_SURVIVAL_MARKER_DELAY_MS});`;
 
   if (isWindows) {
     const argumentList = `-e ${windowsCommandLineQuote(childScript)}`;
