@@ -16,8 +16,8 @@ export const useSessionStore = defineStore('session', () => {
 
   // Getters
   const currentSession = computed(() => {
-    if (!currentSessionId.value) return null;
-    return sessions.value.find((s) => s.id === currentSessionId.value) || null;
+    if (currentSessionId.value === null) return null;
+    return sessions.value.find((s) => s.id === currentSessionId.value) ?? null;
   });
 
   const getSessionById = computed(() => (sessionId: string) => {
@@ -108,7 +108,7 @@ export const useSessionStore = defineStore('session', () => {
       await sessionService.switchRole(sessionId, roleId);
       // Update local session data
       const session = sessions.value.find((s) => s.id === sessionId);
-      if (session) {
+      if (session !== undefined) {
         session.activeRoleId = roleId;
       }
     } catch (err) {

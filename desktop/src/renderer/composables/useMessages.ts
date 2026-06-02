@@ -3,12 +3,8 @@
  * 负责消息的解析、流式处理、工具调用状态管理。
  */
 
-import type {
-  ChatMessageEvent,
-  DesktopHistoryMessage,
-  DesktopUploadFile,
-} from '../../preload/index';
-import type { ChatMessage, ChatSession, ToolCallState, ChatAttachment, MediaItem, AssistantMessage, UserMessage } from '../types/chat';
+import type { ChatMessageEvent, DesktopHistoryMessage } from '../../preload/index';
+import type { ChatMessage, ChatSession, ToolCallState, ChatAttachment, MediaItem } from '../types/chat';
 import { stripInformationTags } from '../utils/title';
 
 /** 从后端历史消息的 content 文本中解析 [Attachments] 块，返回纯文本和结构化附件列表。 */
@@ -63,6 +59,7 @@ function mimeKind(mime: string): string {
   return 'file';
 }
 
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function useMessages() {
   /** 处理流式事件 */
   function handleStreamEvent(

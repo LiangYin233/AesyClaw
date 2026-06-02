@@ -35,21 +35,21 @@ export class RoleService {
    * 获取角色列表
    */
   async getRoles(): Promise<Role[]> {
-    return apiClient.request<Role[]>('get_roles');
+    return await apiClient.request<Role[]>('get_roles');
   }
 
   /**
    * 获取角色详情
    */
   async getRole(roleId: string): Promise<Role> {
-    return apiClient.request<Role>('get_role', { roleId });
+    return await apiClient.request<Role>('get_role', { roleId });
   }
 
   /**
    * 创建角色
    */
   async createRole(role: Omit<Role, 'id'> & { id?: string }): Promise<Role> {
-    return apiClient.request<Role>('create_role', role);
+    return await apiClient.request<Role>('create_role', role);
   }
 
   /**
@@ -70,14 +70,14 @@ export class RoleService {
    * 获取可用工具列表
    */
   async getTools(): Promise<ToolInfo[]> {
-    return apiClient.request<ToolInfo[]>('get_tools');
+    return await apiClient.request<ToolInfo[]>('get_tools');
   }
 
   /**
    * 获取可用技能列表
    */
   async getSkills(): Promise<SkillInfo[]> {
-    return apiClient.request<SkillInfo[]>('get_skills');
+    return await apiClient.request<SkillInfo[]>('get_skills');
   }
 
   /**

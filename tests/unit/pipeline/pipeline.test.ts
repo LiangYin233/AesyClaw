@@ -81,7 +81,7 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
         setRole: vi.fn(),
         prompt: vi.fn(),
       })),
-    } as any,
+    } as unknown as PipelineDependencies['agentFactory'],
   };
 }
 

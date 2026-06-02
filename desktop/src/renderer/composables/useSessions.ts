@@ -10,6 +10,7 @@ import type { ChatSession } from '../types/chat';
 import { useWebSocket } from './useWebSocket';
 import { useMessages } from './useMessages';
 
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function useSessions() {
   const sessions = ref<ChatSession[]>([]);
   const activeSessionId = ref<string | null>(null);
@@ -48,7 +49,7 @@ export function useSessions() {
         createEmptySession(summary.chatId, getSessionTitle(summary));
       // 仅当后端摘要含有实际消息内容时才覆盖本地标题，
       // 避免空会话的标题被回退为 desktop-xxx
-      if (summary.firstUserMessage) {
+      if (summary.firstUserMessage !== undefined && summary.firstUserMessage.length > 0) {
         local.title = getSessionTitle(summary);
       }
       synced.push(local);
@@ -63,7 +64,7 @@ export function useSessions() {
 
     sessions.value = synced;
     if (
-      activeSessionId.value &&
+      activeSessionId.value !== null &&
       !sessions.value.some((session) => session.id === activeSessionId.value)
     ) {
       activeSessionId.value = sessions.value[0]?.id ?? null;
@@ -74,10 +75,10 @@ export function useSessions() {
 
   async function loadSessionMessages(sessionId: string, force = false): Promise<void> {
     const session = sessions.value.find((item) => item.id === sessionId);
-    if (!session || session.streaming) return;
+    if (session === undefined || session.streaming) return;
     if (!force && session.messages.length > 0) return;
     const summary = findBackendSummary(sessionId);
-    if (!summary) return;
+    if (summary === null) return;
     session.isLoading = true;
     const raw = (await channelRequest('get_session_messages', {
       sessionId,
@@ -92,7 +93,7 @@ export function useSessions() {
   /** 强制重新加载指定会话的消息（清空缓存后从后端拉取） */
   async function reloadSessionMessages(sessionId: string): Promise<void> {
     const session = sessions.value.find((item) => item.id === sessionId);
-    if (!session) return;
+    if (session === undefined) return;
     session.messages = [];
     await loadSessionMessages(sessionId, true);
   }

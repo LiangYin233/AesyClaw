@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AgentMessage } from '../../../src/agent/types';
 import {
   calculateToolResultBudget,
   limitToolResultContent,
@@ -6,6 +7,10 @@ import {
 
 function textContent(text: string) {
   return { type: 'text' as const, text };
+}
+
+function agentMessage(message: unknown): AgentMessage {
+  return message as AgentMessage;
 }
 
 describe('calculateToolResultBudget', () => {
@@ -24,12 +29,12 @@ describe('calculateToolResultBudget', () => {
 
   it('reduces budget with long history', () => {
     const longHistory = [
-      { 
-        role: 'user' as const, 
-        content: 'x'.repeat(100_000), 
+      agentMessage({
+        role: 'user',
+        content: 'x'.repeat(100_000),
         timestamp: Date.now(),
-        usage: { totalTokens: 28571 } // ~100000 / 3.5
-      } as any,
+        usage: { totalTokens: 28571 }, // ~100000 / 3.5
+      }),
     ];
     const budget = calculateToolResultBudget(model, compressionThreshold, longHistory, '');
     // compressionLimit = 128000 * 0.5 = 64000
@@ -42,12 +47,12 @@ describe('calculateToolResultBudget', () => {
 
   it('never goes below 0', () => {
     const hugeHistory = [
-      { 
-        role: 'user' as const, 
-        content: 'x'.repeat(1_000_000), 
+      agentMessage({
+        role: 'user',
+        content: 'x'.repeat(1_000_000),
         timestamp: Date.now(),
-        usage: { totalTokens: 300000 } // Way over the compression limit
-      } as any,
+        usage: { totalTokens: 300000 }, // Way over the compression limit
+      }),
     ];
     const budget = calculateToolResultBudget(model, compressionThreshold, hugeHistory, '');
     expect(budget.maxToolResultTokens).toBe(0);

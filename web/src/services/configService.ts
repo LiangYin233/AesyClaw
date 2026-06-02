@@ -23,14 +23,14 @@ export class ConfigService {
    * 获取配置 Schema
    */
   async getConfigSchema(): Promise<ConfigSchema> {
-    return apiClient.request<ConfigSchema>('get_config_schema');
+    return await apiClient.request<ConfigSchema>('get_config_schema');
   }
 
   /**
    * 获取当前配置
    */
   async getConfig(): Promise<Config> {
-    return apiClient.request<Config>('get_config');
+    return await apiClient.request<Config>('get_config');
   }
 
   /**
@@ -51,14 +51,14 @@ export class ConfigService {
    * 获取插件列表
    */
   async getPlugins(): Promise<Array<{ name: string; version: string; enabled: boolean }>> {
-    return apiClient.request('get_plugins');
+    return await apiClient.request('get_plugins');
   }
 
   /**
    * 获取通道列表
    */
   async getChannels(): Promise<Array<{ name: string; version: string; enabled: boolean }>> {
-    return apiClient.request('get_channels');
+    return await apiClient.request('get_channels');
   }
 
   /**

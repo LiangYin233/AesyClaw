@@ -16,8 +16,8 @@ export const useRoleStore = defineStore('role', () => {
   const error = ref<string | null>(null);
 
   // Getters
-  const enabledRoles = computed(() => roles.value.filter((r) => r.enabled));
-  const disabledRoles = computed(() => roles.value.filter((r) => !r.enabled));
+  const enabledRoles = computed(() => roles.value.filter((r) => r.enabled === true));
+  const disabledRoles = computed(() => roles.value.filter((r) => r.enabled === false));
   const defaultRole = computed(() => roles.value.find((r) => r.id === 'default'));
   
   const getRoleById = computed(() => (roleId: string) => {
@@ -28,8 +28,8 @@ export const useRoleStore = defineStore('role', () => {
   const toolCount = computed(() => tools.value.length);
   const skillCount = computed(() => skills.value.length);
 
-  const systemSkills = computed(() => skills.value.filter((s) => s.isSystem));
-  const userSkills = computed(() => skills.value.filter((s) => !s.isSystem));
+  const systemSkills = computed(() => skills.value.filter((s) => s.isSystem === true));
+  const userSkills = computed(() => skills.value.filter((s) => s.isSystem === false));
 
   // Actions
   async function loadRoles() {
@@ -88,7 +88,7 @@ export const useRoleStore = defineStore('role', () => {
       const index = roles.value.findIndex((r) => r.id === roleId);
       if (index >= 0) {
         const currentRole = roles.value[index];
-        if (currentRole) {
+        if (currentRole !== undefined) {
           roles.value[index] = { ...currentRole, ...updates };
         }
       }

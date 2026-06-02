@@ -33,14 +33,14 @@ export class ChatService {
    * 发送消息
    */
   async sendMessage(params: SendMessageParams): Promise<Message> {
-    return apiClient.request<Message>('send_message', params);
+    return await apiClient.request<Message>('send_message', params);
   }
 
   /**
    * 获取会话历史消息
    */
   async getMessages(sessionId: string, limit = 50): Promise<Message[]> {
-    return apiClient.request<Message[]>('get_messages', { sessionId, limit });
+    return await apiClient.request<Message[]>('get_messages', { sessionId, limit });
   }
 
   /**

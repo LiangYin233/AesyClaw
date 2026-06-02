@@ -15,16 +15,16 @@ export const useChatStore = defineStore('chat', () => {
 
   // Getters
   const getMessages = computed(() => (sessionId: string) => {
-    return messages.value.get(sessionId) || [];
+    return messages.value.get(sessionId) ?? [];
   });
 
   const getStreamingMessage = computed(() => (sessionId: string) => {
-    return streamingMessages.value.get(sessionId) || '';
+    return streamingMessages.value.get(sessionId) ?? '';
   });
 
   const hasMessages = computed(() => (sessionId: string) => {
     const msgs = messages.value.get(sessionId);
-    return msgs && msgs.length > 0;
+    return (msgs?.length ?? 0) > 0;
   });
 
   // Actions
@@ -73,7 +73,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function addMessage(sessionId: string, message: Message) {
-    const msgs = messages.value.get(sessionId) || [];
+    const msgs = messages.value.get(sessionId) ?? [];
     messages.value.set(sessionId, [...msgs, message]);
   }
 
@@ -99,7 +99,7 @@ export const useChatStore = defineStore('chat', () => {
   function setupListeners() {
     chatService.onMessage((message) => {
       const msg = message as Message;
-      if (msg.sessionId) {
+      if (msg.sessionId !== undefined && msg.sessionId.length > 0) {
         addMessage(msg.sessionId, msg);
       }
     });

@@ -1,10 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
-import { registerBuiltinCommands } from '../../../src/command/builtin';
+import { registerBuiltinCommands, type BuiltinCommandDependencies } from '../../../src/command/builtin';
 import { CommandRegistry } from '../../../src/command/command-registry';
-import type { CommandContext } from '../../../src/command/types';
+import type { CommandContext, CommandDefinition } from '../../../src/core/types';
 
 const KEY = { channel: 'desktop' as const, type: 'private' as const, chatId: 'test' };
-const SESSION = { sessionId: 'session-1', key: KEY };
+
+type MockDeps = Record<string, unknown>;
+
+function registerCommands(registry: CommandRegistry, deps: MockDeps): void {
+  registerBuiltinCommands(registry, deps as unknown as BuiltinCommandDependencies);
+}
+
+function getCommand(registry: CommandRegistry, name: string): CommandDefinition {
+  const command = registry.getAll().find((candidate) => candidate.name === name);
+  if (command === undefined) throw new Error(`Command not found: ${name}`);
+  return command;
+}
 
 describe('clear command', () => {
   it('clears session history', async () => {
@@ -14,13 +25,13 @@ describe('clear command', () => {
     const getAgent = vi.fn(() => ({ session: { isLocked: false } }));
     const unregisterAgent = vi.fn();
 
-    registerBuiltinCommands(registry, {
-      sessionManager: { clearById } as any,
-      databaseManager: { sessions: { findByKey } } as any,
-      agentRegistry: { getAgent, unregisterAgent } as any,
-    } as any);
+    registerCommands(registry, {
+      sessionManager: { clearById },
+      databaseManager: { sessions: { findByKey } },
+      agentRegistry: { getAgent, unregisterAgent },
+    });
 
-    const cmd = registry.getAll().find((c) => c.name === 'clear')!;
+    const cmd = getCommand(registry, 'clear');
     const context: CommandContext = { sessionKey: KEY };
     const result = await cmd.execute([], context);
 
@@ -35,13 +46,13 @@ describe('clear command', () => {
     const clearById = vi.fn();
     const getAgent = vi.fn(() => ({ session: { isLocked: true } }));
 
-    registerBuiltinCommands(registry, {
-      sessionManager: { clearById } as any,
-      databaseManager: { sessions: { findByKey: vi.fn() } } as any,
-      agentRegistry: { getAgent } as any,
-    } as any);
+    registerCommands(registry, {
+      sessionManager: { clearById },
+      databaseManager: { sessions: { findByKey: vi.fn() } },
+      agentRegistry: { getAgent },
+    });
 
-    const cmd = registry.getAll().find((c) => c.name === 'clear')!;
+    const cmd = getCommand(registry, 'clear');
     const context: CommandContext = { sessionKey: KEY };
     const result = await cmd.execute([], context);
 
@@ -58,13 +69,13 @@ describe('clear command', () => {
     const getAgent = vi.fn(() => ({ session: { isLocked: false } }));
     const unregisterAgent = vi.fn();
 
-    registerBuiltinCommands(registry, {
-      sessionManager: { clearById } as any,
-      databaseManager: { sessions: { findByKey } } as any,
-      agentRegistry: { getAgent, unregisterAgent } as any,
-    } as any);
+    registerCommands(registry, {
+      sessionManager: { clearById },
+      databaseManager: { sessions: { findByKey } },
+      agentRegistry: { getAgent, unregisterAgent },
+    });
 
-    const cmd = registry.getAll().find((c) => c.name === 'clear')!;
+    const cmd = getCommand(registry, 'clear');
     const context: CommandContext = { sessionKey: KEY };
     const result = await cmd.execute([], context);
 

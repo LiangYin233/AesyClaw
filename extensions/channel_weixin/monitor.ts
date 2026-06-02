@@ -36,7 +36,7 @@ export function startMonitor(
 
         consecutiveFailures = 0;
 
-        if (resp.longpolling_timeout_ms && resp.longpolling_timeout_ms > 0) {
+        if (resp.longpolling_timeout_ms !== undefined && resp.longpolling_timeout_ms > 0) {
           timeoutMs = resp.longpolling_timeout_ms;
         }
 
@@ -44,7 +44,7 @@ export function startMonitor(
           buf = resp.get_updates_buf;
         }
 
-        if (resp.msgs) {
+        if (resp.msgs !== undefined) {
           for (const msg of resp.msgs) {
             const fromUserId = msg.from_user_id;
             const content = extractText(msg);
@@ -80,7 +80,7 @@ export function startMonitor(
 }
 
 function extractText(msg: WeixinMessage): string {
-  if (!msg.item_list) return '';
+  if (msg.item_list === undefined) return '';
 
   // 优先取 TEXT 类型的消息内容，没有则取任意第一个非空内容
   for (const item of msg.item_list) {

@@ -30,13 +30,15 @@ describe('makeExtraBodyOnPayload', () => {
     const model = { extraBody: { reasoning: { effort: 'low' } } } as never;
     const fn = makeExtraBodyOnPayload(model);
     expect(fn).toBeDefined();
-    const result = fn!({ messages: 'hello' });
+    if (fn === undefined) throw new Error('Expected payload handler');
+    const result = fn({ messages: 'hello' });
     expect(result).toEqual({ messages: 'hello', reasoning: { effort: 'low' } });
   });
 
   it('preserves non-object payload', () => {
     const model = { extraBody: { key: 'val' } } as never;
-    const fn = makeExtraBodyOnPayload(model)!;
+    const fn = makeExtraBodyOnPayload(model);
+    if (fn === undefined) throw new Error('Expected payload handler');
     expect(fn(null)).toBeNull();
     expect(fn('string')).toBe('string');
     expect(fn(42)).toBe(42);

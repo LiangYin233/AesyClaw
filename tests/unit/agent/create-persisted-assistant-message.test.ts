@@ -43,7 +43,7 @@ describe('createPersistedAssistantMessage', () => {
       cacheWrite: 0,
       totalTokens: 0,
     });
-    expect(msg.usage!.cost).toBeDefined();
+    expect(msg.usage?.cost).toBeDefined();
   });
 
   it('handles empty content string', () => {

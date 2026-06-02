@@ -99,8 +99,8 @@ async function apiPost(
   timeoutMs?: number,
 ): Promise<string> {
   const url = new URL(endpoint, baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-  const controller = timeoutMs ? new AbortController() : undefined;
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+  const controller = timeoutMs !== undefined ? new AbortController() : undefined;
+  const timer = controller !== undefined ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
   try {
     const res = await fetch(url.toString(), {
       method: 'POST',
@@ -112,7 +112,7 @@ async function apiPost(
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
     return text;
   } finally {
-    if (timer) clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

@@ -12,6 +12,14 @@ describe('desktop useChat edge cases', () => {
   afterAll(() => {
     vi.unstubAllGlobals();
   });
+
+  function requireActiveSession(chat: ReturnType<typeof useChat>) {
+    const session = chat.activeSession.value;
+    expect(session).not.toBeNull();
+    if (session === null) throw new Error('Expected active session');
+    return session;
+  }
+
   it('starts with no sessions and no active session', () => {
     const chat = useChat();
     expect(chat.sessions.value).toEqual([]);
@@ -36,13 +44,12 @@ describe('desktop useChat edge cases', () => {
   it('created session has expected default state', () => {
     const chat = useChat();
     chat.createSession();
-    const session = chat.activeSession.value;
-    expect(session).not.toBeNull();
-    expect(session!.title).toBe('新对话');
-    expect(session!.messages).toEqual([]);
-    expect(session!.streaming).toBe(false);
-    expect(session!.pendingToolCalls).toEqual(new Map());
-    expect(session!.activeAssistantMessage).toBeNull();
+    const session = requireActiveSession(chat);
+    expect(session.title).toBe('新对话');
+    expect(session.messages).toEqual([]);
+    expect(session.streaming).toBe(false);
+    expect(session.pendingToolCalls).toEqual(new Map());
+    expect(session.activeAssistantMessage).toBeNull();
   });
 
   it('sendMessage without text and files is no-op', async () => {
@@ -80,7 +87,7 @@ describe('desktop useChat edge cases', () => {
     const chat = useChat();
     const id = chat.createSession();
     chat.handleStreamEvent({ type: 'chunk', sessionId: id, text: 'Hello', index: 0 });
-    const session = chat.activeSession.value!;
+    const session = requireActiveSession(chat);
     expect(session.activeAssistantMessage?.text).toBe('Hello');
     expect(session.activeAssistantMessage?.streaming).toBe(true);
     expect(session.messages.length).toBe(1);
@@ -111,7 +118,7 @@ describe('desktop useChat edge cases', () => {
       toolName: 'search',
       args: { query: 'test' },
     });
-    const session = chat.activeSession.value!;
+    const session = requireActiveSession(chat);
     expect(session.pendingToolCalls.get('tc-1')?.status).toBe('running');
     expect(session.activeAssistantMessage).toBeNull();
     // The previous assistant text should be marked intermediate
@@ -172,7 +179,7 @@ describe('desktop useChat edge cases', () => {
     const id = chat.createSession();
     chat.handleStreamEvent({ type: 'chunk', sessionId: id, text: 'Final answer', index: 0 });
     chat.handleStreamEvent({ type: 'done', sessionId: id });
-    const session = chat.activeSession.value!;
+    const session = requireActiveSession(chat);
     expect(session.streaming).toBe(false);
     expect(session.activeAssistantMessage).toBeNull();
     expect(session.pendingToolCalls.size).toBe(0);
@@ -194,7 +201,7 @@ describe('desktop useChat edge cases', () => {
     const chat = useChat();
     const id = chat.createSession();
     chat.handleStreamEvent({ type: 'error', sessionId: id, message: 'Connection lost' });
-    const session = chat.activeSession.value!;
+    const session = requireActiveSession(chat);
     expect(session.streaming).toBe(false);
     expect(session.messages).toContainEqual({ role: 'system', text: '错误: Connection lost' });
   });

@@ -4,7 +4,6 @@
  */
 
 import { useWebSocket } from '@/composables/useWebSocket';
-import type { WsResponse } from '@/composables/useWebSocket';
 
 export class ApiClient {
   private ws = useWebSocket();
@@ -17,7 +16,9 @@ export class ApiClient {
       const result = await this.ws.send(type, data, timeoutMs);
       return result as T;
     } catch (error) {
-      throw new Error(error instanceof Error ? error.message : `Request failed: ${type}`);
+      throw new Error(error instanceof Error ? error.message : `Request failed: ${type}`, {
+        cause: error,
+      });
     }
   }
 

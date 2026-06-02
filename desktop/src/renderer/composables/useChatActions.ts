@@ -7,6 +7,7 @@ import { makeSessionTitle } from '../utils/title';
 import type { DesktopUploadFile } from '../../preload/index';
 import type { ChatSession, ChatAttachment } from '../types/chat';
 
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function useChatActions() {
   const pendingDeletedSessions = new Map<string, { confirmed: boolean }>();
 

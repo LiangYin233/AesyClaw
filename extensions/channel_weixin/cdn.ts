@@ -56,13 +56,14 @@ export async function uploadToCdn(
 
   const uploadFullUrl = uploadResp.upload_full_url?.trim();
   const uploadParam = uploadResp.upload_param;
-  if (!uploadFullUrl && !uploadParam) {
+  if ((uploadFullUrl === undefined || uploadFullUrl.length === 0) && uploadParam === undefined) {
     throw new Error('getUploadUrl 未返回上传 URL');
   }
 
   const cdnUrl =
-    uploadFullUrl ||
-    `${opts.baseUrl}/upload?encrypted_query_param=${encodeURIComponent(uploadParam!)}&filekey=${encodeURIComponent(filekey)}`;
+    uploadFullUrl !== undefined && uploadFullUrl.length > 0
+      ? uploadFullUrl
+      : `${opts.baseUrl}/upload?encrypted_query_param=${encodeURIComponent(uploadParam ?? '')}&filekey=${encodeURIComponent(filekey)}`;
 
   // AES-128-ECB 加密
   const ciphertext = encryptAesEcb(fileBuffer, aeskey);

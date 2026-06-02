@@ -17,8 +17,8 @@ export const useConfigStore = defineStore('config', () => {
   const error = ref<string | null>(null);
 
   // Getters
-  const providers = computed(() => config.value.providers || {});
-  const mcpServers = computed(() => config.value.mcp || []);
+  const providers = computed(() => config.value.providers ?? {});
+  const mcpServers = computed(() => config.value.mcp ?? []);
   const hasProviders = computed(() => Object.keys(providers.value).length > 0);
   const hasMcpServers = computed(() => mcpServers.value.length > 0);
   const enabledPlugins = computed(() => plugins.value.filter((p) => p.enabled));

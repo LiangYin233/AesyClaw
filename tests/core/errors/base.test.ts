@@ -2,7 +2,7 @@
  * 基础错误类测试
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { AesyClawError, ErrorCode } from '@aesyclaw/core/errors';
 
 describe('AesyClawError', () => {

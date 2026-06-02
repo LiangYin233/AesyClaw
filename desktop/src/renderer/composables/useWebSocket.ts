@@ -3,10 +3,9 @@
  * 负责与后端的 WebSocket 通信，包括请求发送和响应处理。
  */
 
-import { ref } from 'vue';
-
 export type ChannelRequestHandler = (type: string, sessionId: string, data: unknown) => void;
 
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function useWebSocket() {
   const pendingChannelRequests = new Map<string, (data: unknown) => void>();
   const responseTypeMap: Record<string, string> = {
@@ -18,8 +17,8 @@ export function useWebSocket() {
   async function channelRequest(type: string, payload?: Record<string, unknown>): Promise<unknown> {
     const responseType = responseTypeMap[type] ?? type;
     const sent = await window.aesyclaw.sendChatRaw(type, (payload?.['sessionId'] as string) ?? '');
-    if (!sent) return [];
-    return new Promise((resolve) => {
+    if (sent !== true) return [];
+    return await new Promise((resolve) => {
       const key = `${responseType}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
       pendingChannelRequests.set(key, resolve);
       setTimeout(() => {

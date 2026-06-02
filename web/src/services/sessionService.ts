@@ -30,14 +30,14 @@ export class SessionService {
    * 获取会话列表
    */
   async getSessions(): Promise<SessionListItem[]> {
-    return apiClient.request<SessionListItem[]>('get_sessions');
+    return await apiClient.request<SessionListItem[]>('get_sessions');
   }
 
   /**
    * 获取会话详情
    */
   async getSession(sessionId: string): Promise<SessionDetail> {
-    return apiClient.request<SessionDetail>('get_session', { sessionId });
+    return await apiClient.request<SessionDetail>('get_session', { sessionId });
   }
 
   /**
@@ -49,7 +49,7 @@ export class SessionService {
     chatId: string;
     roleId?: string;
   }): Promise<ChatSession> {
-    return apiClient.request<ChatSession>('create_session', params);
+    return await apiClient.request<ChatSession>('create_session', params);
   }
 
   /**

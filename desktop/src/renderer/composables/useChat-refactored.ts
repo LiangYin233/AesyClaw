@@ -3,7 +3,7 @@
  * 整合所有子 composables，提供统一的聊天管理接口。
  */
 
-import type { ChatMessageEvent } from '../../preload/index';
+import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
 import { useWebSocket } from './useWebSocket';
 import { useMessages } from './useMessages';
 import { useSessions } from './useSessions';
@@ -11,8 +11,9 @@ import { useChatActions } from './useChatActions';
 
 export type { ChatSession, ChatMessage, UserMessage, AssistantMessage, ToolMessage, ChatAttachment, MediaItem, ToolCallState } from '../types/chat';
 
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function useChat() {
-  const { channelRequest, handleChannelResponse: handleWSResponse } = useWebSocket();
+  const { handleChannelResponse: handleWSResponse } = useWebSocket();
   const { handleStreamEvent: handleMessageStreamEvent } = useMessages();
   const {
     sessions,
@@ -38,10 +39,10 @@ export function useChat() {
       if (type === 'sessions') {
         void syncSessionsFromBackend().then(() => {
           // WS 重连后首次收到 sessions 时，补充加载当前会话消息
-          if (activeSessionId.value) {
+          if (activeSessionId.value !== null) {
             const session = sessions.value.find((s) => s.id === activeSessionId.value);
-            if (session && !session.streaming && session.messages.length === 0) {
-              loadSessionMessages(activeSessionId.value, true);
+            if (session !== undefined && !session.streaming && session.messages.length === 0) {
+              void loadSessionMessages(activeSessionId.value, true);
             }
           }
         });
@@ -67,14 +68,12 @@ export function useChat() {
   }
 
   /** 发送消息 */
-  async function sendMessage(text: string, files: any[] = []): Promise<void> {
+  async function sendMessage(text: string, files: DesktopUploadFile[] = []): Promise<void> {
     let sessionId = activeSessionId.value;
-    if (!sessionId) {
-      sessionId = createSession();
-    }
+    sessionId ??= createSession();
 
     const session = sessions.value.find((s) => s.id === sessionId);
-    if (!session) return;
+    if (session === undefined) return;
 
     await sendMsg(session, text, files);
   }
