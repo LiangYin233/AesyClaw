@@ -199,7 +199,12 @@ class CronRunRepositoryImpl extends BaseRepository<CronRunRecord, CronRunRow> {
 
     await this.transactionAsync(async () => {
       for (const id of runIds) {
-        this.exec('UPDATE cron_runs SET status = ?, ended_at = ? WHERE id = ?', 'abandoned', now, id);
+        this.exec(
+          'UPDATE cron_runs SET status = ?, ended_at = ? WHERE id = ?',
+          'abandoned',
+          now,
+          id,
+        );
       }
     });
   }

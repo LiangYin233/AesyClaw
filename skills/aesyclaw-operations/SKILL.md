@@ -17,7 +17,7 @@ description: 当用户询问或要求操作 AesyClaw（安装 Skill、编辑配�
 | 内置 Skill | `skills/`                                                            |
 | 数据库     | `.aesyclaw/data/aesyclaw.db`                                         |
 | 媒体缓存   | `.aesyclaw/media/`（含 `desktop/`、`onebot/`、`weixin/` 子频道媒体） |
-| 工作区     | `.aesyclaw/workspace/`                         |
+| 工作区     | `.aesyclaw/workspace/`                                               |
 
 ## 安装第三方 Skill
 

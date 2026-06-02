@@ -90,7 +90,8 @@ function shouldColorize(consoleMethod: 'debug' | 'info' | 'warn' | 'error'): boo
   if (forceColor && forceColor !== '0') return true;
   if (process.env['TERM'] === 'dumb') return false;
 
-  const stream = consoleMethod === 'warn' || consoleMethod === 'error' ? process.stderr : process.stdout;
+  const stream =
+    consoleMethod === 'warn' || consoleMethod === 'error' ? process.stderr : process.stdout;
   return stream.isTTY === true;
 }
 
@@ -136,7 +137,10 @@ function log(
   if (!(LOG_LEVELS[level] >= LOG_LEVELS[currentLevel])) return;
 
   appendRecentLogEntry(scope, level, message, args);
-  globalThis.console[consoleMethod](formatConsoleLine(scope, level, message, consoleMethod), ...args);
+  globalThis.console[consoleMethod](
+    formatConsoleLine(scope, level, message, consoleMethod),
+    ...args,
+  );
 }
 
 /** 获取最近 N 条日志条目 */

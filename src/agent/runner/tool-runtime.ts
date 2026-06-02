@@ -58,7 +58,7 @@ export function calculateToolResultBudget(
   content: string,
 ): { maxToolResultTokens: number; maxToolResultChars: number } {
   const compressionLimitTokens = Math.floor(model.contextWindow * compressionThreshold);
-  
+
   // 使用实际 token 计数（从 message.usage 累加）
   let usedTokens = 0;
   for (const message of history) {
@@ -67,10 +67,10 @@ export function calculateToolResultBudget(
       usedTokens += usage.totalTokens;
     }
   }
-  
+
   // 对于当前用户输入，使用粗略估算（因为还没有发送给 LLM）
   usedTokens += Math.ceil(content.length / CHARS_PER_TOKEN);
-  
+
   const remainingTokens = Math.max(0, compressionLimitTokens - usedTokens);
   const maxToolResultTokens = Math.floor(remainingTokens * TOOL_RESULT_BUDGET_RATIO);
   return {

@@ -70,7 +70,9 @@ on('update_role', (data, deps) => {
   const { id, ...body } = parsePayload(UpdateRoleSchema, data);
   return roleService.updateRole(deps, id, body as Parameters<typeof roleService.updateRole>[2]);
 });
-on('delete_role', (data, deps) => roleService.deleteRole(deps, parsePayload(IdPayloadSchema, data).id));
+on('delete_role', (data, deps) =>
+  roleService.deleteRole(deps, parsePayload(IdPayloadSchema, data).id),
+);
 
 // ── 渠道 / 插件 ──
 on('get_channels', (_, deps) => deps.channelManager.getRegisteredChannels());

@@ -125,13 +125,14 @@ export class AesyClawError extends Error {
       message: this.message,
       details: this.details,
       timestamp: this.timestamp.toISOString(),
-      cause: this.cause !== undefined
-        ? {
-            name: this.cause.name,
-            message: this.cause.message,
-            stack: this.cause.stack,
-          }
-        : undefined,
+      cause:
+        this.cause !== undefined
+          ? {
+              name: this.cause.name,
+              message: this.cause.message,
+              stack: this.cause.stack,
+            }
+          : undefined,
       stack: this.stack,
     };
   }

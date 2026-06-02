@@ -100,10 +100,7 @@ function defaultTransformError(error: unknown, _ctx: HookCtx): AesyClawError {
     return new AesyClawError(ErrorCode.HOOK_EXECUTION_FAILED, error.message, undefined, error);
   }
 
-  return new AesyClawError(
-    ErrorCode.HOOK_EXECUTION_FAILED,
-    String(error),
-  );
+  return new AesyClawError(ErrorCode.HOOK_EXECUTION_FAILED, String(error));
 }
 
 /**

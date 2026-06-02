@@ -1,6 +1,6 @@
 /**
  * Stores 和 Services 基本功能测试
- * 
+ *
  * 这个文件演示了如何使用新的 Pinia stores 和 API services
  */
 
@@ -20,7 +20,7 @@ describe('Pinia Stores', () => {
   describe('useChatStore', () => {
     it('should initialize with empty state', () => {
       const chatStore = useChatStore();
-      
+
       expect(chatStore.messages).toBeInstanceOf(Map);
       expect(chatStore.messages.size).toBe(0);
       expect(chatStore.loading).toBe(false);
@@ -58,7 +58,7 @@ describe('Pinia Stores', () => {
     it('should clear messages for session', () => {
       const chatStore = useChatStore();
       const sessionId = 'test-session';
-      
+
       chatStore.addMessage(sessionId, {
         id: 'msg-1',
         role: 'user',
@@ -75,7 +75,7 @@ describe('Pinia Stores', () => {
   describe('useSessionStore', () => {
     it('should initialize with empty state', () => {
       const sessionStore = useSessionStore();
-      
+
       expect(sessionStore.sessions).toEqual([]);
       expect(sessionStore.currentSessionId).toBeNull();
       expect(sessionStore.loading).toBe(false);
@@ -114,7 +114,7 @@ describe('Pinia Stores', () => {
   describe('useConfigStore', () => {
     it('should initialize with empty state', () => {
       const configStore = useConfigStore();
-      
+
       expect(configStore.config).toEqual({});
       expect(configStore.schema).toBeNull();
       expect(configStore.loading).toBe(false);
@@ -148,7 +148,7 @@ describe('Pinia Stores', () => {
   describe('useRoleStore', () => {
     it('should initialize with empty state', () => {
       const roleStore = useRoleStore();
-      
+
       expect(roleStore.roles).toEqual([]);
       expect(roleStore.tools).toEqual([]);
       expect(roleStore.skills).toEqual([]);

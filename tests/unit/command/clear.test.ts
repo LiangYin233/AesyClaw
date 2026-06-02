@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { registerBuiltinCommands, type BuiltinCommandDependencies } from '../../../src/command/builtin';
+import {
+  registerBuiltinCommands,
+  type BuiltinCommandDependencies,
+} from '../../../src/command/builtin';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import type { CommandContext, CommandDefinition } from '../../../src/core/types';
 

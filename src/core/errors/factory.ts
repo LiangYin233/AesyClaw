@@ -19,7 +19,11 @@ export class ErrorFactory {
   /**
    * 从任意错误创建 AesyClawError
    */
-  static fromError(error: unknown, code = ErrorCode.UNKNOWN, details?: ErrorDetails): AesyClawError {
+  static fromError(
+    error: unknown,
+    code = ErrorCode.UNKNOWN,
+    details?: ErrorDetails,
+  ): AesyClawError {
     return AesyClawError.from(error, code, details);
   }
 
@@ -34,11 +38,7 @@ export class ErrorFactory {
    * 创建未实现错误
    */
   static notImplemented(feature: string, details?: ErrorDetails): AesyClawError {
-    return new AesyClawError(
-      ErrorCode.NOT_IMPLEMENTED,
-      `功能 "${feature}" 尚未实现`,
-      details,
-    );
+    return new AesyClawError(ErrorCode.NOT_IMPLEMENTED, `功能 "${feature}" 尚未实现`, details);
   }
 
   // ─── Agent 错误工厂方法 ───────────────────────────────────────

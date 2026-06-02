@@ -9,7 +9,16 @@ import { useMessages } from './useMessages';
 import { useSessions } from './useSessions';
 import { useChatActions } from './useChatActions';
 
-export type { ChatSession, ChatMessage, UserMessage, AssistantMessage, ToolMessage, ChatAttachment, MediaItem, ToolCallState } from '../types/chat';
+export type {
+  ChatSession,
+  ChatMessage,
+  UserMessage,
+  AssistantMessage,
+  ToolMessage,
+  ChatAttachment,
+  MediaItem,
+  ToolCallState,
+} from '../types/chat';
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function useChat() {
@@ -28,11 +37,7 @@ export function useChat() {
   const { sendMessage: sendMsg, checkDeleteConfirmation, markDeleteConfirmed } = useChatActions();
 
   /** 处理来自 chat WebSocket 的响应事件 */
-  function handleChannelResponse(
-    type: string,
-    sessionId: string | undefined,
-    data: unknown,
-  ): void {
+  function handleChannelResponse(type: string, sessionId: string | undefined, data: unknown): void {
     const resolved = handleWSResponse(type, sessionId, data);
     if (!resolved) {
       // 无等待请求时，触发被动同步（如 compact 后自动刷新 / WS 重连）

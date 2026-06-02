@@ -53,9 +53,9 @@ export abstract class BaseRepository<T, TRow = unknown> {
     const tableName = this.getTableName();
     const primaryKey = this.getPrimaryKey();
 
-    const row = this.db
-      .prepare(`SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`)
-      .get(id) as TRow | undefined;
+    const row = this.db.prepare(`SELECT * FROM ${tableName} WHERE ${primaryKey} = ?`).get(id) as
+      | TRow
+      | undefined;
 
     return row !== undefined ? this.mapRow(row) : null;
   }
@@ -69,9 +69,7 @@ export abstract class BaseRepository<T, TRow = unknown> {
     const tableName = this.getTableName();
     const orderClause = orderBy !== undefined ? ` ORDER BY ${orderBy}` : '';
 
-    const rows = this.db
-      .prepare(`SELECT * FROM ${tableName}${orderClause}`)
-      .all() as TRow[];
+    const rows = this.db.prepare(`SELECT * FROM ${tableName}${orderClause}`).all() as TRow[];
 
     return rows.map((row) => this.mapRow(row));
   }
@@ -89,9 +87,7 @@ export abstract class BaseRepository<T, TRow = unknown> {
     const values = Object.values(fields) as Array<string | number | null | Uint8Array>;
 
     const result = this.db
-      .prepare(
-        `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`,
-      )
+      .prepare(`INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`)
       .run(...values);
 
     return typeof result.lastInsertRowid === 'bigint'
@@ -129,9 +125,7 @@ export abstract class BaseRepository<T, TRow = unknown> {
     const tableName = this.getTableName();
     const primaryKey = this.getPrimaryKey();
 
-    const result = this.db
-      .prepare(`DELETE FROM ${tableName} WHERE ${primaryKey} = ?`)
-      .run(id);
+    const result = this.db.prepare(`DELETE FROM ${tableName} WHERE ${primaryKey} = ?`).run(id);
 
     return result.changes > 0;
   }
@@ -176,7 +170,10 @@ export abstract class BaseRepository<T, TRow = unknown> {
    * @param params - 查询参数
    * @returns 查询结果
    */
-  protected query<R = TRow>(sql: string, ...params: Array<string | number | null | Uint8Array>): R[] {
+  protected query<R = TRow>(
+    sql: string,
+    ...params: Array<string | number | null | Uint8Array>
+  ): R[] {
     return this.db.prepare(sql).all(...params) as R[];
   }
 
@@ -186,7 +183,10 @@ export abstract class BaseRepository<T, TRow = unknown> {
    * @param params - 查询参数
    * @returns 查询结果，未找到时返回 undefined
    */
-  protected queryOne<R = TRow>(sql: string, ...params: Array<string | number | null | Uint8Array>): R | undefined {
+  protected queryOne<R = TRow>(
+    sql: string,
+    ...params: Array<string | number | null | Uint8Array>
+  ): R | undefined {
     return this.db.prepare(sql).get(...params) as R | undefined;
   }
 
@@ -196,7 +196,10 @@ export abstract class BaseRepository<T, TRow = unknown> {
    * @param params - 语句参数
    * @returns 执行结果
    */
-  protected exec(sql: string, ...params: Array<string | number | null | Uint8Array>): { changes: number; lastInsertRowid: number | bigint } {
+  protected exec(
+    sql: string,
+    ...params: Array<string | number | null | Uint8Array>
+  ): { changes: number; lastInsertRowid: number | bigint } {
     const result = this.db.prepare(sql).run(...params);
     return {
       changes: typeof result.changes === 'bigint' ? Number(result.changes) : result.changes,

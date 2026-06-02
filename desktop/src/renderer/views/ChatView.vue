@@ -89,13 +89,19 @@ const activeCopyMenuIndex = ref<number | null>(null);
 
 const contextInputStyle = computed(() => {
   if (!contextUsage.value) return {};
-  const pct = contextUsage.value.inputTokens / contextUsage.value.contextWindow * 100;
-  return { width: Math.min(pct, 100) + '%', minWidth: contextUsage.value.inputTokens > 0 ? '4px' : '0px' };
+  const pct = (contextUsage.value.inputTokens / contextUsage.value.contextWindow) * 100;
+  return {
+    width: Math.min(pct, 100) + '%',
+    minWidth: contextUsage.value.inputTokens > 0 ? '4px' : '0px',
+  };
 });
 const contextOutputStyle = computed(() => {
   if (!contextUsage.value) return {};
-  const pct = contextUsage.value.outputTokens / contextUsage.value.contextWindow * 100;
-  return { width: Math.min(pct, 100) + '%', minWidth: contextUsage.value.outputTokens > 0 ? '4px' : '0px' };
+  const pct = (contextUsage.value.outputTokens / contextUsage.value.contextWindow) * 100;
+  return {
+    width: Math.min(pct, 100) + '%',
+    minWidth: contextUsage.value.outputTokens > 0 ? '4px' : '0px',
+  };
 });
 
 const contextUsage = ref<{

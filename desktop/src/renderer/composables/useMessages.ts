@@ -4,7 +4,13 @@
  */
 
 import type { ChatMessageEvent, DesktopHistoryMessage } from '../../preload/index';
-import type { ChatMessage, ChatSession, ToolCallState, ChatAttachment, MediaItem } from '../types/chat';
+import type {
+  ChatMessage,
+  ChatSession,
+  ToolCallState,
+  ChatAttachment,
+  MediaItem,
+} from '../types/chat';
 import { stripInformationTags } from '../utils/title';
 
 /** 从后端历史消息的 content 文本中解析 [Attachments] 块，返回纯文本和结构化附件列表。 */
@@ -182,7 +188,7 @@ export function useMessages() {
         const { text, attachments } = parseAttachmentsFromText(message.content);
         const cleanText = stripInformationTags(text);
         const toolCalls = parseToolCallsFromMessage(message);
-        
+
         if (toolCalls.length === 0) {
           converted.push({
             role: 'assistant',
@@ -193,7 +199,7 @@ export function useMessages() {
           });
           continue;
         }
-        
+
         if (cleanText) {
           converted.push({
             role: 'assistant',
@@ -202,7 +208,7 @@ export function useMessages() {
             usage: message.usage,
           });
         }
-        
+
         toolCalls.forEach((tc) => {
           const card: ChatMessage = { role: 'tool', toolCall: tc };
           converted.push(card);

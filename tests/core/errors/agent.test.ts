@@ -8,11 +8,10 @@ import { AgentExecutionError, ErrorCode } from '@aesyclaw/core/errors';
 describe('AgentExecutionError', () => {
   describe('构造函数', () => {
     it('应该创建 Agent 错误实例', () => {
-      const error = new AgentExecutionError(
-        ErrorCode.AGENT_PROCESSING_FAILED,
-        '处理失败',
-        { roleId: 'test-role', sessionKey: 'test-session' },
-      );
+      const error = new AgentExecutionError(ErrorCode.AGENT_PROCESSING_FAILED, '处理失败', {
+        roleId: 'test-role',
+        sessionKey: 'test-session',
+      });
 
       expect(error).toBeInstanceOf(AgentExecutionError);
       expect(error.code).toBe(ErrorCode.AGENT_PROCESSING_FAILED);

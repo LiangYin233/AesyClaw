@@ -57,7 +57,11 @@ describe('Session.syncFromAgent', () => {
         usage: { ...zeroUsage(), totalTokens: 2 },
         stopReason: 'stop',
       } as AgentMessage,
-      { role: 'user', content: 'ijklmnopqrst', usage: { ...zeroUsage(), totalTokens: 2 } } as AgentMessage,
+      {
+        role: 'user',
+        content: 'ijklmnopqrst',
+        usage: { ...zeroUsage(), totalTokens: 2 },
+      } as AgentMessage,
     ]);
 
     const llmAdapter = {

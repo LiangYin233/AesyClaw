@@ -64,8 +64,15 @@ export function toSessionMessageDto(messages: readonly AgentMessage[]): SessionM
 function extractToolCalls(message: AgentMessage): SessionToolCallDto[] {
   if (message.role !== 'assistant' || !Array.isArray(message.content)) return [];
   return message.content
-    .filter((block): block is { type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> } => 
-      typeof block === 'object' && block !== null && block.type === 'toolCall'
+    .filter(
+      (
+        block,
+      ): block is {
+        type: 'toolCall';
+        id: string;
+        name: string;
+        arguments: Record<string, unknown>;
+      } => typeof block === 'object' && block !== null && block.type === 'toolCall',
     )
     .map((block) => ({
       id: block.id,

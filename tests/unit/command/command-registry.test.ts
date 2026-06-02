@@ -179,7 +179,8 @@ describe('CommandRegistry', () => {
         }),
       );
 
-      const result = await registry.execute('/fail', makeContext()); const text = result.components[0].type === 'Plain' ? result.components[0].text : '';
+      const result = await registry.execute('/fail', makeContext());
+      const text = result.components[0].type === 'Plain' ? result.components[0].text : '';
       expect(text).toContain('执行命令时出错');
       expect(text).toContain('Command failed');
     });
@@ -221,7 +222,12 @@ describe('CommandRegistry', () => {
     });
 
     it('should execute a resolved command', async () => {
-      registry.register(makeCommand({ name: 'echo', execute: async (args) => ({ components: [{ type: 'Plain', text: args.join(' ') }] }) }));
+      registry.register(
+        makeCommand({
+          name: 'echo',
+          execute: async (args) => ({ components: [{ type: 'Plain', text: args.join(' ') }] }),
+        }),
+      );
       const resolved = registry.resolve('/echo hello world');
 
       expect(resolved).not.toBeNull();
@@ -229,7 +235,9 @@ describe('CommandRegistry', () => {
         throw new Error('Expected /echo to resolve');
       }
 
-      await expect(registry.executeResolved(resolved, makeContext())).resolves.toEqual({ components: [{ type: 'Plain', text: 'hello world' }] });
+      await expect(registry.executeResolved(resolved, makeContext())).resolves.toEqual({
+        components: [{ type: 'Plain', text: 'hello world' }],
+      });
     });
   });
 

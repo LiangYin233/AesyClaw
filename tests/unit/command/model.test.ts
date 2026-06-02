@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { registerBuiltinCommands, type BuiltinCommandDependencies } from '../../../src/command/builtin';
+import {
+  registerBuiltinCommands,
+  type BuiltinCommandDependencies,
+} from '../../../src/command/builtin';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import type { CommandContext, CommandDefinition, Message } from '../../../src/core/types';
 
@@ -80,7 +83,9 @@ describe('model command', () => {
     const context: CommandContext = { sessionKey: KEY };
     const result = await cmd.execute(['openai/gpt-4o'], context);
 
-    expect(result).toEqual({ components: [{ type: 'Plain', text: '已切换到模型：openai/gpt-4o' }] });
+    expect(result).toEqual({
+      components: [{ type: 'Plain', text: '已切换到模型：openai/gpt-4o' }],
+    });
     expect(setModel).toHaveBeenCalledWith('openai/gpt-4o');
   });
 

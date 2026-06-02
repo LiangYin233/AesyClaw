@@ -20,7 +20,7 @@
 
     <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
       <UserMessage v-if="msg.role === 'user'" :message="msg" />
-      
+
       <AssistantMessage
         v-else-if="msg.role === 'assistant'"
         :message="msg"
@@ -30,9 +30,9 @@
         @toggle-copy-menu="onToggleCopyMenu(i)"
         @copy="(mode) => copyMessage(msg, i, mode)"
       />
-      
+
       <ToolCard v-else-if="msg.role === 'tool'" :tool-call="msg.toolCall" />
-      
+
       <SystemMessage v-else :text="msg.text" />
     </div>
 
@@ -66,7 +66,11 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'copy-message': [message: AssistantMessageType | UserMessageType, index: number, mode: 'rich' | 'raw'];
+  'copy-message': [
+    message: AssistantMessageType | UserMessageType,
+    index: number,
+    mode: 'rich' | 'raw',
+  ];
   'toggle-copy-menu': [index: number];
   'close-copy-menu': [];
 }>();

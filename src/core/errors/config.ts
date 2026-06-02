@@ -41,11 +41,10 @@ export class ConfigurationError extends AesyClawError {
    * 创建配置缺失错误
    */
   static missing(configKey: string, details?: ErrorDetails): ConfigurationError {
-    return new ConfigurationError(
-      ErrorCode.CONFIG_MISSING,
-      `配置项 "${configKey}" 缺失`,
-      { ...details, configKey },
-    );
+    return new ConfigurationError(ErrorCode.CONFIG_MISSING, `配置项 "${configKey}" 缺失`, {
+      ...details,
+      configKey,
+    });
   }
 
   /**

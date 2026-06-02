@@ -96,7 +96,9 @@ export class ConfigManager {
     const nextConfig = structuredClone(this.lastKnownConfig) as Record<string, unknown>;
     const current = getPathValue(nextConfig, path);
     if (current !== undefined && !isRecord(current)) {
-      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不是对象，不能 patch`, { configPath: path });
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不是对象，不能 patch`, {
+        configPath: path,
+      });
     }
 
     const merged = mergeDefaults((current ?? {}) as Record<string, unknown>, value);
@@ -197,7 +199,10 @@ export class ConfigManager {
   private readValidatedConfigFromStore(store: Conf<Record<string, unknown>>): AppConfig {
     const parsed = store.store;
     if (!isRecord(parsed)) {
-      throw ErrorFactory.config.validationFailed('配置验证失败', { expected: 'object', actual: typeof parsed });
+      throw ErrorFactory.config.validationFailed('配置验证失败', {
+        expected: 'object',
+        actual: typeof parsed,
+      });
     }
 
     const merged = mergeDefaults(
@@ -271,7 +276,12 @@ export class ConfigManager {
         watch: true,
       });
     } catch (err) {
-      throw ErrorFactory.config.parseFailed(filePath, 'JSON 无效', {}, err instanceof Error ? err : undefined);
+      throw ErrorFactory.config.parseFailed(
+        filePath,
+        'JSON 无效',
+        {},
+        err instanceof Error ? err : undefined,
+      );
     }
   }
 }
@@ -316,18 +326,24 @@ function assertObjectPath(
   let current: unknown = root;
   for (const part of parts.slice(0, -1)) {
     if (Array.isArray(current)) {
-      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, { configPath: path });
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, {
+        configPath: path,
+      });
     }
     if (!isRecord(current)) {
       if (options.allowMissing) {
-        throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, { configPath: path });
+        throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, {
+          configPath: path,
+        });
       }
       return;
     }
 
     const next = current[part];
     if (Array.isArray(next)) {
-      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, { configPath: path });
+      throw ErrorFactory.config.invalid(`配置路径 "${path}" 不能访问数组路径`, {
+        configPath: path,
+      });
     }
     if (next === undefined) {
       if (options.allowMissing) {
@@ -337,7 +353,9 @@ function assertObjectPath(
     }
     if (!isRecord(next)) {
       if (options.allowMissing) {
-        throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, { configPath: path });
+        throw ErrorFactory.config.invalid(`配置路径 "${path}" 的中间节点不是对象`, {
+          configPath: path,
+        });
       }
       return;
     }

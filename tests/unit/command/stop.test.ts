@@ -61,7 +61,9 @@ describe('stop command', () => {
 
     registerStopCommand(registry, {
       sessionManager: { create } as BuiltinCommandDependencies['sessionManager'],
-      agentRegistry: { cancel: vi.fn(() => true) } as unknown as BuiltinCommandDependencies['agentRegistry'],
+      agentRegistry: {
+        cancel: vi.fn(() => true),
+      } as unknown as BuiltinCommandDependencies['agentRegistry'],
     });
 
     const context: CommandContext = { sessionKey: KEY };

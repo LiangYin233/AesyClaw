@@ -49,9 +49,7 @@ class ToolUsageRepositoryImpl extends BaseRepository<ToolUsageRecord, ToolUsageR
    * 获取按名称 + 类型 + 日期分组的聚合调用统计，支持可选过滤条件。
    * from / to 参数为本地日期字符串 (YYYY-MM-DD)，过滤和日期输出均基于 SQLite localtime。
    */
-  async getToolUsageStats(
-    options?: { from?: string; to?: string },
-  ): Promise<ToolUsageSummary[]> {
+  async getToolUsageStats(options?: { from?: string; to?: string }): Promise<ToolUsageSummary[]> {
     const fromFilter = options?.from ?? null;
     const toFilter = options?.to ?? null;
 

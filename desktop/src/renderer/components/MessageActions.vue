@@ -10,20 +10,10 @@
       {{ buttonLabel }}
     </button>
     <div v-if="isMenuOpen" class="copy-menu" role="menu">
-      <button
-        type="button"
-        class="copy-menu-item"
-        role="menuitem"
-        @click="$emit('copy', 'rich')"
-      >
+      <button type="button" class="copy-menu-item" role="menuitem" @click="$emit('copy', 'rich')">
         &#x590D;&#x5236;&#x5BCC;&#x6587;&#x672C;
       </button>
-      <button
-        type="button"
-        class="copy-menu-item"
-        role="menuitem"
-        @click="$emit('copy', 'raw')"
-      >
+      <button type="button" class="copy-menu-item" role="menuitem" @click="$emit('copy', 'raw')">
         &#x590D;&#x5236;&#x539F;&#x6587;
       </button>
     </div>
@@ -38,7 +28,7 @@ defineProps<{
 
 defineEmits<{
   'toggle-menu': [];
-  'copy': [mode: 'rich' | 'raw'];
+  copy: [mode: 'rich' | 'raw'];
 }>();
 
 function toggleMenu() {

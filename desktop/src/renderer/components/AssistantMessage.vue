@@ -5,7 +5,11 @@
       <span class="thinking-text">{{ message.text }}</span>
     </div>
     <div v-else class="assistant-bubble" :class="{ streaming: message.streaming }">
-      <div v-if="message.text" class="rendered-content" v-html="renderMarkdownSafe(message.text)"></div>
+      <div
+        v-if="message.text"
+        class="rendered-content"
+        v-html="renderMarkdownSafe(message.text)"
+      ></div>
       <div v-if="message.media?.length">
         <!-- 图片直接显示 -->
         <img
@@ -93,7 +97,7 @@ defineProps<{
 
 defineEmits<{
   'toggle-copy-menu': [];
-  'copy': [mode: 'rich' | 'raw'];
+  copy: [mode: 'rich' | 'raw'];
 }>();
 
 function openMediaFile(item: MediaItem): void {

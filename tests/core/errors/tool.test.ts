@@ -8,11 +8,10 @@ import { ToolExecutionError, ErrorCode } from '@aesyclaw/core/errors';
 describe('ToolExecutionError', () => {
   describe('构造函数', () => {
     it('应该创建工具错误实例', () => {
-      const error = new ToolExecutionError(
-        ErrorCode.TOOL_EXECUTION_FAILED,
-        '执行失败',
-        { toolName: 'test-tool', owner: 'plugin:test' },
-      );
+      const error = new ToolExecutionError(ErrorCode.TOOL_EXECUTION_FAILED, '执行失败', {
+        toolName: 'test-tool',
+        owner: 'plugin:test',
+      });
 
       expect(error).toBeInstanceOf(ToolExecutionError);
       expect(error.code).toBe(ErrorCode.TOOL_EXECUTION_FAILED);

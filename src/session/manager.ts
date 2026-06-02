@@ -1,5 +1,9 @@
 import type { AgentMessage } from '@aesyclaw/contracts/llm';
-import { serializeSessionKey, type PersistableMessage, type SessionKey } from '@aesyclaw/core/types';
+import {
+  serializeSessionKey,
+  type PersistableMessage,
+  type SessionKey,
+} from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { Session } from './core';
@@ -235,7 +239,10 @@ export class SessionManager {
   }
 }
 
-function createFileSummary(id: string, messages: readonly PersistableMessage[]): FileSummary | null {
+function createFileSummary(
+  id: string,
+  messages: readonly PersistableMessage[],
+): FileSummary | null {
   const firstUser = messages.find((message) => message.role === 'user');
   const last = messages[messages.length - 1];
   return {

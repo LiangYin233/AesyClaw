@@ -39,11 +39,10 @@ export class ToolExecutionError extends AesyClawError {
    * 创建工具未找到错误
    */
   static notFound(toolName: string, details?: ErrorDetails): ToolExecutionError {
-    return new ToolExecutionError(
-      ErrorCode.TOOL_NOT_FOUND,
-      `工具 "${toolName}" 未找到`,
-      { ...details, toolName },
-    );
+    return new ToolExecutionError(ErrorCode.TOOL_NOT_FOUND, `工具 "${toolName}" 未找到`, {
+      ...details,
+      toolName,
+    });
   }
 
   /**
@@ -83,12 +82,16 @@ export class ToolExecutionError extends AesyClawError {
   /**
    * 创建工具名称重复错误
    */
-  static duplicateName(toolName: string, owner?: string, details?: ErrorDetails): ToolExecutionError {
-    return new ToolExecutionError(
-      ErrorCode.TOOL_DUPLICATE_NAME,
-      `工具 "${toolName}" 已存在`,
-      { ...details, toolName, owner },
-    );
+  static duplicateName(
+    toolName: string,
+    owner?: string,
+    details?: ErrorDetails,
+  ): ToolExecutionError {
+    return new ToolExecutionError(ErrorCode.TOOL_DUPLICATE_NAME, `工具 "${toolName}" 已存在`, {
+      ...details,
+      toolName,
+      owner,
+    });
   }
 
   /**

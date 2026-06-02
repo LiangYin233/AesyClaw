@@ -41,7 +41,9 @@ import type {
 
 /** 会话仓库 API 类型 */
 export type SessionsRepository = {
-  findOrCreate: (key: Parameters<typeof findOrCreateSession>[1]) => ReturnType<typeof findOrCreateSession>;
+  findOrCreate: (
+    key: Parameters<typeof findOrCreateSession>[1],
+  ) => ReturnType<typeof findOrCreateSession>;
   findByKey: (key: Parameters<typeof findSessionByKey>[1]) => ReturnType<typeof findSessionByKey>;
   findAll: () => ReturnType<typeof findAllSessions>;
   findById: (id: string) => ReturnType<typeof findSessionById>;
@@ -79,6 +81,10 @@ export type UsageRepository = {
 
 /** 工具使用统计仓库 API 类型 */
 export type ToolUsageRepository = {
-  create: (record: Parameters<typeof createToolUsageRecord>[1]) => ReturnType<typeof createToolUsageRecord>;
-  getStats: (options?: Parameters<typeof getToolUsageStats>[1]) => ReturnType<typeof getToolUsageStats>;
+  create: (
+    record: Parameters<typeof createToolUsageRecord>[1],
+  ) => ReturnType<typeof createToolUsageRecord>;
+  getStats: (
+    options?: Parameters<typeof getToolUsageStats>[1],
+  ) => ReturnType<typeof getToolUsageStats>;
 };

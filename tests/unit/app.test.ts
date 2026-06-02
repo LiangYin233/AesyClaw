@@ -161,8 +161,12 @@ describe('Application', () => {
       await app.start();
 
       const configFile = path.join(testRoot, '.aesyclaw', 'config.json');
-      const config = JSON.parse(readFileSync(configFile, 'utf-8')) as { plugins?: Record<string, unknown> };
-      expect((globalThis as { __aesyclawChannelStarts?: number }).__aesyclawChannelStarts).toBeGreaterThanOrEqual(1);
+      const config = JSON.parse(readFileSync(configFile, 'utf-8')) as {
+        plugins?: Record<string, unknown>;
+      };
+      expect(
+        (globalThis as { __aesyclawChannelStarts?: number }).__aesyclawChannelStarts,
+      ).toBeGreaterThanOrEqual(1);
       expect(config.plugins).toEqual({});
     } finally {
       await app.shutdown();

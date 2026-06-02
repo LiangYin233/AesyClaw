@@ -4,7 +4,11 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { sessionService, type SessionListItem, type SessionDetail } from '@/services/sessionService';
+import {
+  sessionService,
+  type SessionListItem,
+  type SessionDetail,
+} from '@/services/sessionService';
 
 export const useSessionStore = defineStore('session', () => {
   // State

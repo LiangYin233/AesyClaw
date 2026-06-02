@@ -68,14 +68,11 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     registry,
   } = params;
   if (!model.apiKey) {
-    throw ErrorFactory.config.invalid(
-      `未为提供者 "${model.provider}" 配置 API 密钥`,
-      {
-        configKey: `providers.${model.provider}.apiKey`,
-        provider: model.provider,
-        modelId: model.id,
-      },
-    );
+    throw ErrorFactory.config.invalid(`未为提供者 "${model.provider}" 配置 API 密钥`, {
+      configKey: `providers.${model.provider}.apiKey`,
+      provider: model.provider,
+      modelId: model.id,
+    });
   }
 
   const runId = randomUUID();
@@ -143,5 +140,3 @@ export async function runAgentTask(params: AgentRunParams): Promise<AgentRunResu
     registry.unregisterRun(runId);
   }
 }
-
-

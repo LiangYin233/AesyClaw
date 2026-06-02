@@ -19,7 +19,7 @@ export const useRoleStore = defineStore('role', () => {
   const enabledRoles = computed(() => roles.value.filter((r) => r.enabled === true));
   const disabledRoles = computed(() => roles.value.filter((r) => r.enabled === false));
   const defaultRole = computed(() => roles.value.find((r) => r.id === 'default'));
-  
+
   const getRoleById = computed(() => (roleId: string) => {
     return roles.value.find((r) => r.id === roleId);
   });

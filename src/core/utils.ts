@@ -34,9 +34,11 @@ export function mergeDefaults(
   overrides: Record<string, unknown>,
   options: { overwrite?: boolean } = {},
 ): Record<string, unknown> {
-  return (options.overwrite ?? true
-    ? mergeWithArrayReplace(defaults, overrides)
-    : mergeWithArrayReplace(overrides, defaults)) as Record<string, unknown>;
+  return (
+    (options.overwrite ?? true)
+      ? mergeWithArrayReplace(defaults, overrides)
+      : mergeWithArrayReplace(overrides, defaults)
+  ) as Record<string, unknown>;
 }
 
 /**
