@@ -10,6 +10,11 @@ import {
 
 const FIXED_TIME = new Date('2026-04-26T12:34:56.789Z');
 const FORMATTED_TIME = `${String(FIXED_TIME.getMonth() + 1).padStart(2, '0')}-${String(FIXED_TIME.getDate()).padStart(2, '0')} ${String(FIXED_TIME.getHours()).padStart(2, '0')}:${String(FIXED_TIME.getMinutes()).padStart(2, '0')}:${String(FIXED_TIME.getSeconds()).padStart(2, '0')}`;
+const ANSI_RESET = '\x1b[0m';
+
+function ansi(code: string, value: string): string {
+  return `${code}${value}${ANSI_RESET}`;
+}
 
 describe('scoped logger', () => {
   const logger = createScopedLogger('app');
@@ -43,6 +48,16 @@ describe('scoped logger', () => {
     restoreTTY(process.stderr, originalStderrTTY);
     delete process.env.NO_COLOR;
     delete process.env.FORCE_COLOR;
+  });
+
+  it('uses colors for interactive info logs', () => {
+    setTTY(process.stdout, true);
+
+    logger.info('Ready');
+
+    expectConsoleInfo(
+      `${ansi('\x1b[2m', FORMATTED_TIME)} ${ansi('\x1b[32m', '[INFO]')} ${ansi('\x1b[36m', '[app]')} Ready`,
+    );
   });
 
   it('falls back to plain text for non-interactive info logs', () => {

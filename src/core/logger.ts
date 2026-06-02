@@ -37,6 +37,16 @@ const DEFAULT_LOG_ENTRIES_LIMIT = 200;
 const recentLogBuffer: LogEntry[] = [];
 const logSubscribers = new Set<(entry: LogEntry) => void>();
 
+const ANSI_RESET = '\x1b[0m';
+const ANSI_DIM = '\x1b[2m';
+const ANSI_CYAN = '\x1b[36m';
+const LEVEL_COLORS: Record<LogLevel, string> = {
+  debug: '\x1b[34m',
+  info: '\x1b[32m',
+  warn: '\x1b[33m',
+  error: '\x1b[31m',
+};
+
 /** 设置全局日志级别 */
 export function setLogLevel(level: string): void {
   if (level in LOG_LEVELS) {
@@ -53,12 +63,35 @@ function formatTimestamp(date: Date): string {
   return `${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-/** 格式化为带颜色的终端输出行 */
-function formatConsoleLine(scope: string, level: LogLevel, message: string): string {
+/** 格式化终端输出行，交互式终端下带 ANSI 颜色。 */
+function formatConsoleLine(
+  scope: string,
+  level: LogLevel,
+  message: string,
+  consoleMethod: 'debug' | 'info' | 'warn' | 'error',
+): string {
   const timestamp = formatTimestamp(new Date());
   const levelTag = `[${level.toUpperCase()}]`;
   const scopeTag = `[${scope}]`;
-  return `${timestamp} ${levelTag} ${scopeTag} ${message}`;
+  if (!shouldColorize(consoleMethod)) {
+    return `${timestamp} ${levelTag} ${scopeTag} ${message}`;
+  }
+
+  return `${colorize(timestamp, ANSI_DIM)} ${colorize(levelTag, LEVEL_COLORS[level])} ${colorize(scopeTag, ANSI_CYAN)} ${message}`;
+}
+
+function colorize(value: string, color: string): string {
+  return `${color}${value}${ANSI_RESET}`;
+}
+
+function shouldColorize(consoleMethod: 'debug' | 'info' | 'warn' | 'error'): boolean {
+  if ('NO_COLOR' in process.env) return false;
+  const forceColor = process.env['FORCE_COLOR'];
+  if (forceColor && forceColor !== '0') return true;
+  if (process.env['TERM'] === 'dumb') return false;
+
+  const stream = consoleMethod === 'warn' || consoleMethod === 'error' ? process.stderr : process.stdout;
+  return stream.isTTY === true;
 }
 
 function formatLogDetails(args: readonly unknown[]): string | null {
@@ -103,7 +136,7 @@ function log(
   if (!(LOG_LEVELS[level] >= LOG_LEVELS[currentLevel])) return;
 
   appendRecentLogEntry(scope, level, message, args);
-  globalThis.console[consoleMethod](formatConsoleLine(scope, level, message), ...args);
+  globalThis.console[consoleMethod](formatConsoleLine(scope, level, message, consoleMethod), ...args);
 }
 
 /** 获取最近 N 条日志条目 */
