@@ -1,5 +1,7 @@
 /** WebSocket 消息分发器 — 根据 type 路由到对应的 service handler。 */
 
+import { Type, type TSchema, type Static } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 import type { WebRuntimeDependencies } from '@aesyclaw/web/types';
 import type { WsMessage, WsResponse } from './types';
 
@@ -19,6 +21,19 @@ type Handler = (data: unknown, deps: WebRuntimeDependencies) => unknown | Promis
 
 const handlers = new Map<string, Handler>();
 
+const SessionIdPayloadSchema = Type.Object({ sessionId: Type.String({ minLength: 1 }) });
+const JobIdPayloadSchema = Type.Object({ jobId: Type.String({ minLength: 1 }) });
+const IdPayloadSchema = Type.Object({ id: Type.String({ minLength: 1 }) });
+const ToggleSchema = Type.Object({
+  name: Type.String({ minLength: 1 }),
+  enabled: Type.Boolean(),
+});
+const UpdateRoleSchema = Type.Intersect([
+  Type.Object({ id: Type.String({ minLength: 1 }) }),
+  Type.Record(Type.String(), Type.Unknown()),
+]);
+const SkillNameSchema = Type.Object({ name: Type.String({ minLength: 1 }) });
+
 function on(type: string, handler: Handler): void {
   handlers.set(type, handler);
 }
@@ -26,10 +41,10 @@ function on(type: string, handler: Handler): void {
 // ── 会话 ──
 on('get_sessions', (_, deps) => sessionService.getSessions(deps));
 on('get_messages', (data, deps) =>
-  sessionService.getSessionMessages(deps, extractStringData(data, 'sessionId')),
+  sessionService.getSessionMessages(deps, parsePayload(SessionIdPayloadSchema, data).sessionId),
 );
 on('clear_session', (data, deps) =>
-  sessionService.clearSessionHistory(deps, extractStringData(data, 'sessionId')),
+  sessionService.clearSessionHistory(deps, parsePayload(SessionIdPayloadSchema, data).sessionId),
 );
 
 // ── 配置 ──
@@ -42,31 +57,31 @@ on('update_config', async (data, deps) => {
 // ── Cron ──
 on('get_cron', (_, deps) => cronService.getCronJobs(deps));
 on('get_cron_runs', (data, deps) =>
-  cronService.getCronJobRuns(deps, extractStringData(data, 'jobId')),
+  cronService.getCronJobRuns(deps, parsePayload(JobIdPayloadSchema, data).jobId),
 );
 
 // ── 角色 ──
 on('get_roles', (_, deps) => roleService.getRoles(deps));
-on('get_role', (data, deps) => roleService.getRole(deps, extractStringData(data, 'id')));
+on('get_role', (data, deps) => roleService.getRole(deps, parsePayload(IdPayloadSchema, data).id));
 on('create_role', (data, deps) =>
   roleService.createRole(deps, data as Parameters<typeof roleService.createRole>[1]),
 );
 on('update_role', (data, deps) => {
-  const { id, ...body } = data as { id: string } & Record<string, unknown>;
+  const { id, ...body } = parsePayload(UpdateRoleSchema, data);
   return roleService.updateRole(deps, id, body as Parameters<typeof roleService.updateRole>[2]);
 });
-on('delete_role', (data, deps) => roleService.deleteRole(deps, extractStringData(data, 'id')));
+on('delete_role', (data, deps) => roleService.deleteRole(deps, parsePayload(IdPayloadSchema, data).id));
 
 // ── 渠道 / 插件 ──
 on('get_channels', (_, deps) => deps.channelManager.getRegisteredChannels());
 on('get_plugins', (_, deps) => deps.pluginManager.getPluginDefinitions());
 on('set_channel_enabled', async (data, deps) => {
-  const { name, enabled } = extractToggleData(data);
+  const { name, enabled } = parsePayload(ToggleSchema, data);
   if (enabled) await deps.channelManager.enable(name);
   else await deps.channelManager.disable(name);
 });
 on('set_plugin_enabled', async (data, deps) => {
-  const { name, enabled } = extractToggleData(data);
+  const { name, enabled } = parsePayload(ToggleSchema, data);
   if (enabled) await deps.pluginManager.enable(name);
   else await deps.pluginManager.disable(name);
 });
@@ -109,8 +124,7 @@ on('reload_skills', async (_, deps) => {
   return { message: `技能已重新加载。${reloadCount} → ${newCount}` };
 });
 on('get_skill_content', (data, deps) => {
-  const { name } = data as { name: string };
-  if (!name) throw new Error('缺少技能名称');
+  const { name } = parsePayload(SkillNameSchema, data);
   const skill = deps.skillManager.getSkill(name);
   if (!skill) throw new Error(`技能 "${name}" 未找到`);
   return { name: skill.name, content: skill.content };
@@ -150,21 +164,9 @@ function errorResponse(msg: WsMessage, error: string): WsResponse {
   return { type: msg.type, ok: false, error };
 }
 
-function extractToggleData(data: unknown): { name: string; enabled: boolean } {
-  const payload = data as { name?: unknown; enabled?: unknown };
-  if (typeof payload.name !== 'string' || payload.name.trim() === '') {
-    throw new Error('缺少名称');
+function parsePayload<T extends TSchema>(schema: T, data: unknown): Static<T> {
+  if (!Value.Check(schema, data)) {
+    throw new Error('消息参数无效');
   }
-  if (typeof payload.enabled !== 'boolean') {
-    throw new Error('缺少启用状态');
-  }
-  return { name: payload.name, enabled: payload.enabled };
-}
-
-function extractStringData(data: unknown, key: string): string {
-  if (data !== null && typeof data === 'object' && !Array.isArray(data)) {
-    const value = (data as Record<string, unknown>)[key];
-    if (typeof value === 'string') return value;
-  }
-  throw new Error(`缺少必要参数: ${key}`);
+  return data as Static<T>;
 }

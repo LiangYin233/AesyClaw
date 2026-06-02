@@ -14,7 +14,7 @@ export type CronCallback = (job: CronJobRecord) => void | Promise<void>;
  * 定时任务调度器 — 计算下次运行时间并管理计时器句柄。
  */
 export class CronScheduler {
-  private readonly jobs = new Map<string, Cron>();
+  private readonly jobs = new Map<string, Cron<unknown>>();
 
   /**
    * 调度一个定时任务，在 nextRun 到达时执行 callback。
@@ -37,16 +37,13 @@ export class CronScheduler {
       return;
     }
 
-    const cronerJob = new Cron(
-      nextRun.getTime() <= Date.now() ? new Date() : nextRun,
-      { maxRuns: 1 },
-      () => {
+    this.jobs.set(
+      job.id,
+      createOneShotJob(nextRun, () => {
         this.jobs.delete(job.id);
         void callback(job);
-      },
+      }),
     );
-
-    this.jobs.set(job.id, cronerJob);
     logger.debug('定时任务已调度', { jobId: job.id, nextRun: job.nextRun });
   }
 
@@ -102,19 +99,40 @@ export function computeNextRun(
   }
 
   if (scheduleType === 'interval') {
-    const intervalMs = parseIntervalMs(scheduleValue);
-    return intervalMs > 0 ? new Date(from.getTime() + intervalMs) : null;
+    const intervalSeconds = parseIntervalSeconds(scheduleValue);
+    return intervalSeconds > 0
+      ? getNextCronRun('* * * * * *', from, { interval: intervalSeconds })
+      : null;
   }
 
   return null;
 }
 
-function getNextCronRun(pattern: ConstructorParameters<typeof Cron>[0], from: Date): Date | null {
+function createOneShotJob(runAt: Date, callback: () => void): Cron<unknown> {
+  return new Cron(runAt.getTime() <= Date.now() ? new Date() : runAt, { maxRuns: 1 }, callback);
+}
+
+function getNextCronRun(
+  pattern: ConstructorParameters<typeof Cron>[0],
+  from: Date,
+  options: ConstructorParameters<typeof Cron>[1] = {},
+): Date | null {
+  const job = createPausedJob(pattern, options);
+  if (!job) {
+    return null;
+  }
+
+  const nextRun = job.nextRun(from);
+  job.stop();
+  return nextRun;
+}
+
+function createPausedJob(
+  pattern: ConstructorParameters<typeof Cron>[0],
+  options: ConstructorParameters<typeof Cron>[1] = {},
+): Cron<unknown> | null {
   try {
-    const job = new Cron(pattern, { paused: true, maxRuns: 1 });
-    const nextRun = job.nextRun(from);
-    job.stop();
-    return nextRun;
+    return new Cron(pattern, { ...options, paused: true, maxRuns: 1 });
   } catch {
     return null;
   }
@@ -135,7 +153,7 @@ function dailyPattern(value: string): string | null {
   return `${minute} ${hour} * * *`;
 }
 
-function parseIntervalMs(value: string): number {
+function parseIntervalSeconds(value: string): number {
   const trimmed = value.trim().toLowerCase();
   const match = /^(\d+)(m|h|d)?$/.exec(trimmed);
   if (!match) {
@@ -148,9 +166,9 @@ function parseIntervalMs(value: string): number {
     return 0;
   }
 
-  if (unit === 'd') return amount * 24 * 60 * 60 * 1000;
-  if (unit === 'h') return amount * 60 * 60 * 1000;
-  return amount * 60 * 1000;
+  if (unit === 'd') return amount * 24 * 60 * 60;
+  if (unit === 'h') return amount * 60 * 60;
+  return amount * 60;
 }
 
 function parseDate(value: string): Date | null {
