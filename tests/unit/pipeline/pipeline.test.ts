@@ -93,15 +93,15 @@ async function createPipeline(deps: PipelineDependencies) {
 }
 
 describe('Pipeline', () => {
-  it('returns busy for locked non-command messages before beforeLLM hooks run', async () => {
+  it('returns busy for locked non-command messages before beforeAgent hooks run', async () => {
     const session = createSession(true);
-    const beforeLLM = vi.fn(async () => ({ action: 'next' as const }));
+    const beforeAgent = vi.fn(async () => ({ action: 'next' as const }));
     const deps = createDeps(session);
     (deps.hooksBus.dispatch as ReturnType<typeof vi.fn>).mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
       async (chain: string, _ctx: unknown) => {
-        if (chain === 'pipeline:beforeLLM') {
-          return await beforeLLM();
+        if (chain === 'pipeline:beforeAgent') {
+          return await beforeAgent();
         }
         return { action: 'next' as const };
       },
@@ -116,7 +116,7 @@ describe('Pipeline', () => {
       send,
     );
 
-    expect(beforeLLM).not.toHaveBeenCalled();
+    expect(beforeAgent).not.toHaveBeenCalled();
     expect(session.lock).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({
       kind: 'message',
@@ -125,14 +125,14 @@ describe('Pipeline', () => {
     });
   });
 
-  it('unlocks when beforeLLM responds after the non-command lock succeeds', async () => {
+  it('unlocks when beforeAgent responds after the non-command lock succeeds', async () => {
     const session = createSession(false);
     const deps = createDeps(session);
 
     (deps.hooksBus.dispatch as ReturnType<typeof vi.fn>).mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
       async (chain: string, _ctx: unknown) => {
-        if (chain === 'pipeline:beforeLLM') {
+        if (chain === 'pipeline:beforeAgent') {
           return {
             action: 'respond' as const,
             message: { components: [{ type: 'Plain' as const, text: 'hook response' }] },

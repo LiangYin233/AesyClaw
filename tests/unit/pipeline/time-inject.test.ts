@@ -5,7 +5,7 @@ describe('createTimeInjectHook', () => {
   it('returns a HookRegistration with the correct chain and id', () => {
     const hook = createTimeInjectHook();
     expect(hook.id).toBe(TIME_INJECT_HOOK_ID);
-    expect(hook.chain).toBe('pipeline:beforeLLM');
+    expect(hook.chain).toBe('pipeline:beforeAgent');
     expect(hook.priority).toBe(100);
     expect(hook.enabled).toBe(true);
   });

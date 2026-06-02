@@ -107,15 +107,15 @@ export default plugin;
 ### 可用 Hook 链
 
 ```
-pipeline:receive → pipeline:beforeLLM → prompt:build → pipeline:send
+pipeline:receive → pipeline:beforeAgent → prompt:build → pipeline:send
 ```
 
-| Hook 链              | 触发时机                   | 上下文 `ctx`                                        |
-| -------------------- | -------------------------- | --------------------------------------------------- |
-| `pipeline:receive`   | 收到用户消息后，命令检测前 | `message`, `sessionKey`, `sender`                   |
-| `pipeline:beforeLLM` | LLM 调用前，会话锁定后     | `message`, `sessionKey`, `session`, `agent`, `role` |
-| `prompt:build`       | 构建系统提示词时           | `role`, `promptSections`, `sessionKey`              |
-| `pipeline:send`      | 出站消息投递前             | `message`, `sessionKey`                             |
+| Hook 链                | 触发时机                   | 上下文 `ctx`                                        |
+| ---------------------- | -------------------------- | --------------------------------------------------- |
+| `pipeline:receive`     | 收到用户消息后，命令检测前 | `message`, `sessionKey`, `sender`                   |
+| `pipeline:beforeAgent` | Agent 处理前，会话锁定后   | `message`, `sessionKey`, `session`, `agent`, `role` |
+| `prompt:build`         | 构建系统提示词时           | `role`, `promptSections`, `sessionKey`              |
+| `pipeline:send`        | 出站消息投递前             | `message`, `sessionKey`                             |
 
 ### Hook 返回值
 

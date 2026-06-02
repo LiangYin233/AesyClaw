@@ -5,7 +5,7 @@
  * 1. pipeline:receive 链派发
  * 2. 会话与 Agent 解析
  * 3. 命令检测与执行
- * 4. pipeline:beforeLLM 链派发与 Agent 处理
+ * 4. pipeline:beforeAgent 链派发与 Agent 处理
  * 5. 结果投递（含 pipeline:send 链）
  */
 import type { IHooksBus, HookCtx } from '@aesyclaw/contracts/hook';
@@ -53,7 +53,7 @@ export class Pipeline {
   /**
    * 接收消息并通过管道处理。
    *
-   * 完整流程：pipeline:receive（命令检测）→ 会话/Agent 解析 → 会话锁定 → pipeline:beforeLLM → Agent 处理 → 投递。
+   * 完整流程：pipeline:receive（命令检测）→ 会话/Agent 解析 → 会话锁定 → pipeline:beforeAgent → Agent 处理 → 投递。
    * @param message - 传入的消息
    * @param sessionKey - 会话键
    * @param sender - 发送者信息（可选）
@@ -153,7 +153,7 @@ export class Pipeline {
       let streamed = false;
 
       try {
-        // ── Step 5: pipeline:beforeLLM 链与 Agent 处理 ─────
+        // ── Step 5: pipeline:beforeAgent 链与 Agent 处理 ────
         const beforeCtx: HookCtx = {
           message,
           sessionKey,
@@ -162,12 +162,12 @@ export class Pipeline {
           agent,
           role: activeRole,
         };
-        const beforeResult = await this.hooksBus.dispatch('pipeline:beforeLLM', beforeCtx);
+        const beforeResult = await this.hooksBus.dispatch('pipeline:beforeAgent', beforeCtx);
         if (beforeResult.action !== 'next') {
           if (beforeResult.action === 'respond') {
             await this.message(send, beforeResult.message, session.key, 'hook');
           } else if (beforeResult.action === 'error') {
-            logger.error('pipeline:beforeLLM 钩子执行错误', beforeResult.reason);
+            logger.error('pipeline:beforeAgent 钩子执行错误', beforeResult.reason);
             await this.message(
               send,
               {

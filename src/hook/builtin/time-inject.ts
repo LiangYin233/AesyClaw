@@ -1,7 +1,7 @@
 /**
  * time-inject — 在每条用户消息前自动注入当前日期/时间。
  *
- * 作为独立的 pipeline:beforeLLM 中间件运行，可被移除或替换。
+ * 作为独立的 pipeline:beforeAgent 中间件运行，可被移除或替换。
  */
 import type { HookRegistration, Middleware, HookCtx, HookResult } from '@aesyclaw/hook';
 
@@ -41,7 +41,7 @@ const timeInjectMiddleware: Middleware = async (
 export function createTimeInjectHook(): HookRegistration {
   return {
     id: TIME_INJECT_HOOK_ID,
-    chain: 'pipeline:beforeLLM',
+    chain: 'pipeline:beforeAgent',
     priority: 100,
     enabled: true,
     handler: timeInjectMiddleware,

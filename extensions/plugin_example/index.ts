@@ -9,7 +9,7 @@ import { isRecord } from '@aesyclaw/sdk';
  * - 工具注册（registerTool）
  * - 命令注册（registerCommand）
  * - 生命周期钩子（init）
- * - 管道钩子（beforeLLM / onSend）
+ * - 管道钩子（beforeAgent / onSend）
  * - 配置读取（defaultConfig / ctx.config）
  */
 const plugin: PluginDefinition = {
@@ -53,8 +53,8 @@ const plugin: PluginDefinition = {
   // ── 中间件 ──
   middlewares: [
     {
-      id: 'beforeLLM-logger',
-      chain: 'pipeline:beforeLLM',
+      id: 'beforeAgent-logger',
+      chain: 'pipeline:beforeAgent',
       priority: 200,
       enabled: false,
       handler: async (_ctx, next) => {

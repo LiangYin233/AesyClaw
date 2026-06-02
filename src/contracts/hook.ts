@@ -5,7 +5,12 @@
  */
 
 import type { Message, SessionKey, SenderInfo, RoleConfig } from '@aesyclaw/core/types';
-import type { AgentMessage, AgentToolResult, ModelResolver, ResolvedModel } from '@aesyclaw/contracts/llm';
+import type {
+  AgentMessage,
+  AgentToolResult,
+  ModelResolver,
+  ResolvedModel,
+} from '@aesyclaw/contracts/llm';
 import type { OutboundSignal } from '@aesyclaw/core/types';
 
 // ─── 运行时引用类型 ──────────────────────────────────────────────
@@ -63,7 +68,7 @@ export type AgentRuntimeRef = {
 /** 预定义的 hook 链名称 */
 export type HookChain =
   | 'pipeline:receive'
-  | 'pipeline:beforeLLM'
+  | 'pipeline:beforeAgent'
   | 'pipeline:send'
   | 'prompt:build'
   | 'tool:beforeCall'
@@ -91,7 +96,7 @@ export type ToolResultBudget = {
  *
  * 不同阶段可用字段不同：
  * - pipeline:receive — message / sessionKey / sender
- * - pipeline:beforeLLM — 额外填充 session / agent / role
+ * - pipeline:beforeAgent — 额外填充 session / agent / role
  * - pipeline:send — message / sessionKey
  * - prompt:build — 填充 role / promptSections
  * - tool:beforeCall — 填充 toolName / toolParams
