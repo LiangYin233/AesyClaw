@@ -1,4 +1,4 @@
-import type { CronManager, CreateCronJobParams } from '@aesyclaw/cron/manager';
+import type { CronManager, CreateCronJobParams, UpdateCronJobParams } from '@aesyclaw/cron/manager';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { CronJobRecord, CronRunRecord, RoleConfig } from '@aesyclaw/core/types';
@@ -67,7 +67,7 @@ export type RuntimeControlApi = {
     get(id: string): Promise<CronJobRecord>;
     getRuns(jobId: string): Promise<CronRunRecord[]>;
     create(job: CreateCronJobParams): Promise<CronJobRecord>;
-    update(id: string, patch: Partial<CronJobRecord>): Promise<CronJobRecord>;
+    update(id: string, patch: UpdateCronJobParams): Promise<CronJobRecord>;
     delete(id: string): Promise<void>;
     runNow(id: string): Promise<void>;
     setEnabled(id: string, enabled: boolean): Promise<void>;
@@ -263,8 +263,8 @@ function createCronControl(getDeps: () => RuntimeControlDependencies): RuntimeCo
       if (!created) throw new Error(`定时任务 "${id}" 创建后未找到`);
       return created;
     },
-    async update() {
-      throw new Error('cron.update is not implemented until cron job update storage is available');
+    async update(id, patch) {
+      return await requireCron().updateJob(id, patch);
     },
     async delete(id) {
       const deleted = await requireCron().deleteJob(id);
@@ -273,8 +273,8 @@ function createCronControl(getDeps: () => RuntimeControlDependencies): RuntimeCo
     async runNow(id) {
       await requireCron().runJobNow(id);
     },
-    async setEnabled() {
-      throw new Error('cron.setEnabled is not implemented until cron job enabled storage is available');
+    async setEnabled(id, enabled) {
+      await requireCron().setJobEnabled(id, enabled);
     },
   };
 }

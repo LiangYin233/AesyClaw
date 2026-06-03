@@ -303,7 +303,7 @@ describe('PluginManager', () => {
 
     await manager.enable('alpha');
     expect(manager.getLoaded('alpha')).toBeDefined();
-    expect(config.plugins['alpha']).toEqual({ enabled: true });
+    expect(config.plugins['alpha']).toEqual({ enabled: true, greeting: 'hello' });
   });
 
   it('unloads and reloads on config reload', async () => {

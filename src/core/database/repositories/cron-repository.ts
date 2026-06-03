@@ -24,6 +24,7 @@ type CronJobRow = {
   prompt: string;
   session_key: string;
   next_run: string | null;
+  enabled?: number;
   created_at: string;
 };
 
@@ -56,6 +57,7 @@ class CronJobRepositoryImpl extends BaseRepository<CronJobRecord, CronJobRow> {
       prompt: row['prompt'],
       sessionKey: row['session_key'],
       nextRun: row['next_run'],
+      enabled: row['enabled'] !== 0,
       createdAt: row['created_at'],
     };
   }
@@ -68,6 +70,7 @@ class CronJobRepositoryImpl extends BaseRepository<CronJobRecord, CronJobRow> {
     if (entity['prompt'] !== undefined) fields['prompt'] = entity['prompt'];
     if (entity['sessionKey'] !== undefined) fields['session_key'] = entity['sessionKey'];
     if (entity['nextRun'] !== undefined) fields['next_run'] = entity['nextRun'];
+    if (entity['enabled'] !== undefined) fields['enabled'] = entity['enabled'] ? 1 : 0;
     if (entity['createdAt'] !== undefined) fields['created_at'] = entity['createdAt'];
     return fields;
   }
@@ -112,6 +115,48 @@ class CronJobRepositoryImpl extends BaseRepository<CronJobRecord, CronJobRow> {
   async updateNextRun(id: string, nextRun: Date | null): Promise<boolean> {
     const nextRunStr = nextRun?.toISOString() ?? null;
     const result = this.exec('UPDATE cron_jobs SET next_run = ? WHERE id = ?', nextRunStr, id);
+    return result.changes > 0;
+  }
+
+  /** 更新定时任务字段并返回更新后的记录。 */
+  async updateJob(
+    id: string,
+    patch: Partial<{
+      scheduleType: string;
+      scheduleValue: string;
+      prompt: string;
+      sessionKey: SessionKey | string;
+      nextRun: Date | string | null;
+      enabled: boolean;
+    }>,
+  ): Promise<CronJobRecord | null> {
+    const fields: Record<string, unknown> = {};
+    if (patch.scheduleType !== undefined) fields['schedule_type'] = patch.scheduleType;
+    if (patch.scheduleValue !== undefined) fields['schedule_value'] = patch.scheduleValue;
+    if (patch.prompt !== undefined) fields['prompt'] = patch.prompt;
+    if (patch.sessionKey !== undefined) {
+      fields['session_key'] =
+        typeof patch.sessionKey === 'string' ? patch.sessionKey : serializeSessionKey(patch.sessionKey);
+    }
+    if (patch.nextRun !== undefined) {
+      fields['next_run'] = patch.nextRun instanceof Date ? patch.nextRun.toISOString() : patch.nextRun;
+    }
+    if (patch.enabled !== undefined) fields['enabled'] = patch.enabled ? 1 : 0;
+
+    const columns = Object.keys(fields);
+    if (columns.length > 0) {
+      const values = [...Object.values(fields), id] as Array<string | number | null | Uint8Array>;
+      const setClause = columns.map((column) => `${column} = ?`).join(', ');
+      const result = this.exec(`UPDATE cron_jobs SET ${setClause} WHERE id = ?`, ...values);
+      if (result.changes === 0) return null;
+    }
+
+    return await this.findById(id);
+  }
+
+  /** 设置定时任务启用状态。 */
+  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
+    const result = this.exec('UPDATE cron_jobs SET enabled = ? WHERE id = ?', enabled ? 1 : 0, id);
     return result.changes > 0;
   }
 }
@@ -268,6 +313,33 @@ export async function updateCronJobNextRun(
 ): Promise<boolean> {
   const repo = new CronJobRepositoryImpl(db);
   return await repo.updateNextRun(id, nextRun);
+}
+
+/** 更新定时任务字段并返回更新后的记录。 */
+export async function updateCronJob(
+  db: DatabaseSync,
+  id: string,
+  patch: Partial<{
+    scheduleType: string;
+    scheduleValue: string;
+    prompt: string;
+    sessionKey: SessionKey | string;
+    nextRun: Date | string | null;
+    enabled: boolean;
+  }>,
+): Promise<CronJobRecord | null> {
+  const repo = new CronJobRepositoryImpl(db);
+  return await repo.updateJob(id, patch);
+}
+
+/** 设置定时任务启用状态。 */
+export async function setCronJobEnabled(
+  db: DatabaseSync,
+  id: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const repo = new CronJobRepositoryImpl(db);
+  return await repo.setEnabled(id, enabled);
 }
 
 // ─── 公共 API - 定时任务执行 ─────────────────────────────────────

@@ -37,6 +37,13 @@ export type CreateCronJobParams = {
   sessionKey: SessionKey;
 };
 
+export type UpdateCronJobParams = Partial<{
+  scheduleType: CronScheduleType;
+  scheduleValue: string;
+  prompt: string;
+  sessionKey: SessionKey;
+}>;
+
 export type ListCronJobsFilter = {
   sessionKey?: SessionKey;
 };
@@ -156,6 +163,62 @@ export class CronManager {
     return deleted;
   }
 
+  async updateJob(jobId: string, patch: UpdateCronJobParams): Promise<CronJobRecord> {
+    const current = await this.cronJobs.findById(jobId);
+    if (!current) {
+      throw new Error(`未找到定时任务 "${jobId}"`);
+    }
+
+    const scheduleType = patch.scheduleType ?? (current.scheduleType as CronScheduleType);
+    const scheduleValue = patch.scheduleValue ?? current.scheduleValue;
+    const nextRun = current.enabled ? computeNextRun(scheduleType, scheduleValue) : null;
+    if (current.enabled !== false && !nextRun) {
+      throw new Error(`无效或过期的定时任务调度: ${scheduleType} ${scheduleValue}`);
+    }
+
+    const updated = await this.cronJobs.update(jobId, {
+      ...patch,
+      nextRun,
+    });
+    if (!updated) {
+      throw new Error(`未找到定时任务 "${jobId}"`);
+    }
+
+    this.scheduler.cancel(jobId);
+    if (updated.enabled !== false && updated.nextRun) {
+      this.schedule(updated);
+    }
+    logger.info('定时任务已更新', { jobId });
+    return updated;
+  }
+
+  async setJobEnabled(jobId: string, enabled: boolean): Promise<void> {
+    const current = await this.cronJobs.findById(jobId);
+    if (!current) {
+      throw new Error(`未找到定时任务 "${jobId}"`);
+    }
+
+    const nextRun = enabled
+      ? computeNextRun(current.scheduleType as CronScheduleType, current.scheduleValue)
+      : null;
+    if (enabled && !nextRun) {
+      throw new Error(
+        `无效或过期的定时任务调度: ${current.scheduleType} ${current.scheduleValue}`,
+      );
+    }
+
+    const updated = await this.cronJobs.update(jobId, { enabled, nextRun });
+    if (!updated) {
+      throw new Error(`未找到定时任务 "${jobId}"`);
+    }
+
+    this.scheduler.cancel(jobId);
+    if (enabled && updated.nextRun) {
+      this.schedule(updated);
+    }
+    logger.info(enabled ? '定时任务已启用' : '定时任务已禁用', { jobId });
+  }
+
   async runJobNow(jobId: string): Promise<string> {
     const job = await this.cronJobs.findById(jobId);
     if (!job) {
@@ -169,6 +232,7 @@ export class CronManager {
     const jobs = await this.cronJobs.findAll();
     let scheduledCount = 0;
     for (const job of jobs) {
+      if (job.enabled === false) continue;
       const normalized = await this.normalizeReloadedJobSchedule(job);
       if (normalized?.nextRun) {
         this.schedule(normalized);
@@ -179,7 +243,7 @@ export class CronManager {
   }
 
   private async normalizeReloadedJobSchedule(job: CronJobRecord): Promise<CronJobRecord | null> {
-    if (!job.nextRun) {
+    if (job.enabled === false || !job.nextRun) {
       return null;
     }
 
@@ -239,6 +303,10 @@ export class CronManager {
     if (!job) {
       throw new Error(`未找到定时任务 "${jobId}"`);
     }
+    if (job.enabled === false) {
+      logger.info('定时任务执行完成但已禁用，跳过重新调度', { jobId: job.id });
+      return await this.executor.execute(job);
+    }
 
     let result: string;
     try {
@@ -250,7 +318,7 @@ export class CronManager {
         logger.info('定时任务已在执行期间删除，跳过重新调度', { jobId: job.id });
       } else {
         const updated = await this.cronJobs.findById(job.id);
-        if (updated?.nextRun) {
+        if (updated && updated.enabled !== false && updated.nextRun) {
           this.schedule(updated);
         }
       }

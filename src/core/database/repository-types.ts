@@ -21,6 +21,8 @@ import type {
   findAllCronJobs,
   deleteCronJob,
   updateCronJobNextRun,
+  updateCronJob,
+  setCronJobEnabled,
   createCronRun,
   markCronRunCompleted,
   markCronRunFailed,
@@ -59,6 +61,8 @@ export type CronJobsRepository = {
   findAll: () => ReturnType<typeof findAllCronJobs>;
   delete: (id: string) => ReturnType<typeof deleteCronJob>;
   updateNextRun: (id: string, nextRun: Date | null) => ReturnType<typeof updateCronJobNextRun>;
+  update: (id: string, patch: Parameters<typeof updateCronJob>[2]) => ReturnType<typeof updateCronJob>;
+  setEnabled: (id: string, enabled: boolean) => ReturnType<typeof setCronJobEnabled>;
 };
 
 /** 定时任务执行仓库 API 类型 */

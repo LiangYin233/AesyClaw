@@ -112,6 +112,8 @@ export class DatabaseManager {
       findAll: () => cron.findAllCronJobs(db),
       delete: (id) => cron.deleteCronJob(db, id),
       updateNextRun: (id, nextRun) => cron.updateCronJobNextRun(db, id, nextRun),
+      update: (id, patch) => cron.updateCronJob(db, id, patch),
+      setEnabled: (id, enabled) => cron.setCronJobEnabled(db, id, enabled),
     };
 
     this.cronRuns = {
@@ -160,6 +162,7 @@ export class DatabaseManager {
         prompt         TEXT NOT NULL,
         session_key    TEXT NOT NULL,
         next_run       DATETIME,
+        enabled        INTEGER NOT NULL DEFAULT 1,
         created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -202,6 +205,7 @@ export class DatabaseManager {
     `);
 
     this.ensureSessionColumns();
+    this.ensureCronJobColumns();
 
     this.ensureUsageColumns();
   }
@@ -222,6 +226,15 @@ export class DatabaseManager {
     if (!columns.has('model_id')) {
       this.db.exec('ALTER TABLE sessions ADD COLUMN model_id TEXT');
       logger.info('sessions 表已添加 model_id 列');
+    }
+  }
+
+  private ensureCronJobColumns(): void {
+    if (!this.db) throw new Error('数据库尚未初始化');
+    const columns = this.getTableColumns('cron_jobs');
+    if (!columns.has('enabled')) {
+      this.db.exec('ALTER TABLE cron_jobs ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1');
+      logger.info('cron_jobs 表已添加 enabled 列');
     }
   }
 
@@ -259,10 +272,9 @@ export class DatabaseManager {
     `);
   }
 
-  private getTableColumns(table: 'usage' | 'sessions'): Set<string> {
+  private getTableColumns(table: 'usage' | 'sessions' | 'cron_jobs'): Set<string> {
     if (!this.db) throw new Error('数据库尚未初始化');
-    const statement =
-      table === 'sessions' ? 'PRAGMA table_info(sessions)' : 'PRAGMA table_info(usage)';
+    const statement = `PRAGMA table_info(${table})`;
     const rows = this.db.prepare(statement).all() as Array<{ name: string }>;
     return new Set(rows.map((row) => row.name));
   }

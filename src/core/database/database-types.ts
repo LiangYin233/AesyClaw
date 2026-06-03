@@ -25,6 +25,7 @@ export type CronJobRecord = {
   prompt: string;
   sessionKey: string;
   nextRun: string | null;
+  enabled: boolean;
   createdAt: string;
 };
 

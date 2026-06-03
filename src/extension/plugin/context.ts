@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord } from '@aesyclaw/core/utils';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
@@ -50,11 +51,9 @@ export function createPluginContext(
         get: (configPath) => getPath(stripEnabledField(ref.current), configPath),
         set: async (configPath, value) => {
           assertSetValue(value);
-          if (configPath.length === 0) {
-            await deps.configManager.set(`plugins.${pluginName}`, value);
-            return;
-          }
-          await deps.configManager.set(`plugins.${pluginName}.${configPath}`, value);
+          const nextPluginConfig = validatePluginConfigUpdate(definition, ref.current, configPath, value);
+          await deps.configManager.set(`plugins.${pluginName}`, nextPluginConfig);
+          ref.current = nextPluginConfig;
         },
       },
       global: {
@@ -65,6 +64,13 @@ export function createPluginContext(
         set: async (configPath, value) => {
           assertSetValue(value);
           assertConfigPermission(definition, pluginName, 'write', configPath);
+          if (configPath === `plugins.${pluginName}` || configPath.startsWith(`plugins.${pluginName}.`)) {
+            const selfPath = configPath === `plugins.${pluginName}` ? '' : configPath.slice(`plugins.${pluginName}.`.length);
+            const nextPluginConfig = validatePluginConfigUpdate(definition, ref.current, selfPath, value);
+            await deps.configManager.set(`plugins.${pluginName}`, nextPluginConfig);
+            ref.current = nextPluginConfig;
+            return;
+          }
           await deps.configManager.set(configPath, value);
         },
       },
@@ -105,6 +111,54 @@ function assertSetValue(value: unknown): void {
   if (value === undefined) {
     throw new Error('Plugin config set() does not accept undefined');
   }
+}
+
+function validatePluginConfigUpdate(
+  definition: PluginDefinition,
+  currentConfig: Record<string, unknown>,
+  configPath: string,
+  value: unknown,
+): Record<string, unknown> {
+  const nextConfig = structuredClone(currentConfig) as Record<string, unknown>;
+  if (configPath.length === 0) {
+    if (!isRecord(value)) {
+      throw new Error(`插件配置(${definition.name})验证失败: 根配置必须是对象`);
+    }
+    for (const key of Object.keys(nextConfig)) delete nextConfig[key];
+    Object.assign(nextConfig, structuredClone(value));
+  } else {
+    setLocalPath(nextConfig, configPath, value);
+  }
+
+  if (!definition.configSchema) return nextConfig;
+  const enabled = nextConfig['enabled'];
+  const businessConfig = stripEnabledField(nextConfig);
+  const validatedBusiness = validateWithSchema<Record<string, unknown>>(
+    definition.configSchema,
+    businessConfig,
+    `插件配置(${definition.name})`,
+  );
+  return enabled === undefined ? validatedBusiness : { ...validatedBusiness, enabled };
+}
+
+function setLocalPath(root: Record<string, unknown>, configPath: string, value: unknown): void {
+  const parts = configPath.split('.').filter(Boolean);
+  if (parts.length === 0) return;
+  let current: Record<string, unknown> = root;
+  for (const part of parts.slice(0, -1)) {
+    const next = current[part];
+    if (next === undefined) {
+      const created: Record<string, unknown> = {};
+      current[part] = created;
+      current = created;
+      continue;
+    }
+    if (!isRecord(next) || Array.isArray(next)) {
+      throw new Error(`插件配置路径 "${configPath}" 的中间节点不是对象`);
+    }
+    current = next;
+  }
+  current[parts[parts.length - 1] as string] = structuredClone(value);
 }
 
 function assertConfigPermission(

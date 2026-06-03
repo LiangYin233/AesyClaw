@@ -267,8 +267,8 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
     // G. 触发子类钩子
     await this.onAfterLoad(definition, context);
 
-    // H. 自动写入配置条目（如果不存在）
-    if (!this.hasConfigEntry(name)) {
+    // H. 自动写入/回填配置条目（包含 schema default 填充后的值）
+    if (!this.configsEqual(this.getUserConfig(name), mergedConfig)) {
       await this.writeDefaultConfig(name, mergedConfig);
     }
 
