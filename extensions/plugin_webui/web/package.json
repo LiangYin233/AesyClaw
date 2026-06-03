@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "dev": "../../../node_modules/.bin/vite",
+    "build": "../../../node_modules/.bin/vue-tsc --noEmit && ../../../node_modules/.bin/vite build",
+    "preview": "../../../node_modules/.bin/vite preview"
   },
   "dependencies": {
     "@heroicons/vue": "^2.2.0",

@@ -17,6 +17,6 @@ describe('resolvePaths', () => {
     expect(paths.workspaceDir).toBe(path.join(root, '.aesyclaw', 'workspace'));
     expect(paths.skillsDir).toBe(path.join(root, 'skills'));
     expect(paths.extensionsDir).toBe(path.join(root, 'extensions'));
-    expect(paths.webDistDir).toBe(path.join(root, 'dist'));
+    expect(paths.webDistDir).toBe(path.join(root, 'extensions', 'plugin_webui', 'web', 'dist'));
   });
 });

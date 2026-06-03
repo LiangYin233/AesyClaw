@@ -79,7 +79,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['web/**/*.ts', 'web/**/*.vue'],
+    files: ['extensions/plugin_webui/web/**/*.ts', 'extensions/plugin_webui/web/**/*.vue'],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -89,7 +89,7 @@ export default tseslint.config(
         parser: {
           ts: {
             parser: '@typescript-eslint/parser',
-            options: { project: './web/tsconfig.json' },
+            options: { project: './extensions/plugin_webui/web/tsconfig.json' },
           },
           js: '@typescript-eslint/parser',
         },

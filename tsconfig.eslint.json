@@ -5,8 +5,8 @@
     "tests/**/*",
     "*.config.ts",
     "extensions/**/*",
-    "web/src/**/*",
-    "web/*.config.ts",
+    "extensions/plugin_webui/web/src/**/*",
+    "extensions/plugin_webui/web/*.config.ts",
     "desktop/**/*"
   ],
   "exclude": ["node_modules", "dist"]

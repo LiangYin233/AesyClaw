@@ -41,6 +41,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@aesyclaw/plugin-webui@workspace:extensions/plugin_webui":
+  version: 0.0.0-use.local
+  resolution: "@aesyclaw/plugin-webui@workspace:extensions/plugin_webui"
+  languageName: unknown
+  linkType: soft
+
 "@alloc/quick-lru@npm:^5.2.0":
   version: 5.2.0
   resolution: "@alloc/quick-lru@npm:5.2.0"
@@ -3167,9 +3173,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"aesyclaw-webui@workspace:web":
+"aesyclaw-webui@workspace:extensions/plugin_webui/web":
   version: 0.0.0-use.local
-  resolution: "aesyclaw-webui@workspace:web"
+  resolution: "aesyclaw-webui@workspace:extensions/plugin_webui/web"
   dependencies:
     "@heroicons/vue": "npm:^2.2.0"
     "@tailwindcss/postcss": "npm:^4.3.0"

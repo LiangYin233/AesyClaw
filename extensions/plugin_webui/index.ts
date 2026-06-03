@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import type { Server } from 'node:http';
 import type { WebSocketServer } from 'ws';
@@ -10,6 +11,8 @@ import { createWebSocketServer } from './ws/handler';
 
 let httpServer: ReturnType<typeof serve> | null = null;
 let wsServer: WebSocketServer | null = null;
+
+const pluginRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const plugin: PluginDefinition = {
   name: 'webui',
@@ -50,7 +53,7 @@ const plugin: PluginDefinition = {
 
     const host = config.host ?? '127.0.0.1';
     const port = config.port ?? 3000;
-    const webDistDir = path.join(process.cwd(), 'dist');
+    const webDistDir = path.join(pluginRoot, 'web', 'dist');
 
     const app = createApp({ webDistDir });
     httpServer = serve({ fetch: app.fetch, port, hostname: host });

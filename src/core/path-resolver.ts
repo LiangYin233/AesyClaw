@@ -44,6 +44,6 @@ export function resolvePaths(root: string): ResolvedPaths {
     /** 用户自定义 skills 目录（`<project>/.aesyclaw/skills/`） */
     userSkillsDir: path.join(runtimeRoot, DIR_NAMES.skills),
     extensionsDir: path.join(root, DIR_NAMES.extensions),
-    webDistDir: path.join(root, 'dist'),
+    webDistDir: path.join(root, DIR_NAMES.extensions, 'plugin_webui', 'web', 'dist'),
   });
 }

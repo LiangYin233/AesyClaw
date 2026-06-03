@@ -5,7 +5,7 @@
   "private": true,
   "workspaces": [
     "extensions/*",
-    "web",
+    "extensions/plugin_webui/web",
     "desktop"
   ],
   "type": "module",

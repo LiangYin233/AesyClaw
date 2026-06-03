@@ -23,5 +23,5 @@
     }
   },
   "include": ["src/**/*", "extensions/**/*", "desktop/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "exclude": ["node_modules", "dist", "tests", "extensions/plugin_webui/web"]
 }
