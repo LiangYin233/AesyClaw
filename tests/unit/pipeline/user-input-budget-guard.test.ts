@@ -64,7 +64,7 @@ describe('createUserInputBudgetGuardHook', () => {
         components: [
           {
             type: 'Plain',
-            text: '输入内容超过当前上下文限制，已停止本次处理。请减少输入长度或手动压缩会话后再试。',
+            text: '输入内容本身超过当前模型上下文限制，已停止本次处理。请减少输入长度后再试。',
           },
         ],
       },
@@ -80,8 +80,7 @@ describe('createUserInputBudgetGuardHook', () => {
     });
   });
 
-  it('responds when history leaves too little absolute context for the current input', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  it('passes through when history leaves too little absolute context so auto-compact can run', async () => {
     const hook = createUserInputBudgetGuardHook();
     const next = vi.fn(async () => ({ action: 'next' as const }));
 
@@ -94,14 +93,8 @@ describe('createUserInputBudgetGuardHook', () => {
       next,
     );
 
-    expect(result).toMatchObject({ action: 'respond' });
-    expect(next).not.toHaveBeenCalled();
-    expect(warnSpy.mock.calls[0]?.[1]).toMatchObject({
-      historyTokens: 95,
-      availableTokens: 5,
-      currentTokens: 10,
-      totalTokens: 105,
-    });
+    expect(result).toEqual({ action: 'next' });
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it('skips safely when session is unavailable', async () => {

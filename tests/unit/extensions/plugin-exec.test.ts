@@ -249,7 +249,23 @@ function childProcessTimeoutCommand(readyPath: string, markerPath: string): stri
     `require("node:fs").writeFileSync(${JSON.stringify(readyPath)},"ready");` +
     `setTimeout(()=>require("node:fs").writeFileSync(${JSON.stringify(markerPath)},"survived"),${CHILD_SURVIVAL_MARKER_DELAY_MS});`;
 
-  return nodeCommand(childScript);
+  if (isWindows) {
+    const argumentList = `-e ${windowsCommandLineQuote(childScript)}`;
+    return [
+      `Start-Process -WindowStyle Hidden -FilePath ${psQuote(process.execPath)} -ArgumentList ${psQuote(argumentList)} | Out-Null`,
+      `while (-not (Test-Path -LiteralPath ${psQuote(readyPath)})) { Start-Sleep -Milliseconds 20 }`,
+      "[Console]::Out.WriteLine('start')",
+      '[Console]::Out.Flush()',
+      'Start-Sleep -Seconds 5',
+    ].join('; ');
+  }
+
+  return [
+    `${shQuote(process.execPath)} -e ${shQuote(childScript)} &`,
+    `while [ ! -e ${shQuote(readyPath)} ]; do sleep 0.02; done`,
+    "printf 'start\\n'",
+    'sleep 5',
+  ].join('; ');
 }
 
 function chineseCommand(): string {
@@ -278,6 +294,10 @@ function psQuote(value: string): string {
 
 function shQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function windowsCommandLineQuote(value: string): string {
+  return `"${value.replace(/"/g, '\\"')}"`;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

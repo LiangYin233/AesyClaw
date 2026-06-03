@@ -6,7 +6,7 @@ AesyClaw 的上下文管理目标是：在尽量保留有效历史的同时，�
 
 当前策略分为四层：
 
-1. **输入预算守卫**：用户输入在当前历史下放不进模型时，直接拒绝处理。
+1. **输入预算守卫**：用户输入本身放不进模型上下文窗口时，直接拒绝处理。
 2. **自动历史压缩**：上下文接近软阈值时，自动把历史压缩为摘要。
 3. **手动历史压缩**：用户通过 `/compact` 主动释放历史占用。
 4. **工具结果截断**：工具返回内容过大时，进入模型前截断。
@@ -49,15 +49,17 @@ core:user-input-budget-guard
 判断逻辑：
 
 ```text
-historyTokens = 当前会话历史估算 token
+historyTokens = 当前会话历史估算 token（仅用于日志和诊断）
 currentTokens = 当前消息内容估算 token
-availableTokens = model.contextWindow - historyTokens
+limitTokens = model.contextWindow
 
-如果 currentTokens >= availableTokens：
+如果 currentTokens >= limitTokens：
   拒绝本次处理
 否则：
   继续进入 Agent
 ```
+
+守卫不再因为历史占用过高而拒绝普通输入。历史太长时，后续 `agent:beforeLLM` 阶段的自动压缩会先尝试把历史压缩为摘要。
 
 被拒绝时：
 
@@ -67,10 +69,10 @@ availableTokens = model.contextWindow - historyTokens
 - 回复用户：
 
 ```text
-输入内容超过当前上下文限制，已停止本次处理。请减少输入长度或手动压缩会话后再试。
+输入内容本身超过当前模型上下文限制，已停止本次处理。请减少输入长度后再试。
 ```
 
-这个设计允许用户通过 `/compact` 缩小 `historyTokens`，从而增大 `availableTokens`。
+这个设计确保只有“当前输入本身过长”会被提前拒绝；“历史过长”交给自动压缩或用户手动 `/compact` 处理。
 
 ---
 
@@ -186,8 +188,8 @@ pipeline:beforeAgent
   |     |-- 注入当前时间
   |
   |-- user-input-budget-guard
-  |     |-- 最后检查当前消息是否放得进剩余上下文
-  |     |-- 如果放不进：回复并停止
+  |     |-- 最后检查当前消息本身是否超过模型上下文窗口
+  |     |-- 如果超过：回复并停止
   |
   v
 Agent.callLLM()

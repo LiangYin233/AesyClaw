@@ -1,7 +1,7 @@
 /**
  * user-input-budget-guard — 在进入 Agent 前拒绝过长的用户输入。
  *
- * 当前消息内容超过剩余上下文预算时，压缩历史无法解决问题。
+ * 当前消息内容本身超过模型上下文窗口时，压缩历史无法解决问题。
  * 这个 Hook 在 pipeline:beforeAgent 阶段最后运行，直接回复用户，并记录 warn 日志。
  */
 import type { AgentMessage } from '@aesyclaw/contracts/llm';
@@ -13,7 +13,7 @@ import { calculateEstimatedContextTokens, estimateTextTokens } from '@aesyclaw/s
 export const USER_INPUT_BUDGET_GUARD_HOOK_ID = 'core:user-input-budget-guard';
 
 const USER_INPUT_TOO_LONG_MESSAGE =
-  '输入内容超过当前上下文限制，已停止本次处理。请减少输入长度或手动压缩会话后再试。';
+  '输入内容本身超过当前模型上下文限制，已停止本次处理。请减少输入长度后再试。';
 
 const logger = createScopedLogger('user-input-budget');
 
@@ -23,7 +23,7 @@ type ContextBudget = {
   currentTokens: number;
   totalTokens: number;
   availableTokens: number;
-  currentExceedsAvailableBudget: boolean;
+  currentExceedsModelWindow: boolean;
 };
 
 export function createUserInputBudgetGuardHook(): HookRegistration {
@@ -50,11 +50,11 @@ function createUserInputBudgetGuardMiddleware(): Middleware {
       contextWindow: model.contextWindow,
     });
 
-    if (!budget.currentExceedsAvailableBudget) {
+    if (!budget.currentExceedsModelWindow) {
       return next !== undefined ? await next() : { action: 'next' };
     }
 
-    logger.warn('用户输入超过上下文预算，已拒绝处理', {
+    logger.warn('用户输入本身超过模型上下文窗口，已拒绝处理', {
       sessionKey: ctx.sessionKey,
       modelId: ctx.agent?.modelIdentifier,
       contextWindow: model.contextWindow,
@@ -90,6 +90,6 @@ function calculateContextBudget(params: {
     currentTokens,
     totalTokens,
     availableTokens,
-    currentExceedsAvailableBudget: currentTokens > 0 && currentTokens >= availableTokens,
+    currentExceedsModelWindow: currentTokens > 0 && currentTokens >= limitTokens,
   };
 }
