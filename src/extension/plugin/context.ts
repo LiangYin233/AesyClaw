@@ -29,6 +29,7 @@ export function createPluginContext(
     },
     paths,
     configManager: deps.configManager,
+    control: deps.control,
     ...registryActions,
     logger: createScopedLogger(owner),
     state,

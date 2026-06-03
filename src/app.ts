@@ -22,6 +22,7 @@ import { registerBuiltinCommands } from './command/builtin';
 import { registerBuiltinTools } from './tool/builtin';
 import { CronManager } from './cron/manager';
 import { PluginManager } from './extension/plugin/manager';
+import { RuntimeControlHub } from './extension/plugin/control';
 import { ChannelManager } from './extension/channel/manager';
 import {
   createAutoCompactHook,
@@ -34,6 +35,7 @@ import {
   createToolResultTruncationHook,
 } from './hook/builtin';
 import { WebUiManager } from './web/webui-manager';
+import type { WebRuntimeDependencies } from './web/types';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
 import path from 'node:path';
@@ -53,6 +55,7 @@ type Deps = {
   mcpManager: McpManager;
   agentRegistry: AgentRegistry;
   agentFactory: AgentFactory;
+  runtimeControl: RuntimeControlHub;
 };
 
 function createSubsystems(): Deps {
@@ -64,6 +67,7 @@ function createSubsystems(): Deps {
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
   const llmAdapter = new LlmAdapter(configManager);
+  const runtimeControl = new RuntimeControlHub();
 
   const compressionThreshold = configManager.get('agent.memory.compressionThreshold') as number;
   const sessionManager = new SessionManager(
@@ -106,6 +110,7 @@ function createSubsystems(): Deps {
     mcpManager,
     agentRegistry,
     agentFactory,
+    runtimeControl,
   };
 }
 
@@ -227,6 +232,7 @@ function defaultRuntimeServices(): RuntimeService[] {
     cronService(),
     builtinToolService(),
     mcpService(),
+    runtimeControlService(),
     webService(),
     hotReloadService(),
   ];
@@ -320,6 +326,7 @@ function extensionService(): RuntimeService {
         hooksBus: sub.pipeline.hooksBus,
         paths,
         llmAdapter: sub.llmAdapter,
+        control: sub.runtimeControl,
       });
       const extensions = ctx.own<ExtensionRuntime>(
         'extensions',
@@ -410,34 +417,49 @@ function mcpService(): RuntimeService {
   };
 }
 
+function runtimeControlService(): RuntimeService {
+  return {
+    name: '绑定插件运行时控制面',
+    priority: 55,
+    start(ctx) {
+      ctx.sub.runtimeControl.bind(createWebRuntimeDependencies(ctx));
+      ctx.defer(() => ctx.sub.runtimeControl.reset());
+    },
+  };
+}
+
 function webService(): RuntimeService {
   return {
     name: '启动 WebUI',
     priority: 60,
     async start(ctx) {
-      const sub = ctx.sub;
-      const { channelManager, pluginManager } = ctx.get<ExtensionRuntime>('extensions');
       const webUiManager = ctx.own(
         'webUiManager',
-        new WebUiManager({
-          configManager: sub.configManager,
-          databaseManager: sub.databaseManager,
-          sessionManager: sub.sessionManager,
-          cronManager: ctx.get<CronManager>('cronManager'),
-          roleManager: sub.roleManager,
-          channelManager,
-          pluginManager,
-          toolRegistry: sub.toolRegistry,
-          skillManager: sub.skillManager,
-          agentRegistry: sub.agentRegistry,
-          paths: sub.configManager.resolvedPaths,
-        }),
+        new WebUiManager(createWebRuntimeDependencies(ctx)),
         async (webUiManager) => {
           await webUiManager.destroy();
         },
       );
       await webUiManager.initialize();
     },
+  };
+}
+
+function createWebRuntimeDependencies(ctx: RuntimeContext): WebRuntimeDependencies {
+  const sub = ctx.sub;
+  const { channelManager, pluginManager } = ctx.get<ExtensionRuntime>('extensions');
+  return {
+    configManager: sub.configManager,
+    databaseManager: sub.databaseManager,
+    sessionManager: sub.sessionManager,
+    cronManager: ctx.get<CronManager>('cronManager'),
+    roleManager: sub.roleManager,
+    channelManager,
+    pluginManager,
+    toolRegistry: sub.toolRegistry,
+    skillManager: sub.skillManager,
+    agentRegistry: sub.agentRegistry,
+    paths: sub.configManager.resolvedPaths,
   };
 }
 
@@ -456,6 +478,7 @@ function hotReloadService(): RuntimeService {
       sub.roleManager.startHotReload();
 
       sub.configManager.onConfigReloaded = () => {
+        sub.runtimeControl.notifyConfigReloaded();
         void extensions.pluginManager.handleConfigReload().catch((err) => {
           logger.error('插件配置热重载失败', err);
         });

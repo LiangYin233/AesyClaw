@@ -80,6 +80,7 @@ export default plugin;
 | `paths`         | `ResolvedPaths`           | 路径解析器，包含 extensionsDir、mediaDir、workspaceDir 等        |
 | `state`         | `Record<string, unknown>` | 运行时状态容器，框架在卸载时自动清理                             |
 | `configManager` | `ConfigManager`           | 全局配置管理器                                                   |
+| `control`       | `RuntimeControlApi`       | 运行时控制面接口，供服务型插件读取实时管理数据                   |
 
 ### 注册能力
 
@@ -97,6 +98,21 @@ export default plugin;
 | `resolveModel(providerModel)` | 根据 `provider/model` 字符串解析完整模型配置（含 API 密钥） |
 
 `resolveModel` 从核心配置的 `providers` 段读取 API 密钥和 baseUrl，插件无需自行管理凭据。
+
+### 运行时控制面
+
+`ctx.control` 为服务型插件提供标准化的管理协议入口，适合 `plugin_webui` 这类需要读取实时运行时状态的插件。
+
+| 方法/事件                     | 说明                                                      |
+| ----------------------------- | --------------------------------------------------------- |
+| `isReady()`                   | 控制面依赖是否已绑定完成                                  |
+| `waitUntilReady()`            | 等待控制面依赖绑定完成                                    |
+| `dispatch({ type, data })`    | 按 WebUI WebSocket 协议分发请求，返回 `{ ok, data }` 响应 |
+| `on('runtime:ready', fn)`     | 控制面可用时触发                                          |
+| `on('runtime:reset', fn)`     | 控制面重置时触发                                          |
+| `on('config:reloaded', fn)`   | 配置热重载后触发                                          |
+
+普通工具插件通常不需要 `ctx.control`。如果插件在应用启动早期初始化，但需要读取 WebUI/管理类数据，应先调用 `await ctx.control.waitUntilReady()`，或在请求处理时对 `isReady()` 返回 false 的情况给出“运行时启动中”的响应。
 
 ---
 

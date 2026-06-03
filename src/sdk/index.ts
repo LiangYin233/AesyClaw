@@ -13,6 +13,11 @@ export type {
   PluginDefinition,
   PluginHealthStatus,
 } from '@aesyclaw/extension/plugin/types';
+export type {
+  RuntimeControlApi,
+  RuntimeControlEvent,
+  RuntimeControlRequest,
+} from '@aesyclaw/extension/plugin/control';
 
 export type {
   ChannelContext,

@@ -2,13 +2,12 @@ import { Type } from '@sinclair/typebox';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PluginManager } from '../../../src/extension/plugin/manager';
 import type { PluginModule } from '../../../src/extension/plugin/types';
-import type { ChannelPlugin } from '../../../src/extension/channel/types';
+import { RuntimeControlHub } from '../../../src/extension/plugin/control';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import { HooksBus } from '../../../src/hook';
 import * as extensionLoader from '../../../src/extension/extension-loader';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
-import type { ChannelManager } from '../../../src/extension/channel/manager';
 
 const fakePaths = {
   runtimeRoot: '/tmp/aesyclaw/.aesyclaw',
@@ -39,19 +38,6 @@ class FakeConfigManager {
     if (path === 'plugins') {
       this.plugins = { ...value };
     }
-  }
-}
-
-class FakeChannelManager {
-  registeredChannels: Array<{ channel: ChannelPlugin; owner: string }> = [];
-  ownersToUnregister: string[] = [];
-
-  register(channel: ChannelPlugin, owner: string): void {
-    this.registeredChannels.push({ channel, owner });
-  }
-
-  async unregisterByOwner(owner: string): Promise<void> {
-    this.ownersToUnregister.push(owner);
   }
 }
 
@@ -97,7 +83,7 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
   const hooksBus = new HooksBus();
-  const channelManager = new FakeChannelManager();
+  const control = new RuntimeControlHub();
 
   setupLoaderMock(module);
 
@@ -106,11 +92,11 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
     toolRegistry,
     commandRegistry,
     hooksBus,
-    channelManager: channelManager as unknown as ChannelManager,
     paths: fakePaths,
     llmAdapter: { resolveModel: vi.fn() },
+    control,
   });
-  return { manager, config, toolRegistry, commandRegistry, hooksBus, channelManager };
+  return { manager, config, toolRegistry, commandRegistry, hooksBus, control };
 }
 
 describe('PluginManager', () => {
@@ -144,6 +130,23 @@ describe('PluginManager', () => {
     await manager.setup();
 
     expect(seenPaths).toEqual([fakePaths]);
+  });
+
+  it('provides the runtime control interface to plugin init contexts', async () => {
+    const seenControl: unknown[] = [];
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        init: vi.fn(async (ctx) => {
+          seenControl.push(ctx.control);
+        }),
+      },
+    });
+    const { manager, control } = await makeManager(module);
+
+    await manager.setup();
+
+    expect(seenControl).toEqual([control]);
   });
 
   it('discovers plugins from injected host extension paths', async () => {
@@ -259,6 +262,7 @@ describe('PluginManager', () => {
       hooksBus: new HooksBus(),
       paths: fakePaths,
       llmAdapter: { resolveModel: vi.fn() },
+      control: new RuntimeControlHub(),
     });
 
     const firstReload = manager.handleConfigReload();

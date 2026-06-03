@@ -17,6 +17,7 @@ import type { Logger } from '@aesyclaw/core/logger';
 import type { AesyClawTool, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import type { ResolvedModel } from '@aesyclaw/contracts/llm';
+import type { RuntimeControlApi } from './control';
 import {
   validateExtension,
   discoverExtensionDefinition,
@@ -30,6 +31,8 @@ export type PluginContext = {
   state: Record<string, unknown>;
   paths: Readonly<ResolvedPaths>;
   configManager: ConfigManager;
+  /** 运行时控制面接口，供服务型插件按标准 WebUI 协议读取实时数据。 */
+  control: RuntimeControlApi;
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
   registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
@@ -86,6 +89,7 @@ export type PluginManagerDependencies = {
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
   hooksBus: IHooksBus;
   paths: Readonly<ResolvedPaths>;
+  control: RuntimeControlApi;
 };
 
 export type { HookRegistration };
