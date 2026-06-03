@@ -228,13 +228,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
     }
 
     // C. TypeBox Schema 校验
-    if (definition.configSchema) {
-      mergedConfig = validateWithSchema<Record<string, unknown>>(
-        definition.configSchema,
-        mergedConfig,
-        `${this.extensionType}配置(${definition.name})`,
-      );
-    }
+    mergedConfig = this.validateConfig(definition, mergedConfig);
 
     // D. 创建上下文
     const owner = this.resolveOwner(name);
@@ -252,10 +246,12 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
       throw err;
     }
 
-    // F. 记录加载状态
+    // F. 记录加载状态。插件 init 期间可能通过 ctx.config.self.set() 更新配置引用，
+    // 因此这里使用 ref.current 作为运行时最终配置，避免后续默认值写回覆盖 init 产生的配置。
+    const runtimeConfig = ref.current;
     const loaded: LoadedExtension<TDef, TCtx> = {
       definition,
-      config: mergedConfig,
+      config: runtimeConfig,
       context,
       loadedAt: new Date(),
       owner,
@@ -268,8 +264,8 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
     await this.onAfterLoad(definition, context);
 
     // H. 自动写入/回填配置条目（包含 schema default 填充后的值）
-    if (!this.configsEqual(this.getUserConfig(name), mergedConfig)) {
-      await this.writeDefaultConfig(name, mergedConfig);
+    if (!this.configsEqual(this.getUserConfig(name), runtimeConfig)) {
+      await this.writeDefaultConfig(name, runtimeConfig);
     }
 
     this.logger.info(`${this.extensionType} 已启动`, { name });
@@ -549,6 +545,19 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
   }
 
   // ─── 配置管理（内部方法） ───────────────────────────────────
+
+  /**
+   * 校验扩展配置并填充 schema default。
+   * 子类可覆盖以处理保留字段（如插件的 enabled）。
+   */
+  protected validateConfig(definition: TDef, config: Record<string, unknown>): Record<string, unknown> {
+    if (!definition.configSchema) return config;
+    return validateWithSchema<Record<string, unknown>>(
+      definition.configSchema,
+      config,
+      `${this.extensionType}配置(${definition.name})`,
+    );
+  }
 
   /**
    * 获取合并后的配置（默认配置 + 用户配置）。

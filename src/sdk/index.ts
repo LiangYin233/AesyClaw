@@ -53,8 +53,8 @@ export { getMessageText } from '@aesyclaw/core/types';
 
 export { isRecord, errorMessage } from '@aesyclaw/core/utils';
 
-export { createScopedLogger } from '@aesyclaw/core/logger';
-export type { Logger, LogLevel } from '@aesyclaw/core/logger';
+export { createScopedLogger, subscribeToLogEntries } from '@aesyclaw/core/logger';
+export type { Logger, LogLevel, LogEntry } from '@aesyclaw/core/logger';
 
 export type {
   AesyClawTool,
@@ -81,5 +81,7 @@ export { resolvePaths } from '@aesyclaw/core/path-resolver';
 
 // ─── 配置校验 ───────────────────────────────────────────────────
 export { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
+export { AppConfigSchema } from '@aesyclaw/core/config/schema';
+export type { AppConfig } from '@aesyclaw/core/config/schema';
 
 export type { AgentMessage, ResolvedModel } from '@aesyclaw/contracts/llm';

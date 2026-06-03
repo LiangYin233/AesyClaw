@@ -2,6 +2,7 @@
 
 import path from 'node:path';
 import { errorMessage } from '@aesyclaw/core/utils';
+import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 import { BaseExtensionManager } from '@aesyclaw/extension/base-manager';
 import { createPluginContext } from './context';
 import type {
@@ -13,6 +14,7 @@ import type {
 import { discoverPluginDefinition } from './types';
 import { discoverPluginDirs, safeLoadModule } from './loader';
 import { getPluginConfig } from './config';
+import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { LoadedExtension } from '@aesyclaw/extension/types';
 
 // ─── PluginManager ────────────────────────────────────────────
@@ -53,6 +55,20 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
 
   protected discoverDefinition(imported: unknown): PluginDefinition | null {
     return discoverPluginDefinition(imported);
+  }
+
+  protected validateConfig(
+    definition: PluginDefinition,
+    config: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!definition.configSchema) return config;
+    const enabled = config['enabled'];
+    const validated = validateWithSchema<Record<string, unknown>>(
+      definition.configSchema,
+      stripEnabledField(config),
+      `${this.extensionType}配置(${definition.name})`,
+    );
+    return enabled === undefined ? validated : { ...validated, enabled };
   }
 
   // ─── 差异化钩子 ─────────────────────────────────────────────
