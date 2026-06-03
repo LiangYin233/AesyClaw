@@ -25,7 +25,7 @@ export type WebRuntimeDependencies = {
   cronManager: CronManager;
   roleManager: RoleManager;
   channelManager: ChannelManager;
-  pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable' | 'getPluginDefinitions'>;
+  pluginManager: PluginManager;
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
   agentRegistry: AgentRegistry;

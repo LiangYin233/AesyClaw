@@ -42,15 +42,32 @@ describe('plugin_exec', () => {
   it('exports a valid plugin and registers the exec tool', async () => {
     const tools: AesyClawTool[] = [];
 
+    const paths = makePaths(await makeRepoRoot());
     await plugin.init({
-      config: {},
-      paths: makePaths(await makeRepoRoot()),
-      registerTool(tool) {
-        tools.push(tool);
+      meta: { name: 'exec', owner: 'plugin:exec', directoryName: 'plugin_exec' },
+      log: makeSilentLogger(),
+      paths: {
+        runtimeRoot: paths.runtimeRoot,
+        dataDir: paths.dataDir,
+        mediaDir: paths.mediaDir,
+        workspaceDir: paths.workspaceDir,
+        pluginDir: path.join(paths.dataDir, 'extensions', 'plugin_exec'),
       },
-      unregisterTool() {},
-      registerCommand() {},
-      logger: makeSilentLogger(),
+      config: {
+        self: { get: () => undefined, set: async () => undefined },
+        global: { get: () => undefined, set: async () => undefined },
+      },
+      registry: {
+        tools: {
+          register(tool) {
+            tools.push(tool as AesyClawTool);
+          },
+        },
+        commands: { register() {} },
+      },
+      hooks: { register() {}, unregister() {} },
+      models: { resolve: (() => undefined) as never, list: async () => [] },
+      control: {} as never,
     });
 
     expect(plugin).toEqual(

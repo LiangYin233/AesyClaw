@@ -195,7 +195,7 @@ export async function handleMd2ImgSend(
   ctx: HookCtx,
   deps: {
     htmlTemplate: string;
-    logger: PluginContext['logger'];
+    logger: PluginContext['log'];
     pluginConfig: Record<string, unknown>;
     convert?: (content: string, template: string) => Promise<Buffer>;
   },
@@ -254,16 +254,17 @@ const plugin: PluginDefinition = {
   version: '0.1.0',
   description:
     'Detects Markdown / HTML / LaTeX in LLM output and sends it as a rendered image instead of raw text.',
-  defaultConfig: { enabledChannels: ['*'] },
   configSchema: Md2ImgPluginConfigSchema,
-  middlewares: [
-    {
+  async init(ctx) {
+    logger = ctx.log;
+    pluginConfig = ctx.config.self.get<Record<string, unknown>>('') ?? {};
+
+    ctx.hooks.register({
       id: 'md2img-send',
       chain: 'pipeline:send',
       priority: 100,
-      enabled: true,
-      handler: async (ctx, next) => {
-        const result = await handleMd2ImgSend(ctx, {
+      handler: async (hookCtx, next) => {
+        const result = await handleMd2ImgSend(hookCtx, {
           htmlTemplate,
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- initialized in init() before handler runs
           logger: logger!,
@@ -273,11 +274,7 @@ const plugin: PluginDefinition = {
         if (result.action !== 'next') return result;
         return await (next?.() ?? { action: 'next' });
       },
-    },
-  ],
-  async init(ctx) {
-    logger = ctx.logger;
-    pluginConfig = ctx.config;
+    });
 
     try {
       htmlTemplate = await readFile(TEMPLATE_PATH, 'utf-8');
@@ -318,7 +315,7 @@ const plugin: PluginDefinition = {
 // ─── Module state ───────────────────────────────────────────────
 
 let htmlTemplate = '';
-let logger: PluginContext['logger'] | undefined;
+let logger: PluginContext['log'] | undefined;
 let pluginConfig: Record<string, unknown> = {};
 let katexDistDir: string | undefined;
 let renderer: PlaywrightMarkdownRenderer | null = null;

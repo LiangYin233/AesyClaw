@@ -44,9 +44,11 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
     definition: PluginDefinition,
     _owner: string,
     ref: { current: Record<string, unknown> },
-    state: Record<string, unknown>,
+    _state: Record<string, unknown>,
   ): PluginContext {
-    return createPluginContext(this.deps, this.deps.paths, definition.name, ref, state);
+    const directory = this.extensionDirs.get(definition.name);
+    const directoryName = directory ? path.basename(directory) : `plugin_${definition.name}`;
+    return createPluginContext(this.deps, this.deps.paths, definition, directoryName, ref);
   }
 
   protected discoverDefinition(imported: unknown): PluginDefinition | null {
@@ -54,27 +56,6 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
   }
 
   // ─── 差异化钩子 ─────────────────────────────────────────────
-
-  protected async onAfterLoad(
-    definition: PluginDefinition,
-    _context: PluginContext,
-  ): Promise<void> {
-    // 注册插件的中间件到 HooksBus
-    if (definition.middlewares) {
-      for (const reg of definition.middlewares) {
-        if (!reg.chain || typeof reg.handler !== 'function') {
-          this.logger.warn(
-            `跳过无效的 middleware 注册（插件 ${definition.name}）：缺少 chain 或 handler`,
-          );
-          continue;
-        }
-        this.hooksBus.register({
-          ...reg,
-          id: `plugin:${definition.name}:${reg.id}`,
-        });
-      }
-    }
-  }
 
   protected async onBeforeUnload(
     definition: PluginDefinition,
@@ -128,6 +109,20 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
   }
 
   // ─── 插件特有方法 ───────────────────────────────────────────
+
+  /**
+   * 列出当前内存中已知插件及其配置启用状态。
+   */
+  listEnabledPlugins(): Array<{ name: string; enabled: boolean }> {
+    return this.listEnabledExtensions();
+  }
+
+  /**
+   * 获取当前内存中的完整插件定义。
+   */
+  getDefinition(name: string): PluginDefinition {
+    return super.getDefinition(name);
+  }
 
   /**
    * 加载指定目录的插件（用于磁盘插件）。
@@ -201,7 +196,7 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
       name: string;
       version?: string;
       description?: string;
-      defaultConfig?: Record<string, unknown>;
+      configSchema?: unknown;
     }>
   > {
     const dirs = await discoverPluginDirs(this.extensionsDir);
@@ -209,7 +204,7 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
       name: string;
       version?: string;
       description?: string;
-      defaultConfig?: Record<string, unknown>;
+      configSchema?: unknown;
     }> = [];
     for (const pluginDir of dirs) {
       const module = await safeLoadModule(pluginDir, this.failedExtensions);
@@ -218,7 +213,7 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
         name: module.definition.name,
         version: module.definition.version,
         description: module.definition.description,
-        defaultConfig: module.definition.defaultConfig,
+        configSchema: module.definition.configSchema,
       });
     }
     return results;

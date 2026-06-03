@@ -40,7 +40,7 @@ export type BaseExtensionDefinition<TCtx> = {
   /** 配置的 TypeBox Schema（提供后框架在 load() 时自动校验并填充默认值） */
   configSchema?: TSchema;
   init(ctx: TCtx): void | Promise<void>;
-  destroy?(): void | Promise<void>;
+  destroy?(ctx: TCtx): void | Promise<void>;
   healthCheck?(): Promise<ExtensionHealthStatus>;
 };
 

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { Type } from '@sinclair/typebox';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PluginManager } from '../../../src/extension/plugin/manager';
@@ -7,7 +8,6 @@ import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import { HooksBus } from '../../../src/hook';
 import * as extensionLoader from '../../../src/extension/extension-loader';
-import type { AesyClawTool } from '../../../src/tool/tool-registry';
 
 const fakePaths = {
   runtimeRoot: '/tmp/aesyclaw/.aesyclaw',
@@ -25,19 +25,34 @@ const fakePaths = {
 
 class FakeConfigManager {
   plugins: Record<string, unknown> = {};
-  updates: Array<Record<string, unknown>> = [];
 
-  get(path: 'plugins'): Record<string, unknown> {
-    if (path !== 'plugins') {
-      throw new Error('Unsupported key');
+  get(path: string): unknown {
+    if (path === 'plugins') return this.plugins;
+    if (path === 'providers') return {};
+    if (path.startsWith('plugins.')) {
+      const parts = path.split('.').slice(1);
+      let current: unknown = this.plugins;
+      for (const part of parts) {
+        if (current === null || typeof current !== 'object') return undefined;
+        current = (current as Record<string, unknown>)[part];
+      }
+      return current;
     }
-    return this.plugins;
+    throw new Error(`Unsupported key: ${path}`);
   }
 
-  async set(path: 'plugins', value: Record<string, unknown>): Promise<void> {
+  async set(path: string, value: unknown): Promise<void> {
     if (path === 'plugins') {
-      this.plugins = { ...value };
+      this.plugins = { ...(value as Record<string, unknown>) };
+      return;
     }
+    const parts = path.split('.');
+    if (parts[0] === 'plugins' && parts[1]) {
+      const current = (this.plugins[parts[1]] ?? {}) as Record<string, unknown>;
+      this.plugins[parts[1]] = { ...current, [parts.slice(2).join('.')]: value };
+      return;
+    }
+    throw new Error(`Unsupported key: ${path}`);
   }
 }
 
@@ -48,21 +63,19 @@ function makeModule(overrides: Partial<PluginModule> = {}): PluginModule {
       version: '0.1.0',
       description: 'Test plugin',
       init: vi.fn(async (ctx) => {
-        ctx.registerTool({
+        ctx.registry.tools.register({
           name: 'alpha_tool',
           description: 'An example tool',
           parameters: Type.Object({}),
-          owner: 'test',
           execute: async () => ({ content: 'ok' }),
-        } as unknown as AesyClawTool);
-        ctx.registerCommand({
+        });
+        ctx.registry.commands.register({
           name: 'alpha_cmd',
           description: 'Example command',
-          scope: 'plugin:alpha',
-          execute: async () => 'ok',
+          execute: async () => ({ components: [{ type: 'Plain', text: 'ok' }] }),
         });
       }),
-      ...overrides,
+      ...overrides.definition,
     },
     directory: '/tmp/plugins/plugin_alpha',
     directoryName: 'plugin_alpha',
@@ -88,7 +101,7 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
   setupLoaderMock(module);
 
   const manager = new PluginManager({
-    configManager: config,
+    configManager: config as never,
     toolRegistry,
     commandRegistry,
     hooksBus,
@@ -115,7 +128,7 @@ describe('PluginManager', () => {
     expect(manager.getLoaded('alpha')).toBeDefined();
   });
 
-  it('provides host paths to plugin init contexts', async () => {
+  it('provides namespaced paths to plugin init contexts', async () => {
     const seenPaths: unknown[] = [];
     const module = makeModule({
       definition: {
@@ -129,16 +142,24 @@ describe('PluginManager', () => {
 
     await manager.setup();
 
-    expect(seenPaths).toEqual([fakePaths]);
+    expect(seenPaths).toEqual([
+      {
+        runtimeRoot: fakePaths.runtimeRoot,
+        dataDir: fakePaths.dataDir,
+        mediaDir: fakePaths.mediaDir,
+        workspaceDir: fakePaths.workspaceDir,
+        pluginDir: path.join(fakePaths.dataDir, 'extensions', 'plugin_alpha'),
+      },
+    ]);
   });
 
-  it('provides the runtime control interface to plugin init contexts', async () => {
-    const seenControl: unknown[] = [];
+  it('provides metadata and runtime control to plugin init contexts', async () => {
+    const seen: unknown[] = [];
     const module = makeModule({
       definition: {
         ...makeModule().definition,
         init: vi.fn(async (ctx) => {
-          seenControl.push(ctx.control);
+          seen.push({ meta: ctx.meta, control: ctx.control });
         }),
       },
     });
@@ -146,7 +167,12 @@ describe('PluginManager', () => {
 
     await manager.setup();
 
-    expect(seenControl).toEqual([control]);
+    expect(seen).toEqual([
+      {
+        meta: { name: 'alpha', owner: 'plugin:alpha', directoryName: 'plugin_alpha' },
+        control,
+      },
+    ]);
   });
 
   it('discovers plugins from injected host extension paths', async () => {
@@ -160,17 +186,23 @@ describe('PluginManager', () => {
     );
   });
 
-  it('deep merges plugin options over default config', async () => {
-    const seenConfig: Record<string, unknown>[] = [];
+  it('exposes plugin config through ctx.config.self', async () => {
+    const seenConfig: unknown[] = [];
     const module = makeModule({
       definition: {
         ...makeModule().definition,
-        defaultConfig: {
-          nested: { keep: 'default', override: 'default' },
-          list: ['default'],
-        },
+        configSchema: Type.Object({
+          nested: Type.Object({
+            override: Type.String(),
+          }),
+          list: Type.Array(Type.String()),
+        }),
         init: async (ctx) => {
-          seenConfig.push(ctx.config);
+          seenConfig.push({
+            nested: ctx.config.self.get('nested'),
+            list: ctx.config.self.get('list'),
+            enabled: ctx.config.self.get('enabled'),
+          });
         },
       },
     });
@@ -188,10 +220,58 @@ describe('PluginManager', () => {
 
     expect(seenConfig).toEqual([
       {
-        nested: { keep: 'default', override: 'configured' },
+        nested: { override: 'configured' },
         list: ['configured'],
+        enabled: undefined,
       },
     ]);
+  });
+
+  it('enforces global config permissions', async () => {
+    const denied: unknown[] = [];
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        init: vi.fn(async (ctx) => {
+          try {
+            ctx.config.global.get('agent.defaultModel');
+          } catch (err) {
+            denied.push(err);
+          }
+        }),
+      },
+    });
+
+    const { manager } = await makeManager(module);
+    await manager.setup();
+
+    expect(denied[0]).toMatchObject({
+      name: 'PluginPermissionDeniedError',
+      pluginName: 'alpha',
+      permission: 'config.read',
+      path: 'agent.defaultModel',
+    });
+  });
+
+  it('allows declared global config paths only', async () => {
+    const seen: unknown[] = [];
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        permissions: { config: { read: ['plugins.*.enabled'] } },
+        init: vi.fn(async (ctx) => {
+          seen.push(ctx.config.global.get('plugins.alpha.enabled'));
+          expect(() => ctx.config.global.get('plugins.alpha.host')).toThrow();
+        }),
+      },
+    });
+    const config = new FakeConfigManager();
+    config.plugins = { alpha: { enabled: true, host: '127.0.0.1' } };
+
+    const { manager } = await makeManager(module, config);
+    await manager.setup();
+
+    expect(seen).toEqual([true]);
   });
 
   it('skips disabled plugins', async () => {
@@ -205,13 +285,13 @@ describe('PluginManager', () => {
     expect(manager.getLoaded('alpha')).toBeUndefined();
   });
 
-  it('handles enable/disable toggling', async () => {
+  it('handles enable/disable toggling through manager compatibility methods', async () => {
     const module = makeModule({
       definition: {
         ...makeModule().definition,
-        defaultConfig: { enabled: false, greeting: 'hello' },
+        configSchema: Type.Object({ greeting: Type.String({ default: 'hello' }) }),
         init: vi.fn(async (ctx) => {
-          expect(ctx.config).toEqual({ greeting: 'hello' });
+          expect(ctx.config.self.get('greeting')).toBe('hello');
         }),
       },
     });
@@ -256,7 +336,7 @@ describe('PluginManager', () => {
     setupLoaderMock(module);
 
     const manager = new PluginManager({
-      configManager: new FakeConfigManager(),
+      configManager: new FakeConfigManager() as never,
       toolRegistry: new ToolRegistry(),
       commandRegistry: new CommandRegistry(),
       hooksBus: new HooksBus(),

@@ -142,6 +142,20 @@ export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelC
   // ─── 频道特有方法 ───────────────────────────────────────────
 
   /**
+   * 列出当前内存中已知频道及其配置启用状态。
+   */
+  listEnabledChannels(): Array<{ name: string; enabled: boolean }> {
+    return this.listEnabledExtensions();
+  }
+
+  /**
+   * 获取当前内存中的完整频道定义。
+   */
+  getDefinition(name: string): ChannelPlugin {
+    return super.getDefinition(name);
+  }
+
+  /**
    * 检查频道是否已注册。
    */
   has(channelName: string): boolean {

@@ -12,12 +12,18 @@ export type {
   PluginContext,
   PluginDefinition,
   PluginHealthStatus,
+  PluginConfigApi,
+  PluginConfigNamespace,
+  PluginHookRegistration,
+  PluginMetaApi,
+  PluginModelApi,
+  PluginModelDto,
+  PluginPathsApi,
+  PluginRegistryApi,
 } from '@aesyclaw/extension/plugin/types';
-export type {
-  RuntimeControlApi,
-  RuntimeControlEvent,
-  RuntimeControlRequest,
-} from '@aesyclaw/extension/plugin/control';
+export type { RuntimeControlApi, RuntimeControlDependencies } from '@aesyclaw/extension/plugin/control';
+export { RuntimeControlHub } from '@aesyclaw/extension/plugin/control';
+export { PluginPermissionDeniedError } from '@aesyclaw/extension/plugin/errors';
 
 export type {
   ChannelContext,
@@ -38,6 +44,9 @@ export type {
   MessageUsage,
   CommandDefinition,
   OutboundSignal,
+  RoleConfig,
+  CronJobRecord,
+  CronRunRecord,
 } from '@aesyclaw/core/types';
 
 export { getMessageText } from '@aesyclaw/core/types';
@@ -52,6 +61,8 @@ export type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
+
+export type { SessionSummary } from '@aesyclaw/session';
 
 export type { HookCtx, HookResult, Middleware, HookRegistration } from '@aesyclaw/hook';
 
@@ -71,4 +82,4 @@ export { resolvePaths } from '@aesyclaw/core/path-resolver';
 // ─── 配置校验 ───────────────────────────────────────────────────
 export { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 
-export type { ResolvedModel } from '@aesyclaw/contracts/llm';
+export type { AgentMessage, ResolvedModel } from '@aesyclaw/contracts/llm';

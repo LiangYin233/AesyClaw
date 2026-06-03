@@ -18,7 +18,6 @@ import type { IHooksBus } from '@aesyclaw/hook';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type {
   BaseExtensionDefinition,
-  BaseExtensionContext,
   LoadedExtension,
   ExtensionStatus,
   ExtensionLifecycleState,
@@ -32,10 +31,7 @@ import type {
  * @template TDef - 扩展定义类型（PluginDefinition 或 ChannelPlugin）
  * @template TCtx - 扩展上下文类型（PluginContext 或 ChannelContext）
  */
-export abstract class BaseExtensionManager<
-  TDef extends BaseExtensionDefinition<TCtx>,
-  TCtx extends BaseExtensionContext,
-> {
+export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> {
   /** 已注册的扩展定义（名称 → 定义） */
   readonly definitions = new Map<string, TDef>();
 
@@ -273,7 +269,7 @@ export abstract class BaseExtensionManager<
 
     // H. 自动写入配置条目（如果不存在）
     if (!this.hasConfigEntry(name)) {
-      await this.writeDefaultConfig(name, definition);
+      await this.writeDefaultConfig(name, mergedConfig);
     }
 
     this.logger.info(`${this.extensionType} 已启动`, { name });
@@ -293,7 +289,7 @@ export abstract class BaseExtensionManager<
 
       // B. 调用扩展的 destroy
       if (loaded.definition.destroy) {
-        await loaded.definition.destroy();
+        await loaded.definition.destroy(loaded.context);
       }
     } finally {
       // C. 触发卸载后钩子（清理 Owner 资源）
@@ -429,6 +425,77 @@ export abstract class BaseExtensionManager<
   }
 
   // ─── 查询方法 ───────────────────────────────────────────────
+
+  /**
+   * 列出当前内存中已注册扩展的启用配置状态。
+   * 不扫描磁盘，也不表达运行态。
+   */
+  listEnabledExtensions(): Array<{ name: string; enabled: boolean }> {
+    return [...this.definitions.values()]
+      .map((definition) => ({
+        name: definition.name,
+        enabled: this.isDefinitionEnabled(definition.name),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * 获取当前内存中的完整扩展定义。
+   */
+  getDefinition(name: string): TDef {
+    const definition = this.definitions.get(name);
+    if (!definition) {
+      throw new Error(`${this.extensionType} "${name}" 未注册`);
+    }
+    return definition;
+  }
+
+  /**
+   * 重载当前内存中已知扩展。不扫描磁盘。
+   */
+  async reload(): Promise<void>;
+  async reload(name: string): Promise<boolean>;
+  async reload(name?: string): Promise<void | boolean> {
+    if (name !== undefined) {
+      return await this.reloadOne(name);
+    }
+
+    for (const definition of this.definitions.values()) {
+      if (!this.isDefinitionEnabled(definition.name)) continue;
+      await this.reloadOne(definition.name);
+    }
+  }
+
+  private async reloadOne(name: string): Promise<boolean> {
+    const definition = this.definitions.get(name);
+    if (!definition) {
+      throw new Error(`${this.extensionType} "${name}" 未注册`);
+    }
+    if (!this.isDefinitionEnabled(name)) {
+      return false;
+    }
+
+    const wasLoaded = this.loadedExtensions.has(name);
+    if (wasLoaded) {
+      await this.stop(name);
+    }
+
+    try {
+      const loaded = await this.start(name);
+      return loaded !== null;
+    } catch (err) {
+      this.failedExtensions.set(name, errorMessage(err));
+      this.logger.error(`${this.extensionType} "${name}" 重载失败`, err);
+      if (wasLoaded) {
+        try {
+          await this.start(name);
+        } catch (restoreErr) {
+          this.logger.error(`${this.extensionType} "${name}" 重载失败后恢复旧实例失败`, restoreErr);
+        }
+      }
+      return false;
+    }
+  }
 
   /**
    * 获取已加载的扩展实例。
@@ -573,9 +640,9 @@ export abstract class BaseExtensionManager<
   /**
    * 写入扩展的默认配置条目。
    */
-  protected async writeDefaultConfig(name: string, definition: TDef): Promise<void> {
+  protected async writeDefaultConfig(name: string, config: Record<string, unknown>): Promise<void> {
     const allConfig = this.getConfigRecord();
-    allConfig[name] = { ...this.getManagedDefaults(definition) };
+    allConfig[name] = { ...config };
     await this.configManager.set(this.configKey, allConfig).catch((err: unknown) => {
       this.logger.warn(`自动写入 ${this.extensionType} "${name}" 的配置条目失败`, err);
     });

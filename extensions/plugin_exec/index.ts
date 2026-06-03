@@ -213,8 +213,8 @@ const plugin: PluginDefinition = {
   version: '0.1.0',
   description: 'Provides an LLM-facing exec tool for shell command execution.',
   async init(ctx) {
-    ctx.registerTool(createExecTool(ctx.paths.workspaceDir));
-    ctx.logger.info('Exec plugin initialized');
+    ctx.registry.tools.register(createExecTool(ctx.paths.workspaceDir));
+    ctx.log.info('Exec plugin initialized');
   },
 };
 

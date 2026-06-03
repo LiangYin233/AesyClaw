@@ -232,7 +232,6 @@ function defaultRuntimeServices(): RuntimeService[] {
     cronService(),
     builtinToolService(),
     mcpService(),
-    runtimeControlService(),
     webService(),
     hotReloadService(),
   ];
@@ -377,6 +376,8 @@ function cronService(): RuntimeService {
           await cronManager.destroy();
         },
       );
+      sub.runtimeControl.bind(createWebRuntimeDependencies(ctx));
+      ctx.defer(() => sub.runtimeControl.reset());
       await cronManager.initialize();
     },
   };
@@ -413,17 +414,6 @@ function mcpService(): RuntimeService {
       void sub.mcpManager.connectAll().catch((err) => {
         logger.error('MCP 服务器连接失败', err);
       });
-    },
-  };
-}
-
-function runtimeControlService(): RuntimeService {
-  return {
-    name: '绑定插件运行时控制面',
-    priority: 55,
-    start(ctx) {
-      ctx.sub.runtimeControl.bind(createWebRuntimeDependencies(ctx));
-      ctx.defer(() => ctx.sub.runtimeControl.reset());
     },
   };
 }
@@ -478,7 +468,6 @@ function hotReloadService(): RuntimeService {
       sub.roleManager.startHotReload();
 
       sub.configManager.onConfigReloaded = () => {
-        sub.runtimeControl.notifyConfigReloaded();
         void extensions.pluginManager.handleConfigReload().catch((err) => {
           logger.error('插件配置热重载失败', err);
         });
