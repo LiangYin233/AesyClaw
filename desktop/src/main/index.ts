@@ -92,15 +92,31 @@ function setupIpc(): void {
       );
     },
   );
-  ipcMain.handle('chat:sendRaw', async (_event, payload: { type: string; sessionId: string }) => {
-    return wsManager?.sendRawMessage(payload.type, { sessionId: payload.sessionId }) ?? false;
-  });
+  ipcMain.handle(
+    'chat:sendRaw',
+    async (_event, payload: { type: string; sessionId: string; requestId?: string }) => {
+      return (
+        wsManager?.sendRawMessage(payload.type, {
+          sessionId: payload.sessionId,
+          ...(payload.requestId !== undefined ? { requestId: payload.requestId } : {}),
+        }) ?? false
+      );
+    },
+  );
 
   ipcMain.handle('chat:cancel', async (_event, sessionId: string) => {
     wsManager?.sendCancelMessage(sessionId);
   });
 
   // 管理 API
+  ipcMain.handle(
+    'channel:request',
+    async (_event, request: { type: string; requestId: string; payload?: unknown }) => {
+      return await (wsManager?.sendChannelRequest(request) ??
+        Promise.resolve({ ok: false, error: 'Channel WS 未连接' }));
+    },
+  );
+
   ipcMain.handle(
     'admin:request',
     async (_event, request: { type: string; requestId: string; payload?: unknown }) => {

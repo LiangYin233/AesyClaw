@@ -8,19 +8,19 @@
       <div class="editor-actions">
         <button
           class="save-btn"
-          :disabled="!adminReady || saving || hasBlockingErrors"
+          :disabled="!channelReady || saving || hasBlockingErrors"
           @click="saveSection"
         >
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
-        <button class="secondary-btn" :disabled="!adminReady || loading" @click="resetSection">
+        <button class="secondary-btn" :disabled="!channelReady || loading" @click="resetSection">
           Reset
         </button>
       </div>
     </div>
 
-    <p v-if="!adminReady" class="status-text muted">
-      Waiting for the Desktop admin connection before loading configuration.
+    <p v-if="!channelReady" class="status-text muted">
+      Waiting for the Desktop channel connection before loading configuration.
     </p>
     <p v-else-if="loading" class="status-text muted">
       Loading {{ title.toLowerCase() }} configuration…
@@ -28,7 +28,7 @@
     <p v-else-if="error" class="status-text error">{{ error }}</p>
     <p v-else-if="feedback" class="status-text" :class="feedbackType">{{ feedback }}</p>
 
-    <div v-if="adminReady && !loading && !error" class="editor-body">
+    <div v-if="channelReady && !loading && !error" class="editor-body">
       <div v-if="itemCount === 0" class="empty-state">
         No {{ entryNoun }} configuration entries.
       </div>
@@ -550,8 +550,8 @@ import * as configEditor from '../config-editor/utils';
 let cachedConfig: Record<string, unknown> | null = null;
 let pendingConfigLoad: Promise<Record<string, unknown>> | null = null;
 
-async function requestAdminRaw<T = unknown>(type: string, payload?: unknown): Promise<T> {
-  const response = await window.aesyclaw.adminRequest(type, payload);
+async function requestChannelRaw<T = unknown>(type: string, payload?: unknown): Promise<T> {
+  const response = await window.aesyclaw.channelRequest(type, payload);
   if (!response.ok) {
     throw new Error(response.error ?? `${type} failed`);
   }
@@ -562,7 +562,7 @@ async function loadSharedConfig(force = false): Promise<Record<string, unknown>>
   if (!force && cachedConfig !== null) return cachedConfig;
   if (!force && pendingConfigLoad !== null) return await pendingConfigLoad;
 
-  pendingConfigLoad = requestAdminRaw<Record<string, unknown>>('get_config');
+  pendingConfigLoad = requestChannelRaw<Record<string, unknown>>('get_config');
   try {
     cachedConfig = await pendingConfigLoad;
     return cachedConfig;
@@ -579,7 +579,7 @@ const props = defineProps<{
   sectionKey: ConfigSectionKey;
   title: string;
   subtitle: string;
-  adminReady: boolean;
+  channelReady: boolean;
 }>();
 
 const sectionValue = ref<unknown>(configEditor.getDefaultSectionValue(props.sectionKey));
@@ -657,7 +657,7 @@ const modelOptions = computed<Array<{ value: string; label: string }>>(() => {
 });
 
 async function loadConfig(force = false): Promise<void> {
-  if (!props.adminReady) return;
+  if (!props.channelReady) return;
   loading.value = true;
   error.value = '';
   feedback.value = '';
@@ -676,14 +676,14 @@ async function loadConfig(force = false): Promise<void> {
 }
 
 async function saveSection(): Promise<void> {
-  if (!props.adminReady) return;
+  if (!props.channelReady) return;
   if (hasBlockingErrors.value) return;
   saving.value = true;
   error.value = '';
   feedback.value = '';
   try {
     const plainSectionValue = toIpcCloneable(sectionValue.value);
-    await requestAdmin('update_config', { [props.sectionKey]: plainSectionValue });
+    await requestChannel('update_config', { [props.sectionKey]: plainSectionValue });
     updateCachedConfigSection(props.sectionKey, plainSectionValue);
     feedbackType.value = 'success';
     feedback.value = `${props.title} configuration saved`;
@@ -695,8 +695,8 @@ async function saveSection(): Promise<void> {
   }
 }
 
-async function requestAdmin<T = unknown>(type: string, payload?: unknown): Promise<T> {
-  return await requestAdminRaw<T>(type, payload);
+async function requestChannel<T = unknown>(type: string, payload?: unknown): Promise<T> {
+  return await requestChannelRaw<T>(type, payload);
 }
 
 function resetSection(): void {
@@ -726,7 +726,7 @@ async function toggleEntryEnabled(key: string): Promise<void> {
 
   try {
     const wsType = props.sectionKey === 'plugins' ? 'set_plugin_enabled' : 'set_channel_enabled';
-    await requestAdmin(wsType, { name: key, enabled });
+    await requestChannel(wsType, { name: key, enabled });
     feedbackType.value = 'success';
     feedback.value = `${key} ${enabled ? 'enabled' : 'disabled'}`;
   } catch (err) {
@@ -1143,11 +1143,11 @@ function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: st
 }
 
 onMounted(() => {
-  if (props.adminReady) void loadConfig();
+  if (props.channelReady) void loadConfig();
 });
 
 watch(
-  () => props.adminReady,
+  () => props.channelReady,
   (ready, wasReady) => {
     if (ready && !wasReady) void loadConfig();
   },

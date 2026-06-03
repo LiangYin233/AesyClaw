@@ -14,8 +14,9 @@ export type DesktopInboundMessage =
   | DesktopFileEndMessage
   | DesktopPongMessage
   | DesktopGetContextUsageMessage
-  | { type: 'get_sessions' }
-  | { type: 'get_session_messages'; sessionId: string };
+  | DesktopConfigRequestMessage
+  | { type: 'get_sessions'; requestId?: string }
+  | { type: 'get_session_messages'; requestId?: string; sessionId: string };
 
 /** 用户发送的聊天消息 */
 export type DesktopChatMessage = {
@@ -72,6 +73,22 @@ export type DesktopContextUsageMessage = {
   roleId?: string;
 };
 
+export type DesktopConfigRequestMessage = {
+  type: 'config_request';
+  requestId: string;
+  action: 'get_config' | 'update_config' | 'set_channel_enabled' | 'set_plugin_enabled';
+  data?: unknown;
+};
+
+export type DesktopConfigResponseMessage = {
+  type: 'config_response';
+  requestId: string;
+  action: DesktopConfigRequestMessage['action'];
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+};
+
 // ─── 下行消息（AesyClaw → Electron）───────────────────────────────
 
 export type DesktopOutboundMessage =
@@ -86,8 +103,9 @@ export type DesktopOutboundMessage =
   | DesktopFileEndMessage
   | DesktopPingMessage
   | DesktopContextUsageMessage
-  | { type: 'sessions'; data: unknown }
-  | { type: 'session_messages'; sessionId: string; data: unknown };
+  | DesktopConfigResponseMessage
+  | { type: 'sessions'; requestId?: string; data: unknown }
+  | { type: 'session_messages'; requestId?: string; sessionId: string; data: unknown };
 
 /** 流式文本块 */
 export type DesktopChunkMessage = {

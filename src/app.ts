@@ -37,6 +37,7 @@ import { WebUiManager } from './web/webui-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 const logger = createScopedLogger('app');
 
 type Deps = {
@@ -221,6 +222,7 @@ function defaultRuntimeServices(): RuntimeService[] {
   return [
     coreService(),
     builtinHookService(),
+    webAuthTokenService(),
     extensionService(),
     cronService(),
     builtinToolService(),
@@ -259,6 +261,7 @@ function builtinHookService(): RuntimeService {
       const sub = ctx.sub;
       const hooksBus = sub.pipeline.hooksBus;
       hooksBus.register(createCommandDetectHook(sub.commandRegistry));
+      hooksBus.register(createTimeInjectHook());
       hooksBus.register(createUserInputBudgetGuardHook());
       hooksBus.register(
         createAutoCompactHook(
@@ -266,11 +269,28 @@ function builtinHookService(): RuntimeService {
           sub.configManager.get('agent.memory.compressionThreshold') as number,
         ),
       );
-      hooksBus.register(createTimeInjectHook());
       hooksBus.register(createSkillPromptHook(sub.skillManager));
       hooksBus.register(createCommunicationPromptHook());
       hooksBus.register(createRolePromptHook(sub.roleManager));
       hooksBus.register(createToolResultTruncationHook());
+    },
+  };
+}
+
+function webAuthTokenService(): RuntimeService {
+  return {
+    name: '确保 WebUI 认证令牌',
+    priority: 15,
+    async start(ctx) {
+      const existing = ctx.sub.configManager.get('server.authToken') as string | undefined;
+      if (existing) return;
+
+      const token = randomBytes(32).toString('hex');
+      await ctx.sub.configManager.set('server.authToken', token);
+      logger.info('已自动生成 WebUI 认证令牌', {
+        hint: `${token.slice(0, 4)}…${token.slice(-4)}`,
+        configPath: 'server.authToken',
+      });
     },
   };
 }

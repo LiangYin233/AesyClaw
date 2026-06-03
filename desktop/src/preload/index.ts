@@ -41,9 +41,18 @@ export type ChatMessageEvent =
   | {
       type: 'context_usage';
       sessionId: string;
-      estimatedTokens: number;
+      inputTokens: number;
+      outputTokens: number;
       contextWindow: number;
-      percentage: number;
+      modelId?: string;
+      roleId?: string;
+    }
+  | { type: 'sessions'; requestId?: string; data: DesktopSessionSummary[] }
+  | {
+      type: 'session_messages';
+      requestId?: string;
+      sessionId: string;
+      data: DesktopHistoryMessage[];
     };
 export type DesktopSessionSummary = {
   id: string;
@@ -102,8 +111,18 @@ const api = {
   /** 取消当前对话 */
   cancelChat: (sessionId: string) => ipcRenderer.invoke('chat:cancel', sessionId),
   /** 发送任意 JSON 消息到 chat WebSocket */
-  sendChatRaw: (type: string, sessionId: string) =>
-    ipcRenderer.invoke('chat:sendRaw', { type, sessionId }),
+  sendChatRaw: (type: string, sessionId: string, requestId?: string) =>
+    ipcRenderer.invoke('chat:sendRaw', { type, sessionId, requestId }),
+
+  /** 通过 Desktop channel 发送管理请求 */
+  channelRequest: (type: string, payload?: unknown) => {
+    const requestId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return ipcRenderer.invoke('channel:request', {
+      type,
+      requestId,
+      payload: toIpcCloneable(payload),
+    }) as Promise<AdminMessageEvent>;
+  },
 
   /** 发送管理面板请求 */
   adminRequest: (type: string, payload?: unknown) => {

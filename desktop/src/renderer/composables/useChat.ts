@@ -13,6 +13,8 @@ import type {
   DesktopUsage,
 } from '../../preload/index';
 
+type SessionChatMessageEvent = Extract<ChatMessageEvent, { sessionId: string }>;
+
 /** 从后端历史消息的 content 文本中解析 [Attachments] 块，返回纯文本和结构化附件列表。 */
 function parseAttachmentsFromText(content: string): {
   text: string;
@@ -145,15 +147,27 @@ function useChatImpl() {
   /** 通过 chat WebSocket 发送请求并等待响应事件 */
   async function channelRequest(type: string, payload?: Record<string, unknown>): Promise<unknown> {
     const responseType = responseTypeMap[type] ?? type;
-    const sent = await window.aesyclaw.sendChatRaw(type, (payload?.['sessionId'] as string) ?? '');
-    if (sent !== true) return [];
+    const requestId = `${responseType}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return await new Promise((resolve) => {
-      const key = `${responseType}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-      pendingChannelRequests.set(key, resolve);
-      setTimeout(() => {
-        pendingChannelRequests.delete(key);
+      pendingChannelRequests.set(requestId, resolve);
+      const timeout = setTimeout(() => {
+        pendingChannelRequests.delete(requestId);
         resolve([]);
       }, 10000);
+
+      void window.aesyclaw
+        .sendChatRaw(type, (payload?.['sessionId'] as string) ?? '', requestId)
+        .then((sent: boolean) => {
+          if (sent === true) return;
+          clearTimeout(timeout);
+          pendingChannelRequests.delete(requestId);
+          resolve([]);
+        })
+        .catch(() => {
+          clearTimeout(timeout);
+          pendingChannelRequests.delete(requestId);
+          resolve([]);
+        });
     });
   }
 
@@ -162,14 +176,26 @@ function useChatImpl() {
     type: string,
     _sessionId: string | undefined,
     data: unknown,
+    requestId?: string,
   ): void {
     let resolved = false;
-    for (const [key, resolve] of pendingChannelRequests) {
-      if (key.startsWith(type + ':')) {
-        pendingChannelRequests.delete(key);
+    if (requestId) {
+      const resolve = pendingChannelRequests.get(requestId);
+      if (resolve) {
+        pendingChannelRequests.delete(requestId);
         resolve(data);
         resolved = true;
-        break;
+      }
+    }
+
+    if (!resolved) {
+      for (const [key, resolve] of pendingChannelRequests) {
+        if (key.startsWith(type + '-')) {
+          pendingChannelRequests.delete(key);
+          resolve(data);
+          resolved = true;
+          break;
+        }
       }
     }
     if (!resolved) {
@@ -368,7 +394,7 @@ function useChatImpl() {
     return error instanceof Error ? error.message : String(error);
   }
 
-  function handleStreamEvent(event: ChatMessageEvent): void {
+  function handleStreamEvent(event: SessionChatMessageEvent): void {
     const session = findSessionForEvent(event);
     if (!session) return;
 
@@ -499,7 +525,7 @@ function useChatImpl() {
     }
   }
 
-  function findSessionForEvent(event: ChatMessageEvent): ChatSession | null {
+  function findSessionForEvent(event: SessionChatMessageEvent): ChatSession | null {
     const session = sessions.value.find((s) => s.id === event.sessionId);
     if (session) return session;
     return null;

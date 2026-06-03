@@ -102,37 +102,37 @@
           section-key="server"
           title="Server"
           subtitle="Manage server behavior and access settings."
-          :admin-ready="adminReady"
+          :channel-ready="channelReady"
         />
         <ConfigSectionEditor
           section-key="providers"
           title="Providers"
           subtitle="Manage model providers, credentials, and presets."
-          :admin-ready="adminReady"
+          :channel-ready="channelReady"
         />
         <ConfigSectionEditor
           section-key="agent"
           title="Agent"
           subtitle="Tune agent behavior and default models."
-          :admin-ready="adminReady"
+          :channel-ready="channelReady"
         />
         <ConfigSectionEditor
           section-key="mcp"
           title="MCP"
           subtitle="Manage external tool server connections."
-          :admin-ready="adminReady"
+          :channel-ready="channelReady"
         />
         <ConfigSectionEditor
           section-key="channels"
           title="Channels"
           subtitle="Manage channel adapters and runtime options."
-          :admin-ready="adminReady"
+          :channel-ready="channelReady"
         />
         <ConfigSectionEditor
           section-key="plugins"
           title="Plugins"
           subtitle="Manage plugins and their options."
-          :admin-ready="adminReady"
+          :channel-ready="channelReady"
         />
       </div>
     </section>
@@ -155,7 +155,7 @@ const connectionForm = ref<DesktopConnectionConfig>({ ...connection.value });
 const connectionError = ref('');
 const savingConnection = ref(false);
 let unsubscribeStatus: (() => void) | null = null;
-const adminReady = computed(() => status.value.admin === 'connected');
+const channelReady = computed(() => status.value.chat === 'connected');
 
 onMounted(async () => {
   status.value = await window.aesyclaw.getStatus();

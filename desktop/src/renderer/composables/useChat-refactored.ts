@@ -4,6 +4,8 @@
  */
 
 import type { ChatMessageEvent, DesktopUploadFile } from '../../preload/index';
+
+type SessionChatMessageEvent = Extract<ChatMessageEvent, { sessionId: string }>;
 import { useWebSocket } from './useWebSocket';
 import { useMessages } from './useMessages';
 import { useSessions } from './useSessions';
@@ -37,8 +39,13 @@ export function useChat() {
   const { sendMessage: sendMsg, checkDeleteConfirmation, markDeleteConfirmed } = useChatActions();
 
   /** 处理来自 chat WebSocket 的响应事件 */
-  function handleChannelResponse(type: string, sessionId: string | undefined, data: unknown): void {
-    const resolved = handleWSResponse(type, sessionId, data);
+  function handleChannelResponse(
+    type: string,
+    sessionId: string | undefined,
+    data: unknown,
+    requestId?: string,
+  ): void {
+    const resolved = handleWSResponse(type, sessionId, data, requestId);
     if (!resolved) {
       // 无等待请求时，触发被动同步（如 compact 后自动刷新 / WS 重连）
       if (type === 'sessions') {
@@ -56,7 +63,7 @@ export function useChat() {
   }
 
   /** 处理流式事件 */
-  function handleStreamEvent(event: ChatMessageEvent): void {
+  function handleStreamEvent(event: SessionChatMessageEvent): void {
     const session = sessions.value.find((s) => s.id === event.sessionId);
     if (!session) return;
 

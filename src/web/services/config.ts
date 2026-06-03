@@ -40,14 +40,6 @@ export async function updateConfig(
   deps: WebRuntimeDependencies,
   body: DeepPartial<AppConfig>,
 ): Promise<void> {
-  if (body.server !== undefined)
-    await deps.configManager.patch('server', body.server as Record<string, unknown>);
-  if (body.agent !== undefined)
-    await deps.configManager.patch('agent', body.agent as Record<string, unknown>);
-  if (body.providers !== undefined) await deps.configManager.set('providers', body.providers);
-  if (body.channels !== undefined) await deps.configManager.set('channels', body.channels);
-  if (body.mcp !== undefined) await deps.configManager.set('mcp', body.mcp);
-  if (body.plugins !== undefined) await deps.configManager.set('plugins', body.plugins);
-
+  await deps.configManager.update(body as Record<string, unknown>);
   deps.configManager.onConfigReloaded?.();
 }

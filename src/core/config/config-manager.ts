@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
 
 import Conf from 'conf';
@@ -108,6 +108,28 @@ export class ConfigManager {
   }
 
   /**
+   * 原子应用多个顶层配置更新。
+   *
+   * server / agent 作为对象 patch 合并；providers / channels / mcp / plugins 整段替换。
+   * 所有变更会先在内存中合成并整体校验，校验通过后才持久化，避免半更新状态。
+   *
+   * @param update - 顶层配置更新对象
+   */
+  async update(update: Record<string, unknown>): Promise<void> {
+    if (!isRecord(update)) {
+      throw ErrorFactory.config.invalid('update 值必须是对象', { configPath: '<root>' });
+    }
+
+    const nextConfig = structuredClone(this.lastKnownConfig) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(update)) {
+      applyTopLevelConfigUpdate(nextConfig, key, value);
+    }
+
+    const validatedConfig = validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
+    await this.persistWithGuard(validatedConfig);
+  }
+
+  /**
    * 注册键对应的默认值，供后续 syncDefaults 合并使用。
    *
    * @param key - 默认值注册键（支持点分隔路径）
@@ -137,7 +159,7 @@ export class ConfigManager {
 
   /** 启动配置文件热重载监视器。 */
   startHotReload(): void {
-    this.fileWatcher.start(this.configStore);
+    this.fileWatcher.start(this.configStore, this.paths.configFile);
   }
 
   /** 停止配置文件热重载监视器。 */
@@ -183,7 +205,7 @@ export class ConfigManager {
 
   private async reloadFromFile(): Promise<void> {
     try {
-      const newConfig = this.readValidatedConfigFromStore(this.configStore);
+      const newConfig = this.readValidatedConfigFromFile();
       if (JSON.stringify(this.lastKnownConfig) === JSON.stringify(newConfig)) {
         logger.debug('配置文件已变更但内容相同 —— 跳过');
         return;
@@ -197,7 +219,25 @@ export class ConfigManager {
   }
 
   private readValidatedConfigFromStore(store: Conf<Record<string, unknown>>): AppConfig {
-    const parsed = store.store;
+    return this.readValidatedConfig(store.store, store);
+  }
+
+  private readValidatedConfigFromFile(): AppConfig {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(readFileSync(this.paths.configFile, 'utf-8'));
+    } catch (err) {
+      throw ErrorFactory.config.parseFailed(
+        this.paths.configFile,
+        'JSON 无效',
+        {},
+        err instanceof Error ? err : undefined,
+      );
+    }
+    return this.readValidatedConfig(parsed, this.configStore);
+  }
+
+  private readValidatedConfig(parsed: unknown, store?: Conf<Record<string, unknown>>): AppConfig {
     if (!isRecord(parsed)) {
       throw ErrorFactory.config.validationFailed('配置验证失败', {
         expected: 'object',
@@ -216,7 +256,7 @@ export class ConfigManager {
       validated as Record<string, unknown>,
     );
 
-    if (missingFields.length > 0) {
+    if (missingFields.length > 0 && store !== undefined) {
       logger.warn('配置存在缺失字段 —— 已用默认值修补', {
         missing: missingFields.join(', '),
       });
@@ -284,6 +324,35 @@ export class ConfigManager {
       );
     }
   }
+}
+
+function applyTopLevelConfigUpdate(
+  config: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): void {
+  if (key === 'server' || key === 'agent') {
+    if (!isRecord(value)) {
+      throw ErrorFactory.config.invalid(`配置段 "${key}" 的 patch 值必须是对象`, {
+        configPath: key,
+      });
+    }
+    const current = config[key];
+    if (current !== undefined && !isRecord(current)) {
+      throw ErrorFactory.config.invalid(`配置段 "${key}" 当前值不是对象，不能 patch`, {
+        configPath: key,
+      });
+    }
+    config[key] = mergeDefaults((current ?? {}) as Record<string, unknown>, value);
+    return;
+  }
+
+  if (key === 'providers' || key === 'channels' || key === 'mcp' || key === 'plugins') {
+    config[key] = value;
+    return;
+  }
+
+  throw ErrorFactory.config.invalid(`不支持的配置段 "${key}"`, { configPath: key });
 }
 
 function buildNestedObject(key: string, value: Record<string, unknown>): Record<string, unknown> {

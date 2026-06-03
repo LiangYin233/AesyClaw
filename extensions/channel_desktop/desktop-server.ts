@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import nodePath from 'node:path';
-import { createScopedLogger } from '@aesyclaw/sdk';
+import { createScopedLogger, errorMessage, isRecord } from '@aesyclaw/sdk';
 import * as desktopAttachments from './attachments';
 import type { DesktopConnection, DesktopSessionManager } from './session-manager';
 import { WsServer } from './ws-server';
@@ -17,6 +17,7 @@ import type {
   DesktopOutboundMessage,
   DesktopFileBuffer,
   DesktopReceivedFile,
+  DesktopConfigRequestMessage,
 } from './types';
 import type { ChannelContext, MessageComponent, OutboundSignal } from '@aesyclaw/sdk';
 
@@ -149,6 +150,9 @@ export class DesktopServer {
       case 'get_context_usage':
         void this.handleGetContextUsage(connectionId, msg);
         break;
+      case 'config_request':
+        void this.handleConfigRequest(connectionId, msg);
+        break;
       case 'file_start':
         this.handleFileStart(connectionId, msg);
         break;
@@ -252,12 +256,21 @@ export class DesktopServer {
   }
 
   private async handleGetSessions(
-    _connectionId: string,
-    _msg: { type: 'get_sessions' },
+    connectionId: string,
+    msg: { type: 'get_sessions'; requestId?: string },
   ): Promise<void> {
     try {
       const sessions = await this.options.context.getSessions();
-      // 广播给所有连接（只有一个 Desktop 客户端）
+      if (msg.requestId) {
+        this.sessions.getConnectionById(connectionId)?.sendJson({
+          type: 'sessions',
+          requestId: msg.requestId,
+          data: sessions,
+        });
+        return;
+      }
+
+      // 兼容旧协议：没有 requestId 时广播给所有连接。
       for (const conn of this.wsServer.sessions.activeConnections) {
         conn.sendJson({ type: 'sessions', data: sessions });
       }
@@ -268,18 +281,108 @@ export class DesktopServer {
 
   private async handleGetSessionMessages(
     connectionId: string,
-    msg: { type: 'get_session_messages'; sessionId: string },
+    msg: { type: 'get_session_messages'; requestId?: string; sessionId: string },
   ): Promise<void> {
     try {
       const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
       const messages = await this.options.context.getSessionMessages(sessionKey);
       const conn = this.sessions.getConnectionById(connectionId);
       if (conn) {
-        conn.sendJson({ type: 'session_messages', sessionId: msg.sessionId, data: messages });
+        conn.sendJson({
+          type: 'session_messages',
+          requestId: msg.requestId,
+          sessionId: msg.sessionId,
+          data: messages,
+        });
       }
     } catch {
       this.logger.warn('获取会话消息失败', { sessionId: msg.sessionId });
     }
+  }
+
+  private async handleConfigRequest(
+    connectionId: string,
+    msg: DesktopConfigRequestMessage,
+  ): Promise<void> {
+    const conn = this.sessions.getConnectionById(connectionId);
+    if (!conn) return;
+
+    try {
+      const data = await this.runConfigAction(msg.action, msg.data);
+      conn.sendJson({
+        type: 'config_response',
+        requestId: msg.requestId,
+        action: msg.action,
+        ok: true,
+        ...(data !== undefined ? { data } : {}),
+      } satisfies DesktopOutboundMessage);
+    } catch (err) {
+      conn.sendJson({
+        type: 'config_response',
+        requestId: msg.requestId,
+        action: msg.action,
+        ok: false,
+        error: errorMessage(err),
+      } satisfies DesktopOutboundMessage);
+    }
+  }
+
+  private async runConfigAction(
+    action: DesktopConfigRequestMessage['action'],
+    data: unknown,
+  ): Promise<unknown> {
+    if (action === 'get_config') return this.getConfigSnapshot();
+    if (action === 'update_config') {
+      await this.updateConfig(data);
+      return undefined;
+    }
+    if (action === 'set_channel_enabled') {
+      await this.setExtensionEnabled('channels', data);
+      return undefined;
+    }
+    if (action === 'set_plugin_enabled') {
+      await this.setExtensionEnabled('plugins', data);
+      return undefined;
+    }
+    throw new Error(`未知配置请求: ${String(action)}`);
+  }
+
+  private getConfigSnapshot(): Record<string, unknown> {
+    const configManager = this.options.context.configManager;
+    return {
+      server: configManager.get('server'),
+      providers: configManager.get('providers'),
+      channels: configManager.get('channels'),
+      agent: configManager.get('agent'),
+      mcp: configManager.get('mcp'),
+      plugins: configManager.get('plugins'),
+    };
+  }
+
+  private async updateConfig(data: unknown): Promise<void> {
+    if (!isRecord(data)) throw new Error('update_config 数据必须是对象');
+    const configManager = this.options.context.configManager;
+
+    await configManager.update(data);
+    configManager.onConfigReloaded?.();
+  }
+
+  private async setExtensionEnabled(section: 'channels' | 'plugins', data: unknown): Promise<void> {
+    if (!isRecord(data)) throw new Error('启停请求数据必须是对象');
+    const name = data['name'];
+    const enabled = data['enabled'];
+    if (typeof name !== 'string' || name.length === 0) throw new Error('扩展名称无效');
+    if (typeof enabled !== 'boolean') throw new Error('enabled 必须是布尔值');
+
+    const configManager = this.options.context.configManager;
+    const current = configManager.get(section);
+    const record = isRecord(current) ? current : {};
+    const existing = isRecord(record[name]) ? record[name] : {};
+    await configManager.set(section, {
+      ...record,
+      [name]: { ...existing, enabled },
+    });
+    configManager.onConfigReloaded?.();
   }
 
   // ─── 文件传输 ──────────────────────────────────────────────────

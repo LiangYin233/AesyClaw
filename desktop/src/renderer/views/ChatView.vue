@@ -127,6 +127,7 @@ onMounted(() => {
         event.type,
         'sessionId' in event ? event.sessionId : undefined,
         'data' in event ? event.data : undefined,
+        event.requestId,
       );
       return;
     }

@@ -41,6 +41,43 @@ type CancelableDesktopServer = {
   ): Promise<void>;
 };
 
+type ConfigDesktopServer = {
+  handleConfigRequest(
+    connectionId: string,
+    msg: {
+      type: 'config_request';
+      requestId: string;
+      action: 'get_config' | 'update_config';
+      data?: unknown;
+    },
+  ): Promise<void>;
+};
+
+type QueryDesktopServer = {
+  handleGetSessions(
+    connectionId: string,
+    msg: { type: 'get_sessions'; requestId?: string },
+  ): Promise<void>;
+  handleGetSessionMessages(
+    connectionId: string,
+    msg: { type: 'get_session_messages'; requestId?: string; sessionId: string },
+  ): Promise<void>;
+};
+
+function registerTestConnection(server: DesktopServer, id = 'conn-1'): unknown[] {
+  const sent: unknown[] = [];
+  server.sessions.register({
+    id,
+    sessions: new Set(),
+    fileBuffers: new Map(),
+    completedFiles: new Map(),
+    sendJson: (data: unknown) => sent.push(data),
+    sendBinary: vi.fn(),
+    close: vi.fn(),
+  });
+  return sent;
+}
+
 describe('DesktopServer', () => {
   it('routes cancel messages through the stop command path', async () => {
     const context = makeContext();
@@ -61,6 +98,131 @@ describe('DesktopServer', () => {
       { channel: 'desktop', type: 'private', chatId: 'session-1' },
       { id: 'conn-abcdef12', name: 'Desktop-conn-abc' },
     );
+  });
+
+  it('responds to session list requests with request ids', async () => {
+    const sessions = [{ id: 'db-session', channel: 'desktop', type: 'private', chatId: 'chat-1' }];
+    const context = makeContext({ getSessions: vi.fn(async () => sessions) as never });
+    const server = new DesktopServer({
+      port: 0,
+      authToken: 'desktop-local',
+      adminToken: 'admin-local',
+      context,
+    });
+    const sent = registerTestConnection(server);
+    const otherSent = registerTestConnection(server, 'conn-2');
+
+    await (server as unknown as QueryDesktopServer).handleGetSessions('conn-1', {
+      type: 'get_sessions',
+      requestId: 'sessions-req',
+    });
+
+    expect(sent[0]).toEqual({
+      type: 'sessions',
+      requestId: 'sessions-req',
+      data: sessions,
+    });
+    expect(otherSent).toHaveLength(0);
+  });
+
+  it('responds to session message requests with request ids', async () => {
+    const messages = [{ role: 'user', content: 'hello' }];
+    const context = makeContext({ getSessionMessages: vi.fn(async () => messages) as never });
+    const server = new DesktopServer({
+      port: 0,
+      authToken: 'desktop-local',
+      adminToken: 'admin-local',
+      context,
+    });
+    const sent = registerTestConnection(server);
+
+    await (server as unknown as QueryDesktopServer).handleGetSessionMessages('conn-1', {
+      type: 'get_session_messages',
+      requestId: 'messages-req',
+      sessionId: 'chat-1',
+    });
+
+    expect(sent[0]).toEqual({
+      type: 'session_messages',
+      requestId: 'messages-req',
+      sessionId: 'chat-1',
+      data: messages,
+    });
+  });
+
+  it('serves config snapshots over the desktop channel websocket', async () => {
+    const config = {
+      server: { port: 3000 },
+      providers: {},
+      channels: { desktop: { enabled: true } },
+      agent: { defaultModel: 'openai/gpt-4o' },
+      mcp: [],
+      plugins: {},
+    };
+    const context = makeContext({
+      configManager: {
+        get: vi.fn((key: keyof typeof config) => config[key]),
+        set: vi.fn(),
+        patch: vi.fn(),
+      } as never,
+    });
+    const server = new DesktopServer({
+      port: 0,
+      authToken: 'desktop-local',
+      adminToken: 'admin-local',
+      context,
+    });
+    const sent = registerTestConnection(server);
+
+    await (server as unknown as ConfigDesktopServer).handleConfigRequest('conn-1', {
+      type: 'config_request',
+      requestId: 'req-1',
+      action: 'get_config',
+    });
+
+    expect(sent[0]).toEqual({
+      type: 'config_response',
+      requestId: 'req-1',
+      action: 'get_config',
+      ok: true,
+      data: config,
+    });
+  });
+
+  it('updates config over the desktop channel websocket', async () => {
+    const configManager = {
+      get: vi.fn(),
+      set: vi.fn(async () => undefined),
+      patch: vi.fn(async () => undefined),
+      update: vi.fn(async () => undefined),
+      onConfigReloaded: vi.fn(),
+    };
+    const context = makeContext({ configManager: configManager as never });
+    const server = new DesktopServer({
+      port: 0,
+      authToken: 'desktop-local',
+      adminToken: 'admin-local',
+      context,
+    });
+    const sent = registerTestConnection(server);
+
+    await (server as unknown as ConfigDesktopServer).handleConfigRequest('conn-1', {
+      type: 'config_request',
+      requestId: 'req-2',
+      action: 'update_config',
+      data: { plugins: { exec: { enabled: false } } },
+    });
+
+    expect(configManager.update).toHaveBeenCalledWith({ plugins: { exec: { enabled: false } } });
+    expect(configManager.set).not.toHaveBeenCalled();
+    expect(configManager.patch).not.toHaveBeenCalled();
+    expect(configManager.onConfigReloaded).toHaveBeenCalledTimes(1);
+    expect(sent[0]).toEqual({
+      type: 'config_response',
+      requestId: 'req-2',
+      action: 'update_config',
+      ok: true,
+    });
   });
 });
 

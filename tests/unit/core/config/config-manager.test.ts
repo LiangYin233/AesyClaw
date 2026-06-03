@@ -211,6 +211,57 @@ describe('ConfigManager', () => {
     it('should reject patching scalar targets', async () => {
       await expect(manager.patch('server.port', {})).rejects.toThrow(/对象/);
     });
+
+    it('should atomically update multiple top-level sections', async () => {
+      await manager.update({
+        server: { authToken: 'atomic-token' },
+        providers: {
+          openai: {
+            apiKey: 'sk-test',
+            apiType: 'openai-responses',
+            models: {},
+          },
+        },
+        plugins: { exec: { enabled: false } },
+      });
+
+      expect(manager.get('server.port')).toBe(3000);
+      expect(manager.get('server.authToken')).toBe('atomic-token');
+      expect(manager.get('providers')).toEqual({
+        openai: {
+          apiKey: 'sk-test',
+          apiType: 'openai-responses',
+          models: {},
+        },
+      });
+      expect(manager.get('plugins')).toEqual({ exec: { enabled: false } });
+
+      const fileContent = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+        server: { authToken?: string };
+        plugins: Record<string, unknown>;
+      };
+      expect(fileContent.server.authToken).toBe('atomic-token');
+      expect(fileContent.plugins).toEqual({ exec: { enabled: false } });
+    });
+
+    it('should reject invalid atomic updates before persisting any section', async () => {
+      const originalContent = readFileSync(configPath, 'utf-8');
+
+      await expect(
+        manager.update({
+          server: { authToken: 'should-not-persist' },
+          providers: {
+            openai: {
+              apiType: 'not-supported',
+              models: {},
+            },
+          },
+        }),
+      ).rejects.toThrow(/配置验证失败/);
+
+      expect(manager.get('server.authToken')).toBeUndefined();
+      expect(readFileSync(configPath, 'utf-8')).toBe(originalContent);
+    });
   });
 
   describe('registerDefaults and syncDefaults', () => {

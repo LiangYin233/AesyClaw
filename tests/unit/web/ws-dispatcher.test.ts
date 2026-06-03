@@ -19,6 +19,7 @@ function createDeps() {
     get: vi.fn((key: keyof typeof config) => config[key]),
     set: vi.fn(async () => undefined),
     patch: vi.fn(async () => undefined),
+    update: vi.fn(async () => undefined),
   };
   const channelManager = {
     getRegisteredChannels: vi.fn(async () => ['onebot', 'desktop']),
@@ -69,8 +70,10 @@ describe('web ws dispatcher config protocol', () => {
     );
 
     expect(response).toEqual({ type: 'update_config', ok: true });
-    expect(configManager.set).toHaveBeenCalledTimes(1);
-    expect(configManager.set).toHaveBeenCalledWith('plugins', nextPlugins);
+    expect(configManager.update).toHaveBeenCalledTimes(1);
+    expect(configManager.update).toHaveBeenCalledWith({ plugins: nextPlugins });
+    expect(configManager.set).not.toHaveBeenCalled();
+    expect(configManager.patch).not.toHaveBeenCalled();
   });
 });
 

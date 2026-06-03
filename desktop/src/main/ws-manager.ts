@@ -44,14 +44,24 @@ export type ChatMessage =
       isError: boolean;
     }
   | { type: 'done'; sessionId: string; usage?: DesktopUsage }
-  | { type: 'error'; sessionId: string; message: string };
+  | { type: 'error'; sessionId: string; message: string }
+  | { type: 'sessions'; requestId?: string; data: unknown }
+  | { type: 'session_messages'; requestId?: string; sessionId: string; data: unknown };
 type ChatControlMessage = {
   type: 'auth';
   adminToken: string;
   commands?: Array<{ name: string; description: string }>;
 };
 
-type ChatWsMessage = ChatMessage | ChatControlMessage;
+type ChannelResponseMessage = {
+  type: 'config_response';
+  requestId?: string;
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+};
+
+type ChatWsMessage = ChatMessage | ChatControlMessage | ChannelResponseMessage;
 
 export type AdminMessage = {
   type: string;
@@ -84,6 +94,7 @@ export class WebSocketManager extends EventEmitter {
   private _commands: Array<{ name: string; description: string }> = [];
   private status: ConnectionStatus = { chat: 'disconnected', admin: 'disconnected' };
   private adminRequests = new Map<string, (msg: AdminMessage) => void>();
+  private channelRequests = new Map<string, (msg: AdminMessage) => void>();
   private reconnectEnabled = false;
   private generation = 0;
   private reconnectTimers = new Map<'chat' | 'admin', ReturnType<typeof setTimeout>>();
@@ -111,6 +122,7 @@ export class WebSocketManager extends EventEmitter {
     this.generation++;
     this.clearReconnectTimers();
     this.rejectPendingAdminRequests('Admin WS 已断开');
+    this.rejectPendingChannelRequests('Channel WS 已断开');
     this.chatWs?.close();
     this.adminWs?.close();
     this.chatWs = null;
@@ -200,6 +212,37 @@ export class WebSocketManager extends EventEmitter {
 
   // ─── 管理请求 ──────────────────────────────────────────────────
 
+  async sendChannelRequest(request: {
+    type: string;
+    requestId: string;
+    payload?: unknown;
+  }): Promise<AdminMessage> {
+    return await new Promise((resolve) => {
+      if (this.chatWs?.readyState !== WebSocket.OPEN) {
+        resolve({ type: request.type, ok: false, error: 'Channel WS 未连接' });
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        this.channelRequests.delete(request.requestId);
+        resolve({ type: request.type, ok: false, error: '请求超时' });
+      }, 10000);
+
+      this.channelRequests.set(request.requestId, (msg) => {
+        clearTimeout(timeout);
+        resolve({ ...msg, type: request.type });
+      });
+      this.chatWs.send(
+        JSON.stringify({
+          type: 'config_request',
+          requestId: request.requestId,
+          action: request.type,
+          data: request.payload,
+        }),
+      );
+    });
+  }
+
   async sendAdminRequest(request: {
     type: string;
     requestId: string;
@@ -243,6 +286,13 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
+  private rejectPendingChannelRequests(error: string): void {
+    for (const [requestId, resolve] of this.channelRequests) {
+      this.channelRequests.delete(requestId);
+      resolve({ type: 'channel', ok: false, error });
+    }
+  }
+
   private clearReconnectTimers(): void {
     for (const timer of this.reconnectTimers.values()) {
       clearTimeout(timer);
@@ -273,6 +323,14 @@ export class WebSocketManager extends EventEmitter {
           this.connectAdmin();
           return;
         }
+        if (msg.type === 'config_response') {
+          const pending = msg.requestId ? this.channelRequests.get(msg.requestId) : undefined;
+          if (pending && msg.requestId) {
+            this.channelRequests.delete(msg.requestId);
+            pending(msg as AdminMessage);
+          }
+          return;
+        }
         this.emit('chat-message', msg);
       } catch {
         // 忽略无效消息
@@ -283,6 +341,7 @@ export class WebSocketManager extends EventEmitter {
       if (generation !== this.generation) return;
       this.chatWs = null;
       this.status.chat = 'disconnected';
+      this.rejectPendingChannelRequests('Channel WS 已断开');
       this.emit('status-change', this.getStatus());
       this.scheduleReconnect('chat', generation);
     });

@@ -1,10 +1,11 @@
 /**
  * file-watcher — 配置文件热重载监视器。
  *
- * 从 ConfigManager 中提取，专注于使用 conf 库的 onDidAnyChange
- * 监听配置文件变更并触发回调。
+ * 从 ConfigManager 中提取，专注于监听配置文件变更并触发回调。
  */
 
+import { watch, type FSWatcher } from 'node:fs';
+import { basename, dirname } from 'node:path';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('config-file-watcher');
@@ -15,6 +16,8 @@ const logger = createScopedLogger('config-file-watcher');
  */
 export class ConfigFileWatcher {
   private unsubscribe?: () => void;
+  private fsWatcher?: FSWatcher;
+  private debounceTimer?: ReturnType<typeof setTimeout>;
   private readonly onConfigChange: () => void;
 
   /**
@@ -25,11 +28,26 @@ export class ConfigFileWatcher {
   }
 
   /** 启动监视器。停止已存在的监视器后再重新启动。 */
-  start(configStore: { onDidAnyChange: (cb: () => void) => () => void }): void {
+  start(configStore: { onDidAnyChange: (cb: () => void) => () => void }, configPath: string): void {
     this.stop();
-    this.unsubscribe = configStore.onDidAnyChange(() => {
-      this.onConfigChange();
+
+    const scheduleReload = (): void => {
+      if (this.debounceTimer !== undefined) clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(() => {
+        this.debounceTimer = undefined;
+        this.onConfigChange();
+      }, 50);
+    };
+
+    this.unsubscribe = configStore.onDidAnyChange(scheduleReload);
+    const configFileName = basename(configPath);
+    this.fsWatcher = watch(dirname(configPath), (_eventType, filename) => {
+      if (filename === null || filename === configFileName) scheduleReload();
     });
+    this.fsWatcher.on('error', (err) => {
+      logger.error('配置文件热重载监听失败', err);
+    });
+
     logger.info('热重载监视器已启动');
   }
 
@@ -37,6 +55,12 @@ export class ConfigFileWatcher {
   stop(): void {
     this.unsubscribe?.();
     this.unsubscribe = undefined;
+    this.fsWatcher?.close();
+    this.fsWatcher = undefined;
+    if (this.debounceTimer !== undefined) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = undefined;
+    }
     logger.info('热重载监视器已停止');
   }
 }

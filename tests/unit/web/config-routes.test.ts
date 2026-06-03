@@ -17,6 +17,7 @@ function makeDeps(config: Record<string, unknown>) {
       }),
       set: vi.fn(async (_path: string, _value: unknown) => undefined),
       patch: vi.fn(async (_path: string, _value: Record<string, unknown>) => undefined),
+      update: vi.fn(async (_value: Record<string, unknown>) => undefined),
     },
   } as unknown as WebUiManagerDependencies;
 }
@@ -35,7 +36,7 @@ describe('config service', () => {
     expect(result).toEqual(config);
   });
 
-  it('uses set for providers update', async () => {
+  it('uses atomic config update for partial updates', async () => {
     const deps = makeDeps({});
     const body = {
       providers: { openai: { apiKey: '***', baseUrl: 'https://new.example.test' } },
@@ -43,7 +44,9 @@ describe('config service', () => {
 
     await updateConfig(deps, body);
 
-    expect(deps.configManager.set).toHaveBeenCalledWith('providers', body.providers);
+    expect(deps.configManager.update).toHaveBeenCalledWith(body);
+    expect(deps.configManager.set).not.toHaveBeenCalled();
+    expect(deps.configManager.patch).not.toHaveBeenCalled();
   });
 });
 
