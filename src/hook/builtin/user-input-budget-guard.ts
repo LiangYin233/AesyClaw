@@ -1,8 +1,8 @@
 /**
  * user-input-budget-guard — 在进入 Agent 前拒绝过长的用户输入。
  *
- * 当前用户输入本身超过上下文预算时，压缩历史无法解决问题。
- * 这个 Hook 在 pipeline:beforeAgent 阶段直接回复用户，并记录 warn 日志。
+ * 当前消息内容超过剩余上下文预算时，压缩历史无法解决问题。
+ * 这个 Hook 在 pipeline:beforeAgent 阶段最后运行，直接回复用户，并记录 warn 日志。
  */
 import type { AgentMessage } from '@aesyclaw/contracts/llm';
 import { getMessageText } from '@aesyclaw/core/types';
@@ -30,7 +30,7 @@ export function createUserInputBudgetGuardHook(): HookRegistration {
   return {
     id: USER_INPUT_BUDGET_GUARD_HOOK_ID,
     chain: 'pipeline:beforeAgent',
-    priority: 90,
+    priority: Number.MAX_SAFE_INTEGER,
     enabled: true,
     handler: createUserInputBudgetGuardMiddleware(),
   };
