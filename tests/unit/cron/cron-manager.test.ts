@@ -35,6 +35,7 @@ class FakeCronJobRepo implements CronJobsRepository {
       prompt: params.prompt,
       sessionKey: JSON.stringify(params.sessionKey),
       nextRun: params.nextRun?.toISOString() ?? null,
+      enabled: true,
       createdAt: new Date().toISOString(),
     });
     return id;
@@ -60,6 +61,36 @@ class FakeCronJobRepo implements CronJobsRepository {
     const job = this.jobs.get(id);
     if (!job) return false;
     job.nextRun = nextRun?.toISOString() ?? null;
+    return true;
+  }
+
+  async update(id: string, patch: Partial<{
+    scheduleType: string;
+    scheduleValue: string;
+    prompt: string;
+    sessionKey: SessionKey | string;
+    nextRun: Date | string | null;
+    enabled: boolean;
+  }>): Promise<CronJobRecord | null> {
+    const job = this.jobs.get(id);
+    if (!job) return null;
+    if (patch.scheduleType !== undefined) job.scheduleType = patch.scheduleType;
+    if (patch.scheduleValue !== undefined) job.scheduleValue = patch.scheduleValue;
+    if (patch.prompt !== undefined) job.prompt = patch.prompt;
+    if (patch.sessionKey !== undefined) {
+      job.sessionKey = typeof patch.sessionKey === 'string' ? patch.sessionKey : JSON.stringify(patch.sessionKey);
+    }
+    if (patch.nextRun !== undefined) {
+      job.nextRun = patch.nextRun instanceof Date ? patch.nextRun.toISOString() : patch.nextRun;
+    }
+    if (patch.enabled !== undefined) job.enabled = patch.enabled;
+    return job;
+  }
+
+  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
+    const job = this.jobs.get(id);
+    if (!job) return false;
+    job.enabled = enabled;
     return true;
   }
 }
@@ -400,6 +431,93 @@ describe('Cron', () => {
 
     await expect(manager.deleteJob(jobId)).rejects.toThrow('delete failed');
     expect(scheduler.count()).toBe(1);
+
+    await manager.destroy();
+  });
+
+  it('updates cron jobs and reschedules them', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const schedule = vi.fn();
+    const cancel = vi.fn();
+    const scheduler = {
+      schedule,
+      cancel,
+      clearAll: vi.fn(),
+      count: vi.fn(() => 0),
+    } as unknown as CronScheduler;
+    const manager = new CronManager(makeInitializeDeps({ jobs, runs, scheduler }));
+    await manager.initialize();
+
+    const jobId = await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'old prompt',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+
+    const updated = await manager.updateJob(jobId, {
+      scheduleType: 'interval',
+      scheduleValue: '1h',
+      prompt: 'new prompt',
+    });
+
+    expect(updated).toMatchObject({
+      id: jobId,
+      scheduleType: 'interval',
+      scheduleValue: '1h',
+      prompt: 'new prompt',
+      enabled: true,
+    });
+    expect(updated.nextRun).toBe(new Date('2026-04-26T11:00:00.000Z').toISOString());
+    expect(cancel).toHaveBeenCalledWith(jobId);
+    expect(schedule).toHaveBeenCalledTimes(2);
+    expect(schedule).toHaveBeenLastCalledWith(expect.objectContaining({ id: jobId, nextRun: updated.nextRun }), expect.any(Function));
+
+    await manager.destroy();
+  });
+
+  it('disables and re-enables cron schedules without blocking manual runs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const pipeline = makePipeline('manual response');
+    const schedule = vi.fn();
+    const cancel = vi.fn();
+    const scheduler = {
+      schedule,
+      cancel,
+      clearAll: vi.fn(),
+      count: vi.fn(() => 0),
+    } as unknown as CronScheduler;
+    const manager = new CronManager(makeInitializeDeps({ jobs, runs, pipeline, scheduler }));
+    await manager.initialize();
+
+    const jobId = await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'check status',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+
+    await manager.setJobEnabled(jobId, false);
+    expect(jobs.jobs.get(jobId)).toMatchObject({ enabled: false, nextRun: null });
+    expect(cancel).toHaveBeenCalledWith(jobId);
+
+    await expect(manager.runJobNow(jobId)).resolves.toBe('manual response');
+    expect(pipeline.receiveWithSend).toHaveBeenCalledTimes(1);
+
+    await manager.setJobEnabled(jobId, true);
+    expect(jobs.jobs.get(jobId)).toMatchObject({
+      enabled: true,
+      nextRun: new Date('2026-04-26T10:30:00.000Z').toISOString(),
+    });
+    expect(schedule).toHaveBeenCalledTimes(2);
 
     await manager.destroy();
   });
