@@ -183,8 +183,34 @@ export class BaseExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TC
   // ─── 核心生命周期方法 ───────────────────────────────────────
 
   /**
+   * 发现并加载所有已启用的扩展。
+   */
+  async setup(): Promise<void> {
+    await this.discoverFromDisk();
+    await this.startAll();
+  }
+
+  /**
+   * 卸载所有已加载的扩展。
+   */
+  async destroy(): Promise<void> {
+    await this.stopAll();
+  }
+
+  /**
+   * 按所有者注销所有扩展。
+   */
+  async unregisterByOwner(owner: string): Promise<void> {
+    for (const [name, loaded] of this.loadedExtensions) {
+      if (loaded.owner === owner) {
+        await this.unregister(name);
+      }
+    }
+  }
+
+  /**
    * 设置扩展运行时：从磁盘发现并注册所有扩展定义。
-   * 子类在 setup() 后调用 startAll() 启动已启用的扩展。
+   * setup() 调用此方法后再调用 startAll() 启动已启用的扩展。
    */
   protected async discoverFromDisk(): Promise<void> {
     const dirs = await discoverExtensionDirs({
@@ -244,14 +270,6 @@ export class BaseExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TC
     this.failedExtensions.delete(name);
     this.extensionDirs.delete(name);
     this.logger.debug(`${this.extensionType} 已注销`, { name });
-  }
-
-  /**
-   * 按所有者注销所有扩展。
-   */
-  async unregisterByOwner(owner: string): Promise<void> {
-    // 默认空实现，子类应覆盖以提供具体清理逻辑
-    this.logger.debug(`按所有者注销 ${this.extensionType}`, { owner });
   }
 
   /**

@@ -33,32 +33,6 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
     this.extensionsDir = deps.paths.extensionsDir;
   }
 
-  /**
-   * 发现并加载所有已启用的插件。
-   */
-  async setup(): Promise<void> {
-    await this.discoverFromDisk();
-    await this.startAll();
-  }
-
-  /**
-   * 卸载所有已加载的插件。
-   */
-  async destroy(): Promise<void> {
-    await this.stopAll();
-  }
-
-  /**
-   * 按所有者注销所有插件。
-   */
-  async unregisterByOwner(owner: string): Promise<void> {
-    for (const [name, loaded] of this.loadedExtensions) {
-      if (loaded.owner === owner) {
-        await this.unregister(name);
-      }
-    }
-  }
-
   // ─── 插件特有方法 ───────────────────────────────────────────
 
   /**

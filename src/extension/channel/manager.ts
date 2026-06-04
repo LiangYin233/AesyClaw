@@ -58,32 +58,6 @@ export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelC
     }
   }
 
-  /**
-   * 发现并加载所有已启用的频道。
-   */
-  async setup(): Promise<void> {
-    await this.discoverFromDisk();
-    await this.startAll();
-  }
-
-  /**
-   * 停止所有已加载的频道。
-   */
-  async destroy(): Promise<void> {
-    await this.stopAll();
-  }
-
-  /**
-   * 按所有者注销所有频道。
-   */
-  async unregisterByOwner(owner: string): Promise<void> {
-    for (const [name, loaded] of this.loadedExtensions) {
-      if (loaded.owner === owner) {
-        await this.unregister(name);
-      }
-    }
-  }
-
   // ─── 频道特有方法 ───────────────────────────────────────────
 
   /**
