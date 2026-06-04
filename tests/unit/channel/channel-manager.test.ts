@@ -273,9 +273,9 @@ describe('ChannelManager', () => {
       ]),
     );
     expect(manager.failedExtensions.get('bad')).toMatchObject({
-      phase: 'start',
       code: ErrorCode.EXTENSION_INIT_FAILED,
       message: 'boom',
+      details: { phase: 'start', extensionKind: 'channel', extensionName: 'bad' },
     });
   });
 
@@ -465,9 +465,9 @@ describe('ChannelManager', () => {
     expect(init).toHaveBeenCalledTimes(2);
     expect(manager.getLoaded('test')).toBeUndefined();
     expect(manager.failedExtensions.get('test')).toMatchObject({
-      phase: 'manualReload',
       code: ErrorCode.EXTENSION_INIT_FAILED,
       message: 'reload failed',
+      details: { phase: 'manualReload', extensionKind: 'channel', extensionName: 'test' },
     });
   });
 

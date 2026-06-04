@@ -114,4 +114,58 @@ export class ExtensionError extends AesyClawError {
       { ...details, extensionKind, extensionName, permission, path },
     );
   }
+
+  /**
+   * 将任意错误规范化为带扩展上下文的 ExtensionError。
+   *
+   * - ExtensionError/AesyClawError：保留原始错误码和详情，仅补充 phase 上下文。
+   * - 普通 Error/非 Error：根据 phase 映射错误码并包装。
+   */
+  static fromUnknown(
+    err: unknown,
+    phase: ExtensionFailurePhase,
+    extensionKind: ExtensionKind,
+    extensionName: string,
+  ): ExtensionError {
+    if (err instanceof ExtensionError) {
+      return err;
+    }
+
+    if (AesyClawError.isAesyClawError(err)) {
+      return new ExtensionError(
+        err.code,
+        err.message,
+        { ...err.details, phase, extensionKind, extensionName },
+        err.cause,
+      );
+    }
+
+    return new ExtensionError(
+      phaseToErrorCode(phase),
+      err instanceof Error ? err.message : String(err),
+      { phase, extensionKind, extensionName },
+      err instanceof Error ? err : undefined,
+    );
+  }
+}
+
+export type ExtensionFailurePhase =
+  | 'discover'
+  | 'load'
+  | 'start'
+  | 'enable'
+  | 'configReload'
+  | 'manualReload';
+
+function phaseToErrorCode(phase: ExtensionFailurePhase): ErrorCode {
+  switch (phase) {
+    case 'discover':
+    case 'load':
+      return ErrorCode.EXTENSION_LOAD_FAILED;
+    case 'start':
+    case 'enable':
+    case 'configReload':
+    case 'manualReload':
+      return ErrorCode.EXTENSION_INIT_FAILED;
+  }
 }

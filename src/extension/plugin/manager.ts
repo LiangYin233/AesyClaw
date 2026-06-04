@@ -1,7 +1,6 @@
 /** PluginManager — 插件生命周期 facade，委托统一 Extension host。 */
 
 import path from 'node:path';
-import { getExtensionFailureMessage } from '@aesyclaw/extension/failure';
 import { ExtensionManager } from '@aesyclaw/extension/manager';
 import { createPluginSpec } from './spec';
 import type {
@@ -96,8 +95,8 @@ export class PluginManager extends ExtensionManager<PluginDefinition, PluginCont
       const enabled = configLookup?.enabled ?? true;
       const name = module?.definition.name ?? directoryName;
       const error =
-        getExtensionFailureMessage(this.failedExtensions, name) ??
-        getExtensionFailureMessage(this.failedExtensions, directoryName);
+        this.failedExtensions.get(name)?.message ??
+        this.failedExtensions.get(directoryName)?.message;
       statuses.set(directoryName, {
         name,
         directoryName,

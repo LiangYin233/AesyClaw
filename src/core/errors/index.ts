@@ -12,7 +12,7 @@ export { AgentExecutionError } from './agent';
 export { ToolExecutionError } from './tool';
 export { ConfigurationError } from './config';
 export { ValidationError } from './validation';
-export { ExtensionError, type ExtensionKind } from './extension';
+export { ExtensionError, type ExtensionKind, type ExtensionFailurePhase } from './extension';
 
 // 错误工厂
 export { ErrorFactory, wrapAsync, wrapSync } from './factory';

@@ -6,7 +6,7 @@
 
 import path from 'node:path';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { recordExtensionFailure, type ExtensionFailure } from '@aesyclaw/extension/failure';
+import { ExtensionError, type ExtensionKind } from '@aesyclaw/core/errors';
 import { loadExtensionModule, discoverExtensionDirs } from '@aesyclaw/extension/extension-loader';
 import { discoverPluginDefinition, type PluginModule } from './types';
 
@@ -27,16 +27,16 @@ export async function discoverPluginDirs(extensionsDir: string): Promise<string[
 /** 安全加载插件模块（无缓存，每次都重新导入）。 */
 export async function safeLoadModule(
   pluginDir: string,
-  failedPlugins: Map<string, ExtensionFailure>,
+  failedPlugins: Map<string, ExtensionError>,
 ): Promise<PluginModule | null> {
   try {
     return await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
   } catch (err) {
     const directoryName = path.basename(pluginDir);
-    recordExtensionFailure(failedPlugins, directoryName, 'load', err, {
-      extensionKind: 'plugin',
-      extensionName: directoryName,
-    });
+    failedPlugins.set(
+      directoryName,
+      ExtensionError.fromUnknown(err, 'load', 'plugin' satisfies ExtensionKind, directoryName),
+    );
     return null;
   }
 }

@@ -8,13 +8,13 @@
 
 import { basename } from 'node:path';
 import { createScopedLogger, type Logger } from '@aesyclaw/core/logger';
-import { ErrorCode, ExtensionError, errorMessage, type ExtensionKind } from '@aesyclaw/core/errors';
 import {
-  getExtensionFailureMessage,
-  recordExtensionFailure,
-  type ExtensionFailure,
+  ErrorCode,
+  ExtensionError,
+  errorMessage,
+  type ExtensionKind,
   type ExtensionFailurePhase,
-} from '@aesyclaw/extension/failure';
+} from '@aesyclaw/core/errors';
 import {
   extensionConfigsEqual,
   getBusinessDefaults,
@@ -58,7 +58,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
   protected readonly loadedExtensions = new Map<string, LoadedExtension<TDef, TCtx>>();
 
   /** 加载失败的扩展（名称/目录名 → 结构化失败状态） */
-  readonly failedExtensions = new Map<string, ExtensionFailure>();
+  readonly failedExtensions = new Map<string, ExtensionError>();
 
   /** 配置引用缓存（扩展名称 → { current }），支持热更新 */
   protected readonly configRefs = new Map<string, { current: Record<string, unknown> }>();
@@ -84,10 +84,10 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
     err: unknown,
     extensionName = key,
   ): void {
-    recordExtensionFailure(this.failedExtensions, key, phase, err, {
-      extensionKind: this.extensionType,
-      extensionName,
-    });
+    this.failedExtensions.set(
+      key,
+      ExtensionError.fromUnknown(err, phase, this.extensionType, extensionName),
+    );
   }
 
   protected get configKey(): string {
@@ -613,7 +613,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
     const statuses: ExtensionStatus[] = [];
     for (const definition of this.definitions.values()) {
       const enabled = this.isDefinitionEnabled(definition.name);
-      const error = getExtensionFailureMessage(this.failedExtensions, definition.name);
+      const error = this.failedExtensions.get(definition.name)?.message;
       statuses.push({
         name: definition.name,
         version: definition.version,

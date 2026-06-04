@@ -387,9 +387,9 @@ describe('PluginManager', () => {
     await expect(manager.setup()).resolves.toBeUndefined();
     expect(manager.getLoaded('alpha')).toBeUndefined();
     expect(manager.failedExtensions.get('alpha')).toMatchObject({
-      phase: 'start',
       code: ErrorCode.EXTENSION_INIT_FAILED,
       message: 'explosion',
+      details: { phase: 'start', extensionKind: 'plugin', extensionName: 'alpha' },
     });
   });
 
