@@ -571,7 +571,6 @@ await ctx.control.skills.getContent(name);
 - `enabled` 是框架管理字段，用于启用或禁用整个 `plugin_webui`。
 - `host` / `port` 是 WebUI HTTP + WebSocket 服务监听地址。
 - `authToken` 用于 WebUI WebSocket 鉴权；首次启动时如果缺失会自动生成。
-- 不再使用 `enabledServer` 或 `devServerUrl`；是否启动 WebUI 服务由 `plugins.webui.enabled` 决定。
 
 WebUI 需要读写多段全局配置，因此声明了配置权限：
 

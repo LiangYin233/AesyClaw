@@ -308,7 +308,7 @@ describe('PluginManager', () => {
       },
     });
     const config = new FakeConfigManager();
-    config.plugins = { alpha: { enabled: true, greeting: 'old', legacy: true } };
+    config.plugins = { alpha: { enabled: true, greeting: 'old', extra: true } };
 
     const { manager } = await makeManager(module, config);
     await manager.setup();
