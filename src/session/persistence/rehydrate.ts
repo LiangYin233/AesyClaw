@@ -20,7 +20,7 @@ export async function loadAndRehydrateMessages(
   return rehydrateMessages(records);
 }
 
-export function rehydrateMessages(records: readonly PersistableMessage[]): AgentMessage[] {
+function rehydrateMessages(records: readonly PersistableMessage[]): AgentMessage[] {
   return records.map((record) => rehydrateMessage(record));
 }
 

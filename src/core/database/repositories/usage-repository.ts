@@ -38,7 +38,7 @@ function mapRow(row: UsageRow): UsageSummary {
 // ─── 公共 API ───────────────────────────────────────────────────
 
 /** 插入单条用量记录。返回生成的行 ID。 */
-export function insertUsageRecord(
+function insertUsageRecord(
   db: DatabaseSync,
   record: UsageRecord,
   timestamp = new Date().toISOString(),

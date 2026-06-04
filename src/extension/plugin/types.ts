@@ -160,7 +160,7 @@ export function pluginOwner(pluginName: string): ToolOwner {
   return `plugin:${pluginName}`;
 }
 /** 校验未知值是否符合 PluginDefinition 结构。 */
-export function isPluginDefinition(value: unknown): value is PluginDefinition {
+function isPluginDefinition(value: unknown): value is PluginDefinition {
   const validated = validateExtension<PluginDefinition & Record<string, unknown>>(value);
   if (validated === false) return false;
   // 破坏式重构：插件不再支持 defaultConfig / middlewares。
