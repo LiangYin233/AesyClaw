@@ -197,7 +197,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import type { ConnectionStatus } from '../../preload/index';
 
-const status = ref<ConnectionStatus>({ chat: 'disconnected', admin: 'disconnected' });
+const status = ref<ConnectionStatus>({ chat: 'disconnected' });
 const isMaximized = ref(false);
 const sidebarCollapsed = ref(localStorage.getItem('desktop-sidebar-collapsed') === 'true');
 const route = useRoute();

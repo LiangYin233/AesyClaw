@@ -21,24 +21,12 @@
             </span>
           </div>
           <div class="info-row">
-            <span class="info-label">Admin Server</span>
-            <span class="info-value">
-              <span class="badge" :class="statusBadge(status.admin)">{{
-                statusLabel(status.admin)
-              }}</span>
-            </span>
-          </div>
-          <div class="info-row">
             <span class="info-label">Host</span>
             <span class="info-value">{{ connection.host }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">Desktop Channel Port</span>
             <span class="info-value">{{ connection.desktopPort }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Admin Port</span>
-            <span class="info-value">{{ connection.adminPort }}</span>
           </div>
         </div>
       </section>
@@ -51,28 +39,16 @@
             Host
             <input v-model="connectionForm.host" class="field-input" placeholder="127.0.0.1" />
           </label>
-          <div class="field-grid">
-            <label class="field-label">
-              Desktop Channel Port
-              <input
-                v-model.number="connectionForm.desktopPort"
-                class="field-input"
-                type="number"
-                min="1"
-                max="65535"
-              />
-            </label>
-            <label class="field-label">
-              Admin Port
-              <input
-                v-model.number="connectionForm.adminPort"
-                class="field-input"
-                type="number"
-                min="1"
-                max="65535"
-              />
-            </label>
-          </div>
+          <label class="field-label">
+            Desktop Channel Port
+            <input
+              v-model.number="connectionForm.desktopPort"
+              class="field-input"
+              type="number"
+              min="1"
+              max="65535"
+            />
+          </label>
           <label class="field-label">
             Desktop Token
             <input v-model="connectionForm.token" class="field-input" placeholder="desktop-local" />
@@ -143,7 +119,7 @@ import {
 import type { ConnectionStatus } from '../../preload/index';
 import ConfigSectionEditor from '../components/ConfigSectionEditor.vue';
 
-const status = ref<ConnectionStatus>({ chat: 'disconnected', admin: 'disconnected' });
+const status = ref<ConnectionStatus>({ chat: 'disconnected' });
 const connection = ref<DesktopConnectionConfig>({ ...DEFAULT_CONNECTION_CONFIG });
 const connectionForm = ref<DesktopConnectionConfig>({ ...connection.value });
 const connectionError = ref('');
@@ -190,20 +166,19 @@ function normalizeConnectionForm(config: DesktopConnectionConfig): DesktopConnec
   const host = config.host.trim();
   const token = config.token.trim();
   const desktopPort = Number(config.desktopPort);
-  const adminPort = Number(config.adminPort);
   if (!isValidConnectionHost(host)) {
     connectionError.value = 'Host must be a hostname or IP address without scheme, path, or port';
     return null;
   }
-  if (!isValidPort(desktopPort) || !isValidPort(adminPort)) {
-    connectionError.value = 'Ports must be between 1 and 65535';
+  if (!isValidPort(desktopPort)) {
+    connectionError.value = 'Port must be between 1 and 65535';
     return null;
   }
   if (!token) {
     connectionError.value = 'Desktop token is required';
     return null;
   }
-  return { host, desktopPort, adminPort, token };
+  return { host, desktopPort, token };
 }
 
 function isValidPort(port: number): boolean {

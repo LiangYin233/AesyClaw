@@ -114,7 +114,7 @@ const contextUsage = ref<{
 
 onMounted(() => {
   unsubscribeStatus = window.aesyclaw.onStatusChange((status) => {
-    if (status.admin === 'connected') {
+    if (status.chat === 'connected') {
       void syncAndLoadActiveSession();
     }
   });

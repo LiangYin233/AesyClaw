@@ -3,7 +3,6 @@ import {
   normalizeConnectionConfig,
   isValidConnectionHost,
   buildDesktopWsUrl,
-  buildAdminWsUrl,
   DEFAULT_CONNECTION_CONFIG,
 } from '../../../desktop/src/shared/connection';
 
@@ -75,11 +74,6 @@ describe('normalizeConnectionConfig', () => {
     expect(result.desktopPort).toBe(DEFAULT_CONNECTION_CONFIG.desktopPort);
   });
 
-  it('falls back to default for invalid port (>65535)', () => {
-    const result = normalizeConnectionConfig({ adminPort: 70000 as unknown as number });
-    expect(result.adminPort).toBe(DEFAULT_CONNECTION_CONFIG.adminPort);
-  });
-
   it('trims token', () => {
     const result = normalizeConnectionConfig({ token: '  my-token  ' });
     expect(result.token).toBe('my-token');
@@ -99,7 +93,6 @@ describe('normalizeConnectionConfig', () => {
     const customFallback = {
       host: '10.0.0.1',
       desktopPort: 9999,
-      adminPort: 8888,
       token: 'custom',
     };
     const result = normalizeConnectionConfig({}, { fallback: customFallback });
@@ -117,26 +110,8 @@ describe('buildDesktopWsUrl', () => {
     const url = buildDesktopWsUrl({
       host: '192.168.1.100',
       desktopPort: 9731,
-      adminPort: 3001,
       token: 'secret',
     });
     expect(url).toBe('ws://192.168.1.100:9731/ws?token=secret');
-  });
-});
-
-describe('buildAdminWsUrl', () => {
-  it('builds admin WS URL without token in query (appended later at connect time)', () => {
-    const url = buildAdminWsUrl(DEFAULT_CONNECTION_CONFIG);
-    expect(url).toBe('ws://127.0.0.1:3000/api/ws');
-  });
-
-  it('uses custom host and admin port', () => {
-    const url = buildAdminWsUrl({
-      host: '10.0.0.1',
-      desktopPort: 9730,
-      adminPort: 4000,
-      token: 'x',
-    });
-    expect(url).toBe('ws://10.0.0.1:4000/api/ws');
   });
 });

@@ -25,7 +25,6 @@ export type DesktopServerOptions = {
   port: number;
   host?: string;
   authToken: string;
-  adminToken: string | (() => string);
   context: ChannelContext;
 };
 
@@ -40,7 +39,6 @@ export class DesktopServer {
       port: options.port,
       host: options.host,
       authToken: options.authToken,
-      adminToken: options.adminToken,
       getCommands: () => {
         return options.context.getCommands().map((cmd) => ({
           name: cmd.namespace ? `${cmd.namespace} ${cmd.name}` : cmd.name,

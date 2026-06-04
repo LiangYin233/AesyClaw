@@ -1,14 +1,12 @@
 export type DesktopConnectionConfig = {
   host: string;
   desktopPort: number;
-  adminPort: number;
   token: string;
 };
 
 export const DEFAULT_CONNECTION_CONFIG: DesktopConnectionConfig = {
   host: '127.0.0.1',
   desktopPort: 9730,
-  adminPort: 3000,
   token: 'desktop-local',
 };
 
@@ -21,7 +19,6 @@ export function normalizeConnectionConfig(
   return {
     host: normalizeHost(config.host, fallback.host, strict),
     desktopPort: normalizePort(config.desktopPort, fallback.desktopPort),
-    adminPort: normalizePort(config.adminPort, fallback.adminPort),
     token:
       typeof config.token === 'string' && config.token.trim()
         ? config.token.trim()
@@ -43,13 +40,6 @@ export function buildDesktopWsUrl(config: DesktopConnectionConfig): string {
   url.hostname = config.host;
   url.port = String(config.desktopPort);
   url.searchParams.set('token', config.token);
-  return url.toString();
-}
-
-export function buildAdminWsUrl(config: DesktopConnectionConfig): string {
-  const url = new URL('ws://127.0.0.1/api/ws');
-  url.hostname = config.host;
-  url.port = String(config.adminPort);
   return url.toString();
 }
 

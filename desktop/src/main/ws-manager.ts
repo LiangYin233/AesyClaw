@@ -1,8 +1,6 @@
 /** WebSocket 连接管理器。
  *
- * 管理到 AesyClaw 的双 WebSocket 连接：
- * - chatWs：聊天消息流（channel_desktop 插件端口 9730）
- * - adminWs：管理面板（Hono 服务端口 3000 /api/ws）
+ * 管理到 AesyClaw Desktop channel 的 WebSocket 连接。
  *
  * 支持自动重连、心跳、事件分发。
  */
@@ -49,7 +47,6 @@ export type ChatMessage =
   | { type: 'session_messages'; requestId?: string; sessionId: string; data: unknown };
 type ChatControlMessage = {
   type: 'auth';
-  adminToken: string;
   commands?: Array<{ name: string; description: string }>;
 };
 
@@ -63,7 +60,7 @@ type ChannelResponseMessage = {
 
 type ChatWsMessage = ChatMessage | ChatControlMessage | ChannelResponseMessage;
 
-export type AdminMessage = {
+export type ChannelResponse = {
   type: string;
   requestId?: string;
   ok: boolean;
@@ -73,7 +70,6 @@ export type AdminMessage = {
 
 export type ConnectionStatus = {
   chat: 'connected' | 'connecting' | 'disconnected';
-  admin: 'connected' | 'connecting' | 'disconnected';
 };
 
 export type DesktopUploadFile = {
@@ -87,27 +83,21 @@ const RECONNECT_DELAY_MS = 3000;
 
 export class WebSocketManager extends EventEmitter {
   private chatWs: WebSocket | null = null;
-  private adminWs: WebSocket | null = null;
   private chatUrl: string;
-  private adminUrl: string;
-  private adminToken: string | null = null;
   private _commands: Array<{ name: string; description: string }> = [];
-  private status: ConnectionStatus = { chat: 'disconnected', admin: 'disconnected' };
-  private adminRequests = new Map<string, (msg: AdminMessage) => void>();
-  private channelRequests = new Map<string, (msg: AdminMessage) => void>();
+  private status: ConnectionStatus = { chat: 'disconnected' };
+  private channelRequests = new Map<string, (msg: ChannelResponse) => void>();
   private reconnectEnabled = false;
   private generation = 0;
-  private reconnectTimers = new Map<'chat' | 'admin', ReturnType<typeof setTimeout>>();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(chatUrl: string, adminUrl: string) {
+  constructor(chatUrl: string) {
     super();
     this.chatUrl = chatUrl;
-    this.adminUrl = adminUrl;
   }
 
-  updateUrls(chatUrl: string, adminUrl: string): void {
+  updateUrl(chatUrl: string): void {
     this.chatUrl = chatUrl;
-    this.adminUrl = adminUrl;
   }
 
   // ─── 连接管理 ──────────────────────────────────────────────────
@@ -120,14 +110,11 @@ export class WebSocketManager extends EventEmitter {
   disconnect(): void {
     this.reconnectEnabled = false;
     this.generation++;
-    this.clearReconnectTimers();
-    this.rejectPendingAdminRequests('Admin WS 已断开');
+    this.clearReconnectTimer();
     this.rejectPendingChannelRequests('Channel WS 已断开');
     this.chatWs?.close();
-    this.adminWs?.close();
     this.chatWs = null;
-    this.adminWs = null;
-    this.status = { chat: 'disconnected', admin: 'disconnected' };
+    this.status = { chat: 'disconnected' };
     this.emit('status-change', this.getStatus());
   }
 
@@ -216,7 +203,7 @@ export class WebSocketManager extends EventEmitter {
     type: string;
     requestId: string;
     payload?: unknown;
-  }): Promise<AdminMessage> {
+  }): Promise<ChannelResponse> {
     return await new Promise((resolve) => {
       if (this.chatWs?.readyState !== WebSocket.OPEN) {
         resolve({ type: request.type, ok: false, error: 'Channel WS 未连接' });
@@ -243,47 +230,10 @@ export class WebSocketManager extends EventEmitter {
     });
   }
 
-  async sendAdminRequest(request: {
-    type: string;
-    requestId: string;
-    payload?: unknown;
-  }): Promise<AdminMessage> {
-    return await new Promise((resolve) => {
-      if (this.adminWs?.readyState !== WebSocket.OPEN) {
-        resolve({ type: request.type, ok: false, error: 'Admin WS 未连接' });
-        return;
-      }
-
-      const timeout = setTimeout(() => {
-        this.adminRequests.delete(request.requestId);
-        resolve({ type: request.type, ok: false, error: '请求超时' });
-      }, 10000);
-
-      this.adminRequests.set(request.requestId, (msg) => {
-        clearTimeout(timeout);
-        resolve(msg);
-      });
-      this.adminWs.send(
-        JSON.stringify({
-          type: request.type,
-          requestId: request.requestId,
-          data: request.payload,
-        }),
-      );
-    });
-  }
-
   // ─── 私有方法 ──────────────────────────────────────────────────
 
   private isSocketActive(ws: WebSocket | null): boolean {
     return ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING;
-  }
-
-  private rejectPendingAdminRequests(error: string): void {
-    for (const [requestId, resolve] of this.adminRequests) {
-      this.adminRequests.delete(requestId);
-      resolve({ type: 'admin', ok: false, error });
-    }
   }
 
   private rejectPendingChannelRequests(error: string): void {
@@ -293,11 +243,11 @@ export class WebSocketManager extends EventEmitter {
     }
   }
 
-  private clearReconnectTimers(): void {
-    for (const timer of this.reconnectTimers.values()) {
-      clearTimeout(timer);
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
-    this.reconnectTimers.clear();
   }
 
   private connectChat(): void {
@@ -317,17 +267,15 @@ export class WebSocketManager extends EventEmitter {
       try {
         const msg = JSON.parse(data.toString()) as ChatWsMessage;
         if (msg.type === 'auth') {
-          this.adminToken = msg.adminToken;
           this._commands = msg.commands ?? [];
           this.emit('chat-commands', this._commands);
-          this.connectAdmin();
           return;
         }
         if (msg.type === 'config_response') {
           const pending = msg.requestId ? this.channelRequests.get(msg.requestId) : undefined;
           if (pending && msg.requestId) {
             this.channelRequests.delete(msg.requestId);
-            pending(msg as AdminMessage);
+            pending(msg as ChannelResponse);
           }
           return;
         }
@@ -343,7 +291,7 @@ export class WebSocketManager extends EventEmitter {
       this.status.chat = 'disconnected';
       this.rejectPendingChannelRequests('Channel WS 已断开');
       this.emit('status-change', this.getStatus());
-      this.scheduleReconnect('chat', generation);
+      this.scheduleReconnect(generation);
     });
 
     this.chatWs.on('error', () => {
@@ -351,78 +299,14 @@ export class WebSocketManager extends EventEmitter {
     });
   }
 
-  private connectAdmin(): void {
-    if (this.isSocketActive(this.adminWs)) return;
-    const generation = this.generation;
-    const adminUrl = this.resolveAdminUrl();
-    if (!adminUrl) return;
-
-    this.status.admin = 'connecting';
-    this.emit('status-change', this.getStatus());
-
-    this.adminWs = new WebSocket(adminUrl);
-
-    this.adminWs.on('open', () => {
-      this.status.admin = 'connected';
-      this.emit('status-change', this.getStatus());
-    });
-
-    this.adminWs.on('message', (data) => {
-      try {
-        const msg = JSON.parse(data.toString()) as AdminMessage;
-        if (msg.type === 'pong') return;
-
-        // 匹配请求
-        if (msg.requestId) {
-          const pending = this.adminRequests.get(msg.requestId);
-          if (pending) {
-            this.adminRequests.delete(msg.requestId);
-            pending(msg);
-            return;
-          }
-        }
-
-        this.emit('admin-message', msg);
-      } catch {
-        // 忽略无效消息
-      }
-    });
-
-    this.adminWs.on('close', () => {
-      if (generation !== this.generation) return;
-      this.adminWs = null;
-      this.status.admin = 'disconnected';
-      this.emit('status-change', this.getStatus());
-      this.scheduleReconnect('admin', generation);
-    });
-
-    this.adminWs.on('error', () => {
-      // 由 close 事件处理重连
-    });
-  }
-
-  private resolveAdminUrl(): string | null {
-    if (!this.adminToken) return null;
-
-    const url = new URL(this.adminUrl);
-    url.searchParams.set('token', this.adminToken);
-    return url.toString();
-  }
-
-  private scheduleReconnect(target: 'chat' | 'admin', generation: number): void {
+  private scheduleReconnect(generation: number): void {
     if (!this.reconnectEnabled || generation !== this.generation) return;
-    const existing = this.reconnectTimers.get(target);
-    if (existing) clearTimeout(existing);
+    if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
 
-    const timer = setTimeout(() => {
-      this.reconnectTimers.delete(target);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       if (!this.reconnectEnabled || generation !== this.generation) return;
-      if (target === 'chat') {
-        this.connectChat();
-      } else {
-        this.connectAdmin();
-      }
+      this.connectChat();
     }, RECONNECT_DELAY_MS);
-    this.reconnectTimers.set(target, timer);
   }
 }

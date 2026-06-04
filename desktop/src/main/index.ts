@@ -2,7 +2,7 @@
  *
  * 职责：
  * - 创建 BrowserWindow (frameless + 自绘窗口控件)
- * - 管理 WebSocket 连接（聊天 + 管理）
+ * - 管理 Desktop channel WebSocket 连接
  * - IPC 桥接：暴露 API 给渲染进程
  */
 
@@ -11,7 +11,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { WebSocketManager, type DesktopUploadFile } from './ws-manager';
 import {
-  buildAdminWsUrl,
   buildDesktopWsUrl,
   DEFAULT_CONNECTION_CONFIG,
   normalizeConnectionConfig,
@@ -118,16 +117,8 @@ function setupIpc(): void {
     },
   );
 
-  ipcMain.handle(
-    'admin:request',
-    async (_event, request: { type: string; requestId: string; payload?: unknown }) => {
-      return await (wsManager?.sendAdminRequest(request) ??
-        Promise.resolve({ ok: false, error: 'Admin WS 未连接' }));
-    },
-  );
-
   ipcMain.handle('status:get', async () => {
-    return wsManager?.getStatus() ?? { chat: 'disconnected', admin: 'disconnected' };
+    return wsManager?.getStatus() ?? { chat: 'disconnected' };
   });
 
   ipcMain.handle('commands:get', async () => {
@@ -142,7 +133,7 @@ function setupIpc(): void {
     const normalized = normalizeConnectionConfig(config, { strict: true });
     saveConnectionConfig(normalized);
     wsManager?.disconnect();
-    wsManager?.updateUrls(buildDesktopWsUrl(normalized), buildAdminWsUrl(normalized));
+    wsManager?.updateUrl(buildDesktopWsUrl(normalized));
     wsManager?.connect();
     return normalized;
   });
@@ -198,12 +189,8 @@ void app.whenReady().then(() => {
   createWindow();
 
   const connectionConfig = loadConnectionConfig();
-  wsManager = new WebSocketManager(
-    buildDesktopWsUrl(connectionConfig),
-    buildAdminWsUrl(connectionConfig),
-  );
+  wsManager = new WebSocketManager(buildDesktopWsUrl(connectionConfig));
   wsManager.on('chat-message', (msg) => mainWindow?.webContents.send('chat:message', msg));
-  wsManager.on('admin-message', (msg) => mainWindow?.webContents.send('admin:message', msg));
   wsManager.on('status-change', (status) => mainWindow?.webContents.send('status:change', status));
   wsManager.on('chat-commands', (cmds) => mainWindow?.webContents.send('chat:commands', cmds));
   wsManager.connect();

@@ -26,15 +26,11 @@ export const channel: ChannelPlugin = {
     const config = ctx.config as DesktopChannelConfig;
 
     const authToken = config.authToken;
-    const getAdminToken = (): string =>
-      (ctx.configManager.get('plugins.webui.authToken') as string | undefined) ?? '';
 
     server = new DesktopServer({
       port: config.port ?? 9730,
       host: config.host ?? '127.0.0.1',
       authToken,
-      adminToken: getAdminToken,
-
       context: ctx,
     });
 

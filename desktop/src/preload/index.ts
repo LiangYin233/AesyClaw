@@ -83,7 +83,7 @@ export type DesktopUploadFile = {
   data: ArrayBuffer;
 };
 
-export type AdminMessageEvent = {
+export type ChannelResponseEvent = {
   type: string;
   requestId?: string;
   ok: boolean;
@@ -93,7 +93,6 @@ export type AdminMessageEvent = {
 
 export type ConnectionStatus = {
   chat: 'connected' | 'connecting' | 'disconnected';
-  admin: 'connected' | 'connecting' | 'disconnected';
 };
 
 export type DesktopCommand = {
@@ -121,17 +120,7 @@ const api = {
       type,
       requestId,
       payload: toIpcCloneable(payload),
-    }) as Promise<AdminMessageEvent>;
-  },
-
-  /** 发送管理面板请求 */
-  adminRequest: (type: string, payload?: unknown) => {
-    const requestId = `${type}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    return ipcRenderer.invoke('admin:request', {
-      type,
-      requestId,
-      payload: toIpcCloneable(payload),
-    }) as Promise<AdminMessageEvent>;
+    }) as Promise<ChannelResponseEvent>;
   },
 
   /** 获取连接状态 */
@@ -162,16 +151,6 @@ const api = {
     };
   },
 
-  /** 监听管理消息 */
-  onAdminMessage: (callback: (msg: AdminMessageEvent) => void): (() => void) => {
-    const handler = (_event: unknown, msg: AdminMessageEvent): void => {
-      callback(msg);
-    };
-    ipcRenderer.on('admin:message', handler);
-    return () => {
-      ipcRenderer.removeListener('admin:message', handler);
-    };
-  },
   /** 监听桌面频道下发的可用命令列表 */
   onCommands: (callback: (commands: DesktopCommand[]) => void): (() => void) => {
     const handler = (_event: unknown, commands: DesktopCommand[]): void => {

@@ -84,7 +84,6 @@ describe('DesktopServer', () => {
     const server = new DesktopServer({
       port: 0,
       authToken: 'desktop-local',
-      adminToken: 'admin-local',
       context,
     });
 
@@ -106,7 +105,6 @@ describe('DesktopServer', () => {
     const server = new DesktopServer({
       port: 0,
       authToken: 'desktop-local',
-      adminToken: 'admin-local',
       context,
     });
     const sent = registerTestConnection(server);
@@ -131,7 +129,6 @@ describe('DesktopServer', () => {
     const server = new DesktopServer({
       port: 0,
       authToken: 'desktop-local',
-      adminToken: 'admin-local',
       context,
     });
     const sent = registerTestConnection(server);
@@ -168,7 +165,6 @@ describe('DesktopServer', () => {
     const server = new DesktopServer({
       port: 0,
       authToken: 'desktop-local',
-      adminToken: 'admin-local',
       context,
     });
     const sent = registerTestConnection(server);
@@ -200,7 +196,6 @@ describe('DesktopServer', () => {
     const server = new DesktopServer({
       port: 0,
       authToken: 'desktop-local',
-      adminToken: 'admin-local',
       context,
     });
     const sent = registerTestConnection(server);
