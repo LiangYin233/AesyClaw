@@ -31,7 +31,6 @@ export function createUserInputBudgetGuardHook(): HookRegistration {
     id: USER_INPUT_BUDGET_GUARD_HOOK_ID,
     chain: 'pipeline:beforeAgent',
     priority: Number.MAX_SAFE_INTEGER,
-
     handler: createUserInputBudgetGuardMiddleware(),
   };
 }
