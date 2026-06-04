@@ -1,4 +1,4 @@
-/** PluginManager — 插件生命周期管理，继承自 BaseExtensionManager。 */
+/** PluginManager — 插件生命周期 facade，委托统一 Extension host。 */
 
 import path from 'node:path';
 import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
@@ -16,22 +16,48 @@ import { discoverPluginDirs, safeLoadModule } from './loader';
 import { getPluginConfig } from './config';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import type { LoadedExtension } from '@aesyclaw/extension/types';
+import type { ExtensionRuntimeSpec } from '@aesyclaw/extension/spec';
+
+function createPluginSpec(
+  deps: PluginManagerDependencies,
+): ExtensionRuntimeSpec<PluginDefinition, PluginContext> {
+  return {
+    kind: 'plugin',
+    configKey: 'plugins',
+    dirPrefix: 'plugin_',
+    extensionsDir: deps.paths.extensionsDir,
+    discoverDefinition: discoverPluginDefinition,
+    createContext: ({ definition, ref, directory }) => {
+      const directoryName = directory ? path.basename(directory) : `plugin_${definition.name}`;
+      return createPluginContext(deps, deps.paths, definition, directoryName, ref);
+    },
+    validateConfig: (definition, config) => {
+      if (!definition.configSchema) return config;
+      const enabled = config['enabled'];
+      const validated = validateWithSchema<Record<string, unknown>>(
+        definition.configSchema,
+        stripEnabledField(config),
+        `plugin配置(${definition.name})`,
+      );
+      return enabled === undefined ? validated : { ...validated, enabled };
+    },
+    getManagedDefaults: () => ({ enabled: true }),
+    onBeforeUnload: (definition) => {
+      deps.hooksBus.unregisterByPrefix(`plugin:${definition.name}:`);
+    },
+  };
+}
 
 // ─── PluginManager ────────────────────────────────────────────
 
 /**
- * 插件管理器 — 负责插件的发现、加载、卸载、启用/禁用及配置热重载。
- * 继承自 BaseExtensionManager，复用通用生命周期逻辑。
+ * 插件管理器 — 负责插件发现、插件特有查询，以及委托统一 Extension host 管理生命周期。
  */
 export class PluginManager extends BaseExtensionManager<PluginDefinition, PluginContext> {
-  protected readonly extensionType = 'plugin';
-  protected readonly configKey = 'plugins';
-  protected readonly dirPrefix = 'plugin_';
-
   private readonly extensionsDir: string;
 
   constructor(private readonly deps: PluginManagerDependencies) {
-    super({
+    super(createPluginSpec(deps), {
       configManager: deps.configManager,
       toolRegistry: deps.toolRegistry,
       commandRegistry: deps.commandRegistry,
@@ -40,74 +66,11 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
     this.extensionsDir = deps.paths.extensionsDir;
   }
 
-  // ─── 抽象方法实现 ───────────────────────────────────────────
-
-  protected createContext(
-    definition: PluginDefinition,
-    _owner: string,
-    ref: { current: Record<string, unknown> },
-    _state: Record<string, unknown>,
-  ): PluginContext {
-    const directory = this.extensionDirs.get(definition.name);
-    const directoryName = directory ? path.basename(directory) : `plugin_${definition.name}`;
-    return createPluginContext(this.deps, this.deps.paths, definition, directoryName, ref);
-  }
-
-  protected discoverDefinition(imported: unknown): PluginDefinition | null {
-    return discoverPluginDefinition(imported);
-  }
-
-  protected validateConfig(
-    definition: PluginDefinition,
-    config: Record<string, unknown>,
-  ): Record<string, unknown> {
-    if (!definition.configSchema) return config;
-    const enabled = config['enabled'];
-    const validated = validateWithSchema<Record<string, unknown>>(
-      definition.configSchema,
-      stripEnabledField(config),
-      `${this.extensionType}配置(${definition.name})`,
-    );
-    return enabled === undefined ? validated : { ...validated, enabled };
-  }
-
-  // 插件默认启用；enabled 由框架管理，不属于插件业务 configSchema。
-  protected getManagedDefaults(_definition: PluginDefinition): Record<string, unknown> {
-    return { enabled: true };
-  }
-
-  // ─── 差异化钩子 ─────────────────────────────────────────────
-
-  protected async onBeforeUnload(
-    definition: PluginDefinition,
-    _context: PluginContext,
-  ): Promise<void> {
-    // 注销插件的中间件
-    this.hooksBus.unregisterByPrefix(`plugin:${definition.name}:`);
-  }
-
-  protected async findExtensionOnDisk(
-    name: string,
-  ): Promise<{ definition: PluginDefinition; directory?: string } | null> {
-    // 先查磁盘
-    const pluginDirs = await discoverPluginDirs(this.extensionsDir);
-    for (const pluginDir of pluginDirs) {
-      const module = await safeLoadModule(pluginDir, this.failedExtensions);
-      if (!module) continue;
-      if (module.definition.name === name) {
-        return { definition: module.definition, directory: pluginDir };
-      }
-    }
-    return null;
-  }
-
-  // ─── 扩展基类方法 ───────────────────────────────────────────
-
   /**
    * 发现并加载所有已启用的插件。
    */
   async setup(): Promise<void> {
-    await this.discoverFromDisk(this.extensionsDir);
+    await this.discoverFromDisk();
     await this.startAll();
   }
 
@@ -168,7 +131,6 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
   async listPlugins(): Promise<PluginStatus[]> {
     const statuses = new Map<string, PluginStatus>();
 
-    // 已加载的插件
     for (const loaded of this.loadedExtensions.values()) {
       const directory = this.extensionDirs.get(loaded.definition.name);
       const dirName = directory ? path.basename(directory) : `plugin_${loaded.definition.name}`;
@@ -183,7 +145,6 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
       });
     }
 
-    // 发现磁盘上的插件
     const discovered = await discoverPluginDirs(this.extensionsDir);
     for (const pluginDir of discovered) {
       const directoryName = path.basename(pluginDir);
@@ -242,5 +203,3 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
     return results;
   }
 }
-
-// ─── 辅助函数 ─────────────────────────────────────────────────

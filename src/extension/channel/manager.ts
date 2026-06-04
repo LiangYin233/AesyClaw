@@ -1,7 +1,7 @@
-/**
- * ChannelManager — 频道生命周期管理，继承自 BaseExtensionManager。
+/*
+ * ChannelManager — 频道生命周期 facade，委托统一 Extension host。
  *
- * 负责频道的发现、加载、卸载、启用/禁用、消息路由及配置热重载。
+ * 负责频道特有的消息路由，并将发现、加载、卸载、启用/禁用、热重载交给统一 host。
  */
 
 import { BaseExtensionManager } from '@aesyclaw/extension/base-manager';
@@ -14,110 +14,95 @@ import type {
   ChannelManagerDependencies,
 } from './types';
 import { discoverChannelDefinition } from './types';
-import { discoverExtensionDirs, loadExtensionModule } from '@aesyclaw/extension/extension-loader';
 import type { LoadedExtension } from '@aesyclaw/extension/types';
 import type { Message, OutboundSignal, SessionKey, SenderInfo } from '@aesyclaw/core/types';
+import type { ExtensionRuntimeSpec } from '@aesyclaw/extension/spec';
+import { getBusinessDefaults } from '@aesyclaw/extension/config';
+
+function createChannelSpec(
+  deps: ChannelManagerDependencies,
+  chunkBuffers: Map<string, string>,
+  receive: (
+    channelName: string,
+    inbound: Message,
+    sessionKey: SessionKey,
+    sender?: SenderInfo,
+  ) => Promise<void>,
+): ExtensionRuntimeSpec<ChannelPlugin, ChannelContext> {
+  return {
+    kind: 'channel',
+    configKey: 'channels',
+    dirPrefix: 'channel_',
+    extensionsDir: deps.paths.extensionsDir,
+    discoverDefinition: discoverChannelDefinition,
+    createContext: ({ definition, ref, state }) =>
+      createContext(
+        deps,
+        deps.paths,
+        definition.name,
+        ref,
+        async (msg, sk, sender) => {
+          await receive(definition.name, msg, sk, sender);
+        },
+        state,
+      ),
+    getManagedDefaults: (definition) => {
+      const { enabled: _enabled, ...defaults } = getBusinessDefaults(definition);
+      return { enabled: false, ...defaults };
+    },
+    onBeforeUnload: (definition) => {
+      router.cleanupChunkBuffers(chunkBuffers, definition.name);
+    },
+  };
+}
 
 // ─── ChannelManager ───────────────────────────────────────────
 
 /**
  * 频道管理器 — 注册、启动、停止频道适配器，并将入站消息桥接到管道。
- * 继承自 BaseExtensionManager，复用通用生命周期逻辑。
  */
 export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelContext> {
-  protected readonly extensionType = 'channel';
-  protected readonly configKey = 'channels';
-  protected readonly dirPrefix = 'channel_';
-
   /** 非流式频道的 chunk 缓冲区 — channel:session → 累积文本 */
-  private readonly chunkBuffers = new Map<string, string>();
+  private readonly chunkBuffers: Map<string, string>;
 
   constructor(private readonly deps: ChannelManagerDependencies) {
-    super({
-      configManager: deps.configManager,
-      toolRegistry: deps.toolRegistry,
-      commandRegistry: deps.commandRegistry,
-      hooksBus: deps.hooksBus,
-    });
-    // 注册构造时传入的频道
+    const chunkBuffers = new Map<string, string>();
+    const receiveBridge: {
+      current?: (
+        channelName: string,
+        inbound: Message,
+        sessionKey: SessionKey,
+        sender?: SenderInfo,
+      ) => Promise<void>;
+    } = {};
+    super(
+      createChannelSpec(deps, chunkBuffers, async (channelName, inbound, sessionKey, sender) => {
+        const receive = receiveBridge.current;
+        if (!receive) throw new Error('ChannelManager is not ready');
+        await receive(channelName, inbound, sessionKey, sender);
+      }),
+      {
+        configManager: deps.configManager,
+        toolRegistry: deps.toolRegistry,
+        commandRegistry: deps.commandRegistry,
+        hooksBus: deps.hooksBus,
+      },
+    );
+    this.chunkBuffers = chunkBuffers;
+    receiveBridge.current = async (channelName, inbound, sessionKey, sender) => {
+      await this.receive(channelName, inbound, sessionKey, sender);
+    };
+
     for (const channel of deps.channels ?? []) {
       this.register(channel);
     }
   }
 
-  // ─── 抽象方法实现 ───────────────────────────────────────────
-
-  protected createContext(
-    definition: ChannelPlugin,
-    _owner: string,
-    ref: { current: Record<string, unknown> },
-    state: Record<string, unknown>,
-  ): ChannelContext {
-    return createContext(
-      this.deps,
-      this.deps.paths,
-      definition.name,
-      ref,
-      async (msg, sk, sender) => {
-        await this.receive(definition.name, msg, sk, sender);
-      },
-      state,
-    );
-  }
-
-  protected discoverDefinition(imported: unknown): ChannelPlugin | null {
-    return discoverChannelDefinition(imported);
-  }
-
-  // 频道默认禁用（需要显式 enabled: true）
-  protected getManagedDefaults(definition: ChannelPlugin): Record<string, unknown> {
-    const { enabled: _enabled, ...defaults } = super.getManagedDefaults(definition);
-    return { enabled: false, ...defaults };
-  }
-
-  // ─── 差异化钩子 ─────────────────────────────────────────────
-
-  protected async onBeforeUnload(
-    definition: ChannelPlugin,
-    _context: ChannelContext,
-  ): Promise<void> {
-    // 清理该频道的所有 chunk 缓冲区
-    router.cleanupChunkBuffers(this.chunkBuffers, definition.name);
-  }
-
-  protected async findExtensionOnDisk(
-    name: string,
-  ): Promise<{ definition: ChannelPlugin; directory?: string } | null> {
-    const dirs = await discoverExtensionDirs({
-      extensionsDir: this.deps.paths.extensionsDir,
-      directoryPrefix: this.dirPrefix,
-      logger: this.logger,
-      unreadableMessage: '频道扩展目录不可读',
-      inspectFailureMessage: '检查频道目录候选失败',
-      candidateField: 'channelDir',
-    });
-    for (const dir of dirs) {
-      try {
-        const mod = await loadExtensionModule(dir, 'Channel', (imported) =>
-          this.discoverDefinition(imported),
-        );
-        if (mod.definition.name === name) {
-          return { definition: mod.definition, directory: dir };
-        }
-      } catch {
-        // 跳过加载失败的目录
-      }
-    }
-    return null;
-  }
-
-  // ─── 扩展基类方法 ───────────────────────────────────────────
-
   /**
    * 发现并加载所有已启用的频道。
    */
   async setup(): Promise<void> {
-    await this.discoverFromDisk(this.deps.paths.extensionsDir);
+    await this.discoverFromDisk();
     await this.startAll();
   }
 
@@ -168,7 +153,7 @@ export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelC
    * 出站消息路由入口。
    */
   async send(signal: OutboundSignal): Promise<void> {
-    await router.send(this.hooksBus, (n) => this.requireLoaded(n), this.chunkBuffers, signal);
+    await router.send(this.hooksBus, (name) => this.requireLoaded(name), this.chunkBuffers, signal);
   }
 
   /**
@@ -183,7 +168,7 @@ export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelC
     await router.receive(
       this.hooksBus,
       this.deps.pipeline,
-      (n) => this.requireLoaded(n),
+      (name) => this.requireLoaded(name),
       this.chunkBuffers,
       channelName,
       inbound,

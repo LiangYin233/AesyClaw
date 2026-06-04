@@ -1,9 +1,9 @@
 /**
- * BaseExtensionManager — 扩展生命周期管理的泛型基类。
+ * BaseExtensionManager — 统一扩展生命周期 host。
  *
- * 使用模板方法模式（Template Method Pattern），将 Plugin 和 Channel
- * 共享的生命周期逻辑（配置合并、TypeBox 校验、热重载状态机、Owner 清理）
- * 下沉到基类，子类只需实现差异化的 Context 构建和钩子逻辑。
+ * 将 Plugin 和 Channel 共享的生命周期逻辑（发现、配置合并、TypeBox 校验、
+ * 热重载状态机、Owner 清理）集中到一个 spec-driven host。Plugin/Channel 的
+ * 差异由 ExtensionRuntimeSpec 提供。
  */
 
 import { basename } from 'node:path';
@@ -39,16 +39,17 @@ import type {
   ExtensionStatus,
   ExtensionLifecycleState,
 } from './types';
+import type { ExtensionRuntimeSpec } from './spec';
 
-// ─── 抽象基类 ─────────────────────────────────────────────────
+// ─── 统一生命周期 host ────────────────────────────────────────
 
 /**
- * 扩展生命周期管理的泛型基类。
+ * 扩展生命周期管理的泛型 host。
  *
  * @template TDef - 扩展定义类型（PluginDefinition 或 ChannelPlugin）
  * @template TCtx - 扩展上下文类型（PluginContext 或 ChannelContext）
  */
-export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> {
+export class BaseExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> {
   /** 已注册的扩展定义（名称 → 定义） */
   readonly definitions = new Map<string, TDef>();
 
@@ -72,61 +73,70 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
   protected readonly commandRegistry: CommandRegistry;
   protected readonly hooksBus: IHooksBus;
 
-  /** 扩展类型标识（'plugin' 或 'channel'） */
-  protected abstract readonly extensionType: string;
+  protected get extensionType(): string {
+    return this.spec.kind;
+  }
 
-  /** 配置键名前缀（'plugins' 或 'channels'） */
-  protected abstract readonly configKey: string;
+  protected get configKey(): string {
+    return this.spec.configKey;
+  }
 
-  /** 目录名前缀（'plugin_' 或 'channel_'） */
-  protected abstract readonly dirPrefix: string;
+  protected get dirPrefix(): string {
+    return this.spec.dirPrefix;
+  }
 
-  constructor(deps: {
-    configManager: ConfigManager;
-    toolRegistry: ToolRegistry;
-    commandRegistry: CommandRegistry;
-    hooksBus: IHooksBus;
-  }) {
+  constructor(
+    private readonly spec: ExtensionRuntimeSpec<TDef, TCtx>,
+    deps: {
+      configManager: ConfigManager;
+      toolRegistry: ToolRegistry;
+      commandRegistry: CommandRegistry;
+      hooksBus: IHooksBus;
+    },
+  ) {
     this.configManager = deps.configManager;
     this.toolRegistry = deps.toolRegistry;
     this.commandRegistry = deps.commandRegistry;
     this.hooksBus = deps.hooksBus;
   }
-  // ─── 抽象方法：子类必须实现 ─────────────────────────────────
 
-  /**
-   * 创建扩展的上下文对象。
-   * 子类根据自身类型构建特定的 Context（PluginContext 或 ChannelContext）。
-   */
-  protected abstract createContext(
+  // ─── Spec 分发 ──────────────────────────────────────────────
+
+  protected createContext(
     definition: TDef,
-    owner: string,
+    owner: ToolOwner,
     ref: { current: Record<string, unknown> },
     state: Record<string, unknown>,
-  ): TCtx;
+  ): TCtx {
+    return this.spec.createContext({
+      definition,
+      owner,
+      ref,
+      state,
+      directory: this.extensionDirs.get(definition.name),
+    });
+  }
 
-  /**
-   * 从动态导入的模块中发现并校验扩展定义。
-   * 子类实现具体的校验逻辑（如额外检查 send 方法）。
-   */
-  protected abstract discoverDefinition(imported: unknown): TDef | null;
+  protected discoverDefinition(imported: unknown): TDef | null {
+    return this.spec.discoverDefinition(imported);
+  }
 
-  // ─── 可选钩子：子类可覆盖 ───────────────────────────────────
+  // ─── 可选钩子 ───────────────────────────────────────────────
 
   /**
    * 扩展加载完成后的钩子。
    * 用于 Plugin 注册中间件、Channel 注册路由等差异化逻辑。
    */
-  protected async onAfterLoad(_definition: TDef, _context: TCtx): Promise<void> {
-    // 默认无操作
+  protected async onAfterLoad(definition: TDef, context: TCtx): Promise<void> {
+    await this.spec.onAfterLoad?.(definition, context);
   }
 
   /**
    * 扩展卸载前的钩子。
    * 用于 Plugin 注销中间件、Channel 清理缓冲区等差异化逻辑。
    */
-  protected async onBeforeUnload(_definition: TDef, _context: TCtx): Promise<void> {
-    // 默认无操作
+  protected async onBeforeUnload(definition: TDef, context: TCtx): Promise<void> {
+    await this.spec.onBeforeUnload?.(definition, context);
   }
 
   /**
@@ -144,8 +154,29 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    * 子类可覆盖此方法以提供自定义的查找逻辑。
    */
   protected async findExtensionOnDisk(
-    _name: string,
+    name: string,
   ): Promise<{ definition: TDef; directory?: string } | null> {
+    const dirs = await discoverExtensionDirs({
+      extensionsDir: this.spec.extensionsDir,
+      directoryPrefix: this.dirPrefix,
+      logger: this.logger,
+      unreadableMessage: `${this.extensionType} 扩展目录不可读`,
+      inspectFailureMessage: `检查 ${this.extensionType} 目录候选失败`,
+      candidateField: `${this.extensionType}Dir`,
+    });
+
+    for (const dir of dirs) {
+      try {
+        const mod = await loadExtensionModule(dir, this.extensionType, (imported) =>
+          this.discoverDefinition(imported),
+        );
+        if (mod.definition.name === name) {
+          return { definition: mod.definition, directory: mod.directory };
+        }
+      } catch (err) {
+        recordExtensionFailure(this.failedExtensions, basename(dir), 'load', err);
+      }
+    }
     return null;
   }
 
@@ -155,9 +186,9 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    * 设置扩展运行时：从磁盘发现并注册所有扩展定义。
    * 子类在 setup() 后调用 startAll() 启动已启用的扩展。
    */
-  protected async discoverFromDisk(extensionsDir: string): Promise<void> {
+  protected async discoverFromDisk(): Promise<void> {
     const dirs = await discoverExtensionDirs({
-      extensionsDir,
+      extensionsDir: this.spec.extensionsDir,
       directoryPrefix: this.dirPrefix,
       logger: this.logger,
       unreadableMessage: `${this.extensionType} 扩展目录不可读`,
@@ -580,7 +611,11 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    * 校验扩展配置并填充 schema default。
    * 子类可覆盖以处理保留字段（如插件的 enabled）。
    */
-  protected validateConfig(definition: TDef, config: Record<string, unknown>): Record<string, unknown> {
+  protected validateConfig(
+    definition: TDef,
+    config: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (this.spec.validateConfig) return this.spec.validateConfig(definition, config);
     if (!definition.configSchema) return config;
     return validateWithSchema<Record<string, unknown>>(
       definition.configSchema,
@@ -603,7 +638,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    * enabled 是框架管理字段，具体默认值由插件/频道管理器分别决定。
    */
   protected getManagedDefaults(definition: TDef): Record<string, unknown> {
-    return getBusinessDefaults(definition);
+    return this.spec.getManagedDefaults?.(definition) ?? getBusinessDefaults(definition);
   }
 
   /**
