@@ -1,24 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  errorMessage,
-  isRecord,
-  mergeDefaults,
-  parseModelIdentifier,
-} from '../../../src/core/utils';
-
-describe('errorMessage', () => {
-  it('extracts message from Error instances', () => {
-    expect(errorMessage(new Error('test error'))).toBe('test error');
-  });
-
-  it('converts non-Error to string', () => {
-    expect(errorMessage('raw string')).toBe('raw string');
-    expect(errorMessage(42)).toBe('42');
-    expect(errorMessage(null)).toBe('null');
-    expect(errorMessage(undefined)).toBe('undefined');
-    expect(errorMessage({ key: 'val' })).toBe('[object Object]');
-  });
-});
+import { isRecord, mergeDefaults, parseModelIdentifier } from '../../../src/core/utils';
 
 describe('isRecord', () => {
   it('returns true for plain objects', () => {

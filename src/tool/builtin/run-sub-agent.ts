@@ -5,7 +5,7 @@ import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
 import type { ToolOwner, SessionKey, Message, RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/manager';
 import type { AgentMessage } from '@aesyclaw/contracts/llm';

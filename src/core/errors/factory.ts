@@ -9,6 +9,7 @@ import { AgentExecutionError } from './agent';
 import { ToolExecutionError } from './tool';
 import { ConfigurationError } from './config';
 import { ValidationError } from './validation';
+import { ExtensionError } from './extension';
 
 /**
  * 错误工厂类
@@ -73,6 +74,15 @@ export class ErrorFactory {
     parseFailed: ConfigurationError.parseFailed,
     validationFailed: ConfigurationError.validationFailed,
     schemaMismatch: ConfigurationError.schemaMismatch,
+  };
+
+  // ─── Extension 错误工厂方法 ──────────────────────────────────
+
+  static extension = {
+    loadFailed: ExtensionError.loadFailed,
+    initFailed: ExtensionError.initFailed,
+    notFound: ExtensionError.notFound,
+    permissionDenied: ExtensionError.permissionDenied,
   };
 
   // ─── Validation 错误工厂方法 ──────────────────────────────────

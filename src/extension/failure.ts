@@ -1,4 +1,4 @@
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
 
 export type ExtensionFailurePhase =
   | 'discover'

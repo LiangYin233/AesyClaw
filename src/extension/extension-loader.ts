@@ -3,7 +3,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
 
 /** 扩展加载器的日志适配接口。 */
 export type ExtensionLoaderLogger = {

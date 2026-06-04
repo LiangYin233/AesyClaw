@@ -50,7 +50,9 @@ export type {
 
 export { getMessageText } from '@aesyclaw/core/types';
 
-export { isRecord, errorMessage } from '@aesyclaw/core/utils';
+export { AesyClawError, ErrorCode, ExtensionError, errorMessage } from '@aesyclaw/core/errors';
+export type { ErrorDetails, ExtensionKind } from '@aesyclaw/core/errors';
+export { isRecord } from '@aesyclaw/core/utils';
 
 export { createScopedLogger, subscribeToLogEntries } from '@aesyclaw/core/logger';
 export type { Logger, LogLevel, LogEntry } from '@aesyclaw/core/logger';

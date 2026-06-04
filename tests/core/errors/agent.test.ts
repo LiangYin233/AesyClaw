@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { AgentExecutionError, ErrorCode } from '@aesyclaw/core/errors';
+import { AgentRunCancelledError } from '@aesyclaw/agent/runner/shared';
 
 describe('AgentExecutionError', () => {
   describe('构造函数', () => {
@@ -88,6 +89,15 @@ describe('AgentExecutionError', () => {
 
       expect(error.code).toBe(ErrorCode.AGENT_CANCELLED);
       expect(error.message).toBe('用户取消');
+    });
+
+    it('应该让运行取消错误接入统一错误基类', () => {
+      const error = new AgentRunCancelledError();
+
+      expect(error).toBeInstanceOf(AgentExecutionError);
+      expect(error.name).toBe('AgentRunCancelledError');
+      expect(error.code).toBe(ErrorCode.AGENT_CANCELLED);
+      expect(error.message).toBe('Agent 处理已中止');
     });
   });
 });

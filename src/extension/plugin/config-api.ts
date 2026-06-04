@@ -1,4 +1,5 @@
 import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
+import { ErrorFactory } from '@aesyclaw/core/errors';
 import { isRecord } from '@aesyclaw/core/utils';
 import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
 import { PluginPermissionDeniedError } from './errors';
@@ -15,8 +16,13 @@ export function createPluginConfigApi(
     self: {
       get: (configPath) => getPath(stripEnabledField(ref.current), configPath),
       set: async (configPath, value) => {
-        assertSetValue(value);
-        const nextPluginConfig = validatePluginConfigUpdate(definition, ref.current, configPath, value);
+        assertSetValue(value, configPath);
+        const nextPluginConfig = validatePluginConfigUpdate(
+          definition,
+          ref.current,
+          configPath,
+          value,
+        );
         await deps.configManager.set(`plugins.${pluginName}`, nextPluginConfig);
         ref.current = nextPluginConfig;
       },
@@ -27,14 +33,22 @@ export function createPluginConfigApi(
         return deps.configManager.get(configPath) as never;
       },
       set: async (configPath, value) => {
-        assertSetValue(value);
+        assertSetValue(value, configPath);
         assertConfigPermission(definition, pluginName, 'write', configPath);
-        if (configPath === `plugins.${pluginName}` || configPath.startsWith(`plugins.${pluginName}.`)) {
+        if (
+          configPath === `plugins.${pluginName}` ||
+          configPath.startsWith(`plugins.${pluginName}.`)
+        ) {
           const selfPath =
             configPath === `plugins.${pluginName}`
               ? ''
               : configPath.slice(`plugins.${pluginName}.`.length);
-          const nextPluginConfig = validatePluginConfigUpdate(definition, ref.current, selfPath, value);
+          const nextPluginConfig = validatePluginConfigUpdate(
+            definition,
+            ref.current,
+            selfPath,
+            value,
+          );
           await deps.configManager.set(`plugins.${pluginName}`, nextPluginConfig);
           ref.current = nextPluginConfig;
           return;
@@ -51,9 +65,11 @@ export function createPluginConfigApi(
   };
 }
 
-function assertSetValue(value: unknown): void {
+function assertSetValue(value: unknown, configPath: string): void {
   if (value === undefined) {
-    throw new Error('Plugin config set() does not accept undefined');
+    throw ErrorFactory.config.invalid('Plugin config set() does not accept undefined', {
+      configPath: configPath.length === 0 ? '<root>' : configPath,
+    });
   }
 }
 
@@ -66,7 +82,9 @@ function validatePluginConfigUpdate(
   const nextConfig = structuredClone(currentConfig) as Record<string, unknown>;
   if (configPath.length === 0) {
     if (!isRecord(value)) {
-      throw new Error(`插件配置(${definition.name})验证失败: 根配置必须是对象`);
+      throw ErrorFactory.config.invalid(`插件配置(${definition.name})验证失败: 根配置必须是对象`, {
+        configPath: `plugins.${definition.name}`,
+      });
     }
     const managedEnabled = nextConfig['enabled'];
     for (const key of Object.keys(nextConfig)) delete nextConfig[key];
@@ -102,7 +120,9 @@ function setLocalPath(root: Record<string, unknown>, configPath: string, value: 
       continue;
     }
     if (!isRecord(next) || Array.isArray(next)) {
-      throw new Error(`插件配置路径 "${configPath}" 的中间节点不是对象`);
+      throw ErrorFactory.config.invalid(`插件配置路径 "${configPath}" 的中间节点不是对象`, {
+        configPath,
+      });
     }
     current = next;
   }

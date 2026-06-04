@@ -13,7 +13,7 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import type { SessionKey, ToolOwner } from '@aesyclaw/core/types';
 import type { CronManager, CreateCronJobParams } from '@aesyclaw/cron/manager';
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
 
 const CREATE_CRON_SCHEMA = Type.Object({
   scheduleType: Type.Union(

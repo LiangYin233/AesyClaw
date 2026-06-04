@@ -336,7 +336,7 @@ const plugin: PluginDefinition = {
 - 精确路径：`agent`、`plugins.webui.enabled`
 - 单段通配：`plugins.*.enabled`
 - `*` 出现在规则末尾时匹配后续任意子路径，例如 `plugins.*` 可匹配 `plugins.exec.enabled`
-- 权限不足时抛出 `PluginPermissionDeniedError`
+- 权限不足时抛出 `PluginPermissionDeniedError`，它继承 SDK 导出的 `ExtensionError`，并带有 `ErrorCode.EXTENSION_PERMISSION_DENIED` 错误码
 
 ---
 

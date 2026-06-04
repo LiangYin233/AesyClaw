@@ -7,6 +7,7 @@ import { RuntimeControlHub } from '../../../src/extension/plugin/control';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import { HooksBus } from '../../../src/hook';
+import { ErrorCode } from '../../../src/core/errors';
 import * as extensionLoader from '../../../src/extension/extension-loader';
 
 const fakePaths = {
@@ -259,6 +260,7 @@ describe('PluginManager', () => {
 
     expect(denied[0]).toMatchObject({
       name: 'PluginPermissionDeniedError',
+      code: ErrorCode.EXTENSION_PERMISSION_DENIED,
       pluginName: 'alpha',
       permission: 'config.read',
       path: 'agent.defaultModel',
@@ -295,6 +297,30 @@ describe('PluginManager', () => {
     await manager.setup();
 
     expect(manager.getLoaded('alpha')).toBeUndefined();
+  });
+
+  it('returns unified config errors from plugin config validation', async () => {
+    const errors: unknown[] = [];
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        init: vi.fn(async (ctx) => {
+          try {
+            await ctx.config.self.set('', undefined);
+          } catch (err) {
+            errors.push(err);
+          }
+        }),
+      },
+    });
+
+    const { manager } = await makeManager(module);
+    await manager.setup();
+
+    expect(errors[0]).toMatchObject({
+      code: ErrorCode.CONFIG_INVALID,
+      details: { configPath: '<root>' },
+    });
   });
 
   it('preserves managed enabled flag when replacing self config root', async () => {

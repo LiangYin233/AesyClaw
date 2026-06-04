@@ -11,7 +11,7 @@ import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
 import type { Message, MediaComponent, ToolOwner } from '@aesyclaw/core/types';
 
 const MEDIA_TYPE_MAP = {

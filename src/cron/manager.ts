@@ -15,7 +15,7 @@ import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import type { IHooksBus } from '@aesyclaw/contracts/hook';
 import type { SessionManager } from '@aesyclaw/session';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
 import { CronExecutor } from './executor';
 import { computeNextRun, CronScheduler, type CronScheduleType } from './scheduler';
 

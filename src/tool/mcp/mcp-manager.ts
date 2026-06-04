@@ -2,7 +2,8 @@
 
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { errorMessage, isRecord } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
+import { isRecord } from '@aesyclaw/core/utils';
 import type { McpServerConfig } from '@aesyclaw/core/config/schema';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';

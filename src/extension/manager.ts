@@ -8,7 +8,7 @@
 
 import { basename } from 'node:path';
 import { createScopedLogger, type Logger } from '@aesyclaw/core/logger';
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage } from '@aesyclaw/core/errors';
 import {
   getExtensionFailureMessage,
   recordExtensionFailure,

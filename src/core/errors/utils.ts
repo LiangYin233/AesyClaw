@@ -9,6 +9,17 @@ import { ErrorTracker } from './tracker';
 const logger = createScopedLogger('error-utils');
 
 /**
+ * 将任意错误对象转为字符串消息。
+ */
+export function errorMessage(error: unknown): string {
+  if (AesyClawError.isAesyClawError(error)) {
+    return error.message;
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
  * 安全执行函数，捕获错误并返回结果或错误
  *
  * @param fn - 要执行的函数
@@ -113,15 +124,7 @@ export function isErrorType<T extends AesyClawError>(
  * 从错误中提取用户友好的消息
  */
 export function getUserFriendlyMessage(error: unknown): string {
-  if (AesyClawError.isAesyClawError(error)) {
-    return error.message;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
+  return errorMessage(error);
 }
 
 /**

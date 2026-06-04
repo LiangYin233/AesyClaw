@@ -5,9 +5,12 @@
  * 避免在 runner.ts 和 tool-runtime.ts 中重复定义。
  */
 
-export class AgentRunCancelledError extends Error {
+import { AgentExecutionError, ErrorCode } from '@aesyclaw/core/errors';
+
+export class AgentRunCancelledError extends AgentExecutionError {
   constructor() {
-    super('Agent 处理已中止');
+    super(ErrorCode.AGENT_CANCELLED, 'Agent 处理已中止');
+    this.name = 'AgentRunCancelledError';
   }
 }
 

@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  errorMessage,
   safeExecute,
   safeExecuteSync,
   executeWithTimeout,
@@ -17,6 +18,20 @@ import {
 } from '@aesyclaw/core/errors';
 
 describe('错误工具函数', () => {
+  describe('errorMessage', () => {
+    it('应该从 Error 提取消息', () => {
+      expect(errorMessage(new Error('test error'))).toBe('test error');
+    });
+
+    it('应该转换非 Error 值', () => {
+      expect(errorMessage('raw string')).toBe('raw string');
+      expect(errorMessage(42)).toBe('42');
+      expect(errorMessage(null)).toBe('null');
+      expect(errorMessage(undefined)).toBe('undefined');
+      expect(errorMessage({ key: 'val' })).toBe('[object Object]');
+    });
+  });
+
   describe('safeExecute', () => {
     it('应该返回成功结果', async () => {
       const result = await safeExecute(async () => 'success');

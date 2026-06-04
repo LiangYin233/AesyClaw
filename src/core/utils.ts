@@ -3,15 +3,6 @@ import { deepmergeCustom } from 'deepmerge-ts';
 const mergeWithArrayReplace = deepmergeCustom({ mergeArrays: false });
 
 /**
- * 将任意错误对象转为字符串消息。
- *
- * @param error - 捕获的错误对象
- * @returns 错误消息字符串
- */
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-/**
  * 类型守卫 — 检查值是否为非数组的普通对象。
  *
  * @param value - 待检查的值
