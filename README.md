@@ -66,7 +66,7 @@ yarn test       # 运行测试
 }
 ```
 
-更多配置项参见启动后 Web 仪表盘的配置面板。
+更多配置项参见启动后 Web 仪表盘的配置面板。Web 仪表盘由内置 `plugin_webui` 提供，监听地址和认证令牌配置在 `plugins.webui.host`、`plugins.webui.port` 和 `plugins.webui.authToken`；首次启动会自动生成令牌。
 
 ## 扩展开发
 
@@ -90,11 +90,10 @@ src/
 ├── cron/         # 定时任务调度
 ├── command/      # 内置斜杠命令
 ├── role/         # 角色配置与热加载
-├── web/          # Hono HTTP 服务 + WebSocket
 ├── contracts/    # 跨模块类型 & Hook 接口
 └── sdk/          # 公共 API 导出
 extensions/       # 插件 & 通道扩展（plugin_* / channel_*）
-web/              # Vue 3 管理前端
+├── plugin_webui/ # WebUI 后端插件与 Vue 3 管理前端
 desktop/          # Electron 桌面客户端
 ```
 

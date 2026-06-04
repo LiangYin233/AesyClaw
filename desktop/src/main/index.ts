@@ -46,12 +46,13 @@ function createWindow(): void {
     },
   });
 
-  if (!app.isPackaged || process.env['ELECTRON_RENDERER_URL']) {
+  const rendererUrl = process.env['ELECTRON_RENDERER_URL'];
+  if (app.isPackaged !== true || rendererUrl !== undefined) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+  if (rendererUrl !== undefined) {
+    void mainWindow.loadURL(rendererUrl);
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
@@ -69,10 +70,10 @@ function setupIpc(): void {
   // 窗口控制
   ipcMain.handle('win-action', (_event, action: string) => {
     const win = BrowserWindow.fromWebContents(_event.sender) ?? mainWindow;
-    if (!win) return;
+    if (win === null) return;
     if (action === 'minimize') win.minimize();
     else if (action === 'maximize') {
-      if (win.isMaximized()) win.unmaximize();
+      if (win.isMaximized() === true) win.unmaximize();
       else win.maximize();
     } else if (action === 'close') win.close();
   });

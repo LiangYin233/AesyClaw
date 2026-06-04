@@ -21,8 +21,7 @@ export type {
   PluginPathsApi,
   PluginRegistryApi,
 } from '@aesyclaw/extension/plugin/types';
-export type { RuntimeControlApi, RuntimeControlDependencies } from '@aesyclaw/extension/plugin/control';
-export { RuntimeControlHub } from '@aesyclaw/extension/plugin/control';
+export type { RuntimeControlApi } from '@aesyclaw/extension/plugin/control';
 export { PluginPermissionDeniedError } from '@aesyclaw/extension/plugin/errors';
 
 export type {
@@ -75,9 +74,6 @@ export type {
   StreamDoneSignal,
   StreamErrorSignal,
 } from '@aesyclaw/core/types/signal';
-
-export type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
-export { resolvePaths } from '@aesyclaw/core/path-resolver';
 
 // ─── 配置校验 ───────────────────────────────────────────────────
 export { validateWithSchema } from '@aesyclaw/core/config/schema-utils';

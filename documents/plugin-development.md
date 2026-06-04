@@ -94,18 +94,7 @@ type PluginContext = {
 };
 ```
 
-不再提供旧 alias：
-
-```ts
-ctx.name
-ctx.logger
-ctx.state
-ctx.configManager
-ctx.registerTool()
-ctx.unregisterTool()
-ctx.registerCommand()
-ctx.resolveModel()
-```
+不再提供旧的顶层 alias。日志、配置、工具/命令注册、模型解析都必须通过上面的命名空间访问，例如 `ctx.log`、`ctx.config`、`ctx.registry` 和 `ctx.models`。
 
 ### meta
 
@@ -165,6 +154,23 @@ const plugin: PluginDefinition = {
   },
 };
 ```
+
+WebUI 由 `plugin_webui` 提供，相关配置位于 `plugins.webui`：
+
+```jsonc
+{
+  "plugins": {
+    "webui": {
+      "host": "0.0.0.0",
+      "port": 3000,
+      "enabledServer": true,
+      "authToken": "..."
+    }
+  }
+}
+```
+
+核心配置不再包含 `server.*` 段；全局日志级别迁移到 `agent.logLevel`。
 
 ### registry
 
@@ -227,6 +233,11 @@ ctx.control.channels.reload(name)
 ctx.control.sessions.list()
 ctx.control.roles.list()
 ctx.control.cron.list()
+ctx.control.cron.get(id)
+ctx.control.cron.create(job)
+ctx.control.cron.update(id, patch)
+ctx.control.cron.runNow(id)
+ctx.control.cron.setEnabled(id, enabled)
 ctx.control.logs.query()
 ctx.control.usage.query()
 ctx.control.status.get()
@@ -234,13 +245,7 @@ ctx.control.tools.list()
 ctx.control.skills.list()
 ```
 
-不提供旧的通用协议接口：
-
-```ts
-ctx.control.dispatch(...)
-ctx.control.on(...)
-ctx.control.waitUntilReady()
-```
+不提供旧的通用 dispatch/on/wait 协议接口。
 
 ---
 

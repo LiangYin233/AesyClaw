@@ -1,8 +1,8 @@
 /**
  * plugin_multimodal/image-understanding — 图片理解工具。
  *
- * 使用 ctx.resolveModel() 从核心 config 获取 API 密钥等凭据，
- * 直接调用 LLM 完成图片分析。
+ * 插件 init() 通过 ctx.models.resolve() 注入模型解析器，
+ * 工具直接调用 LLM 完成图片分析。
  */
 
 import { Type } from '@sinclair/typebox';

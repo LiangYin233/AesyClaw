@@ -1,8 +1,8 @@
 /**
  * plugin_multimodal/speech-to-text — 语音转文本工具。
  *
- * 使用 ctx.resolveModel() 从核心 config 获取 API 密钥等凭据，
- * 直接调用 OpenAI 兼容的 audio/transcriptions API。
+ * 插件 init() 通过 ctx.models.resolve() 注入模型解析器，
+ * 工具直接调用 OpenAI 兼容的 audio/transcriptions API。
  */
 
 import { Type } from '@sinclair/typebox';

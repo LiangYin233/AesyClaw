@@ -276,12 +276,12 @@ function childProcessTimeoutCommand(readyPath: string, markerPath: string): stri
     ].join('; ');
   }
 
-  return [
-    `${shQuote(process.execPath)} -e ${shQuote(childScript)} &`,
-    `while [ ! -e ${shQuote(readyPath)} ]; do sleep 0.02; done`,
-    "printf 'start\\n'",
-    'sleep 5',
-  ].join('; ');
+  return (
+    `${shQuote(process.execPath)} -e ${shQuote(childScript)} & ` +
+    `while [ ! -e ${shQuote(readyPath)} ]; do sleep 0.02; done; ` +
+    "printf 'start\\n'; " +
+    'sleep 5'
+  );
 }
 
 function chineseCommand(): string {
