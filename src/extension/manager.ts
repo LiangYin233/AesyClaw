@@ -8,11 +8,12 @@
 
 import { basename } from 'node:path';
 import { createScopedLogger, type Logger } from '@aesyclaw/core/logger';
-import { errorMessage } from '@aesyclaw/core/errors';
+import { ErrorCode, ExtensionError, errorMessage, type ExtensionKind } from '@aesyclaw/core/errors';
 import {
   getExtensionFailureMessage,
   recordExtensionFailure,
   type ExtensionFailure,
+  type ExtensionFailurePhase,
 } from '@aesyclaw/extension/failure';
 import {
   extensionConfigsEqual,
@@ -73,8 +74,20 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
   protected readonly commandRegistry: CommandRegistry;
   protected readonly hooksBus: IHooksBus;
 
-  protected get extensionType(): string {
+  protected get extensionType(): ExtensionKind {
     return this.spec.kind;
+  }
+
+  protected recordFailure(
+    key: string,
+    phase: ExtensionFailurePhase,
+    err: unknown,
+    extensionName = key,
+  ): void {
+    recordExtensionFailure(this.failedExtensions, key, phase, err, {
+      extensionKind: this.extensionType,
+      extensionName,
+    });
   }
 
   protected get configKey(): string {
@@ -174,7 +187,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
           return { definition: mod.definition, directory: mod.directory };
         }
       } catch (err) {
-        recordExtensionFailure(this.failedExtensions, basename(dir), 'load', err);
+        this.recordFailure(basename(dir), 'load', err);
       }
     }
     return null;
@@ -230,7 +243,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
         this.definitions.set(mod.definition.name, mod.definition);
         this.extensionDirs.set(mod.definition.name, mod.directory);
       } catch (err) {
-        recordExtensionFailure(this.failedExtensions, basename(dir), 'discover', err);
+        this.recordFailure(basename(dir), 'discover', err);
         this.logger.warn(`${this.extensionType} 扩展加载失败`, {
           dir,
           error: errorMessage(err),
@@ -245,7 +258,11 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
   register(definition: TDef, owner?: string): void {
     const existing = this.definitions.get(definition.name);
     if (existing && existing !== definition) {
-      throw new Error(`${this.extensionType} "${definition.name}" 已注册`);
+      throw new ExtensionError(
+        ErrorCode.EXTENSION_ALREADY_REGISTERED,
+        `${this.extensionType} "${definition.name}" 已注册`,
+        { extensionKind: this.extensionType, extensionName: definition.name },
+      );
     }
     this.definitions.set(definition.name, definition);
     // 注册默认配置（如果 configManager 支持）
@@ -278,7 +295,14 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
   async start(name: string): Promise<LoadedExtension<TDef, TCtx> | null> {
     const definition = this.definitions.get(name);
     if (!definition) {
-      throw new Error(`${this.extensionType} "${name}" 未注册`);
+      throw new ExtensionError(
+        ErrorCode.EXTENSION_NOT_FOUND,
+        `${this.extensionType} "${name}" 未注册`,
+        {
+          extensionKind: this.extensionType,
+          extensionName: name,
+        },
+      );
     }
 
     // 如果已加载，先卸载
@@ -383,7 +407,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
       try {
         await this.start(definition.name);
       } catch (err) {
-        recordExtensionFailure(this.failedExtensions, definition.name, 'start', err);
+        this.recordFailure(definition.name, 'start', err);
         this.logger.error(`${this.extensionType} "${definition.name}" 启动失败`, err);
       }
     }
@@ -426,7 +450,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
           }
         }
       } catch (err) {
-        recordExtensionFailure(this.failedExtensions, name, 'enable', err);
+        this.recordFailure(name, 'enable', err);
         this.logger.error(`启用后 ${this.extensionType} "${name}" 启动失败`, err);
       }
     }
@@ -469,7 +493,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
         await this.stop(name);
         await this.start(name);
       } catch (err) {
-        recordExtensionFailure(this.failedExtensions, name, 'configReload', err);
+        this.recordFailure(name, 'configReload', err);
         this.logger.error(`热重载时重启 ${this.extensionType} "${name}" 失败`, err);
       }
     }
@@ -482,7 +506,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
       try {
         await this.start(definition.name);
       } catch (err) {
-        recordExtensionFailure(this.failedExtensions, definition.name, 'configReload', err);
+        this.recordFailure(definition.name, 'configReload', err);
         this.logger.error(`热重载时启动 ${this.extensionType} "${definition.name}" 失败`, err);
       }
     }
@@ -509,7 +533,14 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
   getDefinition(name: string): TDef {
     const definition = this.definitions.get(name);
     if (!definition) {
-      throw new Error(`${this.extensionType} "${name}" 未注册`);
+      throw new ExtensionError(
+        ErrorCode.EXTENSION_NOT_FOUND,
+        `${this.extensionType} "${name}" 未注册`,
+        {
+          extensionKind: this.extensionType,
+          extensionName: name,
+        },
+      );
     }
     return definition;
   }
@@ -533,7 +564,14 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
   private async reloadOne(name: string): Promise<boolean> {
     const definition = this.definitions.get(name);
     if (!definition) {
-      throw new Error(`${this.extensionType} "${name}" 未注册`);
+      throw new ExtensionError(
+        ErrorCode.EXTENSION_NOT_FOUND,
+        `${this.extensionType} "${name}" 未注册`,
+        {
+          extensionKind: this.extensionType,
+          extensionName: name,
+        },
+      );
     }
     if (!this.isDefinitionEnabled(name)) {
       return false;
@@ -548,7 +586,7 @@ export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> 
       const loaded = await this.start(name);
       return loaded !== null;
     } catch (err) {
-      recordExtensionFailure(this.failedExtensions, name, 'manualReload', err);
+      this.recordFailure(name, 'manualReload', err);
       this.logger.error(`${this.extensionType} "${name}" 重载失败，扩展已停止`, err);
       return false;
     }

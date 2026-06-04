@@ -4,6 +4,7 @@
  * 负责频道特有的消息路由，并将发现、加载、卸载、启用/禁用、热重载交给统一 host。
  */
 
+import { ErrorCode, ExtensionError } from '@aesyclaw/core/errors';
 import { ExtensionManager } from '@aesyclaw/extension/manager';
 import { createChannelSpec } from './spec';
 import * as router from './router';
@@ -154,7 +155,10 @@ export class ChannelManager extends ExtensionManager<ChannelPlugin, ChannelConte
   private requireLoaded(channelName: string): LoadedExtension<ChannelPlugin, ChannelContext> {
     const loaded = this.getLoaded(channelName);
     if (!loaded) {
-      throw new Error(`频道 "${channelName}" 未加载`);
+      throw new ExtensionError(ErrorCode.EXTENSION_NOT_LOADED, `频道 "${channelName}" 未加载`, {
+        extensionKind: 'channel',
+        extensionName: channelName,
+      });
     }
     return loaded;
   }

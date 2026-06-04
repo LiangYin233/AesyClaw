@@ -77,6 +77,30 @@ export class ExtensionError extends AesyClawError {
     );
   }
 
+  static alreadyRegistered(
+    extensionKind: ExtensionKind,
+    extensionName: string,
+    details?: ErrorDetails,
+  ): ExtensionError {
+    return new ExtensionError(
+      ErrorCode.EXTENSION_ALREADY_REGISTERED,
+      `${extensionKind} "${extensionName}" 已注册`,
+      { ...details, extensionKind, extensionName },
+    );
+  }
+
+  static notLoaded(
+    extensionKind: ExtensionKind,
+    extensionName: string,
+    details?: ErrorDetails,
+  ): ExtensionError {
+    return new ExtensionError(
+      ErrorCode.EXTENSION_NOT_LOADED,
+      `${extensionKind} "${extensionName}" 未加载`,
+      { ...details, extensionKind, extensionName },
+    );
+  }
+
   static permissionDenied(
     extensionKind: ExtensionKind,
     extensionName: string,

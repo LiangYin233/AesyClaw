@@ -9,6 +9,7 @@ import {
   ErrorCode,
   AgentExecutionError,
   ToolExecutionError,
+  ExtensionError,
   wrapAsync,
   wrapSync,
 } from '@aesyclaw/core/errors';
@@ -74,6 +75,15 @@ describe('ErrorFactory', () => {
 
       expect(error.code).toBe(ErrorCode.CONFIG_MISSING);
       expect(error.message).toContain('test-key');
+    });
+  });
+
+  describe('extension', () => {
+    it('应该创建 Extension 错误', () => {
+      const error = ErrorFactory.extension.notLoaded('channel', 'desktop');
+
+      expect(error).toBeInstanceOf(ExtensionError);
+      expect(error.code).toBe(ErrorCode.EXTENSION_NOT_LOADED);
     });
   });
 

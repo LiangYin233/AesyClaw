@@ -17,6 +17,24 @@ describe('ExtensionError', () => {
     expect(error.extensionName).toBe('alpha');
   });
 
+  it('应该创建扩展重复注册错误', () => {
+    const error = ExtensionError.alreadyRegistered('channel', 'desktop');
+
+    expect(error.code).toBe(ErrorCode.EXTENSION_ALREADY_REGISTERED);
+    expect(error.message).toContain('desktop');
+    expect(error.extensionKind).toBe('channel');
+    expect(error.extensionName).toBe('desktop');
+  });
+
+  it('应该创建扩展未加载错误', () => {
+    const error = ExtensionError.notLoaded('channel', 'desktop');
+
+    expect(error.code).toBe(ErrorCode.EXTENSION_NOT_LOADED);
+    expect(error.message).toContain('desktop');
+    expect(error.extensionKind).toBe('channel');
+    expect(error.extensionName).toBe('desktop');
+  });
+
   it('应该创建扩展权限拒绝错误', () => {
     const error = ExtensionError.permissionDenied(
       'plugin',

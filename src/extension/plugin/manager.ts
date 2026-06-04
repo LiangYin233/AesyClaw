@@ -1,7 +1,7 @@
 /** PluginManager — 插件生命周期 facade，委托统一 Extension host。 */
 
 import path from 'node:path';
-import { getExtensionFailureMessage, recordExtensionFailure } from '@aesyclaw/extension/failure';
+import { getExtensionFailureMessage } from '@aesyclaw/extension/failure';
 import { ExtensionManager } from '@aesyclaw/extension/manager';
 import { createPluginSpec } from './spec';
 import type {
@@ -61,7 +61,7 @@ export class PluginManager extends ExtensionManager<PluginDefinition, PluginCont
       this.extensionDirs.set(pluginName, pluginDir);
       return await this.start(pluginName);
     } catch (err) {
-      recordExtensionFailure(this.failedExtensions, path.basename(pluginDir), 'load', err);
+      this.recordFailure(path.basename(pluginDir), 'load', err);
       return null;
     }
   }

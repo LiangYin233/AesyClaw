@@ -5,6 +5,7 @@ import type { ChannelContext, ChannelPlugin } from '../../../src/extension/chann
 import type { Message, OutboundSignal, SessionKey, SenderInfo } from '../../../src/core/types';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
+import { ErrorCode } from '../../../src/core/errors';
 
 const fakePaths = {
   runtimeRoot: '/tmp/aesyclaw/.aesyclaw',
@@ -198,7 +199,10 @@ describe('ChannelManager', () => {
         { components: [{ type: 'Plain', text: 'hi' }] },
         { channel: 'missing', type: 'private', chatId: '1' },
       ),
-    ).rejects.toThrow('频道 "missing" 未加载');
+    ).rejects.toMatchObject({
+      code: ErrorCode.EXTENSION_NOT_LOADED,
+      message: '频道 "missing" 未加载',
+    });
   });
 
   it('backfills nested default config while preserving configured channel values', async () => {
@@ -268,7 +272,11 @@ describe('ChannelManager', () => {
         expect.objectContaining({ name: 'good', state: 'loaded' }),
       ]),
     );
-    expect(manager.failedExtensions.get('bad')).toMatchObject({ phase: 'start', message: 'boom' });
+    expect(manager.failedExtensions.get('bad')).toMatchObject({
+      phase: 'start',
+      code: ErrorCode.EXTENSION_INIT_FAILED,
+      message: 'boom',
+    });
   });
 
   it('sends through the loaded channel and stops with cleanup', async () => {
@@ -422,7 +430,16 @@ describe('ChannelManager', () => {
 
     manager.register(first);
 
-    expect(() => manager.register(second)).toThrow(/已注册/);
+    let thrown: unknown;
+    try {
+      manager.register(second);
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toMatchObject({
+      code: ErrorCode.EXTENSION_ALREADY_REGISTERED,
+      message: expect.stringContaining('已注册'),
+    });
     expect(manager.has('duplicate')).toBe(true);
   });
 
@@ -449,6 +466,7 @@ describe('ChannelManager', () => {
     expect(manager.getLoaded('test')).toBeUndefined();
     expect(manager.failedExtensions.get('test')).toMatchObject({
       phase: 'manualReload',
+      code: ErrorCode.EXTENSION_INIT_FAILED,
       message: 'reload failed',
     });
   });

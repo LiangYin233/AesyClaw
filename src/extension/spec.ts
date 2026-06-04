@@ -1,8 +1,9 @@
 import type { ToolOwner } from '@aesyclaw/core/types';
+import type { ExtensionKind } from '@aesyclaw/core/errors';
 import type { BaseExtensionDefinition } from './types';
 
 export type ExtensionRuntimeSpec<TDef extends BaseExtensionDefinition<TCtx>, TCtx> = {
-  kind: string;
+  kind: ExtensionKind;
   configKey: string;
   dirPrefix: string;
   extensionsDir: string;

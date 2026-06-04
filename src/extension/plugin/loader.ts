@@ -32,7 +32,11 @@ export async function safeLoadModule(
   try {
     return await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
   } catch (err) {
-    recordExtensionFailure(failedPlugins, path.basename(pluginDir), 'load', err);
+    const directoryName = path.basename(pluginDir);
+    recordExtensionFailure(failedPlugins, directoryName, 'load', err, {
+      extensionKind: 'plugin',
+      extensionName: directoryName,
+    });
     return null;
   }
 }

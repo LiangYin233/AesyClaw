@@ -386,6 +386,11 @@ describe('PluginManager', () => {
     const { manager } = await makeManager(module);
     await expect(manager.setup()).resolves.toBeUndefined();
     expect(manager.getLoaded('alpha')).toBeUndefined();
+    expect(manager.failedExtensions.get('alpha')).toMatchObject({
+      phase: 'start',
+      code: ErrorCode.EXTENSION_INIT_FAILED,
+      message: 'explosion',
+    });
   });
 
   it('coalesces overlapping config reload requests', async () => {

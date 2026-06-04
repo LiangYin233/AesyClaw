@@ -3,7 +3,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { errorMessage } from '@aesyclaw/core/errors';
+import { ErrorCode, ExtensionError, errorMessage, type ExtensionKind } from '@aesyclaw/core/errors';
 
 /** 扩展加载器的日志适配接口。 */
 export type ExtensionLoaderLogger = {
@@ -89,7 +89,15 @@ export async function resolveExtensionEntry(extensionDir: string, kind: string):
     }
   }
 
-  throw new Error(`${kind} 目录 "${extensionDir}" 没有 index.ts、index.js 或 index.mjs 入口文件`);
+  throw new ExtensionError(
+    ErrorCode.EXTENSION_LOAD_FAILED,
+    `${kind} 目录 "${extensionDir}" 没有 index.ts、index.js 或 index.mjs 入口文件`,
+    {
+      extensionKind: normalizeLoaderKind(kind),
+      extensionName: path.basename(extensionDir),
+      extensionDir,
+    },
+  );
 }
 
 /**
@@ -123,7 +131,16 @@ export async function loadExtensionModule<T>(
   const definition = validate(imported);
 
   if (definition === null) {
-    throw new Error(`${kind}模块 "${entryPath}" 未导出有效的定义`);
+    throw new ExtensionError(
+      ErrorCode.EXTENSION_LOAD_FAILED,
+      `${kind}模块 "${entryPath}" 未导出有效的定义`,
+      {
+        extensionKind: normalizeLoaderKind(kind),
+        extensionName: path.basename(extensionDir),
+        extensionDir,
+        entryPath,
+      },
+    );
   }
 
   return {
@@ -132,4 +149,15 @@ export async function loadExtensionModule<T>(
     directoryName: path.basename(extensionDir),
     entryPath,
   };
+}
+
+function normalizeLoaderKind(kind: string): ExtensionKind {
+  switch (kind.toLowerCase()) {
+    case 'plugin':
+      return 'plugin';
+    case 'channel':
+      return 'channel';
+    default:
+      return 'extension';
+  }
 }

@@ -82,6 +82,8 @@ export class ErrorFactory {
     loadFailed: ExtensionError.loadFailed,
     initFailed: ExtensionError.initFailed,
     notFound: ExtensionError.notFound,
+    alreadyRegistered: ExtensionError.alreadyRegistered,
+    notLoaded: ExtensionError.notLoaded,
     permissionDenied: ExtensionError.permissionDenied,
   };
 
