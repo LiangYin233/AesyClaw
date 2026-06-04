@@ -263,11 +263,12 @@ describe('ChannelManager', () => {
     expect(manager.getLoaded('bad')).toBeUndefined();
     expect(manager.listChannels()).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'bad', state: 'failed' }),
+        expect.objectContaining({ name: 'bad', state: 'failed', error: 'boom' }),
         expect.objectContaining({ name: 'disabled', state: 'disabled' }),
         expect.objectContaining({ name: 'good', state: 'loaded' }),
       ]),
     );
+    expect(manager.failedExtensions.get('bad')).toMatchObject({ phase: 'start', message: 'boom' });
   });
 
   it('sends through the loaded channel and stops with cleanup', async () => {

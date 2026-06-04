@@ -1,8 +1,8 @@
 /** PluginManager — 插件生命周期管理，继承自 BaseExtensionManager。 */
 
 import path from 'node:path';
-import { errorMessage } from '@aesyclaw/core/utils';
 import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
+import { getExtensionFailureMessage, recordExtensionFailure } from '@aesyclaw/extension/failure';
 import { BaseExtensionManager } from '@aesyclaw/extension/base-manager';
 import { createPluginContext } from './context';
 import type {
@@ -157,7 +157,7 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
       this.extensionDirs.set(pluginName, pluginDir);
       return await this.start(pluginName);
     } catch (err) {
-      this.failedExtensions.set(path.basename(pluginDir), errorMessage(err));
+      recordExtensionFailure(this.failedExtensions, path.basename(pluginDir), 'load', err);
       return null;
     }
   }
@@ -193,7 +193,9 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
       const configLookup = module ? getPluginConfig(this.getConfigRecord(), module) : null;
       const enabled = configLookup?.enabled ?? true;
       const name = module?.definition.name ?? directoryName;
-      const error = this.failedExtensions.get(name) ?? this.failedExtensions.get(directoryName);
+      const error =
+        getExtensionFailureMessage(this.failedExtensions, name) ??
+        getExtensionFailureMessage(this.failedExtensions, directoryName);
       statuses.set(directoryName, {
         name,
         directoryName,

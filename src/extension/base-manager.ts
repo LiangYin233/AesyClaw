@@ -6,8 +6,14 @@
  * 下沉到基类，子类只需实现差异化的 Context 构建和钩子逻辑。
  */
 
+import { basename } from 'node:path';
 import { createScopedLogger, type Logger } from '@aesyclaw/core/logger';
 import { errorMessage } from '@aesyclaw/core/utils';
+import {
+  getExtensionFailureMessage,
+  recordExtensionFailure,
+  type ExtensionFailure,
+} from '@aesyclaw/extension/failure';
 import {
   extensionConfigsEqual,
   getBusinessDefaults,
@@ -49,8 +55,8 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
   /** 已加载的扩展运行时实例 */
   protected readonly loadedExtensions = new Map<string, LoadedExtension<TDef, TCtx>>();
 
-  /** 加载失败的扩展（名称/目录名 → 错误消息） */
-  readonly failedExtensions = new Map<string, string>();
+  /** 加载失败的扩展（名称/目录名 → 结构化失败状态） */
+  readonly failedExtensions = new Map<string, ExtensionFailure>();
 
   /** 配置引用缓存（扩展名称 → { current }），支持热更新 */
   protected readonly configRefs = new Map<string, { current: Record<string, unknown> }>();
@@ -167,6 +173,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
         this.definitions.set(mod.definition.name, mod.definition);
         this.extensionDirs.set(mod.definition.name, mod.directory);
       } catch (err) {
+        recordExtensionFailure(this.failedExtensions, basename(dir), 'discover', err);
         this.logger.warn(`${this.extensionType} 扩展加载失败`, {
           dir,
           error: errorMessage(err),
@@ -327,7 +334,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
       try {
         await this.start(definition.name);
       } catch (err) {
-        this.failedExtensions.set(definition.name, errorMessage(err));
+        recordExtensionFailure(this.failedExtensions, definition.name, 'start', err);
         this.logger.error(`${this.extensionType} "${definition.name}" 启动失败`, err);
       }
     }
@@ -370,7 +377,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
           }
         }
       } catch (err) {
-        this.failedExtensions.set(name, errorMessage(err));
+        recordExtensionFailure(this.failedExtensions, name, 'enable', err);
         this.logger.error(`启用后 ${this.extensionType} "${name}" 启动失败`, err);
       }
     }
@@ -413,6 +420,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
         await this.stop(name);
         await this.start(name);
       } catch (err) {
+        recordExtensionFailure(this.failedExtensions, name, 'configReload', err);
         this.logger.error(`热重载时重启 ${this.extensionType} "${name}" 失败`, err);
       }
     }
@@ -425,7 +433,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
       try {
         await this.start(definition.name);
       } catch (err) {
-        this.failedExtensions.set(definition.name, errorMessage(err));
+        recordExtensionFailure(this.failedExtensions, definition.name, 'configReload', err);
         this.logger.error(`热重载时启动 ${this.extensionType} "${definition.name}" 失败`, err);
       }
     }
@@ -491,12 +499,13 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
       const loaded = await this.start(name);
       return loaded !== null;
     } catch (err) {
-      this.failedExtensions.set(name, errorMessage(err));
+      recordExtensionFailure(this.failedExtensions, name, 'manualReload', err);
       this.logger.error(`${this.extensionType} "${name}" 重载失败`, err);
       if (wasLoaded) {
         try {
           await this.start(name);
         } catch (restoreErr) {
+          recordExtensionFailure(this.failedExtensions, name, 'restore', restoreErr);
           this.logger.error(`${this.extensionType} "${name}" 重载失败后恢复旧实例失败`, restoreErr);
         }
       }
@@ -525,7 +534,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
     const statuses: ExtensionStatus[] = [];
     for (const definition of this.definitions.values()) {
       const enabled = this.isDefinitionEnabled(definition.name);
-      const error = this.failedExtensions.get(definition.name);
+      const error = getExtensionFailureMessage(this.failedExtensions, definition.name);
       statuses.push({
         name: definition.name,
         version: definition.version,
