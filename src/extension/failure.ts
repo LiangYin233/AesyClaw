@@ -6,8 +6,7 @@ export type ExtensionFailurePhase =
   | 'start'
   | 'enable'
   | 'configReload'
-  | 'manualReload'
-  | 'restore';
+  | 'manualReload';
 
 export type ExtensionFailure = {
   phase: ExtensionFailurePhase;

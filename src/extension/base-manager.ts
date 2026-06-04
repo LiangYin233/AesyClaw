@@ -500,15 +500,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
       return loaded !== null;
     } catch (err) {
       recordExtensionFailure(this.failedExtensions, name, 'manualReload', err);
-      this.logger.error(`${this.extensionType} "${name}" 重载失败`, err);
-      if (wasLoaded) {
-        try {
-          await this.start(name);
-        } catch (restoreErr) {
-          recordExtensionFailure(this.failedExtensions, name, 'restore', restoreErr);
-          this.logger.error(`${this.extensionType} "${name}" 重载失败后恢复旧实例失败`, restoreErr);
-        }
-      }
+      this.logger.error(`${this.extensionType} "${name}" 重载失败，扩展已停止`, err);
       return false;
     }
   }

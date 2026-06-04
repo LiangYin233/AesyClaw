@@ -426,6 +426,33 @@ describe('ChannelManager', () => {
     expect(manager.has('duplicate')).toBe(true);
   });
 
+  it('does not retry start after manual reload fails for a loaded channel', async () => {
+    const config = new FakeConfigManager();
+    config.channels = { test: { enabled: true } };
+    let shouldFail = false;
+    const init = vi.fn(async () => {
+      if (shouldFail) throw new Error('reload failed');
+    });
+    const channel = makeChannel({ init });
+    const manager = makeManager({
+      configManager: config,
+      pipeline: makePipeline(),
+      channels: [channel],
+    });
+
+    await manager.start('test');
+    shouldFail = true;
+
+    await expect(manager.reload('test')).resolves.toBe(false);
+
+    expect(init).toHaveBeenCalledTimes(2);
+    expect(manager.getLoaded('test')).toBeUndefined();
+    expect(manager.failedExtensions.get('test')).toMatchObject({
+      phase: 'manualReload',
+      message: 'reload failed',
+    });
+  });
+
   it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
     const manager = makeManager({
       configManager: new FakeConfigManager(),
