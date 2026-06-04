@@ -7,8 +7,19 @@
  */
 
 import { createScopedLogger, type Logger } from '@aesyclaw/core/logger';
-import { isRecord, mergeDefaults, errorMessage } from '@aesyclaw/core/utils';
-import { stripEnabledField } from '@aesyclaw/extension/extension-utils';
+import { errorMessage } from '@aesyclaw/core/utils';
+import {
+  extensionConfigsEqual,
+  getBusinessDefaults,
+  getExtensionConfigRecord,
+  getExtensionUserConfig,
+  hasExtensionConfigEntry,
+  isExtensionConfigEnabled,
+  isExtensionDefinitionEnabled,
+  mergeExtensionConfig,
+  setExtensionEnabledConfig,
+  writeDefaultExtensionConfig,
+} from '@aesyclaw/extension/config';
 import { validateWithSchema } from '@aesyclaw/core/config/schema-utils';
 import { discoverExtensionDirs, loadExtensionModule } from '@aesyclaw/extension/extension-loader';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
@@ -546,6 +557,24 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
 
   // ─── 配置管理（内部方法） ───────────────────────────────────
 
+  private getConfigAccess(): { configManager: ConfigManager; configKey: string } {
+    return { configManager: this.configManager, configKey: this.configKey };
+  }
+
+  private getConfigWriteAccess(): {
+    configManager: ConfigManager;
+    configKey: string;
+    extensionType: string;
+    logger: Logger;
+  } {
+    return {
+      configManager: this.configManager,
+      configKey: this.configKey,
+      extensionType: this.extensionType,
+      logger: this.logger,
+    };
+  }
+
   /**
    * 校验扩展配置并填充 schema default。
    * 子类可覆盖以处理保留字段（如插件的 enabled）。
@@ -564,7 +593,7 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    */
   protected getMergedConfig(definition: TDef): Record<string, unknown> {
     const userConfig = this.getUserConfig(definition.name);
-    return mergeDefaults(this.getManagedDefaults(definition), userConfig);
+    return mergeExtensionConfig(this.getManagedDefaults(definition), userConfig);
   }
 
   /**
@@ -573,61 +602,42 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    * enabled 是框架管理字段，具体默认值由插件/频道管理器分别决定。
    */
   protected getManagedDefaults(definition: TDef): Record<string, unknown> {
-    return stripEnabledField(definition.defaultConfig ?? {});
+    return getBusinessDefaults(definition);
   }
 
   /**
    * 从配置中读取用户的扩展配置。
    */
   protected getUserConfig(name: string): Record<string, unknown> {
-    try {
-      const configRecord = this.getConfigRecord();
-      const raw = configRecord[name];
-      return isRecord(raw) ? raw : {};
-    } catch {
-      return {};
-    }
+    return getExtensionUserConfig(this.getConfigAccess(), name);
   }
 
   /**
    * 获取整个配置段（如 plugins 或 channels）。
    */
   protected getConfigRecord(): Record<string, unknown> {
-    try {
-      const config = this.configManager.get(this.configKey);
-      return isRecord(config) ? { ...config } : {};
-    } catch {
-      return {};
-    }
+    return getExtensionConfigRecord(this.getConfigAccess());
   }
 
   /**
    * 检查扩展配置是否启用。
    */
   protected isEnabled(config: Record<string, unknown>): boolean {
-    return config['enabled'] !== false;
+    return isExtensionConfigEnabled(config);
   }
 
   /**
    * 检查扩展定义在配置中是否启用。
    */
   protected isDefinitionEnabled(name: string): boolean {
-    try {
-      const configRecord = this.getConfigRecord();
-      const raw = configRecord[name];
-      if (!isRecord(raw)) return true; // 没有配置条目时默认启用
-      return raw['enabled'] !== false;
-    } catch {
-      return true;
-    }
+    return isExtensionDefinitionEnabled(this.getConfigAccess(), name);
   }
 
   /**
    * 检查配置中是否存在该扩展的条目。
    */
   protected hasConfigEntry(name: string): boolean {
-    const record = this.getConfigRecord();
-    return isRecord(record[name]);
+    return hasExtensionConfigEntry(this.getConfigAccess(), name);
   }
 
   /**
@@ -635,28 +645,19 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    */
   protected async setExtensionEnabled(name: string, enabled: boolean): Promise<void> {
     const definition = this.definitions.get(name);
-    const current = this.getUserConfig(name);
-    const allConfig = this.getConfigRecord();
-    const { enabled: _enabled, ...defaults } = definition
-      ? this.getManagedDefaults(definition)
-      : { enabled: undefined };
-    allConfig[name] = {
-      ...defaults,
-      ...current,
+    await setExtensionEnabledConfig(
+      this.getConfigAccess(),
+      name,
       enabled,
-    };
-    await this.configManager.set(this.configKey, allConfig);
+      definition ? this.getManagedDefaults(definition) : undefined,
+    );
   }
 
   /**
    * 写入扩展的默认配置条目。
    */
   protected async writeDefaultConfig(name: string, config: Record<string, unknown>): Promise<void> {
-    const allConfig = this.getConfigRecord();
-    allConfig[name] = { ...config };
-    await this.configManager.set(this.configKey, allConfig).catch((err: unknown) => {
-      this.logger.warn(`自动写入 ${this.extensionType} "${name}" 的配置条目失败`, err);
-    });
+    await writeDefaultExtensionConfig(this.getConfigWriteAccess(), name, config);
   }
 
   // ─── Owner 管理（内部方法） ─────────────────────────────────
@@ -696,15 +697,6 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
    * 深度比较两个配置对象是否相等（忽略键序差异）。
    */
   protected configsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-    const sortKeys = (obj: unknown): unknown => {
-      if (obj === null || typeof obj !== 'object') return obj;
-      if (Array.isArray(obj)) return obj.map(sortKeys);
-      const sorted: Record<string, unknown> = {};
-      for (const key of Object.keys(obj).sort()) {
-        sorted[key] = sortKeys((obj as Record<string, unknown>)[key]);
-      }
-      return sorted;
-    };
-    return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
+    return extensionConfigsEqual(a, b);
   }
 }
