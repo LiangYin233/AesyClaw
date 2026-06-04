@@ -63,7 +63,7 @@ export const channel: ChannelPlugin = {
   },
 };
 
-/** 将接收到的消息注入 Pipeline（通过 ctx.receive） */
+/** 将接收到的消息注入 Pipeline（通过 ctx.channel.receive） */
 async function receiveMessage(
   message: Message,
   sessionKey: SessionKey,
@@ -72,7 +72,7 @@ async function receiveMessage(
   if (!context) {
     throw new Error('OneBot channel is not initialized');
   }
-  await context.receive(message, sessionKey, sender);
+  await context.channel.receive(message, sessionKey, sender);
 }
 async function handlePlatformPayload(payload: Record<string, unknown>): Promise<void> {
   const inbound = mapOneBotEventToMessage(payload, context?.name ?? 'onebot');

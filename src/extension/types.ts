@@ -8,10 +8,8 @@
 import type { TSchema } from '@sinclair/typebox';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ResolvedPaths } from '@aesyclaw/core/path-resolver';
-import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
-import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
+import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { ResolvedModel } from '@aesyclaw/contracts/llm';
 
 // ─── 扩展健康检查结果 ─────────────────────────────────────────
 
@@ -62,14 +60,6 @@ export type BaseExtensionContext = {
   configManager: ConfigManager;
   /** 带作用域的 Logger */
   logger: Logger;
-  /** 根据 "provider/model" 标识符解析完整的模型配置 */
-  resolveModel(providerModel: string): ResolvedModel;
-  /** 注册工具，作用域自动限定 */
-  registerTool(tool: AesyClawTool): void;
-  /** 注销已注册的工具（只能注销自己的） */
-  unregisterTool(name: string): void;
-  /** 注册斜杠命令，作用域自动限定 */
-  registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
 };
 
 // ─── 已加载扩展的运行时表示 ───────────────────────────────────

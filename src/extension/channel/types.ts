@@ -33,36 +33,52 @@ import {
 
 export type RegisteredCommandInfo = Omit<CommandDefinition, 'execute'>;
 
-/** 频道初始化时接收的上下文（包含名称、配置、接收回调等）。 */
+export type ChannelMessageApi = {
+  receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
+  getCommands(): RegisteredCommandInfo[];
+};
+
+export type ChannelRegistryApi = {
+  tools: {
+    register(tool: AesyClawTool): void;
+    unregister(name: string): void;
+  };
+  commands: {
+    register(command: Omit<CommandDefinition, 'scope'>): void;
+  };
+};
+
+export type ChannelSessionApi = {
+  /** 获取指定会话的上下文窗口使用率。 */
+  getContextUsage(
+    sessionKey: SessionKey,
+  ): Promise<{ inputTokens: number; outputTokens: number; contextWindow: number }>;
+  /** 获取指定会话绑定的模型和角色 ID。 */
+  getModel(sessionKey: SessionKey): Promise<{ modelId?: string; roleId?: string }>;
+  /** 获取所有会话列表（用于 Desktop 同步）。 */
+  list(): Promise<SessionSummary[]>;
+  /** 获取指定会话的消息历史。 */
+  getMessages(sessionKey: SessionKey): Promise<SessionMessageDto[]>;
+};
+
+export type ChannelModelApi = {
+  /** 根据 "provider/model" 标识符解析完整的模型配置（含 API 密钥、baseUrl 等）。 */
+  resolve(providerModel: string): ResolvedModel;
+};
+
+/** 频道初始化时接收的上下文（公共能力 + channel 专属命名空间）。 */
 export type ChannelContext = {
   name: string;
   config: Record<string, unknown>;
   configManager: ConfigManager;
   paths: Readonly<ResolvedPaths>;
-  receive(message: Message, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
-  registerTool(tool: AesyClawTool): void;
-  unregisterTool(name: string): void;
-  registerCommand(command: Omit<CommandDefinition, 'scope'>): void;
-  getCommands(): RegisteredCommandInfo[];
   logger: Logger;
-  /**
-   * 获取指定会话的上下文窗口使用率。
-   * 返回估算 token 数、模型上下文窗口大小、占用百分比。
-   * 若会话不存在或无法确定模型，contextWindow/percentage 可能为 0。
-   */
-  getSessionContextUsage(
-    sessionKey: SessionKey,
-  ): Promise<{ inputTokens: number; outputTokens: number; contextWindow: number }>;
-  /** 获取指定会话绑定的模型和角色 ID */
-  getSessionModel(sessionKey: SessionKey): Promise<{ modelId?: string; roleId?: string }>;
-  /** 获取所有会话列表（用于 Desktop 同步） */
-  getSessions(): Promise<SessionSummary[]>;
-  /** 获取指定会话的消息历史 */
-  getSessionMessages(sessionKey: SessionKey): Promise<SessionMessageDto[]>;
   /** 运行时状态容器（框架自动管理生命周期，stop 时清空） */
   state: Record<string, unknown>;
-  /** 根据 "provider/model" 标识符解析完整的模型配置（含 API 密钥、baseUrl 等） */
-  resolveModel(providerModel: string): ResolvedModel;
+  channel: ChannelMessageApi;
+  sessions: ChannelSessionApi;
+  models: ChannelModelApi;
+  registry: ChannelRegistryApi;
 };
 
 export type ChannelPlugin = {

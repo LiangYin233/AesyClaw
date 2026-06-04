@@ -66,7 +66,7 @@ export const channel: ChannelPlugin = {
       startWeixinMonitor(creds.updatesBuf, ctx);
     }
 
-    ctx.registerCommand({
+    ctx.registry.commands.register({
       name: 'weixin_login',
       description: '微信扫码登录',
 
@@ -256,7 +256,7 @@ function startWeixinMonitor(updatesBuf: string | undefined, ctx: ChannelContext)
     {
       onMessage: (fromUserId, content, msg) => {
         if (msg.context_token) contextTokens.set(fromUserId, msg.context_token);
-        void ctx.receive(
+        void ctx.channel.receive(
           { components: [{ type: 'Plain', text: content }] },
           { channel: 'weixin', type: 'private', chatId: fromUserId },
           { id: fromUserId, name: fromUserId },

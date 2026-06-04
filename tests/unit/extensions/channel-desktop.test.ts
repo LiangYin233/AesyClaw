@@ -24,12 +24,30 @@ function makeContext(overrides: Partial<ChannelContext> = {}): ChannelContext {
     config: {},
     configManager: {} as ChannelContext['configManager'],
     paths: {} as ChannelContext['paths'],
-    receive: vi.fn(async () => undefined),
-    registerTool: vi.fn(),
-    unregisterTool: vi.fn(),
-    registerCommand: vi.fn(),
-    getCommands: vi.fn(() => []),
     logger: makeLogger(),
+    state: {},
+    channel: {
+      receive: vi.fn(async () => undefined),
+      getCommands: vi.fn(() => []),
+    },
+    sessions: {
+      getContextUsage: vi.fn(async () => ({ inputTokens: 0, outputTokens: 0, contextWindow: 0 })),
+      getModel: vi.fn(async () => ({})),
+      list: vi.fn(async () => []),
+      getMessages: vi.fn(async () => []),
+    },
+    models: {
+      resolve: vi.fn() as never,
+    },
+    registry: {
+      tools: {
+        register: vi.fn(),
+        unregister: vi.fn(),
+      },
+      commands: {
+        register: vi.fn(),
+      },
+    },
     ...overrides,
   };
 }
@@ -92,7 +110,7 @@ describe('DesktopServer', () => {
       sessionId: 'session-1',
     });
 
-    expect(context.receive).toHaveBeenCalledWith(
+    expect(context.channel.receive).toHaveBeenCalledWith(
       { components: [{ type: 'Plain', text: '/stop' }] },
       { channel: 'desktop', type: 'private', chatId: 'session-1' },
       { id: 'conn-abcdef12', name: 'Desktop-conn-abc' },
@@ -101,7 +119,12 @@ describe('DesktopServer', () => {
 
   it('responds to session list requests with request ids', async () => {
     const sessions = [{ id: 'db-session', channel: 'desktop', type: 'private', chatId: 'chat-1' }];
-    const context = makeContext({ getSessions: vi.fn(async () => sessions) as never });
+    const context = makeContext({
+      sessions: {
+        ...makeContext().sessions,
+        list: vi.fn(async () => sessions) as never,
+      },
+    });
     const server = new DesktopServer({
       port: 0,
       authToken: 'desktop-local',
@@ -125,7 +148,12 @@ describe('DesktopServer', () => {
 
   it('responds to session message requests with request ids', async () => {
     const messages = [{ role: 'user', content: 'hello' }];
-    const context = makeContext({ getSessionMessages: vi.fn(async () => messages) as never });
+    const context = makeContext({
+      sessions: {
+        ...makeContext().sessions,
+        getMessages: vi.fn(async () => messages) as never,
+      },
+    });
     const server = new DesktopServer({
       port: 0,
       authToken: 'desktop-local',

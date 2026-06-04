@@ -125,7 +125,7 @@ describe('ChannelManager', () => {
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
         expect(ctx.config).toEqual({ token: 'configured' });
-        expect(ctx.receive).toEqual(expect.any(Function));
+        expect(ctx.channel.receive).toEqual(expect.any(Function));
       }),
     });
     const manager = makeManager({
@@ -160,7 +160,7 @@ describe('ChannelManager', () => {
     } = {};
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
-        captured.receive = ctx.receive;
+        captured.receive = ctx.channel.receive;
       }),
     });
     const manager = makeManager({
@@ -352,21 +352,21 @@ describe('ChannelManager', () => {
     const commandRegistry = new CommandRegistry();
     const channel = makeChannel({
       init: vi.fn(async (ctx: ChannelContext) => {
-        ctx.registerTool({
+        ctx.registry.tools.register({
           name: 'channel_tool',
           description: 'Channel tool',
           parameters: Type.Object({}),
           owner: 'system',
           execute: async () => ({ content: 'ok' }),
         });
-        ctx.registerCommand({
+        ctx.registry.commands.register({
           name: 'channelcmd',
           description: 'Channel command',
           scope: 'system',
           execute: async () => 'ok',
         });
 
-        const commands = ctx.getCommands();
+        const commands = ctx.channel.getCommands();
         expect(commands.map((command) => command.name)).toContain('channelcmd');
         expect(commands.some((command) => 'execute' in command)).toBe(false);
       }),

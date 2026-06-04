@@ -1134,9 +1134,32 @@ function makeChannelContext(
       serverUrl: 'ws://napcat.remote:3001/',
       ...overrides.config,
     },
+    configManager: overrides.configManager ?? ({} as ChannelContext['configManager']),
     paths: overrides.paths ?? defaultPaths,
-    receive: overrides.receive ?? vi.fn(),
     logger: overrides.logger ?? makeLogger(),
+    state: overrides.state ?? {},
+    channel: overrides.channel ?? {
+      receive: vi.fn(),
+      getCommands: vi.fn(() => []),
+    },
+    sessions: overrides.sessions ?? {
+      getContextUsage: vi.fn(async () => ({ inputTokens: 0, outputTokens: 0, contextWindow: 0 })),
+      getModel: vi.fn(async () => ({})),
+      list: vi.fn(async () => []),
+      getMessages: vi.fn(async () => []),
+    },
+    models: overrides.models ?? {
+      resolve: vi.fn() as never,
+    },
+    registry: overrides.registry ?? {
+      tools: {
+        register: vi.fn(),
+        unregister: vi.fn(),
+      },
+      commands: {
+        register: vi.fn(),
+      },
+    },
   };
 }
 
@@ -1145,14 +1168,16 @@ async function openTestChannel(
   socket: FakeWebSocket,
   options: {
     config?: Record<string, unknown>;
-    receive?: ChannelContext['receive'];
+    receive?: ChannelContext['channel']['receive'];
     paths?: ChannelContext['paths'];
   } = {},
 ): Promise<void> {
   const initPromise = channel.init(
     makeChannelContext({
       config: options.config,
-      receive: options.receive,
+      channel: options.receive
+        ? { receive: options.receive, getCommands: vi.fn(() => []) }
+        : undefined,
       paths: options.paths,
     }),
   );

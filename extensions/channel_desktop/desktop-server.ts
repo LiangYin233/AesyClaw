@@ -40,7 +40,7 @@ export class DesktopServer {
       host: options.host,
       authToken: options.authToken,
       getCommands: () => {
-        return options.context.getCommands().map((cmd) => ({
+        return options.context.channel.getCommands().map((cmd) => ({
           name: cmd.namespace ? `${cmd.namespace} ${cmd.name}` : cmd.name,
           description: cmd.description ?? '',
         }));
@@ -189,7 +189,7 @@ export class DesktopServer {
 
     try {
       this.logger.info('收到 Desktop 聊天消息', { connectionId, sessionId });
-      await this.options.context.receive(message, sessionKey, {
+      await this.options.context.channel.receive(message, sessionKey, {
         id: connectionId,
         name: `Desktop-${connectionId.slice(0, 8)}`,
       });
@@ -211,7 +211,7 @@ export class DesktopServer {
     const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
     const conn = this.sessions.getConnection(msg.sessionId);
     try {
-      await this.options.context.receive(
+      await this.options.context.channel.receive(
         { components: [{ type: 'Plain', text: '/stop' }] },
         sessionKey,
         { id: connectionId, name: `Desktop-${connectionId.slice(0, 8)}` },
@@ -233,8 +233,8 @@ export class DesktopServer {
     const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
     try {
       const [usage, modelInfo] = await Promise.all([
-        this.options.context.getSessionContextUsage(sessionKey),
-        this.options.context.getSessionModel(sessionKey),
+        this.options.context.sessions.getContextUsage(sessionKey),
+        this.options.context.sessions.getModel(sessionKey),
       ]);
       const conn = this.sessions.getConnectionById(connectionId);
       if (conn) {
@@ -258,7 +258,7 @@ export class DesktopServer {
     msg: { type: 'get_sessions'; requestId?: string },
   ): Promise<void> {
     try {
-      const sessions = await this.options.context.getSessions();
+      const sessions = await this.options.context.sessions.list();
       if (msg.requestId) {
         this.sessions.getConnectionById(connectionId)?.sendJson({
           type: 'sessions',
@@ -283,7 +283,7 @@ export class DesktopServer {
   ): Promise<void> {
     try {
       const sessionKey = this.sessions.makeSessionKey(msg.sessionId);
-      const messages = await this.options.context.getSessionMessages(sessionKey);
+      const messages = await this.options.context.sessions.getMessages(sessionKey);
       const conn = this.sessions.getConnectionById(connectionId);
       if (conn) {
         conn.sendJson({

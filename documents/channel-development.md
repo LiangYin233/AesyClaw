@@ -34,8 +34,8 @@ export const channel: ChannelPlugin = {
     // 初始化：建立连接，保存到 ctx.state（框架会在 stop 时自动清理）
     ctx.state.client = await connect(ctx.config['apiKey']);
 
-    // 收到外部消息时，通过 ctx.receive 送入 Pipeline：
-    // ctx.receive(message, sessionKey, sender)
+    // 收到外部消息时，通过 ctx.channel.receive 送入 Pipeline：
+    // ctx.channel.receive(message, sessionKey, sender)
   },
 
   async destroy() {
@@ -96,23 +96,24 @@ export default channel;
 
 频道在 `init(ctx)` 中接收的上下文：
 
-| 属性/方法                               | 说明                                                         |
-| --------------------------------------- | ------------------------------------------------------------ |
-| `name`                                  | 频道名称                                                     |
-| `config`                                | 频道配置（defaultConfig 与用户配置合并后，`enabled` 已剥离） |
-| `state`                                 | 运行时状态容器（stop 时自动清理）                            |
-| `configManager`                         | 全局配置管理器                                               |
-| `paths`                                 | 路径解析器                                                   |
-| `receive(message, sessionKey, sender?)` | 将入站消息送入 Pipeline 处理                                 |
-| `registerTool(tool)`                    | 注册工具（作用域 `channel:{name}`）                          |
-| `unregisterTool(name)`                  | 注销已注册的工具（只能注销自己的）                           |
-| `registerCommand(cmd)`                  | 注册斜杠命令                                                 |
-| `getCommands()`                         | 获取已注册的命令列表（不含 execute）                         |
-| `logger`                                | 带 `channel:{name}` 作用域的 Logger                          |
-| `resolveModel(providerModel)`           | 根据 `provider/model` 解析完整模型配置                       |
-| `getSessionContextUsage(sessionKey)`    | 获取指定会话的上下文窗口使用率（token 估算、百分比）         |
-| `getSessions()`                         | 获取所有会话列表（用于 Desktop 同步）                        |
-| `getSessionMessages(sessionKey)`        | 获取指定会话的消息历史                                       |
+| 属性/方法                                       | 说明                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| `name`                                          | 频道名称                                                     |
+| `config`                                        | 频道配置（defaultConfig 与用户配置合并后，`enabled` 已剥离） |
+| `state`                                         | 运行时状态容器（stop 时自动清理）                            |
+| `configManager`                                 | 全局配置管理器                                               |
+| `paths`                                         | 路径解析器                                                   |
+| `logger`                                        | 带 `channel:{name}` 作用域的 Logger                          |
+| `channel.receive(message, sessionKey, sender?)` | 将入站消息送入 Pipeline 处理                                 |
+| `channel.getCommands()`                         | 获取已注册的命令列表（不含 execute）                         |
+| `registry.tools.register(tool)`                 | 注册工具（作用域 `channel:{name}`）                          |
+| `registry.tools.unregister(name)`               | 注销已注册的工具（只能注销自己的）                           |
+| `registry.commands.register(cmd)`               | 注册斜杠命令                                                 |
+| `models.resolve(providerModel)`                 | 根据 `provider/model` 解析完整模型配置                       |
+| `sessions.getContextUsage(sessionKey)`          | 获取指定会话的上下文窗口使用率（token 估算、百分比）         |
+| `sessions.list()`                               | 获取所有会话列表（用于 Desktop 同步）                        |
+| `sessions.getMessages(sessionKey)`              | 获取指定会话的消息历史                                       |
+| `sessions.getModel(sessionKey)`                 | 获取指定会话绑定的模型和角色 ID                              |
 
 ---
 
@@ -156,10 +157,10 @@ export default channel;
 
 ## 入站消息处理
 
-当频道收到外部消息时，构造 `Message` 并通过 `ctx.receive()` 送入 Pipeline：
+当频道收到外部消息时，构造 `Message` 并通过 `ctx.channel.receive()` 送入 Pipeline：
 
 ```ts
-ctx.receive(
+ctx.channel.receive(
   { components: [{ type: 'Plain', text: '用户消息' }] },
   { channel: 'myplatform', type: 'private', chatId: 'user-123' },
   { id: 'user-123', name: '用户名' },
