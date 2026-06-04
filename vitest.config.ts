@@ -12,6 +12,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts', 'web/src/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'extensions/plugin_webui/web/src/**/*.test.ts'],
   },
 });
