@@ -20,8 +20,7 @@ export class ConfigManager {
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private readonly configStore: Conf<Record<string, unknown>>;
   private readonly fileWatcher: ConfigFileWatcher;
-  /** 配置变更后的回调（由 Application.installHotReload 注册） */
-  onConfigChanged?: () => void;
+  private readonly configChangedListeners = new Set<() => void>();
 
   /**
    * 创建配置管理器实例。
@@ -55,6 +54,14 @@ export class ConfigManager {
   /** 获取已解析的运行时路径（只读）。 */
   get resolvedPaths(): Readonly<ResolvedPaths> {
     return this.paths;
+  }
+
+  /** 订阅配置变更通知，返回取消订阅函数。 */
+  subscribeConfigChanged(listener: () => void): () => void {
+    this.configChangedListeners.add(listener);
+    return () => {
+      this.configChangedListeners.delete(listener);
+    };
   }
 
   /**
@@ -212,7 +219,7 @@ export class ConfigManager {
       }
       this.lastKnownConfig = structuredClone(newConfig);
       logger.info('已从文件重新加载配置缓存');
-      this.onConfigChanged?.();
+      this.notifyConfigChanged();
     } catch (err) {
       logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
     }
@@ -272,9 +279,21 @@ export class ConfigManager {
   }
 
   private async persistWithGuard(config: AppConfig): Promise<void> {
+    if (configsEqual(this.lastKnownConfig, config)) return;
+
     this.writeConfigToStore(this.configStore, config);
     this.lastKnownConfig = structuredClone(config);
-    this.onConfigChanged?.();
+    this.notifyConfigChanged();
+  }
+
+  private notifyConfigChanged(): void {
+    for (const listener of this.configChangedListeners) {
+      try {
+        listener();
+      } catch (err) {
+        logger.error('配置变更监听器执行失败', err);
+      }
+    }
   }
 
   private findMissingFields(
@@ -325,6 +344,10 @@ export class ConfigManager {
       );
     }
   }
+}
+
+function configsEqual(left: AppConfig, right: AppConfig): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function applyTopLevelConfigUpdate(

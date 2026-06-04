@@ -449,7 +449,7 @@ function hotReloadService(): RuntimeService {
       sub.configManager.startHotReload();
       sub.roleManager.startHotReload();
 
-      sub.configManager.onConfigChanged = () => {
+      const unsubscribeConfigChanged = sub.configManager.subscribeConfigChanged(() => {
         void extensions.pluginManager.handleConfigReload().catch((err) => {
           logger.error('插件配置热重载失败', err);
         });
@@ -459,7 +459,8 @@ function hotReloadService(): RuntimeService {
         void sub.mcpManager.handleConfigReload().catch((err) => {
           logger.error('MCP 配置热重载失败', err);
         });
-      };
+      });
+      ctx.defer(unsubscribeConfigChanged);
     },
   };
 }

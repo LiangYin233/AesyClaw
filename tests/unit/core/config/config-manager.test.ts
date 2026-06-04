@@ -201,13 +201,41 @@ describe('ConfigManager', () => {
 
     it('should notify on internal config writes', async () => {
       const onConfigChanged = vi.fn();
-      manager.onConfigChanged = onConfigChanged;
+      manager.subscribeConfigChanged(onConfigChanged);
 
       await manager.set('agent.logLevel', 'debug');
       await manager.patch('agent', { defaultModel: 'openai/gpt-4o-mini' });
       await manager.update({ plugins: { exec: { enabled: false } } });
 
       expect(onConfigChanged).toHaveBeenCalledTimes(3);
+    });
+
+    it('should notify all config change subscribers until unsubscribed', async () => {
+      const first = vi.fn();
+      const second = vi.fn();
+      const unsubscribeFirst = manager.subscribeConfigChanged(first);
+      manager.subscribeConfigChanged(second);
+
+      await manager.set('agent.logLevel', 'debug');
+
+      expect(first).toHaveBeenCalledTimes(1);
+      expect(second).toHaveBeenCalledTimes(1);
+
+      unsubscribeFirst();
+      await manager.patch('agent', { defaultModel: 'openai/gpt-4o-mini' });
+
+      expect(first).toHaveBeenCalledTimes(1);
+      expect(second).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not notify when an internal write keeps the same config', async () => {
+      const onConfigChanged = vi.fn();
+      manager.subscribeConfigChanged(onConfigChanged);
+
+      await manager.set('agent.logLevel', 'info');
+      await manager.syncDefaults();
+
+      expect(onConfigChanged).not.toHaveBeenCalled();
     });
 
     it('should reject array element paths', async () => {
@@ -382,7 +410,7 @@ describe('ConfigManager', () => {
 
     it('should notify on valid hot reload changes', async () => {
       const onConfigChanged = vi.fn();
-      manager.onConfigChanged = onConfigChanged;
+      manager.subscribeConfigChanged(onConfigChanged);
       manager.startHotReload();
 
       const updated = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
