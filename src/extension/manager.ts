@@ -1,5 +1,5 @@
 /**
- * BaseExtensionManager — 统一扩展生命周期 host。
+ * ExtensionManager — 统一扩展生命周期 host。
  *
  * 将 Plugin 和 Channel 共享的生命周期逻辑（发现、配置合并、TypeBox 校验、
  * 热重载状态机、Owner 清理）集中到一个 spec-driven host。Plugin/Channel 的
@@ -49,7 +49,7 @@ import type { ExtensionRuntimeSpec } from './spec';
  * @template TDef - 扩展定义类型（PluginDefinition 或 ChannelPlugin）
  * @template TCtx - 扩展上下文类型（PluginContext 或 ChannelContext）
  */
-export class BaseExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> {
+export class ExtensionManager<TDef extends BaseExtensionDefinition<TCtx>, TCtx> {
   /** 已注册的扩展定义（名称 → 定义） */
   readonly definitions = new Map<string, TDef>();
 

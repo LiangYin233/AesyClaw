@@ -2,7 +2,7 @@
 
 import path from 'node:path';
 import { getExtensionFailureMessage, recordExtensionFailure } from '@aesyclaw/extension/failure';
-import { BaseExtensionManager } from '@aesyclaw/extension/base-manager';
+import { ExtensionManager } from '@aesyclaw/extension/manager';
 import { createPluginSpec } from './spec';
 import type {
   PluginDefinition,
@@ -20,7 +20,7 @@ import type { LoadedExtension } from '@aesyclaw/extension/types';
 /**
  * 插件管理器 — 负责插件发现、插件特有查询，以及委托统一 Extension host 管理生命周期。
  */
-export class PluginManager extends BaseExtensionManager<PluginDefinition, PluginContext> {
+export class PluginManager extends ExtensionManager<PluginDefinition, PluginContext> {
   private readonly extensionsDir: string;
 
   constructor(private readonly deps: PluginManagerDependencies) {

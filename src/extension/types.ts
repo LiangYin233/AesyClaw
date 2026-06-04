@@ -2,7 +2,7 @@
  * Extension 系统的基础类型定义。
  *
  * 定义 Plugin 和 Channel 共享的接口契约，
- * 为泛型基类 BaseExtensionManager 提供类型约束。
+ * 为统一 ExtensionManager host 提供类型约束。
  */
 
 import type { TSchema } from '@sinclair/typebox';

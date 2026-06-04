@@ -4,7 +4,7 @@
  * 负责频道特有的消息路由，并将发现、加载、卸载、启用/禁用、热重载交给统一 host。
  */
 
-import { BaseExtensionManager } from '@aesyclaw/extension/base-manager';
+import { ExtensionManager } from '@aesyclaw/extension/manager';
 import { createChannelSpec } from './spec';
 import * as router from './router';
 import type {
@@ -21,7 +21,7 @@ import type { Message, OutboundSignal, SessionKey, SenderInfo } from '@aesyclaw/
 /**
  * 频道管理器 — 注册、启动、停止频道适配器，并将入站消息桥接到管道。
  */
-export class ChannelManager extends BaseExtensionManager<ChannelPlugin, ChannelContext> {
+export class ChannelManager extends ExtensionManager<ChannelPlugin, ChannelContext> {
   /** 非流式频道的 chunk 缓冲区 — channel:session → 累积文本 */
   private readonly chunkBuffers: Map<string, string>;
 
