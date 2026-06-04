@@ -197,8 +197,6 @@ type PluginContext = {
 };
 ```
 
-旧版顶层 alias 已移除。请始终使用 `ctx.log`、`ctx.config`、`ctx.registry`、`ctx.hooks`、`ctx.models`、`ctx.control` 等命名空间。
-
 ### meta
 
 ```ts
@@ -562,12 +560,18 @@ await ctx.control.skills.getContent(name);
       "enabled": true,
       "host": "127.0.0.1",
       "port": 3000,
-      "enabledServer": true,
       "authToken": "...",
     },
   },
 }
 ```
+
+说明：
+
+- `enabled` 是框架管理字段，用于启用或禁用整个 `plugin_webui`。
+- `host` / `port` 是 WebUI HTTP + WebSocket 服务监听地址。
+- `authToken` 用于 WebUI WebSocket 鉴权；首次启动时如果缺失会自动生成。
+- 不再使用 `enabledServer` 或 `devServerUrl`；是否启动 WebUI 服务由 `plugins.webui.enabled` 决定。
 
 WebUI 需要读写多段全局配置，因此声明了配置权限：
 
@@ -588,15 +592,13 @@ permissions: {
 }
 ```
 
-核心配置不再包含旧的 `server.*` 段；全局日志级别位于 `agent.logLevel`。
-
 ---
 
 ## 最佳实践
 
 - 只从 `@aesyclaw/sdk` 导入公共 API。
 - 为工具和命令使用带插件名前缀的名称，避免冲突，例如 `myplugin_search`。
-- 在 `configSchema` 中声明默认值，不要使用旧的 `defaultConfig`。
+- 在 `configSchema` 中声明默认值。
 - 多段配置保存优先使用 `ctx.config.global.update()`。
 - 需要修改自身配置时优先使用 `ctx.config.self`。
 - 插件自己创建的 server、timer、WebSocket、文件句柄等必须在 `destroy(ctx)` 中释放。

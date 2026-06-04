@@ -568,7 +568,9 @@ export abstract class BaseExtensionManager<TDef extends BaseExtensionDefinition<
   }
 
   /**
-   * 获取扩展的默认配置（包含 enabled 字段）。
+   * 获取扩展业务默认配置。
+   *
+   * enabled 是框架管理字段，具体默认值由插件/频道管理器分别决定。
    */
   protected getManagedDefaults(definition: TDef): Record<string, unknown> {
     return stripEnabledField(definition.defaultConfig ?? {});

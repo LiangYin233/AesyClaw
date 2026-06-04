@@ -71,6 +71,11 @@ export class PluginManager extends BaseExtensionManager<PluginDefinition, Plugin
     return enabled === undefined ? validated : { ...validated, enabled };
   }
 
+  // 插件默认启用；enabled 由框架管理，不属于插件业务 configSchema。
+  protected getManagedDefaults(_definition: PluginDefinition): Record<string, unknown> {
+    return { enabled: true };
+  }
+
   // ─── 差异化钩子 ─────────────────────────────────────────────
 
   protected async onBeforeUnload(

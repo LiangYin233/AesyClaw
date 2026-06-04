@@ -44,10 +44,16 @@ const plugin: PluginDefinition = {
       });
     }
 
-    const config = ctx.config.self.get<WebuiPluginConfig>('') ?? ({} as WebuiPluginConfig);
-    if (config.enabledServer !== true) {
-      ctx.log.info('plugin_webui server 未启动（enabledServer=false）');
-      return;
+    let config: Partial<WebuiPluginConfig> & Record<string, unknown> =
+      ctx.config.self.get<Partial<WebuiPluginConfig> & Record<string, unknown>>('') ?? {};
+    const legacyKeys = ['enabledServer', 'devServerUrl'].filter((key) => key in config);
+    if (legacyKeys.length > 0) {
+      const nextConfig = { ...config };
+      for (const key of legacyKeys) delete nextConfig[key];
+      await ctx.config.self.set('', nextConfig);
+      config =
+        ctx.config.self.get<Partial<WebuiPluginConfig> & Record<string, unknown>>('') ?? nextConfig;
+      ctx.log.info('已移除 plugin_webui 遗留配置项', { keys: legacyKeys });
     }
 
     const host = config.host ?? '127.0.0.1';

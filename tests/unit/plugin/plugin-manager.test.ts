@@ -47,6 +47,10 @@ class FakeConfigManager {
     }
     const parts = path.split('.');
     if (parts[0] === 'plugins' && parts[1]) {
+      if (parts.length === 2) {
+        this.plugins[parts[1]] = value;
+        return;
+      }
       const current = (this.plugins[parts[1]] ?? {}) as Record<string, unknown>;
       this.plugins[parts[1]] = { ...current, [parts.slice(2).join('.')]: value };
       return;
@@ -125,6 +129,15 @@ describe('PluginManager', () => {
     expect(toolRegistry.get('alpha_tool')?.owner).toBe('plugin:alpha');
     expect(commandRegistry.getAll()[0]?.scope).toBe('plugin:alpha');
     expect(manager.getLoaded('alpha')).toBeDefined();
+  });
+
+  it('writes explicit enabled=true for plugins by default', async () => {
+    const module = makeModule();
+    const { manager, config } = await makeManager(module);
+
+    await manager.setup();
+
+    expect(config.plugins['alpha']).toEqual({ enabled: true });
   });
 
   it('provides namespaced paths to plugin init contexts', async () => {
@@ -282,6 +295,25 @@ describe('PluginManager', () => {
     await manager.setup();
 
     expect(manager.getLoaded('alpha')).toBeUndefined();
+  });
+
+  it('preserves managed enabled flag when replacing self config root', async () => {
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        configSchema: Type.Object({ greeting: Type.String({ default: 'hello' }) }),
+        init: vi.fn(async (ctx) => {
+          await ctx.config.self.set('', { greeting: 'updated' });
+        }),
+      },
+    });
+    const config = new FakeConfigManager();
+    config.plugins = { alpha: { enabled: true, greeting: 'old', legacy: true } };
+
+    const { manager } = await makeManager(module, config);
+    await manager.setup();
+
+    expect(config.plugins['alpha']).toEqual({ enabled: true, greeting: 'updated' });
   });
 
   it('handles enable/disable toggling through manager compatibility methods', async () => {

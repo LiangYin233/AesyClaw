@@ -130,8 +130,12 @@ function validatePluginConfigUpdate(
     if (!isRecord(value)) {
       throw new Error(`插件配置(${definition.name})验证失败: 根配置必须是对象`);
     }
+    const managedEnabled = nextConfig['enabled'];
     for (const key of Object.keys(nextConfig)) delete nextConfig[key];
     Object.assign(nextConfig, structuredClone(value));
+    if (managedEnabled !== undefined && nextConfig['enabled'] === undefined) {
+      nextConfig['enabled'] = managedEnabled;
+    }
   } else {
     setLocalPath(nextConfig, configPath, value);
   }
