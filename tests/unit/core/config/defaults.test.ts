@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG } from '../../../../src/core/config/defaults';
 
 describe('DEFAULT_CONFIG', () => {
-  it('has server defaults', () => {
-    expect(DEFAULT_CONFIG.server.port).toBeGreaterThan(0);
-    expect(DEFAULT_CONFIG.server.host).toBeTruthy();
-    expect(DEFAULT_CONFIG.server.logLevel).toBeTruthy();
+  it('has no core server config section', () => {
+    expect(DEFAULT_CONFIG).not.toHaveProperty('server');
   });
 
   it('has empty providers and channels', () => {
@@ -13,7 +11,9 @@ describe('DEFAULT_CONFIG', () => {
     expect(DEFAULT_CONFIG.channels).toEqual({});
   });
 
-  it('has agent memory settings', () => {
+  it('has agent runtime settings', () => {
+    expect(DEFAULT_CONFIG.agent.defaultModel).toBeTruthy();
+    expect(DEFAULT_CONFIG.agent.logLevel).toBeTruthy();
     expect(DEFAULT_CONFIG.agent.memory.compressionThreshold).toBeGreaterThan(0);
     expect(DEFAULT_CONFIG.agent.memory.compressionThreshold).toBeLessThanOrEqual(1);
   });

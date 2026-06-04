@@ -17,7 +17,6 @@ const fakePaths = {
   skillsDir: '/tmp/aesyclaw/skills',
   userSkillsDir: '/tmp/aesyclaw/.aesyclaw/skills',
   extensionsDir: '/tmp/aesyclaw/extensions',
-  webDistDir: '/tmp/aesyclaw/dist',
 };
 
 class FakeConfigManager {

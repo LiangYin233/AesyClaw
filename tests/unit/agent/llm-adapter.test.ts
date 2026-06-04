@@ -24,7 +24,6 @@ vi.mock('@earendil-works/pi-ai', async () => {
 
 function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppConfig {
   return {
-    server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
     providers: {
       openai: {
         apiType: 'openai-responses',
@@ -47,10 +46,12 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
     },
     channels: {},
     agent: {
+      defaultModel: 'openai/gpt-4o',
+      logLevel: 'info',
       memory: { compressionThreshold: 0.8 },
     },
     mcp: [],
-    plugins: [],
+    plugins: {},
   };
 }
 

@@ -206,7 +206,6 @@ export function formatSectionTitle(key: string): string {
 
 export function getSectionSubtitle(key: string): string {
   const subtitles: Record<string, string> = {
-    server: 'Host, port, logging, and WebUI authentication settings.',
     providers: 'Provider credentials, protocol choices, and model presets.',
     agent: 'Agent memory and multimodal model defaults.',
   };

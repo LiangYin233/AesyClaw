@@ -2,7 +2,7 @@
  * 作用域日志模块。
  *
  * 每个子系统通过 `createScopedLogger(scope)` 创建自己的日志实例。
- * 日志级别由 `config.server.logLevel` 控制，并可在运行时通过 `setLogLevel()` 更新。
+ * 日志级别由 `config.agent.logLevel` 控制，并可在运行时通过 `setLogLevel()` 更新。
  *
  * 禁止直接使用 `console.log/warn/error` —— 始终使用带作用域的日志器。
  */

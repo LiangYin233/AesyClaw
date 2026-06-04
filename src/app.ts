@@ -22,7 +22,7 @@ import { registerBuiltinCommands } from './command/builtin';
 import { registerBuiltinTools } from './tool/builtin';
 import { CronManager } from './cron/manager';
 import { PluginManager } from './extension/plugin/manager';
-import { RuntimeControlHub } from './extension/plugin/control';
+import { RuntimeControlHub, type RuntimeControlDependencies } from './extension/plugin/control';
 import { ChannelManager } from './extension/channel/manager';
 import {
   createAutoCompactHook,
@@ -34,12 +34,9 @@ import {
   createCommunicationPromptHook,
   createToolResultTruncationHook,
 } from './hook/builtin';
-import { WebUiManager } from './web/webui-manager';
-import type { WebRuntimeDependencies } from './web/types';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { DEFAULT_CONFIG } from './core/config/defaults';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
 const logger = createScopedLogger('app');
 
 type Deps = {
@@ -227,12 +224,12 @@ function defaultRuntimeServices(): RuntimeService[] {
   return [
     coreService(),
     builtinHookService(),
-    webAuthTokenService(),
     extensionService(),
+    channelService(),
     cronService(),
+    pluginService(),
     builtinToolService(),
     mcpService(),
-    webService(),
     hotReloadService(),
   ];
 }
@@ -247,7 +244,7 @@ function coreService(): RuntimeService {
       ctx.defer(() => sub.pipeline.destroy());
       ctx.defer(() => sub.roleManager.destroy());
 
-      setLogLevel(sub.configManager.get('server.logLevel') as string);
+      setLogLevel(sub.configManager.get('agent.logLevel') as string);
 
       const paths = sub.configManager.resolvedPaths;
       await Promise.all([
@@ -282,24 +279,6 @@ function builtinHookService(): RuntimeService {
   };
 }
 
-function webAuthTokenService(): RuntimeService {
-  return {
-    name: '确保 WebUI 认证令牌',
-    priority: 15,
-    async start(ctx) {
-      const existing = ctx.sub.configManager.get('server.authToken') as string | undefined;
-      if (existing) return;
-
-      const token = randomBytes(32).toString('hex');
-      await ctx.sub.configManager.set('server.authToken', token);
-      logger.info('已自动生成 WebUI 认证令牌', {
-        hint: `${token.slice(0, 4)}…${token.slice(-4)}`,
-        configPath: 'server.authToken',
-      });
-    },
-  };
-}
-
 function extensionService(): RuntimeService {
   return {
     name: '初始化扩展运行时',
@@ -327,7 +306,7 @@ function extensionService(): RuntimeService {
         llmAdapter: sub.llmAdapter,
         control: sub.runtimeControl,
       });
-      const extensions = ctx.own<ExtensionRuntime>(
+      ctx.own<ExtensionRuntime>(
         'extensions',
         { channelManager, pluginManager },
         async ({ channelManager, pluginManager }) => {
@@ -350,19 +329,6 @@ function extensionService(): RuntimeService {
         agentFactory: sub.agentFactory,
       });
 
-      await extensions.pluginManager.setup();
-      await extensions.channelManager.setup();
-    },
-  };
-}
-
-function cronService(): RuntimeService {
-  return {
-    name: '初始化定时任务',
-    priority: 30,
-    async start(ctx) {
-      const sub = ctx.sub;
-      const { channelManager } = ctx.get<ExtensionRuntime>('extensions');
       const cronManager = ctx.own(
         'cronManager',
         new CronManager({
@@ -376,9 +342,42 @@ function cronService(): RuntimeService {
           await cronManager.destroy();
         },
       );
-      sub.runtimeControl.bind(createWebRuntimeDependencies(ctx));
+      void cronManager;
+
+      sub.runtimeControl.bind(createRuntimeControlDependencies(ctx));
       ctx.defer(() => sub.runtimeControl.reset());
-      await cronManager.initialize();
+    },
+  };
+}
+
+function channelService(): RuntimeService {
+  return {
+    name: '初始化频道运行时',
+    priority: 25,
+    async start(ctx) {
+      const { channelManager } = ctx.get<ExtensionRuntime>('extensions');
+      await channelManager.setup();
+    },
+  };
+}
+
+function cronService(): RuntimeService {
+  return {
+    name: '初始化定时任务',
+    priority: 30,
+    async start(ctx) {
+      await ctx.get<CronManager>('cronManager').initialize();
+    },
+  };
+}
+
+function pluginService(): RuntimeService {
+  return {
+    name: '初始化插件运行时',
+    priority: 35,
+    async start(ctx) {
+      const { pluginManager } = ctx.get<ExtensionRuntime>('extensions');
+      await pluginManager.setup();
     },
   };
 }
@@ -418,24 +417,7 @@ function mcpService(): RuntimeService {
   };
 }
 
-function webService(): RuntimeService {
-  return {
-    name: '启动 WebUI',
-    priority: 60,
-    async start(ctx) {
-      const webUiManager = ctx.own(
-        'webUiManager',
-        new WebUiManager(createWebRuntimeDependencies(ctx)),
-        async (webUiManager) => {
-          await webUiManager.destroy();
-        },
-      );
-      await webUiManager.initialize();
-    },
-  };
-}
-
-function createWebRuntimeDependencies(ctx: RuntimeContext): WebRuntimeDependencies {
+function createRuntimeControlDependencies(ctx: RuntimeContext): RuntimeControlDependencies {
   const sub = ctx.sub;
   const { channelManager, pluginManager } = ctx.get<ExtensionRuntime>('extensions');
   return {

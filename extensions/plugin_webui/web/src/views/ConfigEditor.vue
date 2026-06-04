@@ -263,19 +263,12 @@
           </div>
         </div>
 
-        <div
-          :class="{
-            'p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm':
-              section.key === 'server',
-          }"
-        >
-          <SchemaForm
-            :schema="section.schema"
-            :model-value="editableConfig[section.key]"
-            :modelOptions="modelOptions"
-            @update:model-value="updateConfigSection(section.key, $event)"
-          />
-        </div>
+        <SchemaForm
+          :schema="section.schema"
+          :model-value="editableConfig[section.key]"
+          :modelOptions="modelOptions"
+          @update:model-value="updateConfigSection(section.key, $event)"
+        />
       </section>
 
       <section

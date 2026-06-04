@@ -19,7 +19,7 @@ export type ConfigField = {
 
 export type ApiType = 'openai-responses' | 'openai-completions' | 'anthropic-messages';
 export type McpTransport = 'stdio' | 'sse' | 'http';
-export type ConfigSectionKey = 'channels' | 'plugins' | 'server' | 'providers' | 'agent' | 'mcp';
+export type ConfigSectionKey = 'channels' | 'plugins' | 'providers' | 'agent' | 'mcp';
 export type JsonParseResult = { ok: true; value: unknown } | { ok: false; error: string };
 
 export type ProviderModelForm = Record<string, unknown> & {

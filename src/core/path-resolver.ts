@@ -17,7 +17,6 @@ export type ResolvedPaths = Readonly<{
   skillsDir: string;
   userSkillsDir: string;
   extensionsDir: string;
-  webDistDir: string;
 }>;
 
 /**
@@ -44,6 +43,5 @@ export function resolvePaths(root: string): ResolvedPaths {
     /** 用户自定义 skills 目录（`<project>/.aesyclaw/skills/`） */
     userSkillsDir: path.join(runtimeRoot, DIR_NAMES.skills),
     extensionsDir: path.join(root, DIR_NAMES.extensions),
-    webDistDir: path.join(root, DIR_NAMES.extensions, 'plugin_webui', 'web', 'dist'),
   });
 }

@@ -8,15 +8,12 @@ const TEST_BASE = join(tmpdir(), 'aesyclaw-test-config');
 
 function makeConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
     providers: {},
     channels: {},
     agent: {
+      defaultModel: 'openai/gpt-4o',
+      logLevel: 'info',
       memory: { compressionThreshold: 0.8 },
-      multimodal: {
-        speechToText: { provider: 'openai', model: 'whisper-1' },
-        imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-      },
     },
     mcp: [],
     plugins: {},
@@ -58,7 +55,7 @@ describe('ConfigManager', () => {
   let configPath: string;
 
   beforeEach(() => {
-    testRoot = join(TEST_BASE, `test-${Date.now()}`);
+    testRoot = join(TEST_BASE, `test-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     mkdirSync(testRoot, { recursive: true });
     configPath = join(testRoot, '.aesyclaw', 'config.json');
 
@@ -81,9 +78,10 @@ describe('ConfigManager', () => {
   describe('load', () => {
     it('should create default config files if they do not exist', () => {
       expect(existsSync(configPath)).toBe(true);
-      expect(manager.get('server.port')).toBe(3000);
-      expect(manager.get('server.host')).toBe('0.0.0.0');
-      expect(manager.get('server.logLevel')).toBe('info');
+      expect(manager.get('agent.defaultModel')).toBe('openai/gpt-4o');
+      expect(manager.get('agent.logLevel')).toBe('info');
+      expect(manager.get('agent.memory.compressionThreshold')).toBe(0.8);
+      expect(manager.get('server')).toBeUndefined();
     });
 
     it('should create runtime directories', () => {
@@ -95,13 +93,10 @@ describe('ConfigManager', () => {
 
     it('should load an existing config file', () => {
       const existingConfig = makeConfig({
-        server: { port: 8080, host: 'localhost', logLevel: 'debug' },
         agent: {
+          defaultModel: 'test/model',
+          logLevel: 'debug',
           memory: { compressionThreshold: 0.7 },
-          multimodal: {
-            speechToText: { provider: 'test', model: 'test-model' },
-            imageUnderstanding: { provider: 'test', model: 'test-model' },
-          },
         },
       });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
@@ -110,8 +105,8 @@ describe('ConfigManager', () => {
       manager.stopHotReload();
       manager = new ConfigManager(testRoot);
 
-      expect(manager.get('server.port')).toBe(8080);
-      expect(manager.get('server.host')).toBe('localhost');
+      expect(manager.get('agent.defaultModel')).toBe('test/model');
+      expect(manager.get('agent.logLevel')).toBe('debug');
     });
 
     it('should throw on invalid JSON', () => {
@@ -121,9 +116,23 @@ describe('ConfigManager', () => {
       expect(() => new ConfigManager(testRoot)).toThrow();
     });
 
+    it('should reject stale server config sections', () => {
+      const staleConfig = makeConfig({
+        server: { port: 3000, host: 'localhost', logLevel: 'info' },
+      });
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
+      writeFileSync(configPath, JSON.stringify(staleConfig, null, 2));
+
+      expect(() => new ConfigManager(testRoot)).toThrow(/配置验证失败/);
+    });
+
     it('should reject explicitly invalid values instead of coercing them', () => {
       const invalidConfig = makeConfig({
-        server: { port: '3000', host: 'localhost', logLevel: 'info' },
+        agent: {
+          defaultModel: 'test/model',
+          logLevel: 'info',
+          memory: { compressionThreshold: '0.8' },
+        },
       });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
@@ -133,16 +142,13 @@ describe('ConfigManager', () => {
 
     it('should still fill defaults for missing optional fields', () => {
       const partialConfig = makeConfig({
-        server: { port: 8080, host: 'localhost', logLevel: 'debug' },
         agent: {
+          defaultModel: 'test/model',
+          logLevel: 'debug',
           memory: { compressionThreshold: 0.7 },
-          multimodal: {
-            speechToText: { provider: 'test', model: 'test-model' },
-            imageUnderstanding: { provider: 'test', model: 'test-model' },
-          },
         },
         mcp: [{ name: 'local', transport: 'stdio' }],
-        plugins: { 'example-plugin': { enabled: true } },
+        plugins: { 'example-plugin': { custom: true } },
       });
       mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(partialConfig, null, 2));
@@ -151,40 +157,40 @@ describe('ConfigManager', () => {
       manager = new ConfigManager(testRoot);
 
       const mcp = manager.get('mcp') as Array<{ enabled?: boolean }>;
-      const plugins = manager.get('plugins') as Record<string, { enabled?: boolean }>;
+      const plugins = manager.get('plugins') as Record<string, { custom?: boolean }>;
       expect(mcp[0]?.enabled).toBe(true);
-      expect(plugins['example-plugin']?.enabled).toBe(true);
+      expect(plugins['example-plugin']?.custom).toBe(true);
     });
   });
 
   describe('path-based get/set/patch', () => {
     it('should read nested values by path', () => {
-      expect(manager.get('server.port')).toBe(3000);
+      expect(manager.get('agent.logLevel')).toBe('info');
       expect(manager.get('agent.memory.compressionThreshold')).toBe(0.8);
       expect(manager.get('missing.path')).toBeUndefined();
     });
 
     it('should return cloned values from get', () => {
-      const server = manager.get('server') as { port: number };
-      server.port = 9999;
-      expect(manager.get('server.port')).toBe(3000);
+      const agent = manager.get('agent') as { logLevel: string };
+      agent.logLevel = 'debug';
+      expect(manager.get('agent.logLevel')).toBe('info');
     });
 
     it('should set a nested scalar path and persist it', async () => {
-      await manager.set('server.authToken', 'secret-token');
+      await manager.set('agent.logLevel', 'debug');
 
-      expect(manager.get('server.authToken')).toBe('secret-token');
+      expect(manager.get('agent.logLevel')).toBe('debug');
       const fileContent = JSON.parse(readFileSync(configPath, 'utf-8')) as {
-        server: { authToken?: string };
+        agent: { logLevel?: string };
       };
-      expect(fileContent.server.authToken).toBe('secret-token');
+      expect(fileContent.agent.logLevel).toBe('debug');
     });
 
     it('should patch object paths by deep merging', async () => {
-      await manager.patch('server', { authToken: 'patched-token' });
+      await manager.patch('agent', { logLevel: 'debug' });
 
-      expect(manager.get('server.port')).toBe(3000);
-      expect(manager.get('server.authToken')).toBe('patched-token');
+      expect(manager.get('agent.defaultModel')).toBe('openai/gpt-4o');
+      expect(manager.get('agent.logLevel')).toBe('debug');
     });
 
     it('should replace array values as whole paths', async () => {
@@ -199,22 +205,24 @@ describe('ConfigManager', () => {
     });
 
     it('should reject invalid set values before persisting', async () => {
-      await expect(manager.set('server.port', '3000')).rejects.toBeInstanceOf(Error);
+      await expect(manager.set('agent.memory.compressionThreshold', '0.8')).rejects.toBeInstanceOf(
+        Error,
+      );
 
-      expect(manager.get('server.port')).toBe(3000);
+      expect(manager.get('agent.memory.compressionThreshold')).toBe(0.8);
       const fileContent = JSON.parse(readFileSync(configPath, 'utf-8')) as {
-        server: { port: number };
+        agent: { memory: { compressionThreshold: number } };
       };
-      expect(fileContent.server.port).toBe(3000);
+      expect(fileContent.agent.memory.compressionThreshold).toBe(0.8);
     });
 
     it('should reject patching scalar targets', async () => {
-      await expect(manager.patch('server.port', {})).rejects.toThrow(/对象/);
+      await expect(manager.patch('agent.logLevel', {})).rejects.toThrow(/对象/);
     });
 
     it('should atomically update multiple top-level sections', async () => {
       await manager.update({
-        server: { authToken: 'atomic-token' },
+        agent: { logLevel: 'debug' },
         providers: {
           openai: {
             apiKey: 'sk-test',
@@ -225,8 +233,8 @@ describe('ConfigManager', () => {
         plugins: { exec: { enabled: false } },
       });
 
-      expect(manager.get('server.port')).toBe(3000);
-      expect(manager.get('server.authToken')).toBe('atomic-token');
+      expect(manager.get('agent.defaultModel')).toBe('openai/gpt-4o');
+      expect(manager.get('agent.logLevel')).toBe('debug');
       expect(manager.get('providers')).toEqual({
         openai: {
           apiKey: 'sk-test',
@@ -237,10 +245,10 @@ describe('ConfigManager', () => {
       expect(manager.get('plugins')).toEqual({ exec: { enabled: false } });
 
       const fileContent = JSON.parse(readFileSync(configPath, 'utf-8')) as {
-        server: { authToken?: string };
+        agent: { logLevel?: string };
         plugins: Record<string, unknown>;
       };
-      expect(fileContent.server.authToken).toBe('atomic-token');
+      expect(fileContent.agent.logLevel).toBe('debug');
       expect(fileContent.plugins).toEqual({ exec: { enabled: false } });
     });
 
@@ -249,7 +257,7 @@ describe('ConfigManager', () => {
 
       await expect(
         manager.update({
-          server: { authToken: 'should-not-persist' },
+          agent: { logLevel: 'debug' },
           providers: {
             openai: {
               apiType: 'not-supported',
@@ -259,7 +267,7 @@ describe('ConfigManager', () => {
         }),
       ).rejects.toThrow(/配置验证失败/);
 
-      expect(manager.get('server.authToken')).toBeUndefined();
+      expect(manager.get('agent.logLevel')).toBe('info');
       expect(readFileSync(configPath, 'utf-8')).toBe(originalContent);
     });
   });
@@ -351,18 +359,25 @@ describe('ConfigManager', () => {
       manager.startHotReload();
 
       const updated = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
-      updated.server = { port: 7777, host: '127.0.0.1', logLevel: 'debug' };
+      updated.agent = {
+        defaultModel: 'openai/gpt-4o-mini',
+        logLevel: 'debug',
+        memory: { compressionThreshold: 0.6 },
+      };
       writeFileSync(configPath, JSON.stringify(updated, null, 2));
 
-      await waitForExpect(() => expect(manager.get('server.port')).toBe(7777));
+      await waitForExpect(() => expect(manager.get('agent.defaultModel')).toBe('openai/gpt-4o-mini'));
     });
 
     it('should keep previous cache on invalid hot reload changes', async () => {
       manager.startHotReload();
 
-      writeFileSync(configPath, JSON.stringify({ server: { port: 'bad' } }, null, 2));
+      writeFileSync(
+        configPath,
+        JSON.stringify({ ...makeConfig(), agent: { memory: { compressionThreshold: 'bad' } } }, null, 2),
+      );
 
-      await expectStable(() => expect(manager.get('server.port')).toBe(3000));
+      await expectStable(() => expect(manager.get('agent.memory.compressionThreshold')).toBe(0.8));
     });
   });
 

@@ -30,8 +30,6 @@ export const FILE_NAMES = {
 
 /** 运行时默认值和模式元数据共享的默认配置值 */
 export const DEFAULTS = {
-  port: 3000,
-  host: '0.0.0.0',
   logLevel: 'info',
   compressionThreshold: 0.8,
   defaultModel: 'openai/gpt-4o',

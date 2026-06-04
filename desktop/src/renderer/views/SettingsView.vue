@@ -99,12 +99,6 @@
 
       <div class="config-grid">
         <ConfigSectionEditor
-          section-key="server"
-          title="Server"
-          subtitle="Manage server behavior and access settings."
-          :channel-ready="channelReady"
-        />
-        <ConfigSectionEditor
           section-key="providers"
           title="Providers"
           subtitle="Manage model providers, credentials, and presets."

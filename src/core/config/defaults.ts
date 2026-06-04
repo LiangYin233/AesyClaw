@@ -7,15 +7,11 @@ import { DEFAULTS } from '@aesyclaw/core/types';
  * 当配置文件不存在时用作初始配置，并为缺失配置项提供默认值。
  */
 export const DEFAULT_CONFIG: AppConfig = {
-  server: {
-    port: DEFAULTS.port,
-    host: DEFAULTS.host,
-    logLevel: DEFAULTS.logLevel,
-  },
   providers: {},
   channels: {},
   agent: {
     defaultModel: DEFAULTS.defaultModel,
+    logLevel: DEFAULTS.logLevel,
     memory: {
       compressionThreshold: DEFAULTS.compressionThreshold,
     },

@@ -36,15 +36,6 @@ const ProviderConfigSchema = Type.Object(
 
 type ProviderConfig = Static<typeof ProviderConfigSchema>;
 
-// ─── Server ──────────────────────────────────────────────────────
-
-const ServerConfigSchema = Type.Object({
-  port: Type.Integer({ default: DEFAULTS.port, minimum: 1, maximum: 65535 }),
-  host: Type.String({ default: DEFAULTS.host }),
-  logLevel: Type.String({ default: DEFAULTS.logLevel }),
-  authToken: Type.Optional(Type.String()),
-});
-
 // ─── Agent ───────────────────────────────────────────────────────
 
 const MemoryConfigSchema = Type.Object({
@@ -57,6 +48,7 @@ const MemoryConfigSchema = Type.Object({
 
 const AgentConfigSchema = Type.Object({
   defaultModel: Type.String({ default: DEFAULTS.defaultModel }),
+  logLevel: Type.String({ default: DEFAULTS.logLevel }),
   memory: MemoryConfigSchema,
 });
 
@@ -79,19 +71,21 @@ type McpServerConfig = Static<typeof McpServerConfigSchema>;
 
 // ─── Top-level AppConfig ─────────────────────────────────────────
 
-const AppConfigSchema = Type.Object({
-  server: ServerConfigSchema,
-  providers: Type.Record(Type.String(), ProviderConfigSchema),
-  /**
-   * 频道配置以名称-值对的方式存储。由于频道是运行时从磁盘发现的动态扩展，
-   * 顶层无法预知所有频道名，因此值类型为 Unknown。
-   * 每个频道应在自身的 init() 中使用 validateWithSchema() 做运行时校验。
-   */
-  channels: Type.Record(Type.String(), Type.Unknown()),
-  agent: AgentConfigSchema,
-  mcp: Type.Array(McpServerConfigSchema),
-  plugins: Type.Record(Type.String(), Type.Unknown()),
-});
+const AppConfigSchema = Type.Object(
+  {
+    providers: Type.Record(Type.String(), ProviderConfigSchema),
+    /**
+     * 频道配置以名称-值对的方式存储。由于频道是运行时从磁盘发现的动态扩展，
+     * 顶层无法预知所有频道名，因此值类型为 Unknown。
+     * 每个频道应在自身的 init() 中使用 validateWithSchema() 做运行时校验。
+     */
+    channels: Type.Record(Type.String(), Type.Unknown()),
+    agent: AgentConfigSchema,
+    mcp: Type.Array(McpServerConfigSchema),
+    plugins: Type.Record(Type.String(), Type.Unknown()),
+  },
+  { additionalProperties: false },
+);
 
 type AppConfig = Static<typeof AppConfigSchema>;
 
@@ -103,8 +97,6 @@ export {
   ModelPresetSchema,
   /** 提供商配置模式（含 API 密钥、端点、模型列表） */
   ProviderConfigSchema,
-  /** 服务器配置模式 */
-  ServerConfigSchema,
   /** 代理配置模式 */
   AgentConfigSchema,
   /** 记忆压缩配置模式 */

@@ -149,5 +149,5 @@ http:   name + transport + url + [enabled]
 
 ## Web UI
 
-默认地址 `http://<host>:<port>`，首次启动会自动生成 `server.authToken` 并打印在日志中（格式：`abcd...wxyz`）。
+默认地址由 `plugins.webui.host` / `plugins.webui.port` 控制；首次启动会自动生成 `plugins.webui.authToken` 并打印在日志中（格式：`abcd...wxyz`）。
 WebSocket 支持可视化管理配置、角色、会话、监控等。

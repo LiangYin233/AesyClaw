@@ -21,9 +21,8 @@ const plugin: PluginDefinition = {
   configSchema: WebuiPluginConfigSchema,
   permissions: {
     config: {
-      read: ['server', 'providers', 'channels', 'agent', 'mcp', 'plugins'],
+      read: ['providers', 'channels', 'agent', 'mcp', 'plugins'],
       write: [
-        'server',
         'providers',
         'channels',
         'channels.*.enabled',
@@ -47,7 +46,7 @@ const plugin: PluginDefinition = {
 
     const config = ctx.config.self.get<WebuiPluginConfig>('') ?? ({} as WebuiPluginConfig);
     if (config.enabledServer !== true) {
-      ctx.log.info('plugin_webui server 未启动（enabledServer=false，core WebUI 仍由 src/web 提供）');
+      ctx.log.info('plugin_webui server 未启动（enabledServer=false）');
       return;
     }
 

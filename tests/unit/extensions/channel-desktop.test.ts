@@ -152,10 +152,9 @@ describe('DesktopServer', () => {
 
   it('serves config snapshots over the desktop channel websocket', async () => {
     const config = {
-      server: { port: 3000 },
       providers: {},
       channels: { desktop: { enabled: true } },
-      agent: { defaultModel: 'openai/gpt-4o' },
+      agent: { defaultModel: 'openai/gpt-4o', logLevel: 'info' },
       mcp: [],
       plugins: {},
     };

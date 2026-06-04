@@ -7,7 +7,6 @@ import { ChannelManager } from '../../src/extension/channel/manager';
 import { PluginManager } from '../../src/extension/plugin/manager';
 import { CronManager } from '../../src/cron/manager';
 import { McpManager } from '../../src/tool/mcp/mcp-manager';
-import { WebUiManager } from '../../src/web/webui-manager';
 import { DEFAULT_CONFIG } from '../../src/core/config/defaults';
 
 const TEST_ROOTS: string[] = [];
@@ -15,6 +14,7 @@ const TEST_ROOTS: string[] = [];
 afterEach(() => {
   vi.restoreAllMocks();
   delete (globalThis as { __aesyclawChannelStarts?: number }).__aesyclawChannelStarts;
+  delete (globalThis as { __aesyclawPluginControlReady?: boolean }).__aesyclawPluginControlReady;
   for (const testRoot of TEST_ROOTS.splice(0)) {
     rmSync(testRoot, { recursive: true, force: true });
   }
@@ -46,10 +46,43 @@ describe('Application', () => {
         expect.objectContaining({ id: 'default', enabled: true }),
       ]);
       expect(JSON.parse(readFileSync(configFile, 'utf-8'))).toMatchObject({
-        server: expect.objectContaining({ logLevel: 'info' }),
+        agent: expect.objectContaining({ logLevel: 'info' }),
         plugins: {},
         mcp: [expect.objectContaining({ name: 'example', enabled: false })],
       });
+      expect(JSON.parse(readFileSync(configFile, 'utf-8'))).not.toHaveProperty('server');
+    } finally {
+      await app.shutdown();
+    }
+  });
+
+  it('binds runtime control before plugin setup', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    const pluginDir = path.join(testRoot, 'extensions', 'plugin_probe');
+    mkdirSync(pluginDir, { recursive: true });
+    writeFileSync(
+      path.join(pluginDir, 'index.js'),
+      `export default {
+        name: 'probe',
+        version: '1.0.0',
+        async init(ctx) {
+          await ctx.control.status.get();
+          globalThis.__aesyclawPluginControlReady = true;
+        }
+      };\n`,
+      'utf-8',
+    );
+
+    const app = new Application();
+
+    try {
+      await app.start();
+      expect((globalThis as { __aesyclawPluginControlReady?: boolean }).__aesyclawPluginControlReady).toBe(
+        true,
+      );
     } finally {
       await app.shutdown();
     }
@@ -90,40 +123,6 @@ describe('Application', () => {
     }
   });
 
-  it('initializes cron before exposing WebUI routes', async () => {
-    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
-    TEST_ROOTS.push(testRoot);
-    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
-
-    const order: string[] = [];
-    const originalCronInitialize = CronManager.prototype.initialize;
-    const originalWebUiInitialize = WebUiManager.prototype.initialize;
-
-    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (
-      this: CronManager,
-    ) {
-      order.push('cron');
-      await originalCronInitialize.call(this);
-    });
-
-    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(async function (
-      this: WebUiManager,
-    ) {
-      order.push('webui');
-      expect(order).toContain('cron');
-      await originalWebUiInitialize.call(this);
-    });
-
-    const app = new Application();
-
-    try {
-      await app.start();
-      expect(order.indexOf('cron')).toBeLessThan(order.indexOf('webui'));
-    } finally {
-      await app.shutdown();
-    }
-  });
-
   it('loads channel extensions before startAll without adding plugin config entries', async () => {
     const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
     TEST_ROOTS.push(testRoot);
@@ -147,11 +146,15 @@ describe('Application', () => {
     mkdirSync(runtimeRoot, { recursive: true });
     writeFileSync(
       path.join(runtimeRoot, 'config.json'),
-      JSON.stringify({
-        ...DEFAULT_CONFIG,
-        channels: { fixture: { enabled: true } },
-        mcp: [],
-      }),
+      JSON.stringify(
+        {
+          ...DEFAULT_CONFIG,
+          channels: { fixture: { enabled: true } },
+          mcp: [],
+        },
+        null,
+        2,
+      ),
       'utf-8',
     );
 
@@ -173,7 +176,7 @@ describe('Application', () => {
     }
   });
 
-  it('cleans up extension managers when extension startup fails', async () => {
+  it('cleans up managers when plugin startup fails', async () => {
     const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
     TEST_ROOTS.push(testRoot);
     vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
@@ -182,6 +185,7 @@ describe('Application', () => {
     const pluginSetup = vi.spyOn(PluginManager.prototype, 'setup').mockRejectedValue(error);
     const pluginDestroy = vi.spyOn(PluginManager.prototype, 'destroy').mockResolvedValue();
     const channelDestroy = vi.spyOn(ChannelManager.prototype, 'destroy').mockResolvedValue();
+    const cronDestroy = vi.spyOn(CronManager.prototype, 'destroy').mockResolvedValue();
 
     const app = new Application();
 
@@ -189,23 +193,6 @@ describe('Application', () => {
     expect(pluginSetup).toHaveBeenCalledTimes(1);
     expect(channelDestroy).toHaveBeenCalledTimes(1);
     expect(pluginDestroy).toHaveBeenCalledTimes(1);
-  });
-
-  it('cleans up peripheral managers when WebUI startup fails', async () => {
-    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
-    TEST_ROOTS.push(testRoot);
-    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
-
-    const error = new Error('webui startup failed');
-    const webInitialize = vi.spyOn(WebUiManager.prototype, 'initialize').mockRejectedValue(error);
-    const webDestroy = vi.spyOn(WebUiManager.prototype, 'destroy').mockResolvedValue();
-    const cronDestroy = vi.spyOn(CronManager.prototype, 'destroy').mockResolvedValue();
-
-    const app = new Application();
-
-    await expect(app.start()).rejects.toThrow(error);
-    expect(webInitialize).toHaveBeenCalledTimes(1);
-    expect(webDestroy).toHaveBeenCalledTimes(1);
     expect(cronDestroy).toHaveBeenCalledTimes(1);
   });
 

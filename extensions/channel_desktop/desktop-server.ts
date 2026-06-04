@@ -25,7 +25,7 @@ export type DesktopServerOptions = {
   port: number;
   host?: string;
   authToken: string;
-  adminToken: string;
+  adminToken: string | (() => string);
   context: ChannelContext;
 };
 
@@ -350,7 +350,6 @@ export class DesktopServer {
   private getConfigSnapshot(): Record<string, unknown> {
     const configManager = this.options.context.configManager;
     return {
-      server: configManager.get('server'),
       providers: configManager.get('providers'),
       channels: configManager.get('channels'),
       agent: configManager.get('agent'),

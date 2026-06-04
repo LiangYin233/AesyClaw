@@ -60,7 +60,7 @@ export class ConfigManager {
   /**
    * 按点分隔路径读取配置值。
    *
-   * @param path - 点分隔的配置路径，如 "server.port"
+   * @param path - 点分隔的配置路径，如 "agent.defaultModel"
    * @returns 配置值的深拷贝，路径不存在时返回 undefined
    */
   get(path: string): unknown {
@@ -110,7 +110,7 @@ export class ConfigManager {
   /**
    * 原子应用多个顶层配置更新。
    *
-   * server / agent 作为对象 patch 合并；providers / channels / mcp / plugins 整段替换。
+   * agent 作为对象 patch 合并；providers / channels / mcp / plugins 整段替换。
    * 所有变更会先在内存中合成并整体校验，校验通过后才持久化，避免半更新状态。
    *
    * @param update - 顶层配置更新对象
@@ -331,7 +331,7 @@ function applyTopLevelConfigUpdate(
   key: string,
   value: unknown,
 ): void {
-  if (key === 'server' || key === 'agent') {
+  if (key === 'agent') {
     if (!isRecord(value)) {
       throw ErrorFactory.config.invalid(`配置段 "${key}" 的 patch 值必须是对象`, {
         configPath: key,

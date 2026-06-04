@@ -25,7 +25,6 @@ function makePaths(root: string) {
     skillsDir: path.join(root, 'skills'),
     userSkillsDir: path.join(root, '.aesyclaw', 'skills'),
     extensionsDir: path.join(root, 'extensions'),
-    webDistDir: path.join(root, 'dist'),
   };
 }
 

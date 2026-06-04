@@ -2,7 +2,6 @@ import type { PluginContext } from '@aesyclaw/sdk';
 
 export function getConfig(ctx: PluginContext): Record<string, unknown> {
   return {
-    server: ctx.config.global.get('server'),
     providers: ctx.config.global.get('providers'),
     channels: ctx.config.global.get('channels'),
     agent: ctx.config.global.get('agent'),
@@ -15,7 +14,7 @@ export async function updateConfig(ctx: PluginContext, data: unknown): Promise<v
   if (!isRecord(data)) throw new Error('update_config 数据必须是对象');
 
   for (const [key, value] of Object.entries(data)) {
-    if (key === 'server' || key === 'agent') {
+    if (key === 'agent') {
       if (!isRecord(value)) throw new Error(`配置段 "${key}" 的 patch 值必须是对象`);
       const current = ctx.config.global.get(key);
       const base = isRecord(current) ? current : {};

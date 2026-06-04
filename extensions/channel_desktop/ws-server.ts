@@ -18,7 +18,7 @@ export type WsServerOptions = {
   port: number;
   host?: string;
   authToken: string;
-  adminToken: string;
+  adminToken: string | (() => string);
   getCommands: () => Array<{ name: string; description: string }>;
   onJsonMessage(connectionId: string, raw: string): void;
   onBinaryFrame(connectionId: string, data: Buffer): void;
@@ -28,11 +28,12 @@ export class WsServer {
   private wss: WebSocketServer | null = null;
   readonly sessions = new DesktopSessionManager();
   private logger = createScopedLogger('channel:desktop:ws');
-  readonly adminToken: string;
+  private readonly getAdminToken: () => string;
   readonly getCommands: () => Array<{ name: string; description: string }>;
 
   constructor(private options: WsServerOptions) {
-    this.adminToken = options.adminToken;
+    const adminToken = options.adminToken;
+    this.getAdminToken = typeof adminToken === 'function' ? adminToken : () => adminToken;
     this.getCommands = options.getCommands;
   }
 
@@ -76,7 +77,7 @@ export class WsServer {
     this.logger.info('Desktop 客户端已连接', { connectionId });
     connection.sendJson({
       type: 'auth',
-      adminToken: this.adminToken,
+      adminToken: this.getAdminToken(),
       commands: this.getCommands(),
     });
 
