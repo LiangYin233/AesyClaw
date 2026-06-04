@@ -133,7 +133,7 @@
       <template v-else-if="sectionKey === 'plugins'">
         <article v-for="entry in entries" :key="entry.key" class="config-entry">
           <div class="entry-header">
-            <div class="entry-title">{{ entry.key || entry.key }}</div>
+            <div class="entry-title">{{ entry.key || 'New plugin' }}</div>
             <div class="entry-controls">
               <label class="toggle-label">Enabled</label>
               <ToggleSwitch
