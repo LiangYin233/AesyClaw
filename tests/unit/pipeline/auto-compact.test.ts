@@ -9,7 +9,6 @@ describe('auto-compact', () => {
     const hook = createAutoCompactHook({} as never, 0.8);
     expect(hook.id).toBe(AUTO_COMPACT_HOOK_ID);
     expect(hook.chain).toBe('agent:beforeLLM');
-    expect(hook.enabled).toBe(true);
   });
 
   it('skips compact when no session is available', async () => {

@@ -29,7 +29,6 @@ export function createSkillPromptHook(
     id: SKILL_PROMPT_HOOK_ID,
     chain: 'prompt:build',
     priority: 100,
-    enabled: true,
     handler: createSkillPromptMiddleware(skillManager),
   };
 }

@@ -62,7 +62,6 @@ export function createPluginContext(
         deps.hooksBus.register({
           ...registration,
           id: scopedHookId(pluginName, registration.id),
-          enabled: true,
         });
       },
       unregister: (id) => {

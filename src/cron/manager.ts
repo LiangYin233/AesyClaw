@@ -81,7 +81,6 @@ export class CronManager {
       id: 'internal:cron',
       chain: 'pipeline:receive',
       priority: 200,
-      enabled: true,
       handler: async (ctx, next) => {
         if (ctx.sessionKey.channel === 'cron' && ctx.sessionKey.type === 'job') {
           const existing = this.sessionManager.get(ctx.sessionKey);
@@ -202,9 +201,7 @@ export class CronManager {
       ? computeNextRun(current.scheduleType as CronScheduleType, current.scheduleValue)
       : null;
     if (enabled && !nextRun) {
-      throw new Error(
-        `无效或过期的定时任务调度: ${current.scheduleType} ${current.scheduleValue}`,
-      );
+      throw new Error(`无效或过期的定时任务调度: ${current.scheduleType} ${current.scheduleValue}`);
     }
 
     const updated = await this.cronJobs.update(jobId, { enabled, nextRun });

@@ -48,7 +48,7 @@ export function createAutoCompactHook(
     id: AUTO_COMPACT_HOOK_ID,
     chain: 'agent:beforeLLM',
     priority: 50,
-    enabled: true,
+
     handler: createAutoCompactMiddleware(llmAdapter, compressionThreshold),
   };
 }

@@ -25,7 +25,6 @@ describe('createSkillPromptHook', () => {
 
     expect(hook.id).toBe(SKILL_PROMPT_HOOK_ID);
     expect(hook.chain).toBe('prompt:build');
-    expect(hook.enabled).toBe(true);
   });
 
   it('appends role-available skills to prompt sections', async () => {

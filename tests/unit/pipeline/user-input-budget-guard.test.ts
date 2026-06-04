@@ -15,7 +15,6 @@ describe('createUserInputBudgetGuardHook', () => {
     expect(hook.id).toBe(USER_INPUT_BUDGET_GUARD_HOOK_ID);
     expect(hook.chain).toBe('pipeline:beforeAgent');
     expect(hook.priority).toBe(Number.MAX_SAFE_INTEGER);
-    expect(hook.enabled).toBe(true);
   });
 
   it('passes through when current user input is within budget', async () => {

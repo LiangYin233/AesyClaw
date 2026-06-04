@@ -1,8 +1,7 @@
 /**
  * hooks-bus — 中央 Hook 注册 / 管理 / 派发总线。
  *
- * 所有 hook 通过 HooksBus 统一注册、按优先级排序、
- * 按 enabled 过滤后以中间件链形式执行。
+ * 所有 hook 通过 HooksBus 统一注册、按优先级排序后以中间件链形式执行。
  */
 import type {
   HookChain,
@@ -70,31 +69,8 @@ export class HooksBus implements IHooksBus {
     this.removeWhere((r) => r.id.startsWith(prefix), `已注销 Hook 前缀: ${prefix}`);
   }
 
-  /** 启用指定 hook */
-  enable(id: string): void {
-    const reg = this.findById(id);
-    if (reg) {
-      reg.enabled = true;
-      logger.debug(`已启用 Hook: ${id}`);
-    }
-  }
-
-  /** 禁用指定 hook */
-  disable(id: string): void {
-    const reg = this.findById(id);
-    if (reg) {
-      reg.enabled = false;
-      logger.debug(`已禁用 Hook: ${id}`);
-    }
-  }
-
-  /** 查询 hook 是否启用 */
-  isEnabled(id: string): boolean {
-    return this.findById(id)?.enabled ?? false;
-  }
-
   /**
-   * 派发指定链上的所有已启用中间件。
+   * 派发指定链上的所有已注册中间件。
    *
    * 按 priority 升序执行，任一中间件短路（不调 next 或返回非 next）
    * 则停止后续执行。
@@ -105,12 +81,7 @@ export class HooksBus implements IHooksBus {
       return { action: 'next' };
     }
 
-    const enabled = entries.filter((r) => r.enabled);
-    if (enabled.length === 0) {
-      return { action: 'next' };
-    }
-
-    const chainFn = compose(enabled.map((r) => r.handler));
+    const chainFn = compose(entries.map((r) => r.handler));
     try {
       return await chainFn(ctx);
     } catch (err) {
@@ -134,14 +105,6 @@ export class HooksBus implements IHooksBus {
       this.chains.set(chain, list);
     }
     return list;
-  }
-
-  private findById(id: string): HookRegistration | undefined {
-    for (const list of this.chains.values()) {
-      const found = list.find((r) => r.id === id);
-      if (found) return found;
-    }
-    return undefined;
   }
 
   private removeWhere(predicate: (r: HookRegistration) => boolean, logMsg: string): void {

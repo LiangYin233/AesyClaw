@@ -36,7 +36,6 @@ export function createToolResultTruncationHook(): HookRegistration {
     id: TOOL_RESULT_TRUNCATION_HOOK_ID,
     chain: 'agent:afterToolCall',
     priority: 100,
-    enabled: true,
     handler: createToolResultTruncationMiddleware(),
   };
 }
@@ -70,6 +69,9 @@ function truncateTextWithNotice(
   };
 }
 
-function createTruncationNotice(originalContentLength: number, retainedContentLength: number): string {
+function createTruncationNotice(
+  originalContentLength: number,
+  retainedContentLength: number,
+): string {
   return `[工具结果已截断：原始 ${originalContentLength} 字符，保留 ${retainedContentLength} 字符。]`;
 }

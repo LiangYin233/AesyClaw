@@ -24,7 +24,6 @@ describe('createRolePromptHook', () => {
 
     expect(hook.id).toBe(ROLE_PROMPT_HOOK_ID);
     expect(hook.chain).toBe('prompt:build');
-    expect(hook.enabled).toBe(true);
   });
 
   it('appends enabled roles to prompt sections', async () => {

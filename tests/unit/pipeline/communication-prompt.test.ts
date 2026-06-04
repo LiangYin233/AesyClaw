@@ -27,7 +27,6 @@ describe('createCommunicationPromptHook', () => {
 
     expect(hook.id).toBe(COMMUNICATION_PROMPT_HOOK_ID);
     expect(hook.chain).toBe('prompt:build');
-    expect(hook.enabled).toBe(true);
   });
 
   it('appends communication rules for normal agents', async () => {

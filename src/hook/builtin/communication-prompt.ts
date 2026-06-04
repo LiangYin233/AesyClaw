@@ -33,7 +33,6 @@ export function createCommunicationPromptHook(): HookRegistration {
     id: COMMUNICATION_PROMPT_HOOK_ID,
     chain: 'prompt:build',
     priority: 150,
-    enabled: true,
     handler: communicationPromptMiddleware,
   };
 }

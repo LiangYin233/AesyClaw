@@ -48,7 +48,6 @@ export function createCommandDetectHook(commandRegistry: CommandRegistry): HookR
     id: COMMAND_DETECT_HOOK_ID,
     chain: 'pipeline:receive',
     priority: 10, // 高优先级，在其他 Hook 之前执行
-    enabled: true,
     handler: createCommandDetectMiddleware(commandRegistry),
   };
 }

@@ -7,7 +7,6 @@ describe('createTimeInjectHook', () => {
     expect(hook.id).toBe(TIME_INJECT_HOOK_ID);
     expect(hook.chain).toBe('pipeline:beforeAgent');
     expect(hook.priority).toBe(100);
-    expect(hook.enabled).toBe(true);
   });
 
   it('handler injects time information and calls next', async () => {

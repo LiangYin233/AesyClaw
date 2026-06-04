@@ -155,7 +155,6 @@ export type HookRegistration = {
   id: string;
   chain: HookChain;
   priority: number;
-  enabled: boolean;
   handler: Middleware;
 };
 

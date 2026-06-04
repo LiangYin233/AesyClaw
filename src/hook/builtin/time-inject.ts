@@ -43,7 +43,7 @@ export function createTimeInjectHook(): HookRegistration {
     id: TIME_INJECT_HOOK_ID,
     chain: 'pipeline:beforeAgent',
     priority: 100,
-    enabled: true,
+
     handler: timeInjectMiddleware,
   };
 }

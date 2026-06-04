@@ -18,7 +18,6 @@ function makeReg(
 ): HookRegistration {
   return {
     priority: 100,
-    enabled: true,
     handler: async (_ctx, next) => (next !== undefined ? await next() : { action: 'next' }),
     ...overrides,
   };
@@ -97,32 +96,6 @@ describe('HooksBus', () => {
     await bus.dispatch('pipeline:receive', makeCtx());
     expect(a).toBe(false);
     expect(b).toBe(false);
-  });
-
-  it('should skip disabled hooks', async () => {
-    let called = false;
-    bus.register(
-      makeReg({
-        id: 'test',
-        chain: 'pipeline:receive',
-        enabled: false,
-        handler: async () => {
-          called = true;
-          return { action: 'next' };
-        },
-      }),
-    );
-    await bus.dispatch('pipeline:receive', makeCtx());
-    expect(called).toBe(false);
-  });
-
-  it('should enable and disable hooks', () => {
-    bus.register(makeReg({ id: 'test', chain: 'pipeline:receive', enabled: false }));
-    expect(bus.isEnabled('test')).toBe(false);
-    bus.enable('test');
-    expect(bus.isEnabled('test')).toBe(true);
-    bus.disable('test');
-    expect(bus.isEnabled('test')).toBe(false);
   });
 
   it('should dispatch hooks in priority order', async () => {

@@ -30,7 +30,6 @@ export function createRolePromptHook(
     id: ROLE_PROMPT_HOOK_ID,
     chain: 'prompt:build',
     priority: 200,
-    enabled: true,
     handler: createRolePromptMiddleware(roleManager),
   };
 }

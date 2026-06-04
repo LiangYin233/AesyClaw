@@ -67,7 +67,7 @@ export type PluginRegistryApi = {
   };
 };
 
-export type PluginHookRegistration = Omit<HookRegistration, 'enabled'>;
+export type PluginHookRegistration = HookRegistration;
 
 export type PluginHooksApi = {
   register(registration: PluginHookRegistration): void;
