@@ -92,7 +92,7 @@ export function useConfigEditor() {
   }
 
   async function saveConfig(): Promise<void> {
-    if (extraBodyErrors.value) {
+    if (Object.keys(extraBodyErrors.value).length > 0) {
       showToast('toast-error', 'Fix invalid extra body JSON before saving');
       return;
     }

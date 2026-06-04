@@ -6,7 +6,7 @@ export default defineConfig({
     alias: {
       '@aesyclaw/sdk': resolve(__dirname, 'src/sdk/index.ts'),
       '@aesyclaw': resolve(__dirname, 'src'),
-      '@': resolve(__dirname, 'web/src'),
+      '@': resolve(__dirname, 'extensions/plugin_webui/web/src'),
     },
   },
   test: {
