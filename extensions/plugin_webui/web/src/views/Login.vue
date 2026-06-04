@@ -134,7 +134,7 @@ async function handleSubmit() {
     const token = tokenInput.value.trim();
     logout();
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`;
+    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${encodeURIComponent(token)}`;
     await new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
       ws.onopen = () => {

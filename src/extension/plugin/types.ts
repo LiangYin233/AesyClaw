@@ -49,9 +49,13 @@ export type PluginConfigNamespace = {
   set(path: string, value: unknown): Promise<void>;
 };
 
+export type PluginGlobalConfigNamespace = PluginConfigNamespace & {
+  update(update: Record<string, unknown>): Promise<void>;
+};
+
 export type PluginConfigApi = {
   self: PluginConfigNamespace;
-  global: PluginConfigNamespace;
+  global: PluginGlobalConfigNamespace;
 };
 
 export type PluginRegistryApi = {

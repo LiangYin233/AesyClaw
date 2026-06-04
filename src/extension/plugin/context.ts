@@ -73,6 +73,12 @@ export function createPluginContext(
           }
           await deps.configManager.set(configPath, value);
         },
+        update: async (update) => {
+          for (const key of Object.keys(update)) {
+            assertConfigPermission(definition, pluginName, 'write', key);
+          }
+          await deps.configManager.update(update);
+        },
       },
     },
     registry: {

@@ -20,8 +20,8 @@ export class ConfigManager {
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private readonly configStore: Conf<Record<string, unknown>>;
   private readonly fileWatcher: ConfigFileWatcher;
-  /** 配置重载后的回调（由 Application.installHotReload 注册） */
-  onConfigReloaded?: () => void;
+  /** 配置变更后的回调（由 Application.installHotReload 注册） */
+  onConfigChanged?: () => void;
 
   /**
    * 创建配置管理器实例。
@@ -212,7 +212,7 @@ export class ConfigManager {
       }
       this.lastKnownConfig = structuredClone(newConfig);
       logger.info('已从文件重新加载配置缓存');
-      this.onConfigReloaded?.();
+      this.onConfigChanged?.();
     } catch (err) {
       logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
     }
@@ -274,6 +274,7 @@ export class ConfigManager {
   private async persistWithGuard(config: AppConfig): Promise<void> {
     this.writeConfigToStore(this.configStore, config);
     this.lastKnownConfig = structuredClone(config);
+    this.onConfigChanged?.();
   }
 
   private findMissingFields(

@@ -190,7 +190,6 @@ describe('DesktopServer', () => {
       set: vi.fn(async () => undefined),
       patch: vi.fn(async () => undefined),
       update: vi.fn(async () => undefined),
-      onConfigReloaded: vi.fn(),
     };
     const context = makeContext({ configManager: configManager as never });
     const server = new DesktopServer({
@@ -210,7 +209,6 @@ describe('DesktopServer', () => {
     expect(configManager.update).toHaveBeenCalledWith({ plugins: { exec: { enabled: false } } });
     expect(configManager.set).not.toHaveBeenCalled();
     expect(configManager.patch).not.toHaveBeenCalled();
-    expect(configManager.onConfigReloaded).toHaveBeenCalledTimes(1);
     expect(sent[0]).toEqual({
       type: 'config_response',
       requestId: 'req-2',

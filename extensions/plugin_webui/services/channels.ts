@@ -17,5 +17,4 @@ export async function setChannelEnabled(
   enabled: boolean,
 ): Promise<void> {
   await ctx.config.global.set(`channels.${name}.enabled`, enabled);
-  await ctx.control.channels.reload(name);
 }

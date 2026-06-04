@@ -449,7 +449,7 @@ function hotReloadService(): RuntimeService {
       sub.configManager.startHotReload();
       sub.roleManager.startHotReload();
 
-      sub.configManager.onConfigReloaded = () => {
+      sub.configManager.onConfigChanged = () => {
         void extensions.pluginManager.handleConfigReload().catch((err) => {
           logger.error('插件配置热重载失败', err);
         });

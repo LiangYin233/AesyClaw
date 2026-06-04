@@ -54,7 +54,7 @@ describe('plugin_exec', () => {
       },
       config: {
         self: { get: () => undefined, set: async () => undefined },
-        global: { get: () => undefined, set: async () => undefined },
+        global: { get: () => undefined, set: async () => undefined, update: async () => undefined },
       },
       registry: {
         tools: {

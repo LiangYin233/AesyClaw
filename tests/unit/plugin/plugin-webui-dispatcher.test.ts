@@ -21,6 +21,7 @@ function makeContext(): PluginContext {
           return { path };
         }),
         set: vi.fn(async () => undefined),
+        update: vi.fn(async () => undefined),
       },
     },
     registry: {
@@ -111,7 +112,7 @@ describe('plugin_webui dispatcher', () => {
     });
   });
 
-  it('toggles plugin enabled state through config.global and reloads the plugin', async () => {
+  it('toggles plugin enabled state through config.global and lets config hot reload apply it', async () => {
     const ctx = makeContext();
 
     const response = await dispatchMessage(
@@ -121,22 +122,31 @@ describe('plugin_webui dispatcher', () => {
 
     expect(response).toEqual({ type: 'set_plugin_enabled', ok: true });
     expect(ctx.config.global.set).toHaveBeenCalledWith('plugins.example.enabled', false);
-    expect(ctx.control.plugins.reload).toHaveBeenCalledWith('example');
+    expect(ctx.control.plugins.reload).not.toHaveBeenCalled();
   });
 
-  it('updates top-level config sections through ctx.config.global', async () => {
+  it('toggles channel enabled state through config.global and lets config hot reload apply it', async () => {
     const ctx = makeContext();
 
     const response = await dispatchMessage(
-      { type: 'update_config', data: { agent: { defaultModel: 'openai/gpt-4o' }, plugins: {} } },
+      { type: 'set_channel_enabled', data: { name: 'desktop', enabled: true } },
       ctx,
     );
 
+    expect(response).toEqual({ type: 'set_channel_enabled', ok: true });
+    expect(ctx.config.global.set).toHaveBeenCalledWith('channels.desktop.enabled', true);
+    expect(ctx.control.channels.reload).not.toHaveBeenCalled();
+  });
+
+  it('updates top-level config sections atomically through ctx.config.global.update', async () => {
+    const ctx = makeContext();
+
+    const update = { agent: { defaultModel: 'openai/gpt-4o' }, plugins: {} };
+    const response = await dispatchMessage({ type: 'update_config', data: update }, ctx);
+
     expect(response).toEqual({ type: 'update_config', ok: true });
-    expect(ctx.config.global.set).toHaveBeenCalledWith('agent', {
-      memory: { compressionThreshold: 0.8 },
-      defaultModel: 'openai/gpt-4o',
-    });
-    expect(ctx.config.global.set).toHaveBeenCalledWith('plugins', {});
+    expect(ctx.config.global.update).toHaveBeenCalledWith(update);
+    expect(ctx.config.global.set).not.toHaveBeenCalledWith('agent', expect.anything());
+    expect(ctx.config.global.set).not.toHaveBeenCalledWith('plugins', expect.anything());
   });
 });

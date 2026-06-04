@@ -361,7 +361,6 @@ export class DesktopServer {
     const configManager = this.options.context.configManager;
 
     await configManager.update(data);
-    configManager.onConfigReloaded?.();
   }
 
   private async setExtensionEnabled(section: 'channels' | 'plugins', data: unknown): Promise<void> {
@@ -379,7 +378,6 @@ export class DesktopServer {
       ...record,
       [name]: { ...existing, enabled },
     });
-    configManager.onConfigReloaded?.();
   }
 
   // ─── 文件传输 ──────────────────────────────────────────────────

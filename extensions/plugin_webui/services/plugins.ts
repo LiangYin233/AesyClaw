@@ -17,5 +17,4 @@ export async function setPluginEnabled(
   enabled: boolean,
 ): Promise<void> {
   await ctx.config.global.set(`plugins.${name}.enabled`, enabled);
-  await ctx.control.plugins.reload(name);
 }

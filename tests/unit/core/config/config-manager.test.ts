@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -199,6 +199,17 @@ describe('ConfigManager', () => {
       expect(manager.get('plugins')).toEqual({ 'example-plugin': { enabled: false } });
     });
 
+    it('should notify on internal config writes', async () => {
+      const onConfigChanged = vi.fn();
+      manager.onConfigChanged = onConfigChanged;
+
+      await manager.set('agent.logLevel', 'debug');
+      await manager.patch('agent', { defaultModel: 'openai/gpt-4o-mini' });
+      await manager.update({ plugins: { exec: { enabled: false } } });
+
+      expect(onConfigChanged).toHaveBeenCalledTimes(3);
+    });
+
     it('should reject array element paths', async () => {
       expect(() => manager.get('mcp.0.enabled')).toThrow(/数组路径/);
       await expect(manager.set('mcp.0.enabled', false)).rejects.toThrow(/数组路径/);
@@ -367,6 +378,23 @@ describe('ConfigManager', () => {
       writeFileSync(configPath, JSON.stringify(updated, null, 2));
 
       await waitForExpect(() => expect(manager.get('agent.defaultModel')).toBe('openai/gpt-4o-mini'));
+    });
+
+    it('should notify on valid hot reload changes', async () => {
+      const onConfigChanged = vi.fn();
+      manager.onConfigChanged = onConfigChanged;
+      manager.startHotReload();
+
+      const updated = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
+      updated.agent = {
+        defaultModel: 'openai/gpt-4o-mini',
+        logLevel: 'debug',
+        memory: { compressionThreshold: 0.6 },
+      };
+      writeFileSync(configPath, JSON.stringify(updated, null, 2));
+
+      await waitForExpect(() => expect(manager.get('agent.defaultModel')).toBe('openai/gpt-4o-mini'));
+      await waitForExpect(() => expect(onConfigChanged).toHaveBeenCalled());
     });
 
     it('should keep previous cache on invalid hot reload changes', async () => {
