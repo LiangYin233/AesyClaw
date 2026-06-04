@@ -1,7 +1,7 @@
 /**
  * 统一错误处理系统
  *
- * 导出所有错误类型、工厂函数、中间件和工具
+ * 导出所有错误类型、工厂函数和工具
  */
 
 // 基础错误类和错误码
@@ -24,13 +24,6 @@ export {
   type ErrorStats,
   type ErrorTrackerConfig,
 } from './tracker';
-
-// 错误处理中间件
-export {
-  createErrorMiddleware,
-  createToolErrorMiddleware,
-  type ErrorMiddlewareOptions,
-} from './middleware';
 
 // 错误处理工具
 export {

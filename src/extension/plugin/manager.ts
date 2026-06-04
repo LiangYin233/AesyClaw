@@ -1,6 +1,7 @@
 /** PluginManager — 插件生命周期 facade，委托统一 Extension host。 */
 
 import path from 'node:path';
+import { isRecord } from '@aesyclaw/core/utils';
 import { ExtensionManager } from '@aesyclaw/extension/manager';
 import { createPluginSpec } from './spec';
 import type {
@@ -11,7 +12,6 @@ import type {
 } from './types';
 import { discoverPluginDefinition } from './types';
 import { discoverPluginDirs, safeLoadModule } from './loader';
-import { getPluginConfig } from './config';
 import type { LoadedExtension } from '@aesyclaw/extension/types';
 
 // ─── PluginManager ────────────────────────────────────────────
@@ -91,8 +91,9 @@ export class PluginManager extends ExtensionManager<PluginDefinition, PluginCont
       if (statuses.has(directoryName)) continue;
 
       const module = await safeLoadModule(pluginDir, this.failedExtensions);
-      const configLookup = module ? getPluginConfig(this.getConfigRecord(), module) : null;
-      const enabled = configLookup?.enabled ?? true;
+      const raw = module ? this.getConfigRecord()[module.definition.name] : undefined;
+      const entry = isRecord(raw) ? raw : null;
+      const enabled = entry?.['enabled'] !== false;
       const name = module?.definition.name ?? directoryName;
       const error =
         this.failedExtensions.get(name)?.message ??
