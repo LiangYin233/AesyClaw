@@ -10,8 +10,6 @@ export type PluginPermissionDeniedErrorOptions = {
 
 export class PluginPermissionDeniedError extends ExtensionError {
   readonly pluginName: string;
-  readonly permission: PluginPermission;
-  readonly path: string;
 
   constructor(options: PluginPermissionDeniedErrorOptions) {
     super(
@@ -27,7 +25,5 @@ export class PluginPermissionDeniedError extends ExtensionError {
     );
     this.name = 'PluginPermissionDeniedError';
     this.pluginName = options.pluginName;
-    this.permission = options.permission;
-    this.path = options.path;
   }
 }
