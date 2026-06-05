@@ -14,9 +14,6 @@ export type {
 export {
   ApiType,
   makeExtraBodyOnPayload,
-  createUserMessage,
-  extractMessageText,
-  assistantHasToolCalls,
 } from '@aesyclaw/contracts/llm';
 
 const ZERO_USAGE: Usage = completeMessageUsage();

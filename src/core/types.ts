@@ -37,12 +37,7 @@ export type {
   CompleteMessageUsage,
 } from './types/message';
 
-export {
-  getMessageText,
-  completeMessageUsage,
-  parseMessageUsageJson,
-  isMessageUsage,
-} from './types/message';
+export { getMessageText, completeMessageUsage } from './types/message';
 
 export type {
   SessionRecord,

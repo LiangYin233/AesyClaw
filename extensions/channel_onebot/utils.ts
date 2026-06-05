@@ -29,7 +29,7 @@ export function parseConfig(config: Record<string, unknown>): OneBotChannelConfi
  * @param fallback - 回退值
  * @returns 有效字符串或回退值
  */
-export function readString(value: unknown, fallback: string): string {
+function readString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 }
 
@@ -40,7 +40,7 @@ export function readString(value: unknown, fallback: string): string {
  * @param fallback - 回退值
  * @returns 有效字符串数组或回退值
  */
-export function readStringArray(value: unknown, fallback: string[]): string[] {
+function readStringArray(value: unknown, fallback: string[]): string[] {
   if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
     return value as string[];
   }

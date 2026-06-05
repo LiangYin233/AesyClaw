@@ -65,7 +65,7 @@ export async function downloadInboundAttachment(
  * @param segment - OneBot 附件分段信息
  * @returns 下载请求参数，无法构建时返回 null
  */
-export function buildDownloadRequest(
+function buildDownloadRequest(
   segment: OneBotInboundAttachmentSegment,
 ): { action: string; params: Record<string, unknown>; fallbackFileName?: string } | null {
   const simpleRequest = DOWNLOAD_REQUEST_BY_SEGMENT[segment.segmentType];
@@ -107,7 +107,7 @@ export function buildDownloadRequest(
  * @param fallbackFileName - 无法从响应获取文件名时的回退值
  * @returns 组装后的文件数据
  */
-export function collectDownloadedStreamFile(
+function collectDownloadedStreamFile(
   responses: OneBotApiResponse[],
   fallbackFileName = 'attachment.bin',
 ): DownloadedStreamFile {
@@ -167,7 +167,7 @@ export function collectDownloadedStreamFile(
  * @param mediaDir - 媒体目录
  * @returns 写入后的本地文件路径
  */
-export async function writeInboundAttachmentFile(
+async function writeInboundAttachmentFile(
   fileName: string,
   data: Uint8Array,
   mediaDir: string,
@@ -187,7 +187,7 @@ export async function writeInboundAttachmentFile(
  * @param fileName - 原始文件名
  * @returns 安全的文件名
  */
-export function sanitizeFileName(fileName: string): string {
+function sanitizeFileName(fileName: string): string {
   const forbidden = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
   return [...fileName]
     .map((character) => {
@@ -269,7 +269,7 @@ export function validateApiResponse(response: OneBotApiResponse): void {
  * @param response - 上传完成后的 OneBot API 响应
  * @returns 服务端文件路径
  */
-export function readUploadedFilePath(response: OneBotApiResponse): string {
+function readUploadedFilePath(response: OneBotApiResponse): string {
   if (!isRecord(response.data) || typeof response.data['file_path'] !== 'string') {
     throw new Error('OneBot upload_file_stream did not return a file_path');
   }
@@ -282,7 +282,7 @@ export function readUploadedFilePath(response: OneBotApiResponse): string {
  * @param component - 媒体组件
  * @returns 加载后的附件数据及文件名
  */
-export async function loadAttachmentSource(
+async function loadAttachmentSource(
   component: MediaComponent,
 ): Promise<LoadedAttachmentSource> {
   if (component.base64) {
@@ -322,7 +322,7 @@ export async function loadAttachmentSource(
  * @param component - 含 base64 字段的媒体组件
  * @returns 加载后的附件数据及文件名
  */
-export function loadBase64AttachmentSource(component: MediaComponent): LoadedAttachmentSource {
+function loadBase64AttachmentSource(component: MediaComponent): LoadedAttachmentSource {
   const { mimeType, base64 } = parseBase64Attachment(component.base64 ?? '', component.mimeType);
   return {
     data: Buffer.from(base64, 'base64'),
@@ -337,7 +337,7 @@ export function loadBase64AttachmentSource(component: MediaComponent): LoadedAtt
  * @param fallbackMimeType - 无法从 URI 解析时的回退 MIME 类型
  * @returns 解析后的 MIME 类型和纯 Base64 数据
  */
-export function parseBase64Attachment(
+function parseBase64Attachment(
   source: string,
   fallbackMimeType?: string,
 ): { mimeType?: string; base64: string } {
@@ -357,7 +357,7 @@ export function parseBase64Attachment(
  * @param mimeType - MIME 类型
  * @returns 推断的文件名
  */
-export function inferAttachmentFileName(
+function inferAttachmentFileName(
   component: MediaComponent,
   preferredName?: string,
   mimeType?: string,

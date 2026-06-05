@@ -2,7 +2,7 @@ import type { AgentToolResult } from '@aesyclaw/contracts/llm';
 import type { HookRegistration, Middleware, HookCtx, HookResult } from '@aesyclaw/hook';
 import { isRecord } from '@aesyclaw/core/utils';
 
-export const TOOL_RESULT_TRUNCATION_HOOK_ID = 'core:tool-result-truncation';
+const TOOL_RESULT_TRUNCATION_HOOK_ID = 'core:tool-result-truncation';
 
 const TRUNCATION_HEAD_RATIO = 0.7;
 const TRUNCATION_SEPARATOR = '\n\n...[中间内容已截断]...\n\n';

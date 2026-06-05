@@ -1,5 +1,4 @@
 /** 消息类型 — 纯消息载荷、组件及持久化协议。 */
-import { isRecord } from '../utils';
 import type { OutboundSignal } from './signal';
 
 // ─── 发送者 ─────────────────────────────────────────────────
@@ -103,42 +102,6 @@ export function completeMessageUsage(usage?: MessageUsage): CompleteMessageUsage
   };
 }
 
-export function parseMessageUsageJson(value: string): MessageUsage | undefined {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!isMessageUsage(parsed)) return undefined;
-    return parsed;
-  } catch {
-    // JSON 解析失败，返回 undefined
-    return undefined;
-  }
-}
-
-export function isMessageUsage(value: unknown): value is MessageUsage {
-  if (!isRecord(value)) return false;
-  return (
-    isFiniteNumber(value['input']) &&
-    isFiniteNumber(value['output']) &&
-    isFiniteNumber(value['cacheRead']) &&
-    isFiniteNumber(value['cacheWrite']) &&
-    isFiniteNumber(value['totalTokens']) &&
-    (value['cost'] === undefined || isMessageUsageCost(value['cost']))
-  );
-}
-
-function isMessageUsageCost(value: unknown): value is MessageUsageCost {
-  if (!isRecord(value)) return false;
-  return (
-    isFiniteNumber(value['input']) &&
-    isFiniteNumber(value['output']) &&
-    isFiniteNumber(value['cacheRead']) &&
-    isFiniteNumber(value['cacheWrite']) &&
-    isFiniteNumber(value['total'])
-  );
-}
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
 
 /** 持久化到数据库的消息记录 */
 export type PersistableMessage = {

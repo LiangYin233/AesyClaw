@@ -25,7 +25,7 @@ const logger = createScopedLogger('hooks-bus');
  * - 链尾返回 { action: 'next' }
  * - 重复调用 next() 抛出错误
  */
-export function compose(middlewares: Middleware[]): Middleware {
+function compose(middlewares: Middleware[]): Middleware {
   return async (ctx, outerNext) => {
     let index = -1;
     const dispatch = async (i: number): Promise<HookResult> => {

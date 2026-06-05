@@ -15,7 +15,6 @@ export {
   CHARS_PER_TOKEN,
   calculateActualTokens,
   calculateEstimatedContextTokens,
-  calculateEstimatedMessageTokens,
   estimateTextTokens,
 } from './utils/token-utils';
 export { type SessionMessageDto, toSessionMessageDto } from './persistence/dto';

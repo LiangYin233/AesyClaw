@@ -11,29 +11,13 @@ export { AesyClawError, ErrorCode, type ErrorDetails } from './base';
 export { AgentExecutionError } from './agent';
 export { ToolExecutionError } from './tool';
 export { ConfigurationError } from './config';
-export { ValidationError } from './validation';
 export { ExtensionError, type ExtensionKind, type ExtensionFailurePhase } from './extension';
 
 // 错误工厂
-export { ErrorFactory, wrapAsync, wrapSync } from './factory';
+export { ErrorFactory } from './factory';
 
 // 错误追踪
-export {
-  ErrorTracker,
-  type ErrorRecord,
-  type ErrorStats,
-  type ErrorTrackerConfig,
-} from './tracker';
+export { ErrorTracker } from './tracker';
 
 // 错误处理工具
-export {
-  errorMessage,
-  safeExecute,
-  safeExecuteSync,
-  executeWithTimeout,
-  logAndThrow,
-  isErrorCode,
-  isErrorType,
-  getUserFriendlyMessage,
-  errorToToolResult,
-} from './utils';
+export { errorMessage } from './utils';

@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 // ─── 常量 ──────────────────────────────────────────────────────────
 
 /** 二维码/登录等请求的固定 base URL */
-export const FIXED_BASE_URL = 'https://ilinkai.weixin.qq.com';
+const FIXED_BASE_URL = 'https://ilinkai.weixin.qq.com';
 
 const DEFAULT_LONG_POLL_TIMEOUT_MS = 35_000;
 const DEFAULT_API_TIMEOUT_MS = 15_000;
@@ -40,7 +40,7 @@ export type WeixinMessage = {
   context_token?: string;
 };
 
-export type MessageItem = {
+type MessageItem = {
   type?: number;
   text_item?: { text?: string };
   image_item?: Record<string, unknown>;
@@ -195,27 +195,6 @@ export async function getUploadUrl(
     DEFAULT_API_TIMEOUT_MS,
   );
   return JSON.parse(text);
-}
-
-/** 获取账号配置（typing_ticket） */
-export async function getConfig(
-  opts: WeixinApiOptions & { ilink_user_id: string; context_token?: string },
-): Promise<{ ret?: number; typing_ticket?: string }> {
-  const text = await apiPost(
-    opts.baseUrl,
-    'ilink/bot/getconfig',
-    { ilink_user_id: opts.ilink_user_id, context_token: opts.context_token, base_info: {} },
-    opts.token,
-    DEFAULT_API_TIMEOUT_MS,
-  );
-  return JSON.parse(text);
-}
-
-/** 发送输入状态 */
-export async function sendTyping(
-  opts: WeixinApiOptions & { ilink_user_id: string; typing_ticket?: string; status?: number },
-): Promise<void> {
-  await apiPost(opts.baseUrl, 'ilink/bot/sendtyping', opts, opts.token, DEFAULT_API_TIMEOUT_MS);
 }
 
 /** 通知服务端频道停止 */

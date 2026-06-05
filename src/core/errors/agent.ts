@@ -36,28 +36,6 @@ export class AgentExecutionError extends AesyClawError {
   }
 
   /**
-   * 创建 Agent 初始化失败错误
-   */
-  static initializationFailed(
-    message: string,
-    details?: ErrorDetails,
-    cause?: Error,
-  ): AgentExecutionError {
-    return new AgentExecutionError(ErrorCode.AGENT_INITIALIZATION_FAILED, message, details, cause);
-  }
-
-  /**
-   * 创建 Agent 处理失败错误
-   */
-  static processingFailed(
-    message: string,
-    details?: ErrorDetails,
-    cause?: Error,
-  ): AgentExecutionError {
-    return new AgentExecutionError(ErrorCode.AGENT_PROCESSING_FAILED, message, details, cause);
-  }
-
-  /**
    * 创建 LLM 调用失败错误
    */
   static llmCallFailed(
@@ -88,21 +66,4 @@ export class AgentExecutionError extends AesyClawError {
     });
   }
 
-  /**
-   * 创建 Prompt 构建失败错误
-   */
-  static promptBuildFailed(
-    message: string,
-    details?: ErrorDetails,
-    cause?: Error,
-  ): AgentExecutionError {
-    return new AgentExecutionError(ErrorCode.AGENT_PROMPT_BUILD_FAILED, message, details, cause);
-  }
-
-  /**
-   * 创建 Agent 取消错误
-   */
-  static cancelled(message: string, details?: ErrorDetails): AgentExecutionError {
-    return new AgentExecutionError(ErrorCode.AGENT_CANCELLED, message, details);
-  }
 }

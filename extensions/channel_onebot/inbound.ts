@@ -196,7 +196,7 @@ export async function enrichMessageWithReplyContent(
  * @param segment - OneBot 附件分段
  * @returns 匹配的组件索引，未找到返回 -1
  */
-export function findDownloadComponentIndex(
+function findDownloadComponentIndex(
   components: MessageComponent[],
   segment: OneBotInboundAttachmentSegment,
 ): number {
@@ -217,7 +217,7 @@ export function findDownloadComponentIndex(
  * @param downloaded - 下载结果
  * @returns 合并了路径和 URL 的组件
  */
-export function mergeDownloadedComponent(
+function mergeDownloadedComponent(
   component: MessageComponent | undefined,
   downloaded: OneBotDownloadResult,
 ): MessageComponent {
@@ -254,7 +254,7 @@ export function extractOneBotComponents(message: unknown): MessageComponent[] {
  * @param message - OneBot message 数组
  * @returns 需下载的附件分段列表
  */
-export function extractOneBotInboundAttachmentSegments(
+function extractOneBotInboundAttachmentSegments(
   message: unknown,
 ): OneBotInboundAttachmentSegment[] {
   if (!Array.isArray(message)) {
@@ -290,7 +290,7 @@ export function extractOneBotInboundAttachmentSegments(
  * @param segment - OneBot 分段或带 segmentType 的附件对象
  * @returns 映射后的消息组件，无法映射时返回 null
  */
-export function mapOneBotAttachmentComponent(segment: unknown): MessageComponent | null {
+function mapOneBotAttachmentComponent(segment: unknown): MessageComponent | null {
   if (!isRecord(segment) || !isRecord(segment['data'])) {
     return null;
   }
@@ -319,7 +319,7 @@ export function mapOneBotAttachmentComponent(segment: unknown): MessageComponent
  * @param segment - OneBot 分段对象
  * @returns 消息组件
  */
-export function mapOneBotSegmentToComponent(segment: unknown): MessageComponent {
+function mapOneBotSegmentToComponent(segment: unknown): MessageComponent {
   if (!isRecord(segment) || typeof segment['type'] !== 'string') {
     return { type: 'Unknown' };
   }
@@ -359,7 +359,7 @@ export function mapOneBotSegmentToComponent(segment: unknown): MessageComponent 
  * @param data - 分段数据
  * @returns 媒体组件
  */
-export function mapMediaSegmentToComponent(
+function mapMediaSegmentToComponent(
   type: Extract<MessageComponent['type'], 'Image' | 'Record' | 'Video' | 'File'>,
   data: Record<string, unknown>,
 ): MessageComponent {
@@ -381,7 +381,7 @@ export function mapMediaSegmentToComponent(
  * @param data - 文件分段数据
  * @returns File 组件
  */
-export function mapFileSegmentToComponent(data: Record<string, unknown>): MessageComponent {
+function mapFileSegmentToComponent(data: Record<string, unknown>): MessageComponent {
   const url = typeof data['url'] === 'string' ? data['url'] : undefined;
   const pathValue = typeof data['path'] === 'string' ? data['path'] : undefined;
   const file = typeof data['file'] === 'string' ? data['file'] : undefined;

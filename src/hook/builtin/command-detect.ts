@@ -51,5 +51,3 @@ export function createCommandDetectHook(commandRegistry: CommandRegistry): HookR
     handler: createCommandDetectMiddleware(commandRegistry),
   };
 }
-
-export { COMMAND_DETECT_HOOK_ID };

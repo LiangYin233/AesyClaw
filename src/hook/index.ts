@@ -9,5 +9,5 @@ export type {
   HookRegistration,
   ToolResultBudget,
 } from '@aesyclaw/contracts/hook';
-export { HooksBus, compose } from './hooks-bus';
+export { HooksBus } from './hooks-bus';
 export type { IHooksBus } from '@aesyclaw/contracts/hook';

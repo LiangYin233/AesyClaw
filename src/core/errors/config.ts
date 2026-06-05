@@ -79,20 +79,4 @@ export class ConfigurationError extends AesyClawError {
       cause,
     );
   }
-
-  /**
-   * 创建配置 Schema 不匹配错误
-   */
-  static schemaMismatch(
-    configKey: string,
-    expected: string,
-    actual: string,
-    details?: ErrorDetails,
-  ): ConfigurationError {
-    return new ConfigurationError(
-      ErrorCode.CONFIG_SCHEMA_MISMATCH,
-      `配置项 "${configKey}" 类型不匹配: 期望 ${expected}, 实际 ${actual}`,
-      { ...details, configKey, expected, actual },
-    );
-  }
 }

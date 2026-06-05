@@ -7,7 +7,7 @@ export {
   createUserInputBudgetGuardHook,
   USER_INPUT_BUDGET_GUARD_HOOK_ID,
 } from './user-input-budget-guard';
-export { createCommandDetectHook, COMMAND_DETECT_HOOK_ID } from './command-detect';
+export { createCommandDetectHook } from './command-detect';
 export { createSkillPromptHook, SKILL_PROMPT_HOOK_ID } from './skill-prompt';
 export { createRolePromptHook, ROLE_PROMPT_HOOK_ID } from './role-prompt';
 export {
@@ -16,6 +16,5 @@ export {
 } from './communication-prompt';
 export {
   createToolResultTruncationHook,
-  TOOL_RESULT_TRUNCATION_HOOK_ID,
   limitToolResultContent,
 } from './tool-result-truncation';
