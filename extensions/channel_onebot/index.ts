@@ -39,7 +39,6 @@ export const channel: ChannelPlugin = {
     context = ctx;
     config = parseConfig(ctx.config);
     destroyed = false;
-    destroyed = false;
     client = createOneBotWebSocketClient({
       config,
       logger: ctx.logger,
