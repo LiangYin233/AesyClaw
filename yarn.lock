@@ -3214,11 +3214,13 @@ __metadata:
     front-matter: "npm:^4.0.2"
     globals: "npm:^17.6.0"
     hono: "npm:^4.12.23"
+    marked: "npm:^18.0.4"
     prettier: "npm:^3.8.3"
     tsx: "npm:^4.22.4"
     typescript: "npm:^6.0.3"
     typescript-eslint: "npm:^8.60.1"
     vitest: "npm:^4.1.8"
+    vue: "npm:^3.5.35"
     vue-eslint-parser: "npm:^10.4.1"
     ws: "npm:^8.21.0"
   languageName: unknown

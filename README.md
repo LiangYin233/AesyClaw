@@ -35,11 +35,13 @@ AesyClaw 是一个可扩展的 AI Agent 运行时平台。它通过统一的 Pip
 ### 安装与启动
 
 ```bash
-yarn install    # 安装依赖
-yarn dev        # 开发模式（热加载）
-yarn start      # 生产模式（含 Web UI 构建）
-yarn build      # 构建 Web UI
-yarn test       # 运行测试
+yarn install     # 安装依赖
+yarn dev         # 开发模式（热加载）
+yarn start       # 生产模式（先构建 Web UI，再启动运行时）
+yarn build       # 构建内置 Web UI（plugin_webui/web）
+yarn test        # 运行全部测试
+yarn typecheck   # TypeScript 类型检查
+yarn lint        # ESLint 检查
 ```
 
 ### 首次配置
