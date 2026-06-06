@@ -462,17 +462,23 @@
               />
             </div>
 
-            <details
+            <div
               v-if="server.transport === 'stdio'"
-              class="group border-t border-dashed border-[var(--color-border)] pt-3"
+              class="border-t border-dashed border-[var(--color-border)] pt-3"
             >
-              <summary
-                class="flex items-center justify-between gap-3 cursor-pointer list-none font-heading text-xs font-medium uppercase tracking-[0.04em] text-mid-gray hover:text-dark"
+              <button
+                type="button"
+                class="flex w-full items-center justify-between gap-3 font-heading text-xs font-medium uppercase tracking-[0.04em] text-mid-gray hover:text-dark"
+                @click="toggleMcpAdvanced(index)"
               >
                 <span>Advanced stdio options</span>
-                <span class="transition-transform group-open:rotate-90">›</span>
-              </summary>
-              <div class="mt-4 grid grid-cols-1 gap-4">
+                <span
+                  class="transition-transform"
+                  :class="{ 'rotate-90': isMcpAdvancedOpen(index) }"
+                  >›</span
+                >
+              </button>
+              <div v-if="isMcpAdvancedOpen(index)" class="mt-4 grid grid-cols-1 gap-4">
                 <div>
                   <label
                     class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
@@ -498,7 +504,7 @@
                   ></textarea>
                 </div>
               </div>
-            </details>
+            </div>
           </div>
         </div>
       </section>
@@ -549,5 +555,7 @@ const {
   getExtraBodyText,
   isAdvancedBodyOpen,
   toggleAdvancedBody,
+  isMcpAdvancedOpen,
+  toggleMcpAdvanced,
 } = useConfigEditor();
 </script>

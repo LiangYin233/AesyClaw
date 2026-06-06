@@ -3,6 +3,31 @@ import { useWebSocket } from './useWebSocket';
 
 export const authenticated = ref<boolean | null>(null);
 
+/** 内存缓存：避免每次路由导航都发起 HTTP 请求 */
+let verifyPromise: Promise<boolean> | null = null;
+
+/**
+ * 确保会话有效。
+ * - 已认证且缓存未失效 → 直接返回 true，不发 HTTP
+ * - 正在验证中 → 等待正在进行的请求
+ * - 首次 / 已登出 → 发起 /api/auth/check，成功后缓存结果
+ */
+async function ensureSession(): Promise<boolean> {
+  if (authenticated.value === true && verifyPromise !== null) {
+    return true;
+  }
+  if (verifyPromise !== null) {
+    return await verifyPromise;
+  }
+  verifyPromise = verifyToken();
+  const result = await verifyPromise;
+  if (!result) {
+    // 验证失败不缓存，允许下次重试
+    verifyPromise = null;
+  }
+  return result;
+}
+
 async function login(rawToken: string): Promise<boolean> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
@@ -18,6 +43,7 @@ async function login(rawToken: string): Promise<boolean> {
   }
 
   authenticated.value = true;
+  verifyPromise = Promise.resolve(true);
   const ws = useWebSocket();
   ws.connect();
   return true;
@@ -25,6 +51,7 @@ async function login(rawToken: string): Promise<boolean> {
 
 function logout(): void {
   authenticated.value = false;
+  verifyPromise = null;
   void fetch('/api/auth/logout', {
     method: 'POST',
     credentials: 'same-origin',
@@ -62,5 +89,5 @@ export function useAuth() {
       }
     });
   }
-  return { authenticated, login, logout, verifyToken };
+  return { authenticated, login, logout, ensureSession };
 }

@@ -90,6 +90,7 @@ export default tseslint.config(
       },
       parser: vueParser,
       parserOptions: {
+        // 同时引用 web + desktop tsconfig 覆盖所有 Vue SFC 的 <script> 块
         parser: tseslint.parser,
         project: ['./extensions/plugin_webui/web/tsconfig.json', './desktop/tsconfig.json'],
         extraFileExtensions: ['.vue'],

@@ -19,6 +19,8 @@ export function useConfigEditor() {
   const extraBodyDrafts = ref<Record<string, string>>({});
   const advancedBodyOpen = ref<Record<string, boolean>>({});
 
+  const mcpAdvancedOpen = ref<Record<number, boolean>>({});
+
   const excludedTopLevelKeys = new Set(['channels', 'plugins']);
   const hiddenSchemaKeys = new Set(['channels', 'plugins', 'providers', 'mcp']);
 
@@ -85,6 +87,7 @@ export function useConfigEditor() {
       extraBodyErrors.value = {};
       extraBodyDrafts.value = {};
       advancedBodyOpen.value = {};
+      mcpAdvancedOpen.value = {};
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load config';
     } finally {
@@ -317,6 +320,17 @@ export function useConfigEditor() {
     };
   }
 
+  function isMcpAdvancedOpen(index: number): boolean {
+    return mcpAdvancedOpen.value[index] === true;
+  }
+
+  function toggleMcpAdvanced(index: number): void {
+    mcpAdvancedOpen.value = {
+      ...mcpAdvancedOpen.value,
+      [index]: !isMcpAdvancedOpen(index),
+    };
+  }
+
   onMounted(() => {
     void loadSchema();
     void loadConfig();
@@ -358,6 +372,8 @@ export function useConfigEditor() {
     getExtraBodyText,
     isAdvancedBodyOpen,
     toggleAdvancedBody,
+    isMcpAdvancedOpen,
+    toggleMcpAdvanced,
   };
   function setExtraBodyDraft(providerKey: string, modelKey: string, value: string): void {
     extraBodyDrafts.value[configEditor.getExtraBodyErrorKey(providerKey, modelKey)] = value;

@@ -78,10 +78,10 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const isPublic = to.meta['public'] === true;
-  const { logout, verifyToken } = useAuth();
+  const { logout, ensureSession } = useAuth();
 
   if (!isPublic) {
-    const valid = await verifyToken();
+    const valid = await ensureSession();
     if (valid !== true) {
       logout();
       next('/login');
