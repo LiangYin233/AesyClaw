@@ -67,57 +67,17 @@
       </section>
     </div>
 
-    <section class="config-section">
-      <div class="section-heading">
-        <h2>Configuration</h2>
-        <p>Adjust runtime options and extension behavior.</p>
-      </div>
-
-      <div class="config-grid">
-        <ConfigSectionEditor
-          section-key="providers"
-          title="Providers"
-          subtitle="Manage model providers, credentials, and presets."
-          :channel-ready="channelReady"
-        />
-        <ConfigSectionEditor
-          section-key="agent"
-          title="Agent"
-          subtitle="Tune agent behavior and default models."
-          :channel-ready="channelReady"
-        />
-        <ConfigSectionEditor
-          section-key="mcp"
-          title="MCP"
-          subtitle="Manage external tool server connections."
-          :channel-ready="channelReady"
-        />
-        <ConfigSectionEditor
-          section-key="channels"
-          title="Channels"
-          subtitle="Manage channel adapters and runtime options."
-          :channel-ready="channelReady"
-        />
-        <ConfigSectionEditor
-          section-key="plugins"
-          title="Plugins"
-          subtitle="Manage plugins and their options."
-          :channel-ready="channelReady"
-        />
-      </div>
-    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import {
   DEFAULT_CONNECTION_CONFIG,
   isValidConnectionHost,
   type DesktopConnectionConfig,
 } from '../../shared/connection';
 import type { ConnectionStatus } from '../../preload/index';
-import ConfigSectionEditor from '../components/ConfigSectionEditor.vue';
 
 const status = ref<ConnectionStatus>({ chat: 'disconnected' });
 const connection = ref<DesktopConnectionConfig>({ ...DEFAULT_CONNECTION_CONFIG });
@@ -125,7 +85,6 @@ const connectionForm = ref<DesktopConnectionConfig>({ ...connection.value });
 const connectionError = ref('');
 const savingConnection = ref(false);
 let unsubscribeStatus: (() => void) | null = null;
-const channelReady = computed(() => status.value.chat === 'connected');
 
 onMounted(async () => {
   status.value = await window.aesyclaw.getStatus();
@@ -219,33 +178,6 @@ function statusLabel(s: string): string {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 20px;
   align-items: start;
-}
-
-.config-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.section-heading h2 {
-  margin: 0;
-  font-family: var(--font-heading);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-dark);
-}
-
-.section-heading p {
-  margin: 0.25rem 0 0;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  color: var(--color-mid-gray);
-}
-
-.config-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
 }
 
 .card {

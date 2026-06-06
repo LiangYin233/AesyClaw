@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import { isRecord } from '@/lib/object';
 import type {
   ApiType,

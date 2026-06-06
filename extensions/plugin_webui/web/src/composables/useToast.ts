@@ -18,7 +18,7 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 export function useToast() {
   function showToast(type: ToastState['type'], message: string): void {
     toast.value = { type, message };
-    if (timer) {
+    if (timer !== null) {
       clearTimeout(timer);
     }
     timer = setTimeout(() => {
