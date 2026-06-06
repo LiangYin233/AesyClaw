@@ -1,7 +1,7 @@
 <template>
   <div class="schema-form">
     <template v-if="resolvedType === 'object-properties'">
-      <template v-if="label">
+      <template v-if="label && !inlineObjectProperties">
         <fieldset
           class="border border-[var(--color-border)] rounded p-5 mb-5 bg-[rgba(250,249,245,0.5)] shadow-sm"
         >
@@ -25,7 +25,7 @@
           <SchemaForm
             :schema="resolvedSchema.properties![key] || {}"
             :model-value="modelValueObj[key]"
-            :label="key"
+            :label="getObjectPropertyLabel(key)"
             :path="`${path}.${key}`"
             :modelOptions="modelOptions"
             @update:model-value="updateProperty(key, $event)"
@@ -264,6 +264,10 @@ const resolvedType = computed(() => {
 
 const displayLabel = computed(() => formatLabel(props.label ?? ''));
 
+const inlineObjectProperties = computed(() => {
+  return props.label === 'memory' && path.value.endsWith('.memory');
+});
+
 const isModelField = computed(() => {
   const p = path.value;
   return p.endsWith('.defaultModel') || p.endsWith('.model');
@@ -314,6 +318,11 @@ function updateJson(raw: string) {
   } catch {
     // ignore invalid JSON while typing
   }
+}
+
+function getObjectPropertyLabel(key: string): string {
+  if (!inlineObjectProperties.value || !props.label) return key;
+  return `${formatLabel(props.label)} > ${formatLabel(key)}`;
 }
 
 function updateProperty(key: string, value: unknown) {

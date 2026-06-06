@@ -26,6 +26,7 @@ export interface McpServerForm extends Record<string, unknown> {
 export interface ProviderModelForm extends Record<string, unknown> {
   key: string;
   contextWindow?: number;
+  input?: string[];
   extraBody?: Record<string, unknown>;
 }
 

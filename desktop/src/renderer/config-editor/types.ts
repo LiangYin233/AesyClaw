@@ -25,6 +25,7 @@ export type JsonParseResult = { ok: true; value: unknown } | { ok: false; error:
 export type ProviderModelForm = Record<string, unknown> & {
   key: string;
   contextWindow?: number;
+  input?: string[];
   extraBody?: Record<string, unknown>;
 };
 

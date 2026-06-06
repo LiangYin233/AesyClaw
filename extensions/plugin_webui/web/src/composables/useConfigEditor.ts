@@ -18,6 +18,7 @@ export function useConfigEditor() {
   const error = ref('');
   const extraBodyErrors = ref<Record<string, string>>({});
   const extraBodyDrafts = ref<Record<string, string>>({});
+  const advancedBodyOpen = ref<Record<string, boolean>>({});
 
   const excludedTopLevelKeys = new Set(['channels', 'plugins']);
   const hiddenSchemaKeys = new Set(['channels', 'plugins', 'providers', 'mcp']);
@@ -84,6 +85,7 @@ export function useConfigEditor() {
       editableConfig.value = configEditor.omitTopLevelConfigKeys(config, excludedTopLevelKeys);
       extraBodyErrors.value = {};
       extraBodyDrafts.value = {};
+      advancedBodyOpen.value = {};
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load config';
     } finally {
@@ -201,6 +203,16 @@ export function useConfigEditor() {
     });
   }
 
+  function updateProviderModelInput(providerKey: string, modelKey: string, value: string): void {
+    const input = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    updateProviderModel(providerKey, modelKey, (model) =>
+      configEditor.setOptionalProperty(model, 'input', input, input.length > 0),
+    );
+  }
+
   function updateProviderModelExtraBody(
     providerKey: string,
     modelKey: string,
@@ -228,6 +240,21 @@ export function useConfigEditor() {
   }
 
   function updateMcpField(index: number, key: keyof McpServerForm, value: unknown): void {
+    if (key === 'transport') {
+      const transport = configEditor.isMcpTransport(value) ? value : 'stdio';
+      updateMcpServer(index, (server) => {
+        const next: Record<string, unknown> = { ...server, transport };
+        if (transport === 'stdio') {
+          delete next['url'];
+        } else {
+          delete next['command'];
+          delete next['args'];
+          delete next['env'];
+        }
+        return next;
+      });
+      return;
+    }
     updateMcpServer(index, (server) => ({ ...server, [key]: value }));
   }
 
@@ -274,6 +301,23 @@ export function useConfigEditor() {
     return extraBodyDrafts.value[key] ?? toJson(value);
   }
 
+  function isAdvancedBodyOpen(providerKey: string, modelKey: string): boolean {
+    const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
+    return advancedBodyOpen.value[key] === true || getExtraBodyError(providerKey, modelKey) !== '';
+  }
+
+  function toggleAdvancedBody(providerKey: string, modelKey: string): void {
+    const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
+    if (getExtraBodyError(providerKey, modelKey) !== '') {
+      advancedBodyOpen.value = { ...advancedBodyOpen.value, [key]: true };
+      return;
+    }
+    advancedBodyOpen.value = {
+      ...advancedBodyOpen.value,
+      [key]: !isAdvancedBodyOpen(providerKey, modelKey),
+    };
+  }
+
   onMounted(() => {
     void loadSchema();
     void loadConfig();
@@ -301,6 +345,7 @@ export function useConfigEditor() {
     removeProviderModel,
     renameProviderModel,
     updateProviderModelNumber,
+    updateProviderModelInput,
     updateProviderModelExtraBody,
     addMcpServer,
     removeMcpServer,
@@ -312,6 +357,8 @@ export function useConfigEditor() {
     envToText,
     getExtraBodyError,
     getExtraBodyText,
+    isAdvancedBodyOpen,
+    toggleAdvancedBody,
   };
   function setExtraBodyDraft(providerKey: string, modelKey: string, value: string): void {
     extraBodyDrafts.value[configEditor.getExtraBodyErrorKey(providerKey, modelKey)] = value;
@@ -335,9 +382,17 @@ export function useConfigEditor() {
     }
   }
 
+  function clearAdvancedBodyState(providerKey: string, modelKey: string): void {
+    const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
+    if (Object.hasOwn(advancedBodyOpen.value, key)) {
+      delete advancedBodyOpen.value[key];
+    }
+  }
+
   function clearExtraBodyState(providerKey: string, modelKey: string): void {
     clearExtraBodyError(providerKey, modelKey);
     clearExtraBodyDraft(providerKey, modelKey);
+    clearAdvancedBodyState(providerKey, modelKey);
   }
 
   function clearProviderExtraBodyErrors(providerKey: string): void {
@@ -347,6 +402,9 @@ export function useConfigEditor() {
     }
     for (const key of Object.keys(extraBodyDrafts.value)) {
       if (key.startsWith(prefix)) delete extraBodyDrafts.value[key];
+    }
+    for (const key of Object.keys(advancedBodyOpen.value)) {
+      if (key.startsWith(prefix)) delete advancedBodyOpen.value[key];
     }
   }
 
@@ -365,6 +423,10 @@ export function useConfigEditor() {
       extraBodyDrafts.value[newKey] = extraBodyDrafts.value[oldKey];
       delete extraBodyDrafts.value[oldKey];
     }
+    if (advancedBodyOpen.value[oldKey] !== undefined) {
+      advancedBodyOpen.value[newKey] = advancedBodyOpen.value[oldKey];
+      delete advancedBodyOpen.value[oldKey];
+    }
   }
 
   function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: string): void {
@@ -377,6 +439,12 @@ export function useConfigEditor() {
       extraBodyDrafts.value,
       oldProviderKey,
       newProviderKey,
+    );
+    advancedBodyOpen.value = Object.fromEntries(
+      Object.entries(advancedBodyOpen.value).map(([key, value]) => {
+        const prefix = `${oldProviderKey}:`;
+        return [key.startsWith(prefix) ? `${newProviderKey}:${key.slice(prefix.length)}` : key, value];
+      }),
     );
   }
 

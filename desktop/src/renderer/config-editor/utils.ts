@@ -123,6 +123,9 @@ export function normalizeProviderModels(value: unknown): ProviderModelForm[] {
       key,
       contextWindow:
         typeof source['contextWindow'] === 'number' ? source['contextWindow'] : undefined,
+      input: Array.isArray(source['input'])
+        ? source['input'].filter((item): item is string => typeof item === 'string')
+        : undefined,
       extraBody: isRecord(source['extraBody']) ? source['extraBody'] : undefined,
     };
   });

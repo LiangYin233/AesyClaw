@@ -305,10 +305,25 @@
           <div v-if="provider.models.length === 0" class="empty-state compact">
             No model presets configured.
           </div>
-          <article v-for="model in provider.models" :key="model.key" class="nested-entry">
-            <div class="field-grid three-col">
-              <div class="field-block">
-                <label class="field-label">Model preset key</label>
+          <article v-for="model in provider.models" :key="model.key" class="nested-entry compact-card">
+            <div class="compact-card-header">
+              <div class="compact-title-group">
+                <div class="entry-title truncate">{{ model.key || 'New model' }}</div>
+                <div class="compact-subtitle">Model preset</div>
+              </div>
+              <button
+                type="button"
+                class="danger-btn"
+                title="Remove model"
+                @click="removeProviderModel(provider.key, model.key)"
+              >
+                ×
+              </button>
+            </div>
+
+            <div class="compact-card-body">
+              <div class="field-block full-span">
+                <label class="field-label">Model ID</label>
                 <input
                   :value="model.key"
                   class="field-input"
@@ -322,51 +337,73 @@
                   "
                 />
               </div>
-              <div class="field-block">
-                <label class="field-label">Context window</label>
-                <input
-                  :value="model.contextWindow ?? ''"
-                  type="number"
-                  class="field-input"
-                  placeholder="128000"
-                  @input="
-                    updateProviderModelNumber(
-                      provider.key,
-                      model.key,
-                      ($event.target as HTMLInputElement).value,
-                    )
-                  "
-                />
+
+              <div class="field-grid two-col no-top-margin">
+                <div class="field-block">
+                  <label class="field-label">Context Window</label>
+                  <input
+                    :value="model.contextWindow ?? ''"
+                    type="number"
+                    class="field-input"
+                    placeholder="128000"
+                    @input="
+                      updateProviderModelNumber(
+                        provider.key,
+                        model.key,
+                        ($event.target as HTMLInputElement).value,
+                      )
+                    "
+                  />
+                </div>
+                <div class="field-block">
+                  <label class="field-label">Input Types</label>
+                  <input
+                    :value="model.input?.join(', ') ?? ''"
+                    class="field-input"
+                    placeholder="text, image"
+                    @input="
+                      updateProviderModelInput(
+                        provider.key,
+                        model.key,
+                        ($event.target as HTMLInputElement).value,
+                      )
+                    "
+                  />
+                </div>
               </div>
-              <button
-                type="button"
-                class="danger-btn model-remove"
-                title="Remove model"
-                @click="removeProviderModel(provider.key, model.key)"
-              >
-                ×
-              </button>
-              <div class="field-block full-span">
-                <label class="field-label">Extra body JSON</label>
-                <textarea
-                  :value="getExtraBodyText(provider.key, model.key, model.extraBody ?? {})"
-                  class="field-input json-input"
-                  rows="4"
-                  placeholder="{}"
-                  @input="
-                    updateProviderModelExtraBody(
-                      provider.key,
-                      model.key,
-                      ($event.target as HTMLTextAreaElement).value,
-                    )
-                  "
-                />
-                <p
-                  v-if="getExtraBodyError(provider.key, model.key)"
-                  class="status-text error field-error"
+
+              <div class="advanced-block">
+                <button
+                  type="button"
+                  class="advanced-toggle"
+                  @click="toggleAdvancedBody(provider.key, model.key)"
                 >
-                  {{ getExtraBodyError(provider.key, model.key) }}
-                </p>
+                  <span>Advanced request body</span>
+                  <span class="advanced-arrow" :class="{ open: isAdvancedBodyOpen(provider.key, model.key) }">
+                    ›
+                  </span>
+                </button>
+                <div v-if="isAdvancedBodyOpen(provider.key, model.key)" class="advanced-content">
+                  <textarea
+                    :value="getExtraBodyText(provider.key, model.key, model.extraBody ?? {})"
+                    class="field-input json-input"
+                    rows="4"
+                    placeholder="{}"
+                    @input="
+                      updateProviderModelExtraBody(
+                        provider.key,
+                        model.key,
+                        ($event.target as HTMLTextAreaElement).value,
+                      )
+                    "
+                  />
+                  <p
+                    v-if="getExtraBodyError(provider.key, model.key)"
+                    class="status-text error field-error"
+                  >
+                    {{ getExtraBodyError(provider.key, model.key) }}
+                  </p>
+                </div>
               </div>
             </div>
           </article>
@@ -380,14 +417,17 @@
         <article
           v-for="(server, index) in mcpServers"
           :key="`${server.name}-${index}`"
-          class="config-entry"
+          class="config-entry compact-card"
         >
-          <div class="entry-header with-margin">
-            <div>
-              <div class="entry-title">{{ server.name || `MCP server ${index + 1}` }}</div>
-              <span class="pill" :class="{ enabled: server.enabled }">
-                {{ server.enabled ? 'Enabled' : 'Disabled' }}
-              </span>
+          <div class="compact-card-header">
+            <div class="compact-title-group">
+              <div class="entry-title truncate">{{ server.name || `MCP server ${index + 1}` }}</div>
+              <div class="pill-row">
+                <span class="pill">{{ server.transport }}</span>
+                <span class="pill" :class="{ enabled: server.enabled }">
+                  {{ server.enabled ? 'Enabled' : 'Disabled' }}
+                </span>
+              </div>
             </div>
             <button
               class="danger-btn"
@@ -399,38 +439,41 @@
             </button>
           </div>
 
-          <div class="field-grid three-col">
-            <div class="field-block">
-              <label class="field-label">Name</label>
-              <input
-                :value="server.name"
-                class="field-input"
-                placeholder="memory"
-                @input="updateMcpField(index, 'name', ($event.target as HTMLInputElement).value)"
-              />
+          <div class="compact-card-body">
+            <div class="field-grid three-col no-top-margin">
+              <div class="field-block">
+                <label class="field-label">Name</label>
+                <input
+                  :value="server.name"
+                  class="field-input"
+                  placeholder="memory"
+                  @input="updateMcpField(index, 'name', ($event.target as HTMLInputElement).value)"
+                />
+              </div>
+              <div class="field-block">
+                <label class="field-label">Transport</label>
+                <select
+                  :value="server.transport"
+                  class="field-input"
+                  @change="
+                    updateMcpField(index, 'transport', ($event.target as HTMLSelectElement).value)
+                  "
+                >
+                  <option value="stdio">stdio</option>
+                  <option value="sse">sse</option>
+                  <option value="http">http</option>
+                </select>
+              </div>
+              <div class="field-block toggle-block">
+                <label class="field-label">Enabled</label>
+                <ToggleSwitch
+                  :model-value="server.enabled"
+                  @update:model-value="updateMcpField(index, 'enabled', $event)"
+                />
+              </div>
             </div>
-            <div class="field-block">
-              <label class="field-label">Transport</label>
-              <select
-                :value="server.transport"
-                class="field-input"
-                @change="
-                  updateMcpField(index, 'transport', ($event.target as HTMLSelectElement).value)
-                "
-              >
-                <option value="stdio">stdio</option>
-                <option value="sse">sse</option>
-                <option value="http">http</option>
-              </select>
-            </div>
-            <div class="field-block toggle-block">
-              <label class="field-label">Enabled</label>
-              <ToggleSwitch
-                :model-value="server.enabled"
-                @update:model-value="updateMcpField(index, 'enabled', $event)"
-              />
-            </div>
-            <div v-if="server.transport === 'stdio'" class="field-block full-span">
+
+            <div v-if="server.transport === 'stdio'" class="field-block">
               <label class="field-label">Command</label>
               <input
                 :value="server.command ?? ''"
@@ -445,7 +488,7 @@
                 "
               />
             </div>
-            <div v-else class="field-block full-span">
+            <div v-else class="field-block">
               <label class="field-label">URL</label>
               <input
                 :value="server.url ?? ''"
@@ -456,26 +499,35 @@
                 "
               />
             </div>
-            <div class="field-block full-span">
-              <label class="field-label">Args</label>
-              <textarea
-                :value="argsToText(server.args)"
-                class="field-input json-input"
-                rows="3"
-                placeholder="One argument per line"
-                @input="updateArgs(index, ($event.target as HTMLTextAreaElement).value)"
-              />
-            </div>
-            <div class="field-block full-span">
-              <label class="field-label">Environment</label>
-              <textarea
-                :value="envToText(server.env)"
-                class="field-input json-input"
-                rows="3"
-                placeholder="KEY=value, one per line"
-                @input="updateEnv(index, ($event.target as HTMLTextAreaElement).value)"
-              />
-            </div>
+
+            <details v-if="server.transport === 'stdio'" class="advanced-block native-details">
+              <summary class="advanced-toggle">
+                <span>Advanced stdio options</span>
+                <span class="advanced-arrow">›</span>
+              </summary>
+              <div class="advanced-content">
+                <div class="field-block">
+                  <label class="field-label">Args</label>
+                  <textarea
+                    :value="argsToText(server.args)"
+                    class="field-input json-input"
+                    rows="3"
+                    placeholder="One argument per line"
+                    @input="updateArgs(index, ($event.target as HTMLTextAreaElement).value)"
+                  />
+                </div>
+                <div class="field-block">
+                  <label class="field-label">Environment</label>
+                  <textarea
+                    :value="envToText(server.env)"
+                    class="field-input json-input"
+                    rows="3"
+                    placeholder="KEY=value, one per line"
+                    @input="updateEnv(index, ($event.target as HTMLTextAreaElement).value)"
+                  />
+                </div>
+              </div>
+            </details>
           </div>
         </article>
       </template>
@@ -590,6 +642,7 @@ const feedback = ref('');
 const feedbackType = ref<'success' | 'error'>('success');
 const extraBodyErrors = ref<Record<string, string>>({});
 const extraBodyDrafts = ref<Record<string, string>>({});
+const advancedBodyOpen = ref<Record<string, boolean>>({});
 const complexFieldErrors = ref<Record<string, string>>({});
 
 const hasExtraBodyErrors = computed(() => Object.keys(extraBodyErrors.value).length > 0);
@@ -662,12 +715,13 @@ async function loadConfig(force = false): Promise<void> {
   error.value = '';
   feedback.value = '';
   extraBodyErrors.value = {};
+  extraBodyDrafts.value = {};
+  advancedBodyOpen.value = {};
   complexFieldErrors.value = {};
   try {
     const config = await loadSharedConfig(force);
     rawConfig.value = config;
     sectionValue.value = configEditor.getSectionValue(config, props.sectionKey);
-    extraBodyDrafts.value = {};
   } catch (err) {
     error.value = err instanceof Error ? err.message : `Failed to load ${props.sectionKey} config`;
   } finally {
@@ -930,6 +984,16 @@ function updateProviderModelNumber(providerKey: string, modelKey: string, value:
   });
 }
 
+function updateProviderModelInput(providerKey: string, modelKey: string, value: string): void {
+  const input = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  updateProviderModel(providerKey, modelKey, (model) =>
+    configEditor.setOptionalProperty(model, 'input', input, input.length > 0),
+  );
+}
+
 function updateProviderModelExtraBody(providerKey: string, modelKey: string, value: string): void {
   setExtraBodyDraft(providerKey, modelKey, value);
   const result = configEditor.parseJson(value);
@@ -952,6 +1016,23 @@ function getExtraBodyText(providerKey: string, modelKey: string, value: unknown)
   return extraBodyDrafts.value[key] ?? configEditor.toJson(value);
 }
 
+function isAdvancedBodyOpen(providerKey: string, modelKey: string): boolean {
+  const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
+  return advancedBodyOpen.value[key] === true || getExtraBodyError(providerKey, modelKey) !== '';
+}
+
+function toggleAdvancedBody(providerKey: string, modelKey: string): void {
+  const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
+  if (getExtraBodyError(providerKey, modelKey) !== '') {
+    advancedBodyOpen.value = { ...advancedBodyOpen.value, [key]: true };
+    return;
+  }
+  advancedBodyOpen.value = {
+    ...advancedBodyOpen.value,
+    [key]: !isAdvancedBodyOpen(providerKey, modelKey),
+  };
+}
+
 function addMcpServer(): void {
   sectionValue.value = [...getRawMcpServers(), { name: '', transport: 'stdio', enabled: true }];
 }
@@ -964,7 +1045,7 @@ function updateMcpField(index: number, key: keyof McpServerForm, value: unknown)
   if (key === 'transport') {
     const transport = configEditor.isMcpTransport(value) ? value : 'stdio';
     updateMcpServer(index, (server) => {
-      const next = { ...server, transport };
+      const next: Record<string, unknown> = { ...server, transport };
       if (transport === 'stdio') {
         delete next['url'];
       } else {
@@ -1101,9 +1182,18 @@ function clearExtraBodyDraft(providerKey: string, modelKey: string): void {
   extraBodyDrafts.value = next;
 }
 
+function clearAdvancedBodyState(providerKey: string, modelKey: string): void {
+  const key = configEditor.getExtraBodyErrorKey(providerKey, modelKey);
+  if (!Object.hasOwn(advancedBodyOpen.value, key)) return;
+  const next = { ...advancedBodyOpen.value };
+  delete next[key];
+  advancedBodyOpen.value = next;
+}
+
 function clearExtraBodyState(providerKey: string, modelKey: string): void {
   clearExtraBodyError(providerKey, modelKey);
   clearExtraBodyDraft(providerKey, modelKey);
+  clearAdvancedBodyState(providerKey, modelKey);
 }
 
 function clearProviderExtraBodyErrors(providerKey: string): void {
@@ -1113,6 +1203,9 @@ function clearProviderExtraBodyErrors(providerKey: string): void {
   );
   extraBodyDrafts.value = Object.fromEntries(
     Object.entries(extraBodyDrafts.value).filter(([key]) => !key.startsWith(prefix)),
+  );
+  advancedBodyOpen.value = Object.fromEntries(
+    Object.entries(advancedBodyOpen.value).filter(([key]) => !key.startsWith(prefix)),
   );
 }
 
@@ -1127,6 +1220,10 @@ function renameExtraBodyState(providerKey: string, oldModelKey: string, newModel
     extraBodyDrafts.value = { ...extraBodyDrafts.value, [newKey]: extraBodyDrafts.value[oldKey] };
     clearExtraBodyDraft(providerKey, oldModelKey);
   }
+  if (advancedBodyOpen.value[oldKey] !== undefined) {
+    advancedBodyOpen.value = { ...advancedBodyOpen.value, [newKey]: advancedBodyOpen.value[oldKey] };
+    clearAdvancedBodyState(providerKey, oldModelKey);
+  }
 }
 
 function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: string): void {
@@ -1139,6 +1236,15 @@ function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: st
     extraBodyDrafts.value,
     oldProviderKey,
     newProviderKey,
+  );
+  advancedBodyOpen.value = Object.fromEntries(
+    Object.entries(advancedBodyOpen.value).map(([key, value]) => {
+      const prefix = `${oldProviderKey}:`;
+      return [
+        key.startsWith(prefix) ? `${newProviderKey}:${key.slice(prefix.length)}` : key,
+        value,
+      ];
+    }),
   );
 }
 
@@ -1261,6 +1367,14 @@ watch(
 
 .field-grid.three-col {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field-grid.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-grid.no-top-margin {
+  margin-top: 0;
 }
 
 .field-block {
@@ -1485,6 +1599,106 @@ watch(
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: rgba(250, 249, 245, 0.75);
+}
+
+.compact-card {
+  overflow: hidden;
+  padding: 0;
+}
+
+.compact-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.compact-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.compact-title-group {
+  min-width: 0;
+}
+
+.compact-subtitle {
+  margin-top: 4px;
+  color: var(--color-mid-gray);
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.advanced-block {
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-mid-gray);
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.advanced-toggle:hover {
+  color: var(--color-dark);
+}
+
+.advanced-arrow {
+  display: inline-flex;
+  transition: transform var(--transition-fast);
+}
+
+.advanced-arrow.open,
+.native-details[open] .advanced-arrow {
+  transform: rotate(90deg);
+}
+
+.native-details summary {
+  list-style: none;
+}
+
+.native-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
 }
 
 .empty-state.compact {
