@@ -3,11 +3,10 @@
 import { Type, type Static, type TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import { AppConfigSchema, type PluginContext, type RoleConfig } from '@aesyclaw/sdk';
-import * as channelService from '../services/channels';
+import * as extensionService from '../services/extensions';
 import * as configService from '../services/config';
 import * as cronService from '../services/cron';
 import * as logService from '../services/logs';
-import * as pluginService from '../services/plugins';
 import * as roleService from '../services/roles';
 import * as sessionService from '../services/sessions';
 import * as statusService from '../services/status';
@@ -62,15 +61,15 @@ on('update_role', (data, ctx) => {
 });
 on('delete_role', (data, ctx) => roleService.deleteRole(ctx, parsePayload(IdPayloadSchema, data).id));
 
-on('get_channels', (_, ctx) => channelService.getChannels(ctx));
-on('get_plugins', (_, ctx) => pluginService.getPlugins(ctx));
+on('get_channels', (_, ctx) => extensionService.listExtensions(ctx, 'channels'));
+on('get_plugins', (_, ctx) => extensionService.listExtensions(ctx, 'plugins'));
 on('set_channel_enabled', (data, ctx) => {
   const { name, enabled } = parsePayload(ToggleSchema, data);
-  return channelService.setChannelEnabled(ctx, name, enabled);
+  return extensionService.setExtensionEnabled(ctx, 'channels', name, enabled);
 });
 on('set_plugin_enabled', (data, ctx) => {
   const { name, enabled } = parsePayload(ToggleSchema, data);
-  return pluginService.setPluginEnabled(ctx, name, enabled);
+  return extensionService.setExtensionEnabled(ctx, 'plugins', name, enabled);
 });
 
 on('get_status', (_, ctx) => statusService.getStatus(ctx));

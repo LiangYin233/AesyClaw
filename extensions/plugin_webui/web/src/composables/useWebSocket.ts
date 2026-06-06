@@ -4,7 +4,7 @@
  * 用法：
  * ```ts
  * const ws = useWebSocket();
- * ws.connect(token);
+ * ws.connect();
  * const result = await ws.send('get_status');
  * ```
  */
@@ -23,7 +23,6 @@ export type WsResponse = {
 
 class WebSocketClient {
   private ws: WebSocket | null = null;
-  private token: string | null = null;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -50,15 +49,11 @@ class WebSocketClient {
    * 建立 WebSocket 连接。
    * 如果已有连接则先关闭。
    */
-  connect(token: string): void {
-    if (
-      this.token === token &&
-      (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)
-    ) {
-      return; // 已连接或正在连接且 token 相同
+  connect(): void {
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
+      return;
     }
 
-    this.token = token;
     this.destroyed = false;
     this.reconnectAttempt = 0;
     this.disconnectInternal();
@@ -133,7 +128,6 @@ class WebSocketClient {
    */
   disconnect(): void {
     this.destroyed = true;
-    this.token = null;
     this.reconnectAttempt = 0;
     this.disconnectInternal();
     this.rejectAllPending(new Error('WebSocket 已断开'));
@@ -165,11 +159,11 @@ class WebSocketClient {
   }
 
   private doConnect(): void {
-    if (this.destroyed || this.token === null) return;
+    if (this.destroyed) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const url = `${protocol}//${host}/api/ws?token=${encodeURIComponent(this.token)}`;
+    const url = `${protocol}//${host}/api/ws`;
 
     try {
       this.ws = new WebSocket(url);

@@ -8,6 +8,7 @@ import type { PluginDefinition } from '@aesyclaw/sdk';
 import { WebuiPluginConfigSchema, type WebuiPluginConfig } from './config-schema';
 import { createApp } from './server';
 import { createWebSocketServer } from './ws/handler';
+import { createWebuiAuthManager } from './auth';
 
 let httpServer: ReturnType<typeof serve> | null = null;
 let wsServer: WebSocketServer | null = null;
@@ -49,9 +50,13 @@ const plugin: PluginDefinition = {
     const port = config.port ?? 3000;
     const webDistDir = path.join(pluginRoot, 'web', 'dist');
 
-    const app = createApp({ webDistDir });
+    const auth = createWebuiAuthManager(() => ctx.config.self.get<string>('authToken'));
+    const app = createApp({
+      webDistDir,
+      auth,
+    });
     httpServer = serve({ fetch: app.fetch, port, hostname: host });
-    wsServer = createWebSocketServer(httpServer as unknown as Server, ctx);
+    wsServer = createWebSocketServer(httpServer as unknown as Server, ctx, auth);
 
     ctx.log.info('plugin_webui server 已启动（HTTP + WebSocket）', { host, port, webDistDir });
   },

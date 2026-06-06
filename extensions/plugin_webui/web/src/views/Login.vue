@@ -119,7 +119,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 
 const router = useRouter();
-const { login, logout } = useAuth();
+const { login } = useAuth();
 const tokenId = useId();
 
 const tokenInput = ref('');
@@ -131,29 +131,13 @@ async function handleSubmit() {
   loading.value = true;
   error.value = '';
   try {
-    const token = tokenInput.value.trim();
-    logout();
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${encodeURIComponent(token)}`;
-    await new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(wsUrl);
-      ws.onopen = () => {
-        ws.close();
-        resolve();
-      };
-      ws.onerror = () => reject(new Error('Connection failed'));
-      ws.onclose = (e) => {
-        if (e.code === 4001 || !e.wasClean) reject(new Error('Invalid token'));
-      };
-      setTimeout(() => {
-        ws.close();
-        reject(new Error('Connection timeout'));
-      }, 5000);
-    });
-    login(token);
+    const rawToken = tokenInput.value.trim();
+    const ok = await login(rawToken);
+    if (!ok) {
+      throw new Error('Invalid token');
+    }
     router.push('/');
   } catch {
-    logout();
     error.value = 'Invalid token or server unreachable';
   } finally {
     loading.value = false;

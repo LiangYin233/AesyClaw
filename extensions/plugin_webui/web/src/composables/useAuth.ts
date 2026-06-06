@@ -1,58 +1,66 @@
 import { ref, watch } from 'vue';
 import { useWebSocket } from './useWebSocket';
 
-const TOKEN_KEY = 'aesyclaw_token';
-const COOKIE_MAX_AGE_DAYS = 30;
+export const authenticated = ref<boolean | null>(null);
 
-function setCookie(name: string, value: string): void {
-  const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60;
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; SameSite=Strict; max-age=${maxAge}`;
-}
+async function login(rawToken: string): Promise<boolean> {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    cache: 'no-store',
+    body: JSON.stringify({ token: rawToken }),
+  });
 
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match?.[2] ? decodeURIComponent(match[2]) : null;
-}
+  if (!response.ok) {
+    authenticated.value = false;
+    return false;
+  }
 
-function removeCookie(name: string): void {
-  document.cookie = `${name}=; path=/; max-age=0`;
-}
-
-const initialToken = sessionStorage.getItem(TOKEN_KEY) ?? getCookie(TOKEN_KEY);
-export const token = ref<string | null>(initialToken);
-
-function login(newToken: string): void {
-  token.value = newToken;
-  sessionStorage.setItem(TOKEN_KEY, newToken);
-  setCookie(TOKEN_KEY, newToken);
+  authenticated.value = true;
   const ws = useWebSocket();
-  ws.connect(newToken);
+  ws.connect();
+  return true;
 }
 
 function logout(): void {
-  token.value = null;
-  sessionStorage.removeItem(TOKEN_KEY);
-  removeCookie(TOKEN_KEY);
+  authenticated.value = false;
+  void fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+  }).catch(() => undefined);
   const ws = useWebSocket();
   ws.disconnect();
 }
 
-// 惰性初始化：首次调用 useAuth() 时若有 token 则自动连接 WS
+async function verifyToken(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/auth/check', {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    authenticated.value = response.ok;
+    return response.ok;
+  } catch {
+    authenticated.value = false;
+    return false;
+  }
+}
+
+// 惰性初始化：首次调用 useAuth() 时安装认证状态清理监听
 let initialized = false;
 
 export function useAuth() {
   if (!initialized) {
     initialized = true;
-    if (token.value) {
+    watch(authenticated, (isAuthenticated) => {
       const ws = useWebSocket();
-      ws.connect(token.value);
-    }
-    watch(token, (newToken) => {
-      const ws = useWebSocket();
-      if (!newToken) {
+      if (isAuthenticated !== true) {
         ws.disconnect();
       }
     });
   }
-  return { token, login, logout };
+  return { authenticated, login, logout, verifyToken };
 }

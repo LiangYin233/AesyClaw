@@ -35,216 +35,91 @@
           No {{ title.toLowerCase() }} configuration entries.
         </div>
 
-        <template v-if="sectionKey === 'channels'">
-          <div
-            v-for="entry in entries"
-            :key="entry.key"
-            class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
-          >
-            <div class="flex items-center justify-between gap-4 mb-0">
-              <div>
-                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">
-                  {{ entry.key || 'New channel' }}
-                </div>
+        <div
+          v-for="entry in entries"
+          :key="entry.key"
+          class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
+        >
+          <div class="flex items-center justify-between gap-4 mb-0">
+            <div>
+              <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">
+                {{ entryTitle(entry) }}
               </div>
+            </div>
+            <div class="flex items-center gap-2.5 mb-0">
               <div class="flex items-center gap-2.5 mb-0">
-                <div class="flex items-center gap-2.5 mb-0">
-                  <label
-                    class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0"
-                  >
-                    Enabled
-                  </label>
-                  <ToggleSwitch
-                    :model-value="getEntryEnabled(entry)"
-                    @update:model-value="toggleEntryEnabled(entry.key)"
-                  />
-                </div>
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed"
-                  @click="removeEntry(entry.key)"
+                <label
+                  class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0"
                 >
-                  <TrashIcon class="w-4 h-4" />
-                </button>
+                  Enabled
+                </label>
+                <ToggleSwitch
+                  :model-value="getEntryEnabled(entry)"
+                  @update:model-value="toggleEntryEnabled(entry.key)"
+                />
               </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
-              <div class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3">
-                <div
-                  class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3"
-                >
-                  Configuration
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <template
-                    v-for="field in getEntryFields(entry)"
-                    :key="`${entry.key}-${field.key}`"
-                  >
-                    <div class="mb-5">
-                      <label
-                        class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
-                      >
-                        {{ field.displayLabel }}
-                      </label>
-                      <template v-if="field.type === 'boolean'">
-                        <ToggleSwitch
-                          :model-value="Boolean(field.value)"
-                          @update:model-value="setEntryField(entry.key, field.path, $event)"
-                        />
-                      </template>
-                      <input
-                        v-else-if="field.type === 'number'"
-                        :value="field.value"
-                        type="number"
-                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="
-                          setEntryField(
-                            entry.key,
-                            field.path,
-                            parseFloat(($event.target as HTMLInputElement).value) || 0,
-                          )
-                        "
-                      />
-                      <textarea
-                        v-else-if="field.type === 'object'"
-                        :value="toJson(field.value)"
-                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
-                        rows="3"
-                        @input="
-                          handleEntryComplexField(
-                            entry.key,
-                            field.path,
-                            ($event.target as HTMLTextAreaElement).value,
-                          )
-                        "
-                      />
-                      <input
-                        v-else
-                        :value="field.value"
-                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="
-                          setEntryField(
-                            entry.key,
-                            field.path,
-                            ($event.target as HTMLInputElement).value,
-                          )
-                        "
-                      />
-                    </div>
-                  </template>
-                </div>
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <template v-else>
-          <div
-            v-for="entry in entries"
-            :key="entry.key"
-            class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
-          >
-            <div class="flex items-center justify-between gap-4 mb-0">
-              <div>
-                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">
-                  {{ entry.key || `Plugin ${entry.key}` }}
-                </div>
-              </div>
-              <div class="flex items-center gap-2.5 mb-0">
-                <div class="flex items-center gap-2.5 mb-0">
-                  <label
-                    class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0"
-                  >
-                    Enabled
-                  </label>
-                  <ToggleSwitch
-                    :model-value="getEntryEnabled(entry)"
-                    @update:model-value="toggleEntryEnabled(entry.key)"
-                  />
-                </div>
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed"
-                  @click="removeEntry(entry.key)"
-                >
-                  <TrashIcon class="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
-              <div
-                v-if="getEntryFields(entry).length > 0"
-                class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3"
+              <button
+                type="button"
+                class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed"
+                @click="removeEntry(entry.key)"
               >
+                <TrashIcon class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
+            <div
+              v-if="shouldShowFields(entry)"
+              class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3"
+            >
+              <div
+                class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3"
+              >
+                {{ fieldSectionTitle }}
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div
-                  class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3"
+                  v-for="field in getEntryFields(entry)"
+                  :key="`${entry.key}-${field.key}`"
+                  class="mb-5"
                 >
-                  Options
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <template
-                    v-for="field in getEntryFields(entry)"
-                    :key="`${entry.key}-${field.key}`"
+                  <label
+                    class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
                   >
-                    <div class="mb-5">
-                      <label
-                        class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
-                      >
-                        {{ field.displayLabel }}
-                      </label>
-                      <template v-if="field.type === 'boolean'">
-                        <ToggleSwitch
-                          :model-value="Boolean(field.value)"
-                          @update:model-value="setEntryField(entry.key, field.path, $event)"
-                        />
-                      </template>
-                      <input
-                        v-else-if="field.type === 'number'"
-                        :value="field.value"
-                        type="number"
-                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="
-                          setEntryField(
-                            entry.key,
-                            field.path,
-                            parseFloat(($event.target as HTMLInputElement).value) || 0,
-                          )
-                        "
-                      />
-                      <textarea
-                        v-else-if="field.type === 'object'"
-                        :value="toJson(field.value)"
-                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
-                        rows="3"
-                        @input="
-                          handleEntryComplexField(
-                            entry.key,
-                            field.path,
-                            ($event.target as HTMLTextAreaElement).value,
-                          )
-                        "
-                      />
-                      <input
-                        v-else
-                        :value="field.value"
-                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="
-                          setEntryField(
-                            entry.key,
-                            field.path,
-                            ($event.target as HTMLInputElement).value,
-                          )
-                        "
-                      />
-                    </div>
+                    {{ field.displayLabel }}
+                  </label>
+                  <template v-if="field.type === 'boolean'">
+                    <ToggleSwitch
+                      :model-value="Boolean(field.value)"
+                      @update:model-value="setEntryField(entry.key, field.path, $event)"
+                    />
                   </template>
+                  <input
+                    v-else-if="field.type === 'number'"
+                    :value="field.value"
+                    type="number"
+                    class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                    @input="setEntryField(entry.key, field.path, parseNumberInput($event))"
+                  />
+                  <textarea
+                    v-else-if="field.type === 'object'"
+                    :value="toJson(field.value)"
+                    class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
+                    rows="3"
+                    @input="handleEntryComplexField(entry.key, field.path, textareaValue($event))"
+                  />
+                  <input
+                    v-else
+                    :value="field.value"
+                    class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                    @input="setEntryField(entry.key, field.path, inputValue($event))"
+                  />
                 </div>
               </div>
             </div>
           </div>
-        </template>
+        </div>
       </section>
     </div>
   </div>
@@ -263,8 +138,10 @@ interface EntryItem {
   value: unknown;
 }
 
+type SectionKey = 'channels' | 'plugins';
+
 const props = defineProps<{
-  sectionKey: 'channels' | 'plugins';
+  sectionKey: SectionKey;
   title: string;
   subtitle: string;
 }>();
@@ -277,17 +154,13 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
 
-const itemCount = computed(() => {
-  if (!isRecord(sectionValue.value)) return 0;
-  return Object.keys(sectionValue.value).length;
-});
+const itemCount = computed(() => Object.keys(sectionValue.value).length);
+const entries = computed<EntryItem[]>(() =>
+  Object.entries(sectionValue.value).map(([key, value]) => ({ key, value })),
+);
+const fieldSectionTitle = computed(() => (props.sectionKey === 'channels' ? 'Configuration' : 'Options'));
 
-const entries = computed<EntryItem[]>(() => {
-  if (!isRecord(sectionValue.value)) return [];
-  return Object.entries(sectionValue.value).map(([key, value]) => ({ key, value }));
-});
-
-async function loadConfig() {
+async function loadConfig(): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
@@ -300,11 +173,10 @@ async function loadConfig() {
   }
 }
 
-async function saveSection() {
+async function saveSection(): Promise<void> {
   saving.value = true;
   try {
-    const payload = { [props.sectionKey]: sectionValue.value };
-    await ws.send('update_config', payload);
+    await ws.send('update_config', { [props.sectionKey]: sectionValue.value });
     showToast('toast-success', `${props.title} configuration saved`);
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');
@@ -313,8 +185,12 @@ async function saveSection() {
   }
 }
 
-function removeEntry(key: string) {
-  if (!isRecord(sectionValue.value)) return;
+function entryTitle(entry: EntryItem): string {
+  if (entry.key.length > 0) return entry.key;
+  return props.sectionKey === 'channels' ? 'New channel' : 'Plugin';
+}
+
+function removeEntry(key: string): void {
   const next = { ...sectionValue.value };
   delete next[key];
   sectionValue.value = next;
@@ -326,8 +202,8 @@ function getEntryEnabled(entry: EntryItem): boolean {
     : true;
 }
 
-async function toggleEntryEnabled(key: string) {
-  const current = isRecord(sectionValue.value) ? sectionValue.value : {};
+async function toggleEntryEnabled(key: string): Promise<void> {
+  const current = sectionValue.value;
   const entryValue = isRecord(current[key]) ? current[key] : {};
   const enabled = entryValue['enabled'] === false;
   sectionValue.value = { ...current, [key]: { ...entryValue, enabled } };
@@ -350,98 +226,103 @@ interface ConfigField {
   type: 'string' | 'number' | 'boolean' | 'object';
 }
 
+function shouldShowFields(entry: EntryItem): boolean {
+  return props.sectionKey === 'channels' || getEntryFields(entry).length > 0;
+}
+
 function getEntryFields(entry: EntryItem): ConfigField[] {
   return isRecord(entry.value) ? getFields(entry.value, ['enabled']) : [];
 }
 
 function getFields(record: Record<string, unknown>, skipKeys: string[] = []): ConfigField[] {
-  const fields: ConfigField[] = [];
   const skip = new Set(skipKeys);
-  const flat = flattenObject(record);
-  for (const [key, val] of Object.entries(flat)) {
-    if (skip.has(key)) continue;
-    let type: ConfigField['type'] = 'string';
-    if (typeof val === 'number') type = 'number';
-    else if (typeof val === 'boolean') type = 'boolean';
-    else if (typeof val === 'object' && val !== null) type = 'object';
-    fields.push({
+  return Object.entries(flattenObject(record))
+    .filter(([key]) => !skip.has(key))
+    .map(([key, value]) => ({
       path: key,
       key,
       displayLabel: formatFieldLabel(key),
-      value: val,
-      type,
-    });
-  }
-  return fields;
+      value,
+      type: getFieldType(value),
+    }));
+}
+
+function getFieldType(value: unknown): ConfigField['type'] {
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'boolean';
+  if (typeof value === 'object' && value !== null) return 'object';
+  return 'string';
 }
 
 function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(obj)) {
+  for (const [key, value] of Object.entries(obj)) {
     const path = prefix ? `${prefix}.${key}` : key;
-    if (isRecord(val) && Object.keys(val).length > 0) {
-      Object.assign(result, flattenObject(val, path));
+    if (isRecord(value) && Object.keys(value).length > 0) {
+      Object.assign(result, flattenObject(value, path));
     } else {
-      result[path] = val;
+      result[path] = value;
     }
   }
   return result;
 }
 
-function setEntryField(entryKey: string, path: string, value: unknown) {
-  const current = isRecord(sectionValue.value) ? sectionValue.value : {};
-  const entryConfig = isRecord(current[entryKey]) ? { ...current[entryKey] } : {};
+function setEntryField(entryKey: string, path: string, value: unknown): void {
+  const entryConfig = isRecord(sectionValue.value[entryKey]) ? { ...sectionValue.value[entryKey] } : {};
   setNestedValue(entryConfig, path, value);
-  sectionValue.value = { ...current, [entryKey]: entryConfig };
+  sectionValue.value = { ...sectionValue.value, [entryKey]: entryConfig };
 }
 
-function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown) {
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split('.');
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
     if (!part) continue;
-    if (!isRecord(current[part])) {
-      current[part] = {};
-    }
+    if (!isRecord(current[part])) current[part] = {};
     current = current[part] as Record<string, unknown>;
   }
   const lastPart = parts[parts.length - 1];
-  if (lastPart) {
-    current[lastPart] = value;
+  if (lastPart) current[lastPart] = value;
+}
+
+function handleEntryComplexField(entryKey: string, path: string, raw: string): void {
+  try {
+    setEntryField(entryKey, path, JSON.parse(raw));
+  } catch {
+    // Keep the existing value until the JSON draft becomes valid.
   }
 }
 
-function handleEntryComplexField(entryKey: string, path: string, raw: string) {
-  handleComplexField(raw, (parsed) => setEntryField(entryKey, path, parsed));
-}
-
 function formatFieldLabel(key: string): string {
-  const parts = key.split('.');
-  return parts
-    .map((p) =>
-      p
+  return key
+    .split('.')
+    .map((part) =>
+      part
         .replace(/([a-z])([A-Z])/g, '$1 $2')
         .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase()),
+        .replace(/\b\w/g, (char) => char.toUpperCase()),
     )
     .join(' > ');
 }
 
-function handleComplexField(raw: string, setParsed: (value: unknown) => void) {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return;
-  }
-  setParsed(parsed);
-}
-
-function getSectionValue(source: unknown, key: 'channels' | 'plugins'): Record<string, unknown> {
+function getSectionValue(source: unknown, key: SectionKey): Record<string, unknown> {
   if (!isRecord(source)) return {};
   const value = source[key];
   return isRecord(value) ? value : {};
+}
+
+function inputValue(event: Event): string {
+  return (event.target as HTMLInputElement).value;
+}
+
+function textareaValue(event: Event): string {
+  return (event.target as HTMLTextAreaElement).value;
+}
+
+function parseNumberInput(event: Event): number {
+  const parsed = Number.parseFloat(inputValue(event));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 onMounted(() => {

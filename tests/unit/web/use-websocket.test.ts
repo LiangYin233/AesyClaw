@@ -73,7 +73,7 @@ describe('useWebSocket', () => {
     const { useWebSocket } = await loadUseWebSocket();
     const ws = useWebSocket();
 
-    ws.connect('test-token');
+    ws.connect();
     await vi.runOnlyPendingTimersAsync();
 
     const socket = MockWebSocket.instances[0];

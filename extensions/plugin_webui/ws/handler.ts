@@ -2,40 +2,19 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
 import { createScopedLogger, subscribeToLogEntries, type PluginContext } from '@aesyclaw/sdk';
 import { dispatchMessage } from './dispatcher';
 import type { WsMessage } from './types';
+import type { WebuiAuthManager } from '../auth';
 
 const logger = createScopedLogger('plugin_webui:ws');
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
-function safeTokenEqual(provided: string, expected: string): boolean {
-  const providedBuf = Buffer.from(provided);
-  const expectedBuf = Buffer.from(expected);
-  if (providedBuf.length !== expectedBuf.length) return false;
-  return timingSafeEqual(providedBuf, expectedBuf);
-}
-
-function validateWsToken(requestUrl: string | undefined, ctx: PluginContext): boolean {
-  const authToken = ctx.config.self.get<string>('authToken');
-  if (!authToken) {
-    logger.error('WebSocket 鉴权 token 未配置，拒绝所有连接');
-    return false;
-  }
-  if (!requestUrl) return false;
-
-  try {
-    const parsed = new URL(requestUrl, 'http://localhost');
-    const token = parsed.searchParams.get('token');
-    return token ? safeTokenEqual(token, authToken) : false;
-  } catch {
-    logger.debug('WebSocket 鉴权 URL 解析失败');
-    return false;
-  }
-}
-
-export function createWebSocketServer(httpServer: Server, ctx: PluginContext): WebSocketServer {
+export function createWebSocketServer(
+  httpServer: Server,
+  ctx: PluginContext,
+  auth: WebuiAuthManager,
+): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true });
 
   httpServer.on('upgrade', (request, socket, head) => {
@@ -45,9 +24,16 @@ export function createWebSocketServer(httpServer: Server, ctx: PluginContext): W
       return;
     }
 
-    if (!validateWsToken(url, ctx)) {
-      logger.warn('WebSocket 连接鉴权失败');
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    const authResult = auth.validateRequest(request);
+    if (!authResult.ok) {
+      logger.warn('WebSocket 连接鉴权失败', { status: authResult.status });
+      if (authResult.retryAfterSeconds !== undefined) {
+        socket.write(
+          `HTTP/1.1 429 Too Many Requests\r\nRetry-After: ${authResult.retryAfterSeconds}\r\n\r\n`,
+        );
+      } else {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      }
       socket.destroy();
       return;
     }

@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import { token } from '@/composables/useAuth';
+import { useAuth } from '@/composables/useAuth';
 import { useWebSocket } from '@/composables/useWebSocket';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -76,18 +76,21 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const isPublic = to.meta['public'] === true;
-  if (!isPublic && (token.value ?? null) === null) {
-    next('/login');
-    return;
-  }
+  const { logout, verifyToken } = useAuth();
 
-  // 确保 WebSocket 已连接（非登录页）
-  if (!isPublic && token.value !== null) {
+  if (!isPublic) {
+    const valid = await verifyToken();
+    if (valid !== true) {
+      logout();
+      next('/login');
+      return;
+    }
+
     const ws = useWebSocket();
     if (ws.connected.value !== true) {
-      ws.connect(token.value);
+      ws.connect();
     }
   }
 
