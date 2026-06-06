@@ -79,20 +79,20 @@ export default tseslint.config(
     },
   },
   {
-    files: ['extensions/plugin_webui/web/**/*.ts', 'extensions/plugin_webui/web/**/*.vue'],
+    files: [
+      'extensions/plugin_webui/web/**/*.ts',
+      'extensions/plugin_webui/web/**/*.vue',
+      'desktop/src/renderer/**/*.vue',
+    ],
     languageOptions: {
       globals: {
         ...globals.browser,
       },
       parser: vueParser,
       parserOptions: {
-        parser: {
-          ts: {
-            parser: '@typescript-eslint/parser',
-            options: { project: './extensions/plugin_webui/web/tsconfig.json' },
-          },
-          js: '@typescript-eslint/parser',
-        },
+        parser: tseslint.parser,
+        project: ['./extensions/plugin_webui/web/tsconfig.json', './desktop/tsconfig.json'],
+        extraFileExtensions: ['.vue'],
       },
     },
     rules: {
