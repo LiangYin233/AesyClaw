@@ -259,23 +259,6 @@ const plugin: PluginDefinition = {
     logger = ctx.log;
     pluginConfig = ctx.config.self.get<Record<string, unknown>>('') ?? {};
 
-    ctx.hooks.register({
-      id: 'md2img-send',
-      chain: 'pipeline:send',
-      priority: 100,
-      handler: async (hookCtx, next) => {
-        const result = await handleMd2ImgSend(hookCtx, {
-          htmlTemplate,
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- initialized in init() before handler runs
-          logger: logger!,
-          pluginConfig,
-        });
-
-        if (result.action !== 'next') return result;
-        return await (next?.() ?? { action: 'next' });
-      },
-    });
-
     try {
       htmlTemplate = await readFile(TEMPLATE_PATH, 'utf-8');
     } catch {
@@ -302,9 +285,27 @@ const plugin: PluginDefinition = {
       htmlTemplate = htmlTemplate.replace('{{katexCss}}', '');
       logger.info('md2img initialized without KaTeX CSS; LaTeX may not render correctly');
     }
+
+    ctx.hooks.register({
+      id: 'md2img-send',
+      chain: 'pipeline:send',
+      priority: 100,
+      handler: async (hookCtx, next) => {
+        const result = await handleMd2ImgSend(hookCtx, {
+          htmlTemplate,
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- initialized before the hook is registered
+          logger: logger!,
+          pluginConfig,
+        });
+
+        if (result.action !== 'next') return result;
+        return await (next?.() ?? { action: 'next' });
+      },
+    });
   },
   async destroy() {
-    await getRenderer().destroy();
+    await renderer?.destroy();
+    renderer = null;
     htmlTemplate = '';
     logger = undefined;
     pluginConfig = {};
