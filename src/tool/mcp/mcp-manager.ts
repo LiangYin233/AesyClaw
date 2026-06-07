@@ -173,8 +173,48 @@ export class McpManager {
   }
 
   async handleConfigReload(): Promise<void> {
-    await this.disconnectAll();
-    await this.connectAll();
+    const newConfigs = this.getConfigs();
+    const newNames = new Set(newConfigs.map((c) => c.name));
+
+    // 1. 断开从配置中移除的服务器
+    for (const name of [...this.connectedServers.keys()]) {
+      if (!newNames.has(name)) {
+        await this.disconnect(name).catch((err) => {
+          logger.error(`热重载时断开 MCP "${name}" 失败`, err);
+        });
+      }
+    }
+
+    // 2. 处理新配置中的每个服务器
+    for (const config of newConfigs) {
+      const current = this.connectedServers.get(config.name);
+
+      if (!config.enabled) {
+        if (current) {
+          await this.disconnect(config.name).catch((err) => {
+            logger.error(`热重载时断开已禁用的 MCP "${config.name}" 失败`, err);
+          });
+        } else {
+          this.failedServers.delete(config.name);
+        }
+        continue;
+      }
+
+      // 配置未变更且已连接 — 跳过
+      if (current && configsEqual(current.config, config)) {
+        this.failedServers.delete(config.name);
+        continue;
+      }
+
+      // 新服务器或配置已变更 — 连接（connect 内部处理断开+重连）
+      try {
+        await this.connect(config.name);
+        this.failedServers.delete(config.name);
+      } catch (err) {
+        this.failedServers.set(config.name, errorMessage(err));
+        logger.error(`热重载时连接 MCP "${config.name}" 失败`, err);
+      }
+    }
   }
 
   listServers(): McpServerStatus[] {
@@ -243,6 +283,21 @@ export class McpManager {
 export function mcpToolName(serverName: string, toolName: string): string {
   const safe = (v: string): string => v.replace(/[^a-zA-Z0-9_-]/g, '_') || 'unnamed';
   return `${safe(serverName)}_${safe(toolName)}`;
+}
+
+/** 比较两个 MCP 服务器配置是否相等（忽略键序差异）。 */
+function configsEqual(a: McpServerConfig, b: McpServerConfig): boolean {
+  return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
+}
+
+function sortKeys(obj: unknown): unknown {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sortKeys);
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(obj).sort()) {
+    sorted[key] = sortKeys((obj as Record<string, unknown>)[key]);
+  }
+  return sorted;
 }
 
 function formatMcpResult(result: unknown): string {

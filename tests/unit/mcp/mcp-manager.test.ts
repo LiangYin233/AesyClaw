@@ -178,28 +178,39 @@ describe('McpManager', () => {
     expect(toolRegistry.has(mcpToolName('good', 'echo'))).toBe(false);
   });
 
-  it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
-    const manager = new McpManager(null as never, null as never, null as never);
-    let releaseFirstDisconnect: () => void = () => undefined;
-    const disconnectAll = vi
-      .spyOn(manager, 'disconnectAll')
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            releaseFirstDisconnect = resolve;
-          }),
-      )
-      .mockResolvedValue(undefined);
-    const connectAll = vi.spyOn(manager, 'connectAll').mockResolvedValue(undefined);
+  it('incrementally reloads: skips unchanged, connects new, disconnects removed servers', async () => {
+    const client = makeClient();
+    const toolRegistry = new ToolRegistry();
+    const configs: McpServerConfig[] = [
+      { name: 'keep', transport: 'stdio', enabled: true },
+      { name: 'remove', transport: 'stdio', enabled: true },
+    ];
+    const configManager = new FakeConfigManager(configs);
+    const factory: McpClientFactory = { create: vi.fn(() => client) };
+    const manager = new McpManager(configManager as never, toolRegistry, factory);
 
-    const firstReload = manager.handleConfigReload();
-    await Promise.resolve();
-    const secondReload = manager.handleConfigReload();
-    releaseFirstDisconnect();
+    // 初始连接
+    await manager.connectAll();
+    expect(manager.getConnected('keep')).toBeDefined();
+    expect(manager.getConnected('remove')).toBeDefined();
+    expect(manager.getConnected('new')).toBeUndefined();
 
-    await Promise.all([firstReload, secondReload]);
+    // 更新配置：移除 remove、新增 new、keep 不变
+    configs.length = 0;
+    configs.push(
+      { name: 'keep', transport: 'stdio', enabled: true },
+      { name: 'new', transport: 'stdio', enabled: true },
+    );
 
-    expect(disconnectAll).toHaveBeenCalledTimes(2);
-    expect(connectAll).toHaveBeenCalledTimes(2);
+    await manager.handleConfigReload();
+
+    // keep 仍保持连接
+    expect(manager.getConnected('keep')).toBeDefined();
+    // remove 已断开
+    expect(manager.getConnected('remove')).toBeUndefined();
+    // new 已连接
+    expect(manager.getConnected('new')).toBeDefined();
+    expect(factory.create).toHaveBeenCalledTimes(3); // keep + remove + new
+    expect(client.close).toHaveBeenCalledTimes(1); // 仅 remove 断开
   });
 });

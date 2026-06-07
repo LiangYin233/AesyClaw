@@ -79,7 +79,9 @@ export function createToolResultBudgetHandler(
   context: AfterToolCallContext,
   signal?: AbortSignal,
 ) => Promise<AfterToolCallResult | undefined> {
-  return async (context) => {
+  return async (context, signal) => {
+    throwIfCancelled(signal);
+
     const result = context.result as AgentToolResult;
     const ctx = {
       message: { components: [] },

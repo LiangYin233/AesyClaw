@@ -155,6 +155,15 @@ export class Session {
   }
 }
 
+/** 从 AgentMessage 中提取 timestamp 并转为 ISO 字符串，fallback 到当前时间。 */
+function messageTimestamp(message: AgentMessage): string {
+  const ts = message.timestamp;
+  if (typeof ts === 'number' && Number.isFinite(ts) && ts > 0) {
+    return new Date(ts).toISOString();
+  }
+  return new Date().toISOString();
+}
+
 function sanitizeGhostToolCalls(agentMessages: AgentMessage[]): AgentMessage[] {
   return agentMessages.map((message) => {
     if (message.role !== 'assistant' || !Array.isArray(message.content)) return message;
@@ -184,7 +193,7 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
   // ── user: 仅持久化文本（不变） ────────────────────────────────
   if (message.role === 'user') {
     if (text.length === 0) return null;
-    return { role: 'user', content: text, timestamp: new Date().toISOString() };
+    return { role: 'user', content: text, timestamp: messageTimestamp(message) };
   }
 
   // ── assistant: 含 toolCall 时保留结构 ────────────────────────
@@ -195,7 +204,7 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
       return {
         role: 'assistant',
         content: text,
-        timestamp: new Date().toISOString(),
+        timestamp: messageTimestamp(message),
         usage: message.usage,
       };
     }
@@ -226,7 +235,7 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
       role: 'assistant',
       content: text,
       toolData: JSON.stringify(wrapped),
-      timestamp: new Date().toISOString(),
+      timestamp: messageTimestamp(message),
       usage: message.usage,
     };
   }
@@ -254,7 +263,7 @@ function toPersistable(message: AgentMessage): PersistableMessage | null {
       role: 'toolResult',
       content: text,
       toolData: JSON.stringify(toolData),
-      timestamp: new Date().toISOString(),
+      timestamp: messageTimestamp(message),
     };
   }
 

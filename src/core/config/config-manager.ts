@@ -333,7 +333,6 @@ export class ConfigManager {
         clearInvalidConfig: false,
         serialize: (value) => JSON.stringify(value, null, 2),
         deserialize: JSON.parse,
-        watch: true,
       });
     } catch (err) {
       throw ErrorFactory.config.parseFailed(

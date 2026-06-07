@@ -14,8 +14,8 @@ export class AgentRunCancelledError extends AgentExecutionError {
   }
 }
 
-export function throwIfCancelled(signal: AbortSignal): void {
-  if (signal.aborted) {
+export function throwIfCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) {
     throw signal.reason instanceof Error ? signal.reason : new AgentRunCancelledError();
   }
 }
