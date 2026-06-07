@@ -201,12 +201,9 @@ export class ToolRegistry {
     role: RoleConfig,
     hooksBus: IHooksBus,
     executionContext: Partial<ToolExecutionContext>,
-  ): { tools: AesyClawTool[]; agentTools: AgentTool[] } {
+  ): AgentTool[] {
     const tools = this.getForRole(role);
-    return {
-      tools,
-      agentTools: this.toAgentTools(tools, hooksBus, executionContext),
-    };
+    return this.toAgentTools(tools, hooksBus, executionContext);
   }
 
   private toAgentTools(

@@ -168,7 +168,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['send_msg', 'create_cron'] },
       });
 
-      const { agentTools } = registry.resolveForRole(role, hooksBus, {});
+      const agentTools = registry.resolveForRole(role, hooksBus, {});
       expect(agentTools).toHaveLength(2);
       expect(agentTools.map((t) => t.name)).toContain('send_msg');
       expect(agentTools.map((t) => t.name)).toContain('create_cron');
@@ -183,14 +183,8 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['send_msg', 'create_cron'] },
       });
 
-      const { tools, agentTools } = registry.resolveForRole(role, hooksBus, {});
-      const toolNames = tools.map((tool) => tool.name);
-      const agentToolNames = agentTools.map((tool) => tool.name);
-
-      expect(agentToolNames).toEqual(toolNames);
-      expect(agentToolNames).toEqual(['send_msg', 'create_cron']);
-      expect(agentTools[0]?.parameters).toBe(tools[0]?.parameters);
-      expect(agentTools[1]?.parameters).toBe(tools[1]?.parameters);
+      const agentTools = registry.resolveForRole(role, hooksBus, {});
+      expect(agentTools.map((t) => t.name)).toEqual(['send_msg', 'create_cron']);
     });
 
     it('should return all AgentTools for allowlist wildcard *', async () => {
@@ -198,7 +192,7 @@ describe('ToolRegistry', () => {
       registry.register(makeTool({ name: 'run_sub_agent' }));
       registry.register(makeTool({ name: 'create_cron' }));
 
-      const { agentTools } = registry.resolveForRole(makeRole(), hooksBus, {});
+      const agentTools = registry.resolveForRole(makeRole(), hooksBus, {});
 
       expect(agentTools).toHaveLength(3);
       expect(agentTools.map((t) => t.name)).toEqual(['send_msg', 'run_sub_agent', 'create_cron']);
@@ -213,7 +207,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'denylist', list: ['create_cron'] },
       });
 
-      const { agentTools } = registry.resolveForRole(role, hooksBus, {});
+      const agentTools = registry.resolveForRole(role, hooksBus, {});
       expect(agentTools).toHaveLength(2);
       expect(agentTools.map((t) => t.name)).toContain('send_msg');
       expect(agentTools.map((t) => t.name)).toContain('run_sub_agent');
@@ -227,7 +221,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['send_msg'] },
       });
 
-      const [agentTool] = registry.resolveForRole(role, hooksBus, {}).agentTools;
+      const [agentTool] = registry.resolveForRole(role, hooksBus, {});
       expect(agentTool.name).toBe('send_msg');
       expect(agentTool.description).toBe('A test tool');
       expect(typeof agentTool.execute).toBe('function');
@@ -240,7 +234,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['nonexistent_tool'] },
       });
 
-      const { agentTools } = registry.resolveForRole(role, hooksBus, {});
+      const agentTools = registry.resolveForRole(role, hooksBus, {});
       expect(agentTools).toHaveLength(0);
     });
   });

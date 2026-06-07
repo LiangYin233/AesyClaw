@@ -13,6 +13,30 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * 深度比较两个对象是否相等，忽略键序差异。
+ *
+ * 先将对象键递归排序后再 JSON 序列化比较。
+ *
+ * @param a - 第一个对象
+ * @param b - 第二个对象
+ * @returns 是否递归相等
+ */
+export function objectsEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(sortObjectKeys(a)) === JSON.stringify(sortObjectKeys(b));
+}
+
+/** 递归排序对象键，用于忽略键序的深度比较。 */
+export function sortObjectKeys(obj: unknown): unknown {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sortObjectKeys);
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(obj).sort()) {
+    sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key]);
+  }
+  return sorted;
+}
+
+/**
  * 深度合并默认配置，支持嵌套对象递归合并。
  *
  * @param defaults - 默认配置对象

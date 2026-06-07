@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { AgentConfigSchema, MemoryConfigSchema } from '../../../../src/core/config/schema';
+import { AppConfigSchema } from '../../../../src/core/config/schema';
+
+// 通过 AppConfigSchema 访问嵌套 schema，避免单独导出未在外部使用的模式
+const AgentConfigSchema = AppConfigSchema.properties.agent;
+const MemoryConfigSchema = AgentConfigSchema.properties.memory;
 
 const runtimeConsumedConfigKeys: Record<string, string[]> = {
   agent: ['defaultModel', 'logLevel', 'memory'],

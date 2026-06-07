@@ -42,7 +42,7 @@ export async function buildPrompt(
     sessionKey: executionContext?.sessionKey ?? createPromptSessionKey(role),
     role,
     promptSections,
-    availableToolNames: resolvedTools.agentTools.map((tool) => tool.name),
+    availableToolNames: resolvedTools.map((tool) => tool.name),
     isSubAgent,
     isCron,
   };
@@ -54,7 +54,7 @@ export async function buildPrompt(
     promptSections,
   });
 
-  return { prompt, tools: resolvedTools.agentTools };
+  return { prompt, tools: resolvedTools };
 }
 
 const EMPTY_PROMPT_MESSAGE: Message = { components: [] };

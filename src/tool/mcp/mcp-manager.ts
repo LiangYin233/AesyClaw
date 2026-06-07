@@ -3,7 +3,7 @@
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage } from '@aesyclaw/core/errors';
-import { isRecord } from '@aesyclaw/core/utils';
+import { isRecord, objectsEqual } from '@aesyclaw/core/utils';
 import type { McpServerConfig } from '@aesyclaw/core/config/schema';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
@@ -287,17 +287,7 @@ export function mcpToolName(serverName: string, toolName: string): string {
 
 /** 比较两个 MCP 服务器配置是否相等（忽略键序差异）。 */
 function configsEqual(a: McpServerConfig, b: McpServerConfig): boolean {
-  return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
-}
-
-function sortKeys(obj: unknown): unknown {
-  if (obj === null || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(sortKeys);
-  const sorted: Record<string, unknown> = {};
-  for (const key of Object.keys(obj).sort()) {
-    sorted[key] = sortKeys((obj as Record<string, unknown>)[key]);
-  }
-  return sorted;
+  return objectsEqual(a, b);
 }
 
 function formatMcpResult(result: unknown): string {

@@ -73,15 +73,12 @@ describe('PromptBuilder', () => {
       overrides.toolRegistry instanceof ToolRegistry
         ? overrides.toolRegistry
         : {
-            resolveForRole: vi.fn().mockReturnValue({
-              tools: [],
-              agentTools: [
-                makeAgentTool({ name: 'load_skill' }),
-                makeAgentTool({ name: 'send_msg' }),
-                makeAgentTool({ name: 'run_sub_agent' }),
-                makeAgentTool({ name: 'run_temp_sub_agent' }),
-              ],
-            }),
+            resolveForRole: vi.fn().mockReturnValue([
+              makeAgentTool({ name: 'load_skill' }),
+              makeAgentTool({ name: 'send_msg' }),
+              makeAgentTool({ name: 'run_sub_agent' }),
+              makeAgentTool({ name: 'run_temp_sub_agent' }),
+            ]),
             ...(overrides.toolRegistry ?? {}),
           };
     const hooksBus = {
@@ -213,7 +210,7 @@ describe('PromptBuilder', () => {
       const agentTool = makeAgentTool({ name: 'custom-tool' });
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [agentTool] }),
+          resolveForRole: vi.fn().mockReturnValue([agentTool]),
         },
       });
       const agent = makeAgent(deps, agentRegistry);
@@ -281,7 +278,7 @@ describe('PromptBuilder', () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRole: vi.fn().mockReturnValue({ tools: [internalTool], agentTools: [] }),
+          resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
       const agent = makeAgent(deps, agentRegistry);
@@ -299,7 +296,7 @@ describe('PromptBuilder', () => {
 
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRole: vi.fn().mockReturnValue({ tools: [allowedTool], agentTools: [] }),
+          resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
       const agent = makeAgent(deps, agentRegistry);
@@ -395,14 +392,11 @@ Blocked content.`,
         } as never,
         llmAdapter: { resolveModel: vi.fn() } as never,
         toolRegistry: {
-          resolveForRole: vi.fn().mockReturnValue({
-            tools: [],
-            agentTools: [
-              makeAgentTool({ name: 'load_skill' }),
-              makeAgentTool({ name: 'run_sub_agent' }),
-              makeAgentTool({ name: 'run_temp_sub_agent' }),
-            ],
-          }),
+          resolveForRole: vi.fn().mockReturnValue([
+            makeAgentTool({ name: 'load_skill' }),
+            makeAgentTool({ name: 'run_sub_agent' }),
+            makeAgentTool({ name: 'run_temp_sub_agent' }),
+          ]),
         } as never,
         hooksBus,
         compressionThreshold: 0.8,

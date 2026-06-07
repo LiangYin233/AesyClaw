@@ -90,12 +90,6 @@ const AppConfigSchema = Type.Object(
 type AppConfig = Static<typeof AppConfigSchema>;
 
 export {
-  // 模式
-  /** 代理配置模式 */
-  AgentConfigSchema,
-  /** 记忆压缩配置模式 */
-  MemoryConfigSchema,
-
   /** 顶层应用配置模式 */
   AppConfigSchema,
   // 派生类型

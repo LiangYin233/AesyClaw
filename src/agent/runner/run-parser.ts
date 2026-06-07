@@ -10,26 +10,9 @@ import { assistantHasToolCalls } from '@aesyclaw/contracts/llm';
 import { isRecord } from '@aesyclaw/core/utils';
 
 /**
- * AgentMessage 的扩展类型，包含运行时可能存在的额外字段。
- */
-type AgentMessageWithMeta = AgentMessage & {
-  stopReason?: string;
-  errorMessage?: string;
-  usage?: unknown;
-};
-
-/**
- * 类型守卫：检查 AgentMessage 是否包含元数据字段。
- */
-function hasMessageMeta(message: AgentMessage): message is AgentMessageWithMeta {
-  return typeof message === 'object' && message !== null;
-}
-
-/**
  * 安全地从 AgentMessage 中提取字符串字段。
  */
 function getStringField(message: AgentMessage, field: string): string | undefined {
-  if (!hasMessageMeta(message)) return undefined;
   const value = (message as unknown as Record<string, unknown>)[field];
   return typeof value === 'string' ? value : undefined;
 }
@@ -38,9 +21,8 @@ function getStringField(message: AgentMessage, field: string): string | undefine
  * 安全地从 AgentMessage 中提取 usage 字段。
  */
 function getUsageField(message: AgentMessage): Record<string, unknown> | undefined {
-  if (!hasMessageMeta(message)) return undefined;
-  const meta = message as AgentMessageWithMeta;
-  return isRecord(meta.usage) ? meta.usage : undefined;
+  const usage = (message as unknown as { usage?: unknown }).usage;
+  return isRecord(usage) ? usage : undefined;
 }
 
 export function createAgentRunResult(newMessages: readonly AgentMessage[]): {

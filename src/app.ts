@@ -342,7 +342,6 @@ function extensionService(): RuntimeService {
           await cronManager.destroy();
         },
       );
-      void cronManager;
 
       sub.runtimeControl.bind(createRuntimeControlDependencies(ctx));
       ctx.defer(() => sub.runtimeControl.reset());

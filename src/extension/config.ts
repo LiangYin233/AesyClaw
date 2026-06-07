@@ -1,6 +1,6 @@
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { Logger } from '@aesyclaw/core/logger';
-import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
+import { isRecord, mergeDefaults, objectsEqual } from '@aesyclaw/core/utils';
 import { stripEnabledField } from './extension-utils';
 import type { BaseExtensionDefinition } from './types';
 
@@ -102,15 +102,5 @@ export function extensionConfigsEqual(
   a: Record<string, unknown>,
   b: Record<string, unknown>,
 ): boolean {
-  return JSON.stringify(sortConfigKeys(a)) === JSON.stringify(sortConfigKeys(b));
-}
-
-function sortConfigKeys(obj: unknown): unknown {
-  if (obj === null || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(sortConfigKeys);
-  const sorted: Record<string, unknown> = {};
-  for (const key of Object.keys(obj).sort()) {
-    sorted[key] = sortConfigKeys((obj as Record<string, unknown>)[key]);
-  }
-  return sorted;
+  return objectsEqual(a, b);
 }
