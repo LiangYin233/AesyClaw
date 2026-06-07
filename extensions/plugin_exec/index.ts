@@ -29,6 +29,16 @@ export const ExecParamsSchema = Type.Object({
 /** exec 工具参数类型 */
 export type ExecParams = Static<typeof ExecParamsSchema>;
 
+export const ExecPluginConfigSchema = Type.Object({
+  defaultTimeoutMs: Type.Number({
+    default: DEFAULT_TIMEOUT_MS,
+    minimum: 1,
+    description: 'Default timeout for exec tool calls that do not specify timeoutMs.',
+  }),
+});
+
+export type ExecPluginConfig = Static<typeof ExecPluginConfigSchema>;
+
 /** 命令执行结果详情 */
 export type ExecResultDetails = {
   command: string;
@@ -197,14 +207,26 @@ function getErrorMessage(err: unknown): string {
  * @param workspaceDir - 工作区根目录
  * @returns 工具定义
  */
-export function createExecTool(workspaceDir: string): AesyClawTool {
+export function createExecTool(
+  workspaceDir: string,
+  options: { defaultTimeoutMs?: number } = {},
+): AesyClawTool {
   return {
     name: 'exec',
     description:
       'Execute a shell command and return stdout, stderr, exit metadata, cwd, and timeout information.',
     parameters: ExecParamsSchema,
     owner: 'plugin:exec',
-    execute: async (params) => await executeCommand(params as ExecParams, { workspaceDir }),
+    execute: async (params) => {
+      const execParams = params as ExecParams;
+      return await executeCommand(
+        {
+          ...execParams,
+          timeoutMs: execParams.timeoutMs ?? options.defaultTimeoutMs,
+        },
+        { workspaceDir },
+      );
+    },
   };
 }
 
@@ -212,8 +234,14 @@ const plugin: PluginDefinition = {
   name: 'exec',
   version: '0.1.0',
   description: 'Provides an LLM-facing exec tool for shell command execution.',
+  configSchema: ExecPluginConfigSchema,
   async init(ctx) {
-    ctx.registry.tools.register(createExecTool(ctx.paths.workspaceDir));
+    const config = ctx.config.self.get<ExecPluginConfig>('') ?? {
+      defaultTimeoutMs: DEFAULT_TIMEOUT_MS,
+    };
+    ctx.registry.tools.register(
+      createExecTool(ctx.paths.workspaceDir, { defaultTimeoutMs: config.defaultTimeoutMs }),
+    );
     ctx.log.info('Exec plugin initialized');
   },
 };
