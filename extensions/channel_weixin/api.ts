@@ -97,23 +97,34 @@ async function apiPost(
   body: unknown,
   token?: string,
   timeoutMs?: number,
+  abortSignal?: AbortSignal,
 ): Promise<string> {
   const url = new URL(endpoint, baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
   const controller = timeoutMs !== undefined ? new AbortController() : undefined;
+  const signal = controller?.signal ?? abortSignal;
+  const abortFromCaller = (): void => controller?.abort();
   const timer =
     controller !== undefined ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+  if (controller !== undefined && abortSignal !== undefined) {
+    if (abortSignal.aborted) {
+      controller.abort();
+    } else {
+      abortSignal.addEventListener('abort', abortFromCaller, { once: true });
+    }
+  }
   try {
     const res = await fetch(url.toString(), {
       method: 'POST',
       headers: buildHeaders(token),
       body: JSON.stringify(body),
-      signal: controller?.signal,
+      signal,
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
     return text;
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    abortSignal?.removeEventListener('abort', abortFromCaller);
   }
 }
 
@@ -139,12 +150,11 @@ export async function getUpdates(
       { get_updates_buf: opts.get_updates_buf ?? '', base_info: {} },
       opts.token,
       opts.timeoutMs ?? DEFAULT_LONG_POLL_TIMEOUT_MS,
+      opts.abortSignal,
     );
     return JSON.parse(text) as GetUpdatesResp;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      if (opts.abortSignal?.aborted)
-        return { ret: 0, msgs: [], get_updates_buf: opts.get_updates_buf };
       return { ret: 0, msgs: [], get_updates_buf: opts.get_updates_buf };
     }
     throw err;

@@ -23,6 +23,7 @@ export function startMonitor(
   let buf = getUpdatesBuf ?? '';
   let consecutiveFailures = 0;
   let timeoutMs = 35_000;
+  const abortController = new AbortController();
 
   const loop = async (): Promise<void> => {
     while (!aborted) {
@@ -32,7 +33,9 @@ export function startMonitor(
           token: apiOpts.token,
           get_updates_buf: buf,
           timeoutMs,
+          abortSignal: abortController.signal,
         });
+        if (aborted) return;
 
         consecutiveFailures = 0;
 
@@ -46,6 +49,7 @@ export function startMonitor(
 
         if (resp.msgs !== undefined) {
           for (const msg of resp.msgs) {
+            if (aborted) return;
             const fromUserId = msg.from_user_id;
             const content = extractText(msg);
             if (fromUserId && content) {
@@ -59,10 +63,10 @@ export function startMonitor(
         logger.error(`长轮询错误: ${err}`);
         if (consecutiveFailures >= 3) {
           callbacks.onError(`连续 ${consecutiveFailures} 次轮询失败`);
-          await sleep(30_000);
+          await sleep(30_000, abortController.signal);
           consecutiveFailures = 0;
         } else {
-          await sleep(2000);
+          await sleep(2000, abortController.signal);
         }
       }
     }
@@ -73,7 +77,9 @@ export function startMonitor(
 
   return {
     stop: () => {
+      if (aborted) return;
       aborted = true;
+      abortController.abort();
     },
     getUpdatesBuf: () => buf,
   };
@@ -95,6 +101,15 @@ function extractText(msg: WeixinMessage): string {
   return '';
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+function sleep(ms: number, abortSignal: AbortSignal): Promise<void> {
+  if (abortSignal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = (): void => {
+      clearTimeout(timer);
+      abortSignal.removeEventListener('abort', finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    abortSignal.addEventListener('abort', finish, { once: true });
+  });
 }

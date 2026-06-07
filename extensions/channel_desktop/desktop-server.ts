@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import nodePath from 'node:path';
 import { createScopedLogger, errorMessage, isRecord } from '@aesyclaw/sdk';
 import * as desktopAttachments from './attachments';
@@ -155,7 +155,7 @@ export class DesktopServer {
         this.handleFileStart(connectionId, msg);
         break;
       case 'file_end':
-        this.handleFileEnd(connectionId, msg);
+        void this.handleFileEnd(connectionId, msg);
         break;
       case 'pong':
         break;
@@ -184,7 +184,9 @@ export class DesktopServer {
     const sessionKey = this.sessions.makeSessionKey(sessionId);
     const conn = this.sessions.getConnection(sessionId);
     if (!conn) return;
-    const attachments = this.consumeChatAttachments(conn, sessionId, msg.files ?? []);
+    const files = msg.files ?? [];
+    await this.waitForPendingFiles(conn, files);
+    const attachments = this.consumeChatAttachments(conn, sessionId, files);
     const message = { components: this.buildMessageComponents(msg.text, attachments) };
 
     try {
@@ -415,51 +417,83 @@ export class DesktopServer {
     });
   }
 
-  private handleFileEnd(
+  private async handleFileEnd(
     _connectionId: string,
     msg: { type: 'file_end'; sessionId: string; fileId: string },
-  ): void {
+  ): Promise<void> {
     const conn = this.sessions.getConnection(msg.sessionId);
     if (!conn) return;
 
     const buffer = conn.fileBuffers.get(msg.fileId);
     if (!buffer) return;
 
-    const fileData = Buffer.concat(buffer.chunks);
-    const baseMediaDir = this.options.context.paths.mediaDir;
-    const mediaDir = nodePath.join(
-      baseMediaDir,
-      'desktop',
-      desktopAttachments.sanitizePathSegment(buffer.sessionId),
-    );
-    mkdirSync(mediaDir, { recursive: true });
-
-    const targetFile = nodePath.join(
-      mediaDir,
-      `${randomUUID()}-${desktopAttachments.sanitizeFileName(buffer.name)}`,
-    );
-    writeFileSync(targetFile, fileData);
-
-    conn.completedFiles.set(msg.fileId, {
-      fileId: msg.fileId,
-      sessionId: buffer.sessionId,
-      name: buffer.name,
-      mime: buffer.mime,
-      size: fileData.length,
-      filePath: targetFile,
+    const writeTask = this.persistCompletedFile(conn, buffer, msg).finally(() => {
+      conn.fileBuffers.delete(msg.fileId);
+      conn.pendingFiles.delete(msg.fileId);
     });
+    conn.pendingFiles.set(msg.fileId, writeTask);
+    await writeTask;
+  }
 
-    this.logger.info('文件接收完成', {
-      fileId: msg.fileId,
-      name: buffer.name,
-      path: targetFile,
-      size: fileData.length,
-    });
+  private async persistCompletedFile(
+    conn: DesktopConnection,
+    buffer: DesktopFileBuffer,
+    msg: { sessionId: string; fileId: string },
+  ): Promise<void> {
+    try {
+      const fileData = Buffer.concat(buffer.chunks);
+      const baseMediaDir = this.options.context.paths.mediaDir;
+      const mediaDir = nodePath.join(
+        baseMediaDir,
+        'desktop',
+        desktopAttachments.sanitizePathSegment(buffer.sessionId),
+      );
+      await mkdir(mediaDir, { recursive: true });
 
-    conn.fileBuffers.delete(msg.fileId);
+      const targetFile = nodePath.join(
+        mediaDir,
+        `${randomUUID()}-${desktopAttachments.sanitizeFileName(buffer.name)}`,
+      );
+      await writeFile(targetFile, fileData);
+
+      conn.completedFiles.set(msg.fileId, {
+        fileId: msg.fileId,
+        sessionId: buffer.sessionId,
+        name: buffer.name,
+        mime: buffer.mime,
+        size: fileData.length,
+        filePath: targetFile,
+      });
+
+      this.logger.info('文件接收完成', {
+        fileId: msg.fileId,
+        name: buffer.name,
+        path: targetFile,
+        size: fileData.length,
+      });
+    } catch (err) {
+      this.logger.error('文件接收失败', { fileId: msg.fileId, sessionId: msg.sessionId }, err);
+      conn.sendJson({
+        type: 'error',
+        sessionId: msg.sessionId,
+        message: errorMessage(err),
+      } satisfies DesktopOutboundMessage);
+    }
   }
 
   // ─── 附件构建 ──────────────────────────────────────────────────
+
+  private async waitForPendingFiles(
+    conn: DesktopConnection,
+    files: Array<{ fileId?: string }>,
+  ): Promise<void> {
+    const pending = files
+      .map((file) => (file.fileId ? conn.pendingFiles.get(file.fileId) : undefined))
+      .filter((task): task is Promise<void> => task !== undefined);
+    if (pending.length > 0) {
+      await Promise.allSettled(pending);
+    }
+  }
 
   private consumeChatAttachments(
     conn: DesktopConnection,

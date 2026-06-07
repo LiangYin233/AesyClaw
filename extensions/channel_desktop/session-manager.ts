@@ -22,6 +22,8 @@ export type DesktopConnection = {
   fileBuffers: Map<string, DesktopFileBuffer>;
   /** 已完成并等待随聊天消息消费的文件 */
   completedFiles: Map<string, DesktopReceivedFile>;
+  /** 正在异步落盘、等待完成后才能随聊天消息消费的文件 */
+  pendingFiles: Map<string, Promise<void>>;
 };
 
 export class DesktopSessionManager {

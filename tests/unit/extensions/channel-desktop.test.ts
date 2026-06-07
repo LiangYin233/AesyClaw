@@ -59,6 +59,18 @@ type CancelableDesktopServer = {
   ): Promise<void>;
 };
 
+type ChatDesktopServer = {
+  handleChatMessage(
+    connectionId: string,
+    msg: {
+      type: 'chat';
+      sessionId: string;
+      text: string;
+      files?: Array<{ fileId?: string; name: string; mime: string; size?: number }>;
+    },
+  ): Promise<void>;
+};
+
 type ConfigDesktopServer = {
   handleConfigRequest(
     connectionId: string,
@@ -89,6 +101,7 @@ function registerTestConnection(server: DesktopServer, id = 'conn-1'): unknown[]
     sessions: new Set(),
     fileBuffers: new Map(),
     completedFiles: new Map(),
+    pendingFiles: new Map(),
     sendJson: (data: unknown) => sent.push(data),
     sendBinary: vi.fn(),
     close: vi.fn(),
@@ -115,6 +128,65 @@ describe('DesktopServer', () => {
       { channel: 'desktop', type: 'private', chatId: 'session-1' },
       { id: 'conn-abcdef12', name: 'Desktop-conn-abc' },
     );
+  });
+
+  it('waits for pending file writes before consuming chat attachments', async () => {
+    const context = makeContext();
+    const server = new DesktopServer({
+      port: 0,
+      authToken: 'desktop-local',
+      context,
+    });
+    registerTestConnection(server, 'conn-file1234');
+    const conn = server.sessions.activeConnections[0];
+    if (!conn) throw new Error('missing test connection');
+
+    let resolvePending = (): void => undefined;
+    conn.pendingFiles.set(
+      'file-1',
+      new Promise<void>((resolve) => {
+        resolvePending = () => {
+          conn.completedFiles.set('file-1', {
+            fileId: 'file-1',
+            sessionId: 'session-1',
+            name: 'note.txt',
+            mime: 'text/plain',
+            size: 5,
+            filePath: 'G:/media/note.txt',
+          });
+          resolve();
+        };
+      }),
+    );
+
+    const chatPromise = (server as unknown as ChatDesktopServer).handleChatMessage(
+      'conn-file1234',
+      {
+        type: 'chat',
+        sessionId: 'session-1',
+        text: 'see attachment',
+        files: [{ fileId: 'file-1', name: 'note.txt', mime: 'text/plain' }],
+      },
+    );
+
+    await Promise.resolve();
+    expect(context.channel.receive).not.toHaveBeenCalled();
+
+    resolvePending();
+    await chatPromise;
+
+    const receive = vi.mocked(context.channel.receive);
+    expect(receive).toHaveBeenCalledTimes(1);
+    expect(receive.mock.calls[0]?.[0]).toEqual({
+      components: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'File',
+          path: 'G:/media/note.txt',
+          name: 'note.txt',
+          mimeType: 'text/plain',
+        }),
+      ]),
+    });
   });
 
   it('responds to session list requests with request ids', async () => {

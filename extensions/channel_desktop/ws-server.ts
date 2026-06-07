@@ -13,6 +13,7 @@ import { DesktopSessionManager, type DesktopConnection } from './session-manager
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const CLIENT_ALIVE_TIMEOUT_MS = HEARTBEAT_INTERVAL_MS * 2 + 5_000;
+const SERVER_SHUTDOWN_GRACE_MS = 1_000;
 
 export type WsServerOptions = {
   port: number;
@@ -47,13 +48,27 @@ export class WsServer {
         reject(err);
       });
       this.wss.on('connection', (ws, req) => this.handleConnection(ws, req));
-      this.startHeartbeat();
     });
   }
 
   async stop(): Promise<void> {
-    this.wss?.close();
+    const server = this.wss;
     this.wss = null;
+    if (!server) {
+      return;
+    }
+
+    for (const conn of this.sessions.activeConnections) {
+      conn.close(1001, 'Server shutting down');
+    }
+    const forceShutdown = setTimeout(() => {
+      for (const ws of server.clients) {
+        ws.terminate();
+      }
+    }, SERVER_SHUTDOWN_GRACE_MS);
+    forceShutdown.unref();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    clearTimeout(forceShutdown);
     this.logger.info('Desktop WebSocket 服务器已停止');
   }
 
@@ -89,6 +104,7 @@ export class WsServer {
       sessions: new Set(),
       fileBuffers: new Map(),
       completedFiles: new Map(),
+      pendingFiles: new Map(),
 
       sendJson(data: unknown): void {
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(data));
@@ -153,16 +169,5 @@ export class WsServer {
     ws.on('error', (err) => {
       this.logger.error('Desktop WebSocket 连接错误', { connectionId }, err);
     });
-  }
-
-  // ─── 心跳 ──────────────────────────────────────────────────────
-
-  private startHeartbeat(): void {
-    const interval = setInterval(() => {
-      for (const conn of this.sessions.activeConnections) {
-        conn.sendJson({ type: 'ping' });
-      }
-    }, HEARTBEAT_INTERVAL_MS);
-    this.wss?.on('close', () => clearInterval(interval));
   }
 }
