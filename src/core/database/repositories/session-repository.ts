@@ -6,7 +6,6 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
 import type { SessionKey, SessionRecord } from '@aesyclaw/core/types';
 import { BaseRepository } from './base-repository';
 

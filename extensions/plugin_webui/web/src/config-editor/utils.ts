@@ -129,7 +129,7 @@ export function normalizeProvider(key: string, value: unknown): ProviderForm {
   };
 }
 
-export function normalizeProviderModels(value: unknown): ProviderModelForm[] {
+function normalizeProviderModels(value: unknown): ProviderModelForm[] {
   if (!isRecord(value)) return [];
   return Object.entries(value).map(([key, model]) => {
     const source = isRecord(model) ? model : {};

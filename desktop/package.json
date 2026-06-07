@@ -1,7 +1,7 @@
 {
   "name": "aesyclaw-desktop",
   "author": "AesyClaw",
-  "version": "2026.6.2",
+  "version": "2026.6.7",
   "description": "AesyClaw Desktop — Electron 桌面客户端",
   "private": true,
   "main": "./out/main/index.js",

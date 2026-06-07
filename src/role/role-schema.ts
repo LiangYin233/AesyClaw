@@ -12,7 +12,7 @@ import { Type } from '@sinclair/typebox';
 /**
  * 单个角色配置的 TypeBox 模式。
  */
-export const RoleConfigSchema = Type.Object({
+const RoleConfigSchema = Type.Object({
   id: Type.String({ description: 'Unique role identifier' }),
   description: Type.String({ description: 'Brief description of the role' }),
   systemPrompt: Type.String({ description: 'System prompt template for the role' }),

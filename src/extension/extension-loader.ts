@@ -106,7 +106,7 @@ export async function resolveExtensionEntry(extensionDir: string, kind: string):
  * @param entryPath - 入口文件路径
  * @returns 模块导出的原始值
  */
-export async function importExtensionEntry(entryPath: string): Promise<unknown> {
+async function importExtensionEntry(entryPath: string): Promise<unknown> {
   const entryUrl = pathToFileURL(entryPath);
   entryUrl.searchParams.set('mtime', String((await stat(entryPath)).mtimeMs));
   return await import(entryUrl.href);

@@ -22,7 +22,7 @@ import type { LoadedExtension } from '@aesyclaw/extension/types';
 export class PluginManager extends ExtensionManager<PluginDefinition, PluginContext> {
   private readonly extensionsDir: string;
 
-  constructor(private readonly deps: PluginManagerDependencies) {
+  constructor(deps: PluginManagerDependencies) {
     super(createPluginSpec(deps), {
       configManager: deps.configManager,
       toolRegistry: deps.toolRegistry,

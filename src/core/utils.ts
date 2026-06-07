@@ -26,7 +26,7 @@ export function objectsEqual(a: unknown, b: unknown): boolean {
 }
 
 /** 递归排序对象键，用于忽略键序的深度比较。 */
-export function sortObjectKeys(obj: unknown): unknown {
+function sortObjectKeys(obj: unknown): unknown {
   if (obj === null || typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) return obj.map(sortObjectKeys);
   const sorted: Record<string, unknown> = {};

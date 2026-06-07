@@ -13,7 +13,7 @@ import { ref } from 'vue';
 
 type MessageHandler = (data: unknown) => void;
 
-export type WsResponse = {
+type WsResponse = {
   type: string;
   requestId?: string;
   ok: boolean;

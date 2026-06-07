@@ -329,7 +329,7 @@ function extensionService(): RuntimeService {
         agentFactory: sub.agentFactory,
       });
 
-      const cronManager = ctx.own(
+      ctx.own(
         'cronManager',
         new CronManager({
           databaseManager: sub.databaseManager,

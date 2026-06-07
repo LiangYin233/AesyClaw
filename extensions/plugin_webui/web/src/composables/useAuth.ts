@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue';
 import { useWebSocket } from './useWebSocket';
 
-export const authenticated = ref<boolean | null>(null);
+const authenticated = ref<boolean | null>(null);
 
 /** 内存缓存：避免每次路由导航都发起 HTTP 请求 */
 let verifyPromise: Promise<boolean> | null = null;

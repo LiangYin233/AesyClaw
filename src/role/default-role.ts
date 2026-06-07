@@ -1,6 +1,6 @@
 import type { RoleConfig } from '@aesyclaw/core/types';
 
-export const DEFAULT_ROLE_CONFIG = {
+const DEFAULT_ROLE_CONFIG = {
   id: 'default',
   description: 'A general-purpose AI assistant role with full tool access.',
   systemPrompt:

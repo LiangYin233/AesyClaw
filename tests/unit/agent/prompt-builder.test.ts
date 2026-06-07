@@ -275,7 +275,6 @@ describe('PromptBuilder', () => {
     });
 
     it('should leave API tools out of final prompt content', async () => {
-      const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
           resolveForRole: vi.fn().mockReturnValue([]),
@@ -292,8 +291,6 @@ describe('PromptBuilder', () => {
     });
 
     it('should pass role permissions to tool resolution without duplicating tools in prompt', async () => {
-      const allowedTool = makeTool({ name: 'allowed' });
-
       const deps = makeDeps({
         toolRegistry: {
           resolveForRole: vi.fn().mockReturnValue([]),
