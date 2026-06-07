@@ -46,14 +46,14 @@ export type AgentRuntimeRef = {
   setModel(modelId: string): void;
   setRole(role: RoleConfig): Promise<void>;
   invalidatePromptCache(): void;
-  callLLM(
-    role: RoleConfig,
-    content: string,
-    history: AgentMessage[],
-    sessionKey: SessionKey,
-    sendMessage?: (message: Message) => Promise<boolean>,
-    onStream?: (event: OutboundSignal) => void,
-  ): Promise<CallLLMResult>;
+  callLLM(options: {
+    role: RoleConfig;
+    content: string;
+    history: AgentMessage[];
+    sessionKey: SessionKey;
+    sendMessage?: (message: Message) => Promise<boolean>;
+    onStream?: (event: OutboundSignal) => void;
+  }): Promise<CallLLMResult>;
   /** 处理用户消息并返回回复 */
   process(
     message: Message,

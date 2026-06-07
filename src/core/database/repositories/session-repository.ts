@@ -23,7 +23,7 @@ type SessionRow = {
 
 // ─── 仓储类 ─────────────────────────────────────────────────────
 
-class SessionRepositoryImpl extends BaseRepository<SessionRecord, SessionRow> {
+export class SessionRepository extends BaseRepository<SessionRecord, SessionRow> {
   protected getTableName(): string {
     return 'sessions';
   }
@@ -112,54 +112,5 @@ class SessionRepositoryImpl extends BaseRepository<SessionRecord, SessionRow> {
 
 // ─── 公共 API ───────────────────────────────────────────────────
 
-/** 按复合键查找现有会话，如不存在则创建。 */
-export async function findOrCreateSession(
-  db: DatabaseSync,
-  key: SessionKey,
-): Promise<SessionRecord> {
-  const repo = new SessionRepositoryImpl(db);
-  return await repo.findOrCreate(key);
-}
-
-/** 按复合键查找会话。未找到时返回 null。 */
-export async function findSessionByKey(
-  db: DatabaseSync,
-  key: SessionKey,
-): Promise<SessionRecord | null> {
-  const repo = new SessionRepositoryImpl(db);
-  return await repo.findByKey(key);
-}
-
-/** 获取所有会话。 */
-export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
-  const repo = new SessionRepositoryImpl(db);
-  return await repo.findAll('id');
-}
-
-/** 按 ID 查找会话。未找到时返回 null。 */
-export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
-  const repo = new SessionRepositoryImpl(db);
-  return await repo.findById(id);
-}
-
-/** 按 ID 删除会话及其直接关联数据。返回是否删除了会话。 */
-export async function deleteSessionById(db: DatabaseSync, id: string): Promise<boolean> {
-  const repo = new SessionRepositoryImpl(db);
-  return await repo.deleteWithRelations(id);
-}
-
-/** 设置会话的角色 */
-export async function setSessionRole(db: DatabaseSync, id: string, roleId: string): Promise<void> {
-  const repo = new SessionRepositoryImpl(db);
-  return await repo.setRole(id, roleId);
-}
-
-/** 设置会话的模型 */
-export async function setSessionModel(
-  db: DatabaseSync,
-  id: string,
-  modelId: string,
-): Promise<void> {
-  const repo = new SessionRepositoryImpl(db);
-  return await repo.setModel(id, modelId);
-}
+/** 可导出的仓储类，供 DatabaseManager 直接使用。 */
+// SessionRepository 已在类定义处导出，无需额外导出。

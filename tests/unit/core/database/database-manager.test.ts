@@ -8,31 +8,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { DatabaseSync } from 'node:sqlite';
-import {
-  findOrCreateSession,
-  findSessionByKey,
-  findSessionById,
-  deleteSessionById,
-  setSessionRole,
-} from '../../../../src/core/database/repositories/session-repository';
-// messages 表已移除，迁移到 SessionFileStore
+import { SessionRepository } from '../../../../src/core/database/repositories/session-repository';
 import {
   createUsageRecord,
   getTodayUsageSummary,
   getUsageStats,
 } from '../../../../src/core/database/repositories/usage-repository';
-import {
-  createCronJob,
-  findCronJobById,
-  findAllCronJobs,
-  deleteCronJob,
-  updateCronJobNextRun,
-  createCronRun,
-  markCronRunCompleted,
-  markCronRunFailed,
-  markCronRunsAbandoned,
-  findRunningCronRuns,
-} from '../../../../src/core/database/repositories/cron-repository';
+import { CronJobRepository, CronRunRepository } from '../../../../src/core/database/repositories/cron-repository';
 import type { SessionKey } from '../../../../src/core/types';
 
 // Helper to create an in-memory test database with schema
@@ -108,9 +90,11 @@ describe('Database Layer', () => {
 
   describe('SessionRepository', () => {
     let db: DatabaseSync;
+    let repo: SessionRepository;
 
     beforeEach(() => {
       db = createTestDb();
+      repo = new SessionRepository(db);
     });
 
     afterEach(() => {
@@ -119,7 +103,7 @@ describe('Database Layer', () => {
 
     it('should findOrCreate a new session', async () => {
       const key: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' };
-      const session = await findOrCreateSession(db, key);
+      const session = await repo.findOrCreate(key);
 
       expect(session.channel).toBe('test');
       expect(session.type).toBe('private');
@@ -129,22 +113,22 @@ describe('Database Layer', () => {
 
     it('should return existing session on findOrCreate with same key', async () => {
       const key: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' };
-      const session1 = await findOrCreateSession(db, key);
-      const session2 = await findOrCreateSession(db, key);
+      const session1 = await repo.findOrCreate(key);
+      const session2 = await repo.findOrCreate(key);
 
       expect(session1.id).toBe(session2.id);
     });
 
     it('should find a session by key', async () => {
       const key: SessionKey = { channel: 'test', type: 'private', chatId: 'user2' };
-      await findOrCreateSession(db, key);
+      await repo.findOrCreate(key);
 
-      const found = await findSessionByKey(db, key);
+      const found = await repo.findByKey(key);
       expect(found?.chatId).toBe('user2');
     });
 
     it('should return null for non-existent session', async () => {
-      const result = await findSessionByKey(db, {
+      const result = await repo.findByKey({
         channel: 'nope',
         type: 'private',
         chatId: 'nobody',
@@ -154,8 +138,8 @@ describe('Database Layer', () => {
 
     it('should delete a session and role binding while preserving anonymous usage', async () => {
       const key: SessionKey = { channel: 'test', type: 'private', chatId: 'delete-me' };
-      const session = await findOrCreateSession(db, key);
-      await setSessionRole(db, session.id, 'role-1');
+      const session = await repo.findOrCreate(key);
+      await repo.setRole(session.id, 'role-1');
       await createUsageRecord(db, {
         model: 'gpt-4o',
         provider: 'openai',
@@ -164,9 +148,9 @@ describe('Database Layer', () => {
         usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3 },
       });
 
-      await expect(deleteSessionById(db, session.id)).resolves.toBe(true);
-      await expect(findSessionByKey(db, key)).resolves.toBeNull();
-      const recordAfterDelete = await findSessionById(db, session.id);
+      await expect(repo.deleteWithRelations(session.id)).resolves.toBe(true);
+      await expect(repo.findByKey(key)).resolves.toBeNull();
+      const recordAfterDelete = await repo.findById(session.id);
       expect(recordAfterDelete?.role_id).toBeUndefined();
       const usageRow = db.prepare('SELECT session_id FROM usage').get() as {
         session_id: string | null;
@@ -179,11 +163,13 @@ describe('Database Layer', () => {
 
   describe('SessionRoleBinding', () => {
     let db: DatabaseSync;
+    let repo: SessionRepository;
     let sessionId: string;
 
     beforeEach(async () => {
       db = createTestDb();
-      const session = await findOrCreateSession(db, {
+      repo = new SessionRepository(db);
+      const session = await repo.findOrCreate({
         channel: 'roletest',
         type: 'private',
         chatId: 'userrole',
@@ -196,19 +182,19 @@ describe('Database Layer', () => {
     });
 
     it('should return undefined when no role is set', async () => {
-      const record = await findSessionById(db, sessionId);
+      const record = await repo.findById(sessionId);
       expect(record?.role_id).toBeUndefined();
     });
 
     it('should set and get active role', async () => {
-      await setSessionRole(db, sessionId, 'default');
-      const record = await findSessionById(db, sessionId);
+      await repo.setRole(sessionId, 'default');
+      const record = await repo.findById(sessionId);
       expect(record?.role_id).toBe('default');
     });
 
     it('should change active role', async () => {
-      await setSessionRole(db, sessionId, 'researcher');
-      const record = await findSessionById(db, sessionId);
+      await repo.setRole(sessionId, 'researcher');
+      const record = await repo.findById(sessionId);
       expect(record?.role_id).toBe('researcher');
     });
   });
@@ -217,9 +203,13 @@ describe('Database Layer', () => {
 
   describe('CronJobRepository', () => {
     let db: DatabaseSync;
+    let cronJobsRepo: CronJobRepository;
+    let cronRunsRepo: CronRunRepository;
 
     beforeEach(() => {
       db = createTestDb();
+      cronJobsRepo = new CronJobRepository(db);
+      cronRunsRepo = new CronRunRepository(db);
     });
 
     afterEach(() => {
@@ -228,7 +218,7 @@ describe('Database Layer', () => {
 
     it('should create a cron job', async () => {
       const key: SessionKey = { channel: 'cron', type: 'private', chatId: 'cronuser' };
-      const id = await createCronJob(db, {
+      const id = await cronJobsRepo.createJob({
         scheduleType: 'daily',
         scheduleValue: '09:00',
         prompt: 'Good morning!',
@@ -238,20 +228,20 @@ describe('Database Layer', () => {
 
       expect(id).toBeDefined();
 
-      const job = await findCronJobById(db, id);
+      const job = await cronJobsRepo.findById(id);
       expect(job?.scheduleType).toBe('daily');
       expect(job?.prompt).toBe('Good morning!');
     });
 
     it('should list all jobs', async () => {
-      const firstId = await createCronJob(db, {
+      const firstId = await cronJobsRepo.createJob({
         scheduleType: 'daily',
         scheduleValue: '09:00',
         prompt: 'Morning check',
         sessionKey: { channel: 'cron', type: 'private', chatId: 'list-user-1' },
         nextRun: new Date('2026-01-01T09:00:00Z'),
       });
-      const secondId = await createCronJob(db, {
+      const secondId = await cronJobsRepo.createJob({
         scheduleType: 'interval',
         scheduleValue: '30',
         prompt: 'Status check',
@@ -259,7 +249,7 @@ describe('Database Layer', () => {
         nextRun: new Date('2026-01-01T09:30:00Z'),
       });
 
-      const jobs = await findAllCronJobs(db);
+      const jobs = await cronJobsRepo.findAll("next_run ASC");
 
       expect(jobs).toHaveLength(2);
       expect(jobs.map((job) => job.id)).toEqual([firstId, secondId]);
@@ -267,7 +257,7 @@ describe('Database Layer', () => {
 
     it('should delete a job', async () => {
       const key: SessionKey = { channel: 'cron2', type: 'private', chatId: 'cronuser2' };
-      const id = await createCronJob(db, {
+      const id = await cronJobsRepo.createJob({
         scheduleType: 'once',
         scheduleValue: '2026-12-25T00:00:00Z',
         prompt: 'Merry Christmas!',
@@ -275,34 +265,34 @@ describe('Database Layer', () => {
         nextRun: new Date('2026-12-25T00:00:00Z'),
       });
 
-      const deleted = await deleteCronJob(db, id);
+      const deleted = await cronJobsRepo.deleteWithRuns(id);
       expect(deleted).toBe(true);
 
-      const job = await findCronJobById(db, id);
+      const job = await cronJobsRepo.findById(id);
       expect(job).toBeNull();
     });
 
     it('should delete a job even when cron runs already exist', async () => {
       const key: SessionKey = { channel: 'cron2', type: 'private', chatId: 'cronuser-runs' };
-      const id = await createCronJob(db, {
+      const id = await cronJobsRepo.createJob({
         scheduleType: 'once',
         scheduleValue: '2026-12-25T00:00:00Z',
         prompt: 'Delete me',
         sessionKey: key,
         nextRun: new Date('2026-12-25T00:00:00Z'),
       });
-      const runId = await createCronRun(db, { jobId: id });
+      const runId = await cronRunsRepo.createRun({ jobId: id });
 
-      const deleted = await deleteCronJob(db, id);
+      const deleted = await cronJobsRepo.deleteWithRuns(id);
 
       expect(deleted).toBe(true);
-      expect(await findCronJobById(db, id)).toBeNull();
+      expect(await cronJobsRepo.findById(id)).toBeNull();
       expect(db.prepare('SELECT id FROM cron_runs WHERE id = ?').get(runId)).toBeUndefined();
     });
 
     it('should update next_run', async () => {
       const key: SessionKey = { channel: 'cron3', type: 'private', chatId: 'cronuser3' };
-      const id = await createCronJob(db, {
+      const id = await cronJobsRepo.createJob({
         scheduleType: 'interval',
         scheduleValue: '30',
         prompt: 'Check status',
@@ -311,9 +301,9 @@ describe('Database Layer', () => {
       });
 
       const newDate = new Date('2026-06-01T00:30:00Z');
-      await updateCronJobNextRun(db, id, newDate);
+      await cronJobsRepo.updateNextRun(id, newDate);
 
-      const job = await findCronJobById(db, id);
+      const job = await cronJobsRepo.findById(id);
       expect(job?.nextRun).toBe(newDate.toISOString());
     });
   });
@@ -322,13 +312,17 @@ describe('Database Layer', () => {
 
   describe('CronRunRepository', () => {
     let db: DatabaseSync;
+    let cronJobsRepo: CronJobRepository;
+    let cronRunsRepo: CronRunRepository;
     let jobId: string;
 
     beforeEach(async () => {
       db = createTestDb();
+      cronJobsRepo = new CronJobRepository(db);
+      cronRunsRepo = new CronRunRepository(db);
 
       const key: SessionKey = { channel: 'runtest', type: 'private', chatId: 'runuser' };
-      jobId = await createCronJob(db, {
+      jobId = await cronJobsRepo.createJob({
         scheduleType: 'daily',
         scheduleValue: '10:00',
         prompt: 'Daily check',
@@ -342,19 +336,19 @@ describe('Database Layer', () => {
     });
 
     it('should create a run record', async () => {
-      const runId = await createCronRun(db, { jobId });
+      const runId = await cronRunsRepo.createRun({ jobId });
       expect(runId).toBeDefined();
 
-      const running = await findRunningCronRuns(db);
+      const running = await cronRunsRepo.findRunning();
       expect(running).toHaveLength(1);
       expect(running[0]).toMatchObject({ id: runId, jobId, status: 'running' });
     });
 
     it('should mark a run as completed', async () => {
-      const runId = await createCronRun(db, { jobId });
-      await markCronRunCompleted(db, runId, 'Task completed successfully');
+      const runId = await cronRunsRepo.createRun({ jobId });
+      await cronRunsRepo.markCompleted(runId, 'Task completed successfully');
 
-      const running = await findRunningCronRuns(db);
+      const running = await cronRunsRepo.findRunning();
       expect(running).toHaveLength(0);
 
       const completed = db
@@ -371,8 +365,8 @@ describe('Database Layer', () => {
     });
 
     it('should mark a run as failed', async () => {
-      const runId = await createCronRun(db, { jobId });
-      await markCronRunFailed(db, runId, 'Something went wrong');
+      const runId = await cronRunsRepo.createRun({ jobId });
+      await cronRunsRepo.markFailed(runId, 'Something went wrong');
 
       const failed = db
         .prepare('SELECT status, error, ended_at FROM cron_runs WHERE id = ?')
@@ -388,12 +382,12 @@ describe('Database Layer', () => {
     });
 
     it('should mark runs as abandoned', async () => {
-      const runId1 = await createCronRun(db, { jobId });
-      const runId2 = await createCronRun(db, { jobId });
+      const runId1 = await cronRunsRepo.createRun({ jobId });
+      const runId2 = await cronRunsRepo.createRun({ jobId });
 
-      await markCronRunsAbandoned(db, [runId1, runId2]);
+      await cronRunsRepo.markAbandoned([runId1, runId2]);
 
-      const running = await findRunningCronRuns(db);
+      const running = await cronRunsRepo.findRunning();
       expect(running).toHaveLength(0);
 
       const abandonedRuns = db
@@ -408,8 +402,8 @@ describe('Database Layer', () => {
     });
 
     it('should roll back abandoned updates when one run update fails', async () => {
-      const runId1 = await createCronRun(db, { jobId });
-      const runId2 = await createCronRun(db, { jobId });
+      const runId1 = await cronRunsRepo.createRun({ jobId });
+      const runId2 = await cronRunsRepo.createRun({ jobId });
 
       db.exec(`
         CREATE TRIGGER fail_cron_run_abandon_update
@@ -420,7 +414,7 @@ describe('Database Layer', () => {
         END;
       `);
 
-      await expect(markCronRunsAbandoned(db, [runId1, runId2])).rejects.toThrow(
+      await expect(cronRunsRepo.markAbandoned([runId1, runId2])).rejects.toThrow(
         'abandon update failed',
       );
 

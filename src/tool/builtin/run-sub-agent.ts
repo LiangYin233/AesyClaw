@@ -30,13 +30,14 @@ const RUN_TEMP_SUB_AGENT_SCHEMA = Type.Object({
  * @param deps - 依赖项，包含 roleManager 和 callLLM
  * @returns run_sub_agent 工具的 AesyClawTool 定义
  */
-type SubAgentCallLLM = (
-  role: RoleConfig,
-  content: string,
-  history: AgentMessage[],
-  sessionKey: SessionKey,
-  sendMessage?: (message: Message) => Promise<boolean>,
-) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+import type { AgentRunResult } from '@aesyclaw/agent/runner';
+type SubAgentCallLLM = (options: {
+  role: RoleConfig;
+  content: string;
+  history: AgentMessage[];
+  sessionKey: SessionKey;
+  sendMessage?: (message: Message) => Promise<boolean>;
+}) => Promise<AgentRunResult>;
 
 export function createRunSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getRole'>;
@@ -61,7 +62,12 @@ export function createRunSubAgentTool(deps: {
         const baseRole = deps.roleManager.getRole(roleId);
         const role = applyToolOverride(baseRole, enableTools);
 
-        const result = await deps.callLLM(role, prompt, [], context.sessionKey);
+        const result = await deps.callLLM({
+          role,
+          content: prompt,
+          history: [],
+          sessionKey: context.sessionKey,
+        });
         return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {
@@ -110,7 +116,12 @@ export function createRunTempSubAgentTool(deps: {
         );
         const role = applyToolOverride(roleWithPerms, enableTools);
 
-        const result = await deps.callLLM(role, prompt, [], context.sessionKey);
+        const result = await deps.callLLM({
+          role,
+          content: prompt,
+          history: [],
+          sessionKey: context.sessionKey,
+        });
         return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {

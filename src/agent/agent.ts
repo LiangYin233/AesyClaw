@@ -204,14 +204,14 @@ export class Agent {
 
     let result;
     try {
-      result = await this.callLLM(
-        effectiveRole,
+      result = await this.callLLM({
+        role: effectiveRole,
         content,
         history,
-        this.session.key,
-        trackedSendMessage,
+        sessionKey: this.session.key,
+        sendMessage: trackedSendMessage,
         onStream,
-      );
+      });
     } catch (error) {
       const aesyClawError = ErrorFactory.agent.llmCallFailed(
         'LLM 调用失败',
@@ -288,22 +288,16 @@ export class Agent {
 
   /**
    * 调用 LLM，异步执行提示循环。
-   *
-   * @param role - 角色配置
-   * @param content - 用户输入文本
-   * @param history - 历史消息
-   * @param sessionKey - 会话标识
-   * @param sendMessage - 可选的发消息回调
-   * @returns LLM 调用结果
    */
-  async callLLM(
-    role: RoleConfig,
-    content: string,
-    history: AgentMessage[],
-    sessionKey: SessionKey,
-    sendMessage?: (message: Message) => Promise<boolean>,
-    onStream?: (event: OutboundSignal) => void,
-  ): Promise<AgentRunResult> {
+  async callLLM(options: {
+    role: RoleConfig;
+    content: string;
+    history: AgentMessage[];
+    sessionKey: SessionKey;
+    sendMessage?: (message: Message) => Promise<boolean>;
+    onStream?: (event: OutboundSignal) => void;
+  }): Promise<AgentRunResult> {
+    const { role, content, history, sessionKey, sendMessage, onStream } = options;
     const beforeCtx: HookCtx = {
       message: { components: [{ type: 'Plain', text: content }] },
       sessionKey,
@@ -393,13 +387,13 @@ export class Agent {
     const followUpHistory = history.concat(result.newMessages);
 
     logger.info('Agent 未产出文本回复，追加提示要求必须生成文本', { role: role.id });
-    const followUpResult = await this.callLLM(
+    const followUpResult = await this.callLLM({
       role,
-      'You must generate a text response. If you already called tools, summarize their results. Do not call tools again unless absolutely necessary.',
-      followUpHistory,
-      this.session.key,
+      content: 'You must generate a text response. If you already called tools, summarize their results. Do not call tools again unless absolutely necessary.',
+      history: followUpHistory,
+      sessionKey: this.session.key,
       sendMessage,
-    );
+    });
     const followUpAssistantMessages = followUpResult.newMessages.filter((m) => m.role !== 'user');
 
     return {

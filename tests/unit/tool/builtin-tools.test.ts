@@ -481,12 +481,12 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({ content: 'delegated answer' });
 
-    expect(callLLM).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'researcher' }),
-      'Investigate this.',
-      [],
-      SESSION_KEY,
-    );
+    expect(callLLM).toHaveBeenCalledWith({
+      role: expect.objectContaining({ id: 'researcher' }),
+      content: 'Investigate this.',
+      history: [],
+      sessionKey: SESSION_KEY,
+    });
   });
 
   it('run_temp_sub_agent returns structured tool errors on sandbox failure', async () => {
@@ -546,16 +546,16 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({ content: 'temporary answer' });
 
-    expect(callLLM).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(callLLM).toHaveBeenCalledWith({
+      role: expect.objectContaining({
         toolPermission: {
           mode: 'denylist',
           list: ['run_sub_agent', 'run_temp_sub_agent', 'send_msg'],
         },
       }),
-      'Summarize this.',
-      [],
-      SESSION_KEY,
-    );
+      content: 'Summarize this.',
+      history: [],
+      sessionKey: SESSION_KEY,
+    });
   });
 });

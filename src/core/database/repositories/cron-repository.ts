@@ -40,7 +40,7 @@ type CronRunRow = {
 
 // ─── 定时任务仓储 ────────────────────────────────────────────────
 
-class CronJobRepositoryImpl extends BaseRepository<CronJobRecord, CronJobRow> {
+export class CronJobRepository extends BaseRepository<CronJobRecord, CronJobRow> {
   protected getTableName(): string {
     return 'cron_jobs';
   }
@@ -163,7 +163,7 @@ class CronJobRepositoryImpl extends BaseRepository<CronJobRecord, CronJobRow> {
 
 // ─── 定时任务执行仓储 ────────────────────────────────────────────
 
-class CronRunRepositoryImpl extends BaseRepository<CronRunRecord, CronRunRow> {
+export class CronRunRepository extends BaseRepository<CronRunRecord, CronRunRow> {
   protected getTableName(): string {
     return 'cron_runs';
   }
@@ -270,123 +270,7 @@ class CronRunRepositoryImpl extends BaseRepository<CronRunRecord, CronRunRow> {
   }
 }
 
-// ─── 公共 API - 定时任务 ─────────────────────────────────────────
+// ─── 公共 API ───────────────────────────────────────────────────
 
-/** 创建一个新的定时任务并返回其生成的 ID。 */
-export async function createCronJob(
-  db: DatabaseSync,
-  params: {
-    scheduleType: string;
-    scheduleValue: string;
-    prompt: string;
-    sessionKey: SessionKey;
-    nextRun: Date | null;
-  },
-): Promise<string> {
-  const repo = new CronJobRepositoryImpl(db);
-  return await repo.createJob(params);
-}
-
-/** 按 ID 查找定时任务。 */
-export async function findCronJobById(db: DatabaseSync, id: string): Promise<CronJobRecord | null> {
-  const repo = new CronJobRepositoryImpl(db);
-  return await repo.findById(id);
-}
-
-/** 获取所有定时任务。 */
-export async function findAllCronJobs(db: DatabaseSync): Promise<CronJobRecord[]> {
-  const repo = new CronJobRepositoryImpl(db);
-  return await repo.findAll('next_run ASC');
-}
-
-/** 按 ID 删除定时任务及其关联执行记录。 */
-export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boolean> {
-  const repo = new CronJobRepositoryImpl(db);
-  return await repo.deleteWithRuns(id);
-}
-
-/** 更新定时任务的 next_run 时间。 */
-export async function updateCronJobNextRun(
-  db: DatabaseSync,
-  id: string,
-  nextRun: Date | null,
-): Promise<boolean> {
-  const repo = new CronJobRepositoryImpl(db);
-  return await repo.updateNextRun(id, nextRun);
-}
-
-/** 更新定时任务字段并返回更新后的记录。 */
-export async function updateCronJob(
-  db: DatabaseSync,
-  id: string,
-  patch: Partial<{
-    scheduleType: string;
-    scheduleValue: string;
-    prompt: string;
-    sessionKey: SessionKey | string;
-    nextRun: Date | string | null;
-    enabled: boolean;
-  }>,
-): Promise<CronJobRecord | null> {
-  const repo = new CronJobRepositoryImpl(db);
-  return await repo.updateJob(id, patch);
-}
-
-/** 设置定时任务启用状态。 */
-export async function setCronJobEnabled(
-  db: DatabaseSync,
-  id: string,
-  enabled: boolean,
-): Promise<boolean> {
-  const repo = new CronJobRepositoryImpl(db);
-  return await repo.setEnabled(id, enabled);
-}
-
-// ─── 公共 API - 定时任务执行 ─────────────────────────────────────
-
-/** 创建一个新的定时任务执行记录。 */
-export async function createCronRun(db: DatabaseSync, params: { jobId: string }): Promise<string> {
-  const repo = new CronRunRepositoryImpl(db);
-  return await repo.createRun(params);
-}
-
-/** 将执行记录标记为已完成。 */
-export async function markCronRunCompleted(
-  db: DatabaseSync,
-  runId: string,
-  result: string,
-): Promise<void> {
-  const repo = new CronRunRepositoryImpl(db);
-  return await repo.markCompleted(runId, result);
-}
-
-/** 将执行记录标记为失败。 */
-export async function markCronRunFailed(
-  db: DatabaseSync,
-  runId: string,
-  error: string,
-): Promise<void> {
-  const repo = new CronRunRepositoryImpl(db);
-  return await repo.markFailed(runId, error);
-}
-
-/** 将多个执行记录标记为已放弃。 */
-export async function markCronRunsAbandoned(db: DatabaseSync, runIds: string[]): Promise<void> {
-  const repo = new CronRunRepositoryImpl(db);
-  return await repo.markAbandoned(runIds);
-}
-
-/** 查找所有当前正在执行的运行记录。 */
-export async function findRunningCronRuns(db: DatabaseSync): Promise<CronRunRecord[]> {
-  const repo = new CronRunRepositoryImpl(db);
-  return await repo.findRunning();
-}
-
-/** 查找特定任务的所有执行记录。 */
-export async function findCronRunsByJobId(
-  db: DatabaseSync,
-  jobId: string,
-): Promise<CronRunRecord[]> {
-  const repo = new CronRunRepositoryImpl(db);
-  return await repo.findByJobId(jobId);
-}
+/** 可导出的仓储类，供 DatabaseManager 直接使用。 */
+// CronJobRepository 和 CronRunRepository 已在类定义处导出，无需额外导出。

@@ -2,9 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import * as sessions from './repositories/session-repository';
-
-import * as cron from './repositories/cron-repository';
+import { SessionRepository } from './repositories/session-repository';
+import { CronJobRepository, CronRunRepository } from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
 import type {
@@ -96,33 +95,36 @@ export class DatabaseManager {
   // ─── 仓库绑定 ─────────────────────────────────────────────────
 
   private bindRepositories(db: DatabaseSync): void {
+    const sessionRepo = new SessionRepository(db);
     this.sessions = {
-      findOrCreate: (key) => sessions.findOrCreateSession(db, key),
-      findByKey: (key) => sessions.findSessionByKey(db, key),
-      findAll: () => sessions.findAllSessions(db),
-      findById: (id) => sessions.findSessionById(db, id),
-      deleteById: (id) => sessions.deleteSessionById(db, id),
-      setRole: (id, roleId) => sessions.setSessionRole(db, id, roleId),
-      setModel: (id, modelId) => sessions.setSessionModel(db, id, modelId),
+      findOrCreate: (key) => sessionRepo.findOrCreate(key),
+      findByKey: (key) => sessionRepo.findByKey(key),
+      findAll: () => sessionRepo.findAll('id'),
+      findById: (id) => sessionRepo.findById(id),
+      deleteById: (id) => sessionRepo.deleteWithRelations(id),
+      setRole: (id, roleId) => sessionRepo.setRole(id, roleId),
+      setModel: (id, modelId) => sessionRepo.setModel(id, modelId),
     };
 
+    const cronJobsRepo = new CronJobRepository(db);
     this.cronJobs = {
-      create: (params) => cron.createCronJob(db, params),
-      findById: (id) => cron.findCronJobById(db, id),
-      findAll: () => cron.findAllCronJobs(db),
-      delete: (id) => cron.deleteCronJob(db, id),
-      updateNextRun: (id, nextRun) => cron.updateCronJobNextRun(db, id, nextRun),
-      update: (id, patch) => cron.updateCronJob(db, id, patch),
-      setEnabled: (id, enabled) => cron.setCronJobEnabled(db, id, enabled),
+      create: (params) => cronJobsRepo.createJob(params),
+      findById: (id) => cronJobsRepo.findById(id),
+      findAll: () => cronJobsRepo.findAll('next_run ASC'),
+      delete: (id) => cronJobsRepo.deleteWithRuns(id),
+      updateNextRun: (id, nextRun) => cronJobsRepo.updateNextRun(id, nextRun),
+      update: (id, patch) => cronJobsRepo.updateJob(id, patch),
+      setEnabled: (id, enabled) => cronJobsRepo.setEnabled(id, enabled),
     };
 
+    const cronRunsRepo = new CronRunRepository(db);
     this.cronRuns = {
-      create: (params) => cron.createCronRun(db, params),
-      markCompleted: (runId, result) => cron.markCronRunCompleted(db, runId, result),
-      markFailed: (runId, error) => cron.markCronRunFailed(db, runId, error),
-      markAbandoned: (runIds) => cron.markCronRunsAbandoned(db, runIds),
-      findRunning: () => cron.findRunningCronRuns(db),
-      findByJobId: (jobId) => cron.findCronRunsByJobId(db, jobId),
+      create: (params) => cronRunsRepo.createRun(params),
+      markCompleted: (runId, result) => cronRunsRepo.markCompleted(runId, result),
+      markFailed: (runId, error) => cronRunsRepo.markFailed(runId, error),
+      markAbandoned: (runIds) => cronRunsRepo.markAbandoned(runIds),
+      findRunning: () => cronRunsRepo.findRunning(),
+      findByJobId: (jobId) => cronRunsRepo.findByJobId(jobId),
     };
 
     this.usage = {

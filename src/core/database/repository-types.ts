@@ -6,30 +6,8 @@
  * 避免重复声明相同子集类型。
  */
 
-import type {
-  findOrCreateSession,
-  findSessionByKey,
-  findAllSessions,
-  findSessionById,
-  deleteSessionById,
-  setSessionRole,
-  setSessionModel,
-} from './repositories/session-repository';
-import type {
-  createCronJob,
-  findCronJobById,
-  findAllCronJobs,
-  deleteCronJob,
-  updateCronJobNextRun,
-  updateCronJob,
-  setCronJobEnabled,
-  createCronRun,
-  markCronRunCompleted,
-  markCronRunFailed,
-  markCronRunsAbandoned,
-  findRunningCronRuns,
-  findCronRunsByJobId,
-} from './repositories/cron-repository';
+import type { SessionRepository } from './repositories/session-repository';
+import type { CronJobRepository, CronRunRepository } from './repositories/cron-repository';
 import type {
   createUsageRecord,
   getUsageStats,
@@ -43,36 +21,34 @@ import type {
 
 /** 会话仓库 API 类型 */
 export type SessionsRepository = {
-  findOrCreate: (
-    key: Parameters<typeof findOrCreateSession>[1],
-  ) => ReturnType<typeof findOrCreateSession>;
-  findByKey: (key: Parameters<typeof findSessionByKey>[1]) => ReturnType<typeof findSessionByKey>;
-  findAll: () => ReturnType<typeof findAllSessions>;
-  findById: (id: string) => ReturnType<typeof findSessionById>;
-  deleteById: (id: string) => ReturnType<typeof deleteSessionById>;
-  setRole: (id: string, roleId: string) => ReturnType<typeof setSessionRole>;
-  setModel: (id: string, modelId: string) => ReturnType<typeof setSessionModel>;
+  findOrCreate: SessionRepository['findOrCreate'];
+  findByKey: SessionRepository['findByKey'];
+  findAll: () => ReturnType<SessionRepository['findAll']>;
+  findById: (id: string) => ReturnType<SessionRepository['findById']>;
+  deleteById: (id: string) => ReturnType<SessionRepository['deleteWithRelations']>;
+  setRole: (id: string, roleId: string) => ReturnType<SessionRepository['setRole']>;
+  setModel: (id: string, modelId: string) => ReturnType<SessionRepository['setModel']>;
 };
 
 /** 定时任务仓库 API 类型 */
 export type CronJobsRepository = {
-  create: (params: Parameters<typeof createCronJob>[1]) => ReturnType<typeof createCronJob>;
-  findById: (id: string) => ReturnType<typeof findCronJobById>;
-  findAll: () => ReturnType<typeof findAllCronJobs>;
-  delete: (id: string) => ReturnType<typeof deleteCronJob>;
-  updateNextRun: (id: string, nextRun: Date | null) => ReturnType<typeof updateCronJobNextRun>;
-  update: (id: string, patch: Parameters<typeof updateCronJob>[2]) => ReturnType<typeof updateCronJob>;
-  setEnabled: (id: string, enabled: boolean) => ReturnType<typeof setCronJobEnabled>;
+  create: (params: Parameters<CronJobRepository['createJob']>[0]) => ReturnType<CronJobRepository['createJob']>;
+  findById: (id: string) => ReturnType<CronJobRepository['findById']>;
+  findAll: () => ReturnType<CronJobRepository['findAll']>;
+  delete: (id: string) => ReturnType<CronJobRepository['deleteWithRuns']>;
+  updateNextRun: (id: string, nextRun: Date | null) => ReturnType<CronJobRepository['updateNextRun']>;
+  update: (id: string, patch: Parameters<CronJobRepository['updateJob']>[1]) => ReturnType<CronJobRepository['updateJob']>;
+  setEnabled: (id: string, enabled: boolean) => ReturnType<CronJobRepository['setEnabled']>;
 };
 
 /** 定时任务执行仓库 API 类型 */
 export type CronRunsRepository = {
-  create: (params: { jobId: string }) => ReturnType<typeof createCronRun>;
-  markCompleted: (runId: string, result: string) => ReturnType<typeof markCronRunCompleted>;
-  markFailed: (runId: string, error: string) => ReturnType<typeof markCronRunFailed>;
-  markAbandoned: (runIds: string[]) => ReturnType<typeof markCronRunsAbandoned>;
-  findRunning: () => ReturnType<typeof findRunningCronRuns>;
-  findByJobId: (jobId: string) => ReturnType<typeof findCronRunsByJobId>;
+  create: (params: { jobId: string }) => ReturnType<CronRunRepository['createRun']>;
+  markCompleted: (runId: string, result: string) => ReturnType<CronRunRepository['markCompleted']>;
+  markFailed: (runId: string, error: string) => ReturnType<CronRunRepository['markFailed']>;
+  markAbandoned: (runIds: string[]) => ReturnType<CronRunRepository['markAbandoned']>;
+  findRunning: () => ReturnType<CronRunRepository['findRunning']>;
+  findByJobId: (jobId: string) => ReturnType<CronRunRepository['findByJobId']>;
 };
 
 /** 用量统计仓库 API 类型 */

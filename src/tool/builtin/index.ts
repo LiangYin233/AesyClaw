@@ -31,17 +31,11 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
   const cronDeps = { cronManager: deps.cronManager };
 
   const lookupCallLLM: (
-    ...params: Parameters<InstanceType<typeof Agent>['callLLM']>
-  ) => ReturnType<InstanceType<typeof Agent>['callLLM']> = (
-    role,
-    content,
-    history,
-    sessionKey,
-    sendMessage,
-  ) => {
-    const agent = deps.agentRegistry.getAgent(sessionKey);
+    options: Parameters<InstanceType<typeof Agent>['callLLM']>[0]
+  ) => ReturnType<InstanceType<typeof Agent>['callLLM']> = (options) => {
+    const agent = deps.agentRegistry.getAgent(options.sessionKey);
     if (!agent) throw new Error('未找到活跃 Agent');
-    return agent.callLLM(role, content, history, sessionKey, sendMessage);
+    return agent.callLLM(options);
   };
 
   registry.register(createSendMsgTool());
